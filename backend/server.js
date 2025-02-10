@@ -1,50 +1,46 @@
-import express from "express"
-import dotenv from "dotenv"
-import cors from "cors"
-import connectDB from "./db/connectDB.js";
-import roleRoute from "./routes/role.route.js"
-import authRoute from "./routes/auth.route.js"
-import locationRoute from "./routes/location.route.js"
-import userRoute from "./routes/user.route.js"
-import multer from "multer";
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const connectDB = require('./config/db'); // Database connection
+const compression = require('compression'); // Compress responses
+const path = require('path');
 
+// Load environment variables
 dotenv.config();
 
+// Connect to the database
+connectDB();
+
+// Initialize Express app
 const app = express();
-const PORT = process.env.PORT;
 
-app.use(express.json())
+// Middleware
+// app.use(cors()); // Enable CORS
 app.use(cors({
-    origin: "http://localhost:3000",
-    credentials:true,
-}))
-app.use(express.urlencoded({
-    extended:true
-}))
+  exposedHeaders: ['Content-Disposition']
+}));
+app.use(express.json({ limit: '10kb' })); // Limit request body size for security
+app.use(compression()); // Compress response bodies for better performance
 
-// Error handling for multer
+// Serve static files from the "uploads" directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve static frontend files (for production)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'public')));
+  app.get('*', (req, res) =>
+    res.sendFile(path.join(__dirname, 'public', 'index.html'))
+  );
+}
+
+// Global Error Handler (optional)
 app.use((err, req, res, next) => {
-  
-  if (err instanceof multer.MulterError) {
-    // Multer-specific error (like file size limit exceeded)
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      res.status(400).send('File size is too large. Maximum allowed size is 2MB.');
-    } else {
-      res.status(400).send(err.message);
-    }
-  } else{
-    // Other errors
-    res.status(400).send(err.message);
-    }
-    
+  console.error(err.stack);
+  res.status(500).json({ message: 'Server error', error: err.message });
 });
 
-app.use("/api/roles", roleRoute);
-app.use("/api/auth", authRoute);
-app.use("/api/locations", locationRoute);
-app.use("/api/users", userRoute);
-
+// Start the server
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`)
-    connectDB();
-})
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
