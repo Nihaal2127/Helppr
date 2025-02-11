@@ -1,0 +1,23 @@
+.sidebar {
+    width: 250px;
+    background: #222;
+    color: white;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  
+  .sidebar a {
+    color: white;
+    text-decoration: none;
+    padding: 10px;
+    display: block;
+  }
+  
+  .sidebar a.sidebar-active,
+  .sidebar a:hover {
+    background: #9B0C0C;
+    color: white;
+  }
+  
