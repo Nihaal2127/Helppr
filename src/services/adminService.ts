@@ -54,7 +54,7 @@ export const logout = async (): Promise<Boolean> => {
       return false;
     }
   } catch (error) {
-    console.log("Error during admin logout:", error);
+    console.log("Error during user logout:", error);
     return false;
   }
 };
@@ -65,17 +65,17 @@ export const fetchById = async (id: string): Promise<UserModel | null> => {
     if (response.success) {
       return response.data.record;
     } else {
-      console.log("Failed to fetch admin:", response.message || "Unknown error");
+      console.log("Failed to fetch user:", response.message || "Unknown error");
       return null;
     }
   } catch (error) {
-    console.log("Error during admin login:", error);
+    console.log("Error during user login:", error);
     return null;
   }
 };
 
-export const deleteAdmin = async (id: string): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.DELETE_ADMIN(id), "DELETE");
+export const deleteUser = async (id: string): Promise<boolean> => {
+  const response = await apiRequest(ApiPaths.DELETE_USER(id), "DELETE");
   if (response.success) {
     return true;
   } else {
@@ -88,7 +88,7 @@ export const createOrUpdateUser = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_ADMIN(id!) : ApiPaths.CREATE_ADMIN;
+  const path = isEditable ? ApiPaths.UPDATE_USER(id!) : ApiPaths.CREATE_USER;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

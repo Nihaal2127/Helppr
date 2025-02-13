@@ -6,8 +6,11 @@ import loginLogo from "../../assets/icons/login_logo.svg"
 import EditProfile from "./editProfile";
 import { UserModel } from "../../models/UserModel";
 import { getCreatedById } from "../../helper/localStorageHelper";
-import { fetchById } from "../../services/adminService"
+import { fetchById, createOrUpdateUser } from "../../services/adminService"
 import CustomPhotoUpload from "../../components/CustomPhotoUpload";
+import { createOrUpdateDocument } from "../../services/documentUploadService";
+import { showErrorAlert } from "../../helper/alertHelper";
+import { AppConstant } from "../../constant/AppConstant";
 
 const Profile = () => {
 
@@ -49,10 +52,11 @@ const Profile = () => {
         fetchData();
     };
 
-    const onUploadSave = () => {
+    const onUploadSave = async () => {
         if (userDetails?.profile_url && (fileInputs.length > 0 && replaceUrls.length > 0)) {
             //edit profile
             console.log("Update Profile Photo");
+            uploadProfile(true);
         } else if (userDetails?.profile_url && (fileInputs.length === 0 && replaceUrls.length === 0)) {
             //delete profile
             console.log("Remove Profile");
@@ -60,14 +64,41 @@ const Profile = () => {
             // add profile   
             if (fileInputs.length > 0) {
                 console.log("Add Profile Photo");
-            }else{
+                uploadProfile(false);
+            } else {
                 console.log("No Profile Photo choose");
             }
-
         }
-         onUploadCloseModal();
+
     };
 
+    const uploadProfile = async (isEditable: boolean) => {
+        const formData = new FormData();
+        formData.append("type", "2");
+        fileInputs.forEach((file) => formData.append("files", file));
+        if (isEditable) {
+            if (replaceUrls.length > 0) {
+                formData.append("update_file_urls", JSON.stringify(replaceUrls));
+            }
+        }
+
+        let { response, fileList } = await createOrUpdateDocument(formData, isEditable);
+
+        if (response) {
+            const payload = {
+                profile_url: fileList[0],
+            };
+            if (!userDetails?._id) {
+                showErrorAlert("Unable to update. ID is missing.");
+                return;
+            }
+
+            let responseUpdate = await createOrUpdateUser(payload, true, userDetails?._id);
+            if (responseUpdate) {
+                onUploadCloseModal();
+            }
+        }
+    }
     return (
         <>
             <div className="main-page-content">
@@ -86,7 +117,7 @@ const Profile = () => {
                         }}>
                             <div style={{ position: "relative", display: "inline-block" }}>
                                 <img
-                                    src={userDetails?.profile_url ? userDetails?.profile_url : loginLogo}
+                                    src={userDetails?.profile_url ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}?t=${Date.now()}` : loginLogo}
                                     alt="Profile"
                                     style={{
                                         width: "200px",

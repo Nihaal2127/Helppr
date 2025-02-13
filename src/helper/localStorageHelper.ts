@@ -19,4 +19,5 @@ export const clearLocalStorage = () => {
 
 export const getCreatedById = () => {
     return getLocalStorage(AppConstant.createdById) as string;
-  };
+};
+

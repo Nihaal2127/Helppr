@@ -7,6 +7,7 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
+import {setNavigate} from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
@@ -18,6 +19,7 @@ function App() {
   const { width } = useViewport();
   const location = useLocation();
   const navigate = useNavigate();
+  setNavigate(navigate);
   const is404Page = location.pathname === "/404";
   const isAuthRoute = location.pathname.includes("/auth");
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));

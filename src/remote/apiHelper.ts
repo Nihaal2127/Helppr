@@ -4,12 +4,12 @@ import { ROUTES } from '../routes/Routes';
 import { AppConstant } from "../constant/AppConstant";
 import { clearLocalStorage } from "../helper/localStorageHelper";
 import { ApiPaths } from "./apiPaths";
+import {getNavigate} from "../helper/utility";
 
 export const apiRequest = async (
   endpoint: string,
   method: "GET" | "POST" | "PUT" | "DELETE",
   payload?: any,
-  navigate?: any,
   isMultipart: boolean = false
 ) => {
   try {
@@ -23,10 +23,10 @@ export const apiRequest = async (
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
     console.log("API Request URL:", requestUrl);
     console.log("API header :", headers);
-    //console.log("isMultipart :", isMultipart);
+    console.log("isMultipart :", isMultipart);
     if (isMultipart) {
       payload.forEach((value: FormDataEntryValue, key: string) => {
-        //console.log("API FormData :", `${key}: ${value}`);
+        console.log("API FormData :", `${key}: ${value}`);
       });
     } else {
       console.log("API payload :", payload);
@@ -44,7 +44,9 @@ export const apiRequest = async (
     console.log("API Response:", data);
     if (response.ok) {
       if (method !== "GET") {
-        if (endpoint !== ApiPaths.LOGOUT() 
+        if (endpoint !== ApiPaths.LOGOUT() &&
+        endpoint !== ApiPaths.DOCUMENT_UPLOAD  &&
+        endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD
         ) {
           const successMessage = data.message || "Operation successful!";
           showSuccessAlert(successMessage);
@@ -52,11 +54,12 @@ export const apiRequest = async (
       }
       return { success: true, data };
     } else {
+      const navigate = getNavigate();
       if (response.status === 500) {
-        if (navigate) navigate(ROUTES.ERROR500.path);
+        navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         clearLocalStorage();
-        if (navigate) navigate(ROUTES.LOGIN.path);
+        navigate?.(ROUTES.LOGIN.path);
       }
 
       showErrorAlert(data.message);
@@ -73,7 +76,6 @@ export const apiRequest = async (
 export const apiRequestBlob = async (
   endpoint: string,
   payload: any,
-  navigate?: any,
 ) => {
   try {
     showLoader();
@@ -116,11 +118,12 @@ export const apiRequestBlob = async (
       showSuccessAlert("Download Successfully");
       return { success: true };
     } else {
+      const navigate = getNavigate();
       if (response.status === 500) {
-        if (navigate) navigate(ROUTES.ERROR500.path);
+        navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         clearLocalStorage();
-        if (navigate) navigate(ROUTES.LOGIN.path);
+        navigate?.(ROUTES.LOGIN.path);
       }
 
       showErrorAlert("Failed to download the file");
