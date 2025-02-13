@@ -69,7 +69,6 @@ const Profile = () => {
                 console.log("No Profile Photo choose");
             }
         }
-
     };
 
     const uploadProfile = async (isEditable: boolean) => {
@@ -99,6 +98,7 @@ const Profile = () => {
             }
         }
     }
+
     return (
         <>
             <div className="main-page-content">

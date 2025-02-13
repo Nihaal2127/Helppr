@@ -13,7 +13,11 @@ export const mainMenuItems = [
         label: "Dashboard",
         path: ROUTES.DASHBOARD.path,
     },
-    { path: "/admin/service-management", label: "Service Management" },
+    {
+        key: "service-management",
+        label: "Service Management",
+        path: ROUTES.SERVICE_MANAGEMENT.path,
+    },
     { path: "/admin/user-management", label: "User Management" },
     { path: "/order-management", label: "Order Management" },
     { path: "/financials", label: "Financials" },
