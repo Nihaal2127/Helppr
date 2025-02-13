@@ -44,7 +44,6 @@ function App() {
   // }, [location.pathname]);
 
   useEffect(() => {
-    setIsAuthenticated(false);
     const token = getLocalStorage(AppConstant.authToken);
     //console.log("App Token:",token)
     if (token) {
@@ -60,21 +59,24 @@ function App() {
     }
   }, [location.pathname, navigate]);
   return (
-    <div>
 
+    <div className={`custom-app-layout ${!isAuthRoute && !is404Page ? "with-sidebar" : "without-sidebar"}`}>
       {!isAuthRoute && !is404Page && (
-        <Suspense fallback={null}>
-          <Sidebar />
-        </Suspense>
+        <aside className="sidebar">
+          <Suspense fallback={null}>
+            <Sidebar />
+          </Suspense>
+        </aside>
       )}
 
-      <Container fluid>
+      <main className="custom-content">
         <Suspense fallback={null}>
           <AppRoutes isAuthenticated={isAuthenticated} />
+          <ToastContainer />
         </Suspense>
-      </Container>
+      </main>
 
-      <ToastContainer />
+      
     </div>
   );
 }

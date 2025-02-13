@@ -1,3 +1,4 @@
+import { AppConstant } from "../constant/AppConstant";
 
 export const getLocalStorage = (key: string) => {
     return localStorage.getItem(key);
@@ -13,4 +14,9 @@ export const removeItemLocalStorage = (key: string) => {
 
 export const clearLocalStorage = () => {
     localStorage.clear();
+    sessionStorage.clear();
 };
+
+export const getCreatedById = () => {
+    return getLocalStorage(AppConstant.createdById) as string;
+  };

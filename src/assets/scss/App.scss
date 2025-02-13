@@ -2,7 +2,6 @@
   --theme-color: #3A0505;
   --bg-color: #FAFAFA;
   --primary-color: #9B0C0C;
-  --primary-color-rgba: rgba(155, 12, 12, 0.3);
   --sidebar-color: var(--theme-color);
   --primary-btn: var(--primary-color);
   --secondary-btn: #CE2A29;
@@ -15,7 +14,7 @@
   --btn-success: #42AC1B;
   --btn-danger: #AC1D1B;
   --btn-pending: #F14309;
-  --txtfld-border: #D1D1D1;
+  --txtfld-border: #a3a3a3;
   --txt-color: #484848;
   --lb-active-border: #740909;
   /* large box */
@@ -37,6 +36,45 @@
   --modal-bg-color: #c6c6c6;
 }
 
+@font-face {
+  font-family: 'MPLUSRounded1c-Bold';
+  src: url('../fonts/MPLUSRounded1c-Bold.ttf');
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Regular.otf') format('truetype');
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Bold.otf') format('truetype');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-SemiBold.otf') format('truetype');
+  font-weight: 600;
+}
+
+/* 
+Custom scrollbar */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--theme-color);
+  border-radius: 10px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -48,7 +86,7 @@ body {
   height: 100%;
   overflow-x: hidden;
   background-color: var(--bg-color);
-  font-family: 'Inter';
+  font-family: 'Inter', sans-serif;
   overflow-x: hidden;
 }
 
@@ -109,11 +147,11 @@ body {
 
 .form-control:focus {
   border-color: var(--primary-color) !important;
-  box-shadow: 0px 0px 10px  var(--primary-color-rgba) !important;
+  box-shadow: 0px 0px 10px var(--primary-color-rgba) !important;
 }
 
 .custom-form-input .form-control {
-  margin-bottom: 0px !important; 
+  margin-bottom: 0px !important;
   padding: 8px !important;
   border-color: var(--txtfld-border) !important;
   border-radius: 8px !important;
@@ -126,6 +164,187 @@ body {
   background-color: var(--bg-color) !important;
   font-family: 'Inter' !important;
 }
+
+.custom-app-layout {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  transition: all 0.3s ease-in-out;
+}
+
+.with-sidebar {
+  grid-template-columns: 250px 1fr;
+}
+
+.without-sidebar {
+  grid-template-columns: 1fr;
+}
+
+.custom-content {
+  padding: 0px;
+  width: 100%;
+  height: 100%;
+  background-color: var(--theme-color);
+  transition: all 0.3s ease-in-out;
+}
+
+.main-page-content {
+  overflow-y: auto;
+  padding: 20px;
+  width: 100%;
+  height: 100%;
+  margin: 0px;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  background-color: var(--bg-color);
+}
+
+.main-page-content h4 {
+  font-weight: bold;
+  color: var(--primary-txt-color);
+  padding: 0px 0px 24px 0px;
+  font-family: "Inter";
+  font-size: 24px;
+}
+
+.custom-profile-box {
+  border: 1px solid var(--lb1-border);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.custom-profile-link {
+  color: var(--content-txt-color);
+  margin-top: 5px;
+  display: block;
+  text-decoration: underline;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.custom-profile-lable {
+  color: var(--content-txt-color);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: "Inter";
+  margin-bottom: 0px;
+}
+
+.custom-title-lable {
+  color: var(--content-txt-color);
+  font-size: 16px;
+  font-weight: bold;
+  font-family: "Inter";
+  margin-bottom: 10px;
+  margin-right: 8px;
+}
+
+.custom-subtitle-lable {
+  color: var(--content-txt-color);
+  font-size: 16px;
+  font-weight: normal;
+  font-family: "Inter";
+  margin-bottom: 10px;
+}
+
+.custom-big-modal .modal-content {
+  border: none !important;
+  border-radius: 16px !important;
+  background-color: var(--bg-color);
+}
+
+.custom-modal-title {
+  color: var(--navi-color);
+  font-size: 20px;
+  font-weight: bold;
+  font-family: "Inter";
+}
+
+.custom-btn-primary {
+  background-color: var(--primary-color) !important;
+  border-radius: 16px !important;
+  width: 100% !important;
+  height: 36px !important;
+  font-size: 16px !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: normal !important;
+  color: var(--secondary-txt) !important;
+  border: none !important;
+}
+
+.custom-btn-secondary {
+  background-color: var(--secondary-txt) !important;
+  border: 1px solid var(--primary-color) !important;
+  border-radius: 16px !important;
+  width: 100% !important;
+  height: 36px !important;
+  font-size: 16px !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: normal !important;
+  color: var(--primary-txt-color) !important;
+}
+
+.custom-fill-btn {
+  background-color: var(--secondary-btn) !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+  height: 36px !important;
+  font-size: 14px !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: normal !important;
+  color: var(--secondary-txt) !important;
+  border: none !important;
+}
+
+.custom-outline-btn {
+  background-color: var(--bg-color) !important;
+  border: 1px solid var(--primary-txt-color) !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+  height: 36px !important;
+  font-size: 14px !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: normal !important;
+  color: var(--primary-txt-color) !important;
+}
+
+.custom-dialog-title {
+  color: var(--content-txt-color);
+  font-size: 20px;
+  font-weight: bold;
+  font-family: "Inter";
+  margin-top: 20px;
+  text-align: center;
+  width: 100%;
+}
+
+// .custom-content {
+//   width: 100%;
+//   padding: 0 1.5rem 1.5rem 1.5rem;
+//   min-height: 100vh;
+//   -webkit-transition: all 0.3s;
+//   -o-transition: all 0.3s;
+//   transition: all 0.3s;
+//   margin-top: 0.1rem;
+
+//   display: flex;
+//   flex-direction: column;
+//   height: 100%;
+// }
+
+// .custom-content h4 {
+//   font-weight: bold;
+//   color: var(--primary-txt-color);
+//   padding: 24px 0px 12px 0px;
+//   font-family: "Inter";
+//   font-size: 24px;
+// }
+
+// .custom-app-layout .custom-content .container-fluid  {
+//   background-color: var(--bg-color) !important;
+// }
 
 // .bg-image img {
 //   position: absolute;

@@ -1,78 +1,67 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { mainMenuItems, profileMenuItems } from "./menuItems";
+import { showSuccessAlert } from "../helper/alertHelper";
+import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
+import { AppConstant } from "../constant/AppConstant";
+import { logout } from "../services/adminService";
+import { ROUTES } from "../routes/Routes";
+import { openConfirmDialog } from "../components/CustomConfirmDialog";
 
 const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleLogoutClick = async (event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
+    if (key === "logout") {
+      event.preventDefault();
+      openConfirmDialog(
+        "Are you sure you want to logout? ",
+        "Logout",
+        "Cancle",
+        async () => {
+          let isAdmin = getLocalStorage(AppConstant.isAdmin);
+          let response = isAdmin === "true" ? await logout() : await logout();
+          if (response) {
+            clearLocalStorage();
+            setLocalStorage(AppConstant.isAdmin, isAdmin);
+            navigate(ROUTES.LOGIN.path, { replace: true });
+          }
+        });
+    }
+  };
+
   return (
     <nav id="sidebar" className="sidebar">
-      <h1>
-        <NavLink to="/" className="logo">
-          helper!
-        </NavLink>
-      </h1>
+      <h1>helper!</h1>
 
-      <div className="custom-menu">
+      {/* <div className="custom-menu">
         <button type="button" id="sidebarCollapse" className="btn">
           <i className="fa fa-bars"></i>
           <span className="sr-only">Toggle Menu</span>
         </button>
-      </div>
+      </div> */}
 
       <div className="p-4 pt-5">
         <ul className="list-unstyled components mb-5" id="nav-links">
-          <li>
-          <NavLink to="/" className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
-              Dashboard
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/admin/service-management" className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
-              Service Management
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/admin/user-management" className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
-              User Management
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/order-management">Order Management</NavLink>
-          </li>
-          <li>
-            <NavLink to="/financials">Financials</NavLink>
-          </li>
-          <li>
-            <NavLink to="/reports">Reports & Analytics</NavLink>
-          </li>
-          <li>
-            <NavLink to="/settings">Settings</NavLink>
-          </li>
-          <li>
-            <NavLink to="/support">Support Center</NavLink>
-          </li>
-          <li>
-            <NavLink to="/marketing">Marketing & Promotions</NavLink>
-          </li>
-          <li>
-            <NavLink to="/notifications">Notifications</NavLink>
-          </li>
-          <li>
-            <NavLink to="/calendar">Calendar</NavLink>
-          </li>
+          {mainMenuItems.map(({ key, path, label }) => (
+            <li key={key}>
+              <NavLink to={path} className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
+                {label}
+              </NavLink>
+            </li>
+          ))}
         </ul>
 
-        <ul className="list-unstyled components mb-5">
-          <li>
-            <NavLink to="/profile">
-              <img src="/assets/icons/menu-profile.svg" alt="Profile" className="menu-icon" />
-              Profile
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/logout">
-              <img src="/assets/icons/menu-logout.svg" alt="Logout" className="menu-icon" />
-              Logout
-            </NavLink>
-          </li>
+        <ul className="list-unstyled components mb-2">
+          {profileMenuItems.map(({ key, path, label, icon }) => (
+            <li key={key}>
+              <NavLink to={path} onClick={(e) => handleLogoutClick(e, key)}>
+                <img src={icon} alt={label} className="menu-icon" />
+                {label}
+              </NavLink>
+            </li>
+          ))}
         </ul>
       </div>
     </nav>

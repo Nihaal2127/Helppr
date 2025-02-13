@@ -14,7 +14,7 @@ const Login = () => {
     const onSubmitEvent = async (data: any) => {
         const payload = {
             email: data.email,
-            password: data.password,
+            type: 1,
         };
         let response = await forgotPassword(payload);
         if (response) {

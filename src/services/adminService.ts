@@ -1,10 +1,10 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
-import { AdminModel } from "../models/AdminModel";
+import { UserModel } from "../models/UserModel";
 
 export const login = async (
   payload: any
-): Promise<{ admin: AdminModel | null; response: boolean }> => {
+): Promise<{ admin: UserModel | null; response: boolean }> => {
   try {
     const response = await apiRequest(ApiPaths.LOGIN(), "POST", payload);
     if (response.success) {
@@ -59,9 +59,9 @@ export const logout = async (): Promise<Boolean> => {
   }
 };
 
-export const fetchAdminById = async (id: string) : Promise<AdminModel | null> => {
+export const fetchById = async (id: string): Promise<UserModel | null> => {
   try {
-    const response = await apiRequest(`${ApiPaths.GET_ADMIN_BY_ID()}/${id}`, "GET");
+    const response = await apiRequest(`${ApiPaths.GET_BY_ID()}/${id}`, "GET");
     if (response.success) {
       return response.data.record;
     } else {
@@ -83,7 +83,7 @@ export const deleteAdmin = async (id: string): Promise<boolean> => {
   }
 };
 
-export const createOrUpdateAdmin = async (
+export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,
   id?: string
@@ -92,6 +92,17 @@ export const createOrUpdateAdmin = async (
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);
+  if (response.success) {
+    return true;
+  }
+  return false;
+};
+
+export const changePassword = async (
+  payload: any,
+): Promise<boolean> => {
+
+  const response = await apiRequest(ApiPaths.CHANGE_PASSWORD, "POST", payload);
   if (response.success) {
     return true;
   }

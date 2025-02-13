@@ -16,8 +16,9 @@ const Login = () => {
 
     const onSubmitEvent = async (data: any) => {
         const payload = {
-            user_id: data.user_id,
+            email: data.email,
             password: data.password,
+            type: 1,
         };
         let { admin, response } = await login(payload);
         if (response) {
@@ -31,7 +32,7 @@ const Login = () => {
 
     return (
 
-        <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{height: "100vh", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
             <Col>
                 <img src={loginBGLogo} className="img-fluid" alt="Background Logo" />
@@ -64,12 +65,12 @@ const Login = () => {
                             onSubmit={handleSubmit(onSubmitEvent)}>
                             <CustomFormInput
                                 label=""
-                                controlId="user_id"
-                                placeholder="Enter User ID"
+                                controlId="email"
+                                placeholder="Enter Email"
                                 register={register}
-                                error={errors.user_id}
+                                error={errors.email}
                                 asCol={false}
-                                validation={{ required: "User id is required" }}
+                                validation={{ required: "Email is required" }}
                             />
                             <CustomFormInput
                                 label=""

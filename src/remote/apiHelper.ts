@@ -22,7 +22,7 @@ export const apiRequest = async (
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
     console.log("API Request URL:", requestUrl);
-    //console.log("API header :", headers);
+    console.log("API header :", headers);
     //console.log("isMultipart :", isMultipart);
     if (isMultipart) {
       payload.forEach((value: FormDataEntryValue, key: string) => {
