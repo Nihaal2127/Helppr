@@ -6,6 +6,7 @@ import sortIcon from "../assets/icons/sort.svg";
 import actionIcon from "../assets/icons/3_dots.svg";
 
 type CustomUtilityBoxProps = {
+    addButtonLable: string;
     onAddClick: () => void;
     onDownloadClick: () => void;
     onSortClick: () => void;
@@ -13,12 +14,12 @@ type CustomUtilityBoxProps = {
     onSearch: (value: string) => void;
 };
 
-const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({ onAddClick, onDownloadClick, onSortClick, onMoreClick, onSearch }) => {
+const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({ addButtonLable,onAddClick, onDownloadClick, onSortClick, onMoreClick, onSearch }) => {
     return (
         <div className="custom-utilty-box">
             <button type="button" className="custom-add-button" onClick={onAddClick}>
                 <img src={addIcon} />
-                <span>Add Category</span>
+                <span>{addButtonLable}</span>
             </button>
             <div>
                 <div className="custom-search-container">

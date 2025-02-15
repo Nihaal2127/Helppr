@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { Row, Col } from "react-bootstrap";
@@ -6,7 +6,9 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString } from "../../helper/utility";
-import CustomTable from "../../components/CustomTableProps";
+import CustomTable from "../../components/CustomTable";
+import Table from "../../components/Table";
+import AddEditCategoryDialog from "./AddEditCategoryDialog";
 
 const ServiceManagement = () => {
     const { register, setValue } = useForm();
@@ -15,15 +17,14 @@ const ServiceManagement = () => {
     const [selectedBox, setSelectedBox] = useState<string>("box-category");
     const [searchQuery, setSearchQuery] = useState("");
 
-
     const [dataList, setDataList] = useState([
         { id: "C1", name: "Category 1", description: "Description 1", services: 5, helpers: 10, status: "Active" },
         { id: "C2", name: "Category 2", description: "Description 2", services: 3, helpers: 15, status: "Inactive" },
     ]);
 
-    const [page, setPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
-    const totalPages = Math.ceil(dataList.length / pageSize);
+    const [totalPages, setTotalPages] = useState(0);
 
     const handleSelect = (divId: string) => {
         setSelectedBox(divId);
@@ -32,11 +33,33 @@ const ServiceManagement = () => {
         setSearchQuery(value);
         console.log("Searching for:", value);
     };
+
+    const columns = React.useMemo(() => [
+        {
+            Header: "SR No",
+            accessor: "serial_no",
+            Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        },
+        { Header: "Appointment No", accessor: "unique_id" },
+        { Header: "Service", accessor: "service_name" },
+        {
+            Header: "Price",
+            accessor: "price",
+            Cell: ({ value }: { value: number }) => <span>${value}</span>,
+        },
+
+        { Header: "Customer", accessor: "customer_name" },
+        { Header: "Phone Number", accessor: "customer_phone_number" },
+        { Header: "Fitting Partner", accessor: "fitting_partner_name" },
+        { Header: "Created By", accessor: "created_by_name" },
+        { Header: "Description", accessor: "description" },
+        { Header: "Vehicle rego", accessor: "vehicle_rego" },
+    ], [currentPage, pageSize]);
+
     return (
         <>
             <div className="main-page-content">
-            <h4>Service Management</h4>
-                {/* <CustomHeader
+                <CustomHeader
                     title="Service Management"
                     register={register}
                     setValue={setValue}
@@ -57,24 +80,48 @@ const ServiceManagement = () => {
                 </div>
 
                 <CustomUtilityBox
-                    onAddClick={() => { }}
+                    addButtonLable={
+                        selectedBox === "box-category" ? "Add Category" : "Add Services"
+                    }
+                    onAddClick={() => {
+                        selectedBox === "box-category"
+                          ? AddEditCategoryDialog.show(false, null)
+                          : AddEditCategoryDialog.show(true, null);
+                      }}                                       
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={handleSearch}
                 />
 
-                <CustomTable
+                {/* <CustomTable
                     data={dataList}
-                    currentPage={page}
+                    currentPage={currentPage}
                     totalPages={totalPages}
                     pageSize={pageSize}
-                    onPageChange={setPage}
-                    onLimitChange={setPageSize}
+                    onPageChange={(page: number) => setCurrentPage(page)}
+                    onLimitChange={(pageSize: number) => {
+                        setPageSize(pageSize);
+                        setCurrentPage(1);
+                    }}
                     onEdit={(row) => console.log("Edit", row)}
                     onDelete={(row) => console.log("Delete", row)}
-                />*/}
-            </div> 
+                /> */}
+
+                <Table
+                    columns={columns}
+                    data={dataList}
+                    pageSize={pageSize}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={(page: number) => setCurrentPage(page)}
+                    onLimitChange={(pageSize: number) => {
+                        setPageSize(pageSize);
+                        setCurrentPage(1);
+                    }}
+                    theadClass="table-light"
+                />
+            </div>
         </>
     );
 }

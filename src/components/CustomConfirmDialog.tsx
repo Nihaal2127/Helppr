@@ -44,12 +44,12 @@ export const openConfirmDialog = (
                 <label className="custom-dialog-title mt-6">{title}</label>
                 <Row className="mt-5">
                     <Col xs={6} className="text-center">
-                        <Button type="submit" className="custom-fill-btn" onClick={onConfirmClick}>
+                        <Button type="submit" className="custom-btn-primary" onClick={onConfirmClick}>
                             {confirmButtonText}
                         </Button>
                     </Col>
                     <Col xs={6} className="text-center" onClick={closeModal}>
-                        <Button className="custom-outline-btn">
+                        <Button className="custom-btn-secondary">
                             {cancleButtonText}
                         </Button>
                     </Col>
