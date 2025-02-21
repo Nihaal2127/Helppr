@@ -46,7 +46,8 @@ export const apiRequest = async (
       if (method !== "GET") {
         if (endpoint !== ApiPaths.LOGOUT() &&
         endpoint !== ApiPaths.DOCUMENT_UPLOAD  &&
-        endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD
+        endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
+        endpoint !== ApiPaths.GET_COUNT
         ) {
           const successMessage = data.message || "Operation successful!";
           showSuccessAlert(successMessage);

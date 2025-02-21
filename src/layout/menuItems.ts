@@ -14,11 +14,20 @@ export const mainMenuItems = [
         path: ROUTES.DASHBOARD.path,
     },
     {
+        key: "location-management",
+        label: "Location Management",
+        path: ROUTES.LOCATION_MANAGEMENT.path,
+    },
+    {
         key: "service-management",
         label: "Service Management",
         path: ROUTES.SERVICE_MANAGEMENT.path,
     },
-    { path: "/admin/user-management", label: "User Management" },
+    {
+        key: "user-management",
+        label: "User Management",
+        path: ROUTES.USER_MANAGEMENT.path,
+    },
     { path: "/order-management", label: "Order Management" },
     { path: "/financials", label: "Financials" },
     { path: "/reports", label: "Reports & Analytics" },

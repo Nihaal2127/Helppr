@@ -1,102 +1,175 @@
-import React, { useMemo } from "react";
-import editIcon from "../assets/icons/Edit.svg";
-import deleteIcon from "../assets/icons/delete.svg";
+import {
+  useTable,
+  usePagination,
+  TableState,
+  UsePaginationState,
+  UseTableOptions,
+} from "react-table";
 
-type CustomTableProps = {
+import classNames from "classnames";
+import CustomPagination from "./CustomPagination";
+
+interface CustomTableProps {
+  columns: {
+    Header: string;
+    accessor: string;
+    sort?: boolean;
+    Cell?: any;
+    className?: string;
+  }[];
   data: any[];
   pageSize?: number;
   currentPage?: number;
   totalPages?: number;
-  isPagination?: boolean;
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
-  onEdit?: (row: any) => void;
-  onDelete?: (row: any) => void;
-};
+  tableClass?: string;
+  theadClass?: string;
+  isPagination?: boolean;
+}
 
-const CustomTable: React.FC<CustomTableProps> = ({
-  data,
-  pageSize = 10,
-  currentPage = 1,
-  totalPages = 1,
-  isPagination = true,
-  onPageChange,
-  onLimitChange,
-  onEdit,
-  onDelete,
-}) => {
+const CustomTable = (props: CustomTableProps) => {
+  const pageSize = props["pageSize"] || 0;
+  const currentPage = props["currentPage"] || 0;
+  const totalPages = props["totalPages"] || 0;
+  const onPageChange = props["onPageChange"];
+  const onLimitChange = props.onLimitChange;
+  const isPagination = props.isPagination ?? true;
 
-  const columns = useMemo(() => {
-    if (data.length === 0) return [];
-    return Object.keys(data[0]);
-  }, [data]);
+  const dataTable = useTable(
+    {
+      columns: props.columns,
+      data: props.data,
+      initialState: {
+        pageSize: props.pageSize || 10,
+        pageIndex: (props.currentPage || 1) - 1,
+      } as Partial<TableState<object>> & Partial<UsePaginationState<object>>,
+      manualPagination: true,
+      pageCount: props.totalPages || Math.ceil(props.data.length / (props.pageSize || 10)),
+    } as UseTableOptions<object>,
+    usePagination
+  );
+
+  let rows = (dataTable as unknown as { page: any[] }).page;
 
   return (
-    <div className="table-container">
-      <table className="table table-striped table-bordered display nowrap">
-        <thead>
-          <tr className="custom-tbl-row">
-            <th>#</th>
-            {columns.map((col) => (
-              <th key={col}>{col}</th>
-            ))}
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, index) => (
-            <tr key={index}>
-              <td>{index + 1}</td>
-              {columns.map((col) => (
-                <td key={col}>{row[col]}</td>
-              ))}
-              <td>
-                {onEdit && (
-                  <img
-                    src={editIcon}
-                    alt="edit"
-                    className="custom-table-action-edit"
-                    onClick={() => onEdit(row)}
-                  />
-                )}
-                {onDelete && (
-                  <img
-                    src={deleteIcon}
-                    alt="delete"
-                    className="custom-table-action-delete"
-                    onClick={() => onDelete(row)}
-                  />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Pagination */}
-      {isPagination && totalPages > 1 && (
-        <div className="pagination-container">
-          <button disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
-            Prev
-          </button>
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <button disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
-            Next
-          </button>
-          {onLimitChange && (
-            <select onChange={(e) => onLimitChange(Number(e.target.value))} defaultValue={pageSize}>
-              {[10, 20, 50].map((limit) => (
-                <option key={limit} value={limit}>
-                  {limit} per page
-                </option>
-              ))}
-            </select>
+    <>
+      <div className="table-responsive" style={{ height: "80vh" }}>
+        <table
+          {...dataTable.getTableProps()}
+          className={classNames(
+            "table table-centered react-table table-hover table-bordered",
+            props["tableClass"]
           )}
-        </div>
-      )}
-    </div>
+          style={{
+            border: "1px solid var(--txtfld-border)",
+            borderCollapse: "collapse",
+          }}
+        >
+          <thead className={props["theadClass"]} style={{ textAlign: "center" }}>
+            {(dataTable.headerGroups || []).map((headerGroup: any) => (
+              <tr {...headerGroup.getHeaderGroupProps()}>
+                {(headerGroup.headers || []).map((column: any) => (
+                  <th
+                    {...column.getHeaderProps(
+                      column.sort && column.getSortByToggleProps()
+                    )}
+                    style={{
+                      backgroundColor: "var(--th-color)",
+                      color: "var(--th-txt-color)",
+                      fontFamily: "Inter",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                    }}
+                    className={classNames({
+                      sorting_desc: column.isSortedDesc === true,
+                      sorting_asc: column.isSortedDesc === false,
+                      sortable: column.sort === true,
+                    })}
+                  >
+                    {column.render("Header")}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
+            {(rows && rows.length > 0) ? (
+              (rows || []).map((row: any, i: number) => {
+                dataTable.prepareRow(row);
+                return (
+                  <tr {...row.getRowProps()}>
+                    {(row.cells || []).map((cell: any) => {
+                      return (
+                        <td
+                          {...cell.getCellProps([
+                            {
+                              className: cell.column.className,
+                            },
+                          ])}
+                          style={{
+                            backgroundColor: i % 2 === 0 ? "var(--tr1-txt-color)" : "var(--tr2-txt-color)",
+                            color: "var(--content-txt-color)",
+                            fontFamily: "Inter",
+                            fontSize: "12px",
+                            fontWeight: "normal",
+                          }}
+                        >
+                          {cell.render("Cell")}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={props.columns.length} className="text-center">
+                  No records found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {(isPagination) && (<div id="pagination_container" style={{
+        height: "40px",
+        justifyContent: "center",
+        display: "flex",
+        flex: "0 0 auto",
+        paddingTop: "20px",
+        paddingBottom: "10px",
+        boxShadow: "0 -5px 5px -5px rgba(0, 0, 0, 0.1)",
+      }}>
+        <CustomPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={onPageChange}
+        />
+      </div>
+      )
+      }
+      {/* {(isPagination) && (<Pagination
+        tableProps={{
+          state: {
+            pageIndex: currentPage - 1,
+            pageSize: pageSize,
+          },
+          pageCount: totalPages,
+          gotoPage: (page: number) => onPageChange(page + 1),
+          setPageSize: (size: number) => {
+            onLimitChange?.(size);
+          },
+        }}
+        sizePerPageList={[
+          { text: "10", value: 10 },
+          { text: "20", value: 20 },
+          { text: "50", value: 50 },
+          { text: "100", value: 100 },
+        ]}
+      />)
+      } */}
+    </>
   );
 };
 

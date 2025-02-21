@@ -1,49 +1,37 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { Row, Col, Card } from "react-bootstrap";
+import { Card, Button } from "react-bootstrap";
+import appLogo from "../assets/icons/login_logo.svg";
+import { ROUTES } from "../routes/Routes";
+import { getNavigate } from "../helper/utility";
 
 const ServerError = () => {
   return (
-    <React.Fragment>
-      <div className="account-pages mt-5 mb-5">
-        <div className="container">
-          <Row className="justify-content-center">
-            <Col md={8} lg={6} xl={4}>
-              <Card className="bg-pattern">
-                <Card.Body className="p-4">
-                  {/* logo */}
-                  <div className="auth-logo">
-                    {/* <Link to="/" className="logo logo-dark text-center">
-                      <span className="logo-lg">
-                        <img src={logoDark} alt="" height="22" />
-                      </span>
-                    </Link> */}
-
-                  </div>
-                  <div className="text-center mt-4">
-                    <h1 className="text-error">500</h1>
-                    <h3 className="mt-3 mb-2">Internal Server Error</h3>
-                    <p className="text-muted mb-3">
-                      Why not try refreshing your page? or you can contact{" "}
-                      <Link to="#" className="text-dark">
-                        <b>Support</b>
-                      </Link>
-                    </p>
-
-                    <Link
-                      to="/"
-                      className="btn btn-success waves-effect waves-light"
-                    >
-                      Back to Home
-                    </Link>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
-        </div>
-      </div>
-    </React.Fragment>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+      }}
+    >
+      <Card style={{ width: "40%" }}>
+        <Card.Body className="p-4">
+          <div className="text-center mt-4">
+            <img src={appLogo} alt="logo" />
+            <h1 className="mt-3 text-error">500</h1>
+            <h3 className="mt-3 mb-2">Internal Server Error</h3>
+            <Button
+              type="submit"
+              className="custom-btn-primary mt-2"
+              onClick={() => {
+                getNavigate()?.(ROUTES.DASHBOARD.path);
+              }}
+            >
+              Back to Home
+            </Button>
+          </div>
+        </Card.Body>
+      </Card>
+    </div>
   );
 };
 

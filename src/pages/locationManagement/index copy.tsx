@@ -3,25 +3,22 @@ import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell } from "../../helper/utility";
-import CustomTable from "../../components/CustomTable";
-import AddEditCategoryDialog from "./AddEditCategoryDialog";
-import AddEditServiceDialog from "./AddEditServiceDialog";
-import { CategoryModel } from "../../models/CategoryModel";
-import { ServiceModel } from "../../models/ServiceModel";
-import { fetchCategory, deleteCategory } from "../../services/categoryService";
-import { deleteService, fetchService } from "../../services/servicesService";
+import { capitalizeString } from "../../helper/utility";
+import Table from "../../components/CustomTable";
+import AddEditStateDialog from "./AddEditStateDialog";
+import AddEditCityDialog from "./AddEditCityDialog";
+import { StateModel } from "../../models/StateModel";
+import { fetchState, deleteState } from "../../services/stateService";
+import { deleteCity, fetchCity } from "../../services/cityService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { getCount } from "../../services/getCountService";
 
-const ServiceManagement = () => {
+const LocationManagement = () => {
+    //const data = { Total: 100, Active: 50, Inactive: 50 };
     const { register } = useForm();
-    const [selectedBox, setSelectedBox] = useState<string>("box-category");
-    const [categoryData, setCategoryData] = useState<{}>({});
-    const [serviceData, setServiceData] = useState<{}>({});
-    const [categoryList, setCategoryList] = useState<CategoryModel[]>([]);
-    const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
+    const [selectedBox, setSelectedBox] = useState<string>("box-state");
+    const [stateList, setStateList] = useState<StateModel[]>([]);
+    const [cityList, setCityList] = useState<StateModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -33,21 +30,17 @@ const ServiceManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(2);
-        if (response && countModel) {
-            setCategoryData({ Total: countModel.total_category, Active: countModel.active_category, Inactive: countModel.inactive_category });
-            setServiceData({ Total: countModel.total_service, Active: countModel.active_service, Inactive: countModel.inactive_service });
-        }
-        if (selected === "box-category") {
-            const { response, categories, totalPages } = await fetchCategory(currentPage, pageSize, { ...filters, });
+        console.log("Filter is:",filters)
+        if (selected === "box-state") {
+            const { response, states, totalPages } = await fetchState(currentPage, pageSize, { ...filters, });
             if (response) {
-                setCategoryList(categories);
+                setStateList(states);
                 setTotalPages(totalPages);
             }
-        } else if (selected === "box-service") {
-            const { response, services, totalPages } = await fetchService(currentPage, pageSize, { ...filters, });
+        } else if (selected === "box-city") {
+            const { response, cities, totalPages } = await fetchCity(currentPage, pageSize, { ...filters, });
             if (response) {
-                setServiceList(services);
+                setCityList(cities);
                 setTotalPages(totalPages);
             }
         }
@@ -56,10 +49,11 @@ const ServiceManagement = () => {
 
     useEffect(() => {
         refreshData(selectedBox);
-    }, [selectedBox, pageSize, currentPage]);
+    }, [selectedBox]);
 
     const refreshData = async (selected: string) => {
-        await fetchData(selected, {});
+        console.log("refreshData selected:", selected)
+        fetchData(selected, {});
     };
 
     const handleFilterChange = async (filters: {
@@ -67,28 +61,26 @@ const ServiceManagement = () => {
         status?: string
     }) => {
         setCurrentPage(1);
-        setTotalPages(0);
-        if (Object.keys(filters).length === 0) {
-            fetchRef.current = false;
-        } else {
-            await fetchData(selectedBox, filters);
-        }
+        fetchData(selectedBox, filters);
     };
 
-    const categoryColumns = React.useMemo(() => [
+    const stateColumns = React.useMemo(() => [
         {
             Header: "SR No",
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Category ID", accessor: "category_id" },
-        { Header: "Category Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
-        { Header: "Services", accessor: "services" },
-        { Header: "Helpers", accessor: "helpers" },
+        { Header: "Name", accessor: "name" },
         {
             Header: "Status", accessor: "is_active",
-            Cell: statusCell("is_active"),
+            Cell: ({ value }: { value: boolean }) => (
+                <span
+                    className={`custom-${value ? "active" : "inactive"}`}
+                >
+                    {value ? "Active" : "Inactive"}
+                </span>
+            ),
+            
         },
         {
             Header: "Action",
@@ -98,7 +90,7 @@ const ServiceManagement = () => {
                     row={row}
                     onEdit={
                         () => {
-                            AddEditCategoryDialog.show(true, row.original, () => refreshData("box-category"))
+                            AddEditStateDialog.show(true, row.original, () => refreshData("box-state"))
                         }
                     }
                     onDelete={async () => {
@@ -107,9 +99,9 @@ const ServiceManagement = () => {
                             "Delete",
                             "Cancle",
                             async () => {
-                                let response = await deleteCategory(row.original._id);
+                                let response = await deleteState(row.original._id);
                                 if (response) {
-                                    refreshData("box-category");
+                                    refreshData("box-state");
                                 }
                             });
                     }}
@@ -118,21 +110,23 @@ const ServiceManagement = () => {
         },
     ], [currentPage, pageSize]);
 
-    const serviceColumns = React.useMemo(() => [
+    const cityColumns = React.useMemo(() => [
         {
             Header: "SR No",
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Service ID", accessor: "service_id" },
-        { Header: "Service Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
-        { Header: "Category", accessor: "category_name" },
-        { Header: "Price", accessor: "price" },
-        { Header: "Helpers", accessor: "helpers" },
+        { Header: "Name", accessor: "name" },
         {
             Header: "Status", accessor: "is_active",
-            Cell: statusCell("is_active"),
+            Cell: ({ value }: { value: boolean }) => (
+                <span
+                    className={`custom-${value ? "active" : "inactive"}`}
+                >
+                    {value ? "Active" : "Inactive"}
+                </span>
+            ),
+            
         },
         {
             Header: "Action",
@@ -142,7 +136,7 @@ const ServiceManagement = () => {
                     row={row}
                     onEdit={
                         () => {
-                            AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"))
+                            AddEditCityDialog.show(true, row.original, () => refreshData("box-city"))
                         }
                     }
                     onDelete={async () => {
@@ -151,9 +145,9 @@ const ServiceManagement = () => {
                             "Delete",
                             "Cancle",
                             async () => {
-                                let response = await deleteService(row.original._id);
+                                let response = await deleteCity(row.original._id);
                                 if (response) {
-                                    refreshData("box-service");
+                                    refreshData("box-city");
                                 }
                             });
                     }}
@@ -166,19 +160,19 @@ const ServiceManagement = () => {
         <>
             <div className="main-page-content">
                 <CustomHeader
-                    title="Service Management"
+                    title="Location Management"
                 />
 
                 <div className="box-container">
-                    {["box-category", "box-service"].map((id) => (
+                    {["box-state", "box-city"].map((id) => (
                         <CustomSummaryBox
                             key={id}
                             divId={id}
                             title={capitalizeString(id.replace("box-", "").replace("-", " "))}
-                            data={id === "box-category" ? categoryData : serviceData}
+                            data={{}}
                             onSelect={(divId) => {
                                 setSelectedBox(divId);
-                                handleFilterChange({});
+                                refreshData(divId);
                             }}
                             isSelected={selectedBox === id}
                             onFilterChange={(filter) => {
@@ -190,13 +184,13 @@ const ServiceManagement = () => {
 
                 <CustomUtilityBox
                     addButtonLable={
-                        selectedBox === "box-category" ? "Add Category" : "Add Service"
+                        selectedBox === "box-state" ? "Add State" : "Add City"
                     }
-                    searchHint={`${selectedBox === "box-category" ? "Search Category name, ID, Description etc." : "Search Service name, ID, Description etc."}`}
+                    searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
                     onAddClick={() => {
-                        selectedBox === "box-category"
-                            ? AddEditCategoryDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                        selectedBox === "box-state"
+                            ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
+                            : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
                     }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
@@ -205,15 +199,29 @@ const ServiceManagement = () => {
                     register={register}
                 />
 
-                <CustomTable
-                    columns={selectedBox === "box-category" ? categoryColumns : serviceColumns}
-                    data={selectedBox === "box-category" ? categoryList : serviceList}
+                {/* <CustomTable
+                    data={dataList}
+                    currentPageState={currentPageState}
+                    totalPagesState={totalPagesState}
+                    pageSizeState={pageSizeState}
+                    onPageChange={(page: number) => setCurrentPageState(page)}
+                    onLimitChange={(pageSizeState: number) => {
+                        setPageSizeState(pageSizeState);
+                        setCurrentPageState(1);
+                    }}
+                    onEdit={(row) => console.log("Edit", row)}
+                    onDelete={(row) => console.log("Delete", row)}
+                /> */}
+
+                <Table
+                    columns={selectedBox === "box-state" ? stateColumns : cityColumns}
+                    data={selectedBox === "box-state" ? stateList : cityList}
                     pageSize={pageSize}
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={(page: number) => setCurrentPage(page)}
-                    onLimitChange={(pageSize: number) => {
-                        setPageSize(pageSize);
+                    onLimitChange={(pageSizeState: number) => {
+                        setPageSize(pageSizeState);
                         setCurrentPage(1);
                     }}
                     theadClass="table-light"
@@ -224,4 +232,4 @@ const ServiceManagement = () => {
     );
 }
 
-export default ServiceManagement;
+export default LocationManagement;

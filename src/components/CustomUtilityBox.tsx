@@ -1,35 +1,54 @@
-import React from "react";
+import React, { useState } from "react";
+import { Form } from "react-bootstrap";
 import addIcon from "../assets/icons/add.svg";
 import searchIcon from "../assets/icons/search.svg";
 import downloadIcon from "../assets/icons/download.svg";
 import sortIcon from "../assets/icons/sort.svg";
 import actionIcon from "../assets/icons/3_dots.svg";
+import { CustomFormInput } from "./CustomFormInput";
+import { Button } from "react-bootstrap";
 
 type CustomUtilityBoxProps = {
     addButtonLable: string;
+    searchHint: string;
     onAddClick: () => void;
     onDownloadClick: () => void;
     onSortClick: () => void;
     onMoreClick: () => void;
     onSearch: (value: string) => void;
+    register: any;
 };
 
-const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({ addButtonLable,onAddClick, onDownloadClick, onSortClick, onMoreClick, onSearch }) => {
+const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
+    addButtonLable,
+    searchHint,
+    onAddClick,
+    onDownloadClick,
+    onSortClick,
+    onMoreClick,
+    onSearch,
+    register,
+}) => {
+    const [searchValue, setSearchValue] = useState("");
+
     return (
         <div className="custom-utilty-box">
-            <button type="button" className="custom-add-button" onClick={onAddClick}>
+            <Button className="custom-add-button" onClick={onAddClick}>
                 <img src={addIcon} />
-                <span>{addButtonLable}</span>
-            </button>
+                {addButtonLable}
+            </Button>
             <div>
                 <div className="custom-search-container">
-                    <input
+                    <Form.Control
+                        className="custom-form-input"
                         type="text"
-                        className="custom-search-field"
-                        placeholder="Search Category Name, Id, Description etc."
-                        onChange={(e) => onSearch(e.target.value)}
+                        placeholder={searchHint}
+                        value={searchValue}
+                        onChange={(e) => setSearchValue(e.target.value)}
+                        style={{ width: "24.25rem", fontSize: "14px", fontWeight: "normal", fontFamily: "Inter" }}
                     />
-                    <img src={searchIcon} alt="search" className="custom-search-icon" />
+                    <img src={searchIcon} alt="search" className="custom-search-icon"
+                        onClick={() => onSearch(searchValue)} />
                 </div>
 
                 <div className="custom-icon-container">

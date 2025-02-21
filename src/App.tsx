@@ -7,7 +7,7 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import {setNavigate} from "./helper/utility";
+import { setNavigate } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
@@ -21,6 +21,7 @@ function App() {
   const navigate = useNavigate();
   setNavigate(navigate);
   const is404Page = location.pathname === "/404";
+  const is500Page = location.pathname === "/500";
   const isAuthRoute = location.pathname.includes("/auth");
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));
 
@@ -62,9 +63,9 @@ function App() {
   }, [location.pathname, navigate]);
   return (
 
-    <div className={`custom-app-layout ${!isAuthRoute && !is404Page ? "with-sidebar" : "without-sidebar"}`}>
-      {!isAuthRoute && !is404Page && (
-        <aside className="sidebar">
+    <div className={`custom-app-layout ${!isAuthRoute && !is404Page && !is500Page ? "with-sidebar" : "without-sidebar"}`}>
+      {!isAuthRoute && !is404Page && !is500Page && (
+        <aside className="custom-sidebar">
           <Suspense fallback={null}>
             <Sidebar />
           </Suspense>
@@ -78,7 +79,7 @@ function App() {
         </Suspense>
       </main>
 
-      
+
     </div>
   );
 }

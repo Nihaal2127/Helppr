@@ -3,13 +3,18 @@ import { Row, Col } from "react-bootstrap";
 import CustomFormSelect from "../components/CustomFormSelect";
 
 interface CustomHeaderProps {
-    title: string;
-    register: any;
-    setValue: (name: string, value: any) => void;
-    onLocationChange: (selectedLocation: string) => void;
+     title: string;
+    // register: any;
+    // setValue: (name: string, value: any) => void;
+    // onLocationChange: (selectedLocation: string) => void;
 }
 
-const CustomHeader = ({ title, register, setValue, onLocationChange }: CustomHeaderProps) => {
+const CustomHeader = ({ 
+    title,
+    // register,
+    // setValue,
+    //onLocationChange
+}: CustomHeaderProps) => {
     const [selectedLocation, setSelectedLocation] = useState<string>("");
 
     const locationList = [
@@ -19,21 +24,21 @@ const CustomHeader = ({ title, register, setValue, onLocationChange }: CustomHea
         { value: "4", label: "Ahmadabad" },
     ];
 
-    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = e.target.value;
-        setSelectedLocation(value);
-        onLocationChange(value);
-    };
+    // const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    //     const value = e.target.value;
+    //     setSelectedLocation(value);
+    //     onLocationChange(value);
+    // };
 
     return (
-        <Row className="g-0 p-0 m-0 align-items-center">
+        <Row className="g-0 p-0 mb-4 align-items-center">
             <Col sm={4} className="p-0 m-0">
                 <h4 className="m-0 p-0">{title}</h4>
             </Col>
-            <Col sm={8} className="d-flex justify-content-end p-0 m-0">
+            {/* <Col sm={8} className="d-flex justify-content-end p-0 m-0">
                 <CustomFormSelect
                     label=""
-                    controlId="formLocation"
+                    controlId="location"
                     options={locationList}
                     register={register}
                     fieldName="location_id"
@@ -41,7 +46,7 @@ const CustomHeader = ({ title, register, setValue, onLocationChange }: CustomHea
                     setValue={setValue}
                     onChange={handleChange}
                 />
-            </Col>
+            </Col> */}
         </Row>
     );
 };

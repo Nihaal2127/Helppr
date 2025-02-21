@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
-import { Eye, EyeOff } from "react-feather"; 
+import { Eye, EyeOff } from "react-feather";
 import classNames from "classnames";
 
 interface CustomFormInputProps {
@@ -16,6 +16,9 @@ interface CustomFormInputProps {
   inputType?: string;
   isEditable?: boolean;
   maxLength?: number;
+  as?: string;
+  rows?: number;
+  className?: string;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -31,6 +34,9 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   inputType = "text",
   isEditable = true,
   maxLength,
+  as,
+  rows,
+  className,
 }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
@@ -43,7 +49,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       <Form.Label>{label}</Form.Label>
       <InputGroup className="mb-0">
         <Form.Control
-          className="custom-input"
+          className="custom-form-input"
           type={showPassword ? "text" : "password"}
           placeholder={placeholder}
           {...register(controlId, validation)}
@@ -80,7 +86,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
     >
       <Form.Label>{label}</Form.Label>
       <Form.Control
-        className="custom-input"
+        className="custom-form-input"
         type={inputType}
         placeholder={placeholder}
         {...register(controlId, validation)}
@@ -89,6 +95,21 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         onChange={onChange}
         readOnly={!isEditable}
         maxLength={maxLength}
+        as={as}
+        rows={as === "textarea" ? rows : undefined}
+        style={{
+          boxShadow: "none",
+          borderRadius: "8px",
+          borderColor:"var(--primary-color)",
+          fontSize: "14px",
+          fontWeight: "normal",
+          width: "100%",
+          height: as !== "textarea" ? "2.62rem" : "auto",
+          lineHeight: "18px",
+          backgroundColor: "var(--bg-color)",
+          fontFamily: "'Inter'",
+          color: "var(--content-txt-color)",
+        }}
       />
       {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}
     </Form.Group>

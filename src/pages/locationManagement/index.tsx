@@ -5,23 +5,23 @@ import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import AddEditCategoryDialog from "./AddEditCategoryDialog";
-import AddEditServiceDialog from "./AddEditServiceDialog";
-import { CategoryModel } from "../../models/CategoryModel";
-import { ServiceModel } from "../../models/ServiceModel";
-import { fetchCategory, deleteCategory } from "../../services/categoryService";
-import { deleteService, fetchService } from "../../services/servicesService";
+import AddEditStateDialog from "./AddEditStateDialog";
+import AddEditCityDialog from "./AddEditCityDialog";
+import { StateModel } from "../../models/StateModel";
+import { fetchState, deleteState } from "../../services/stateService";
+import { deleteCity, fetchCity } from "../../services/cityService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { CityModel } from "../../models/CityModel";
 import { getCount } from "../../services/getCountService";
 
-const ServiceManagement = () => {
+const LocationManagement = () => {
     const { register } = useForm();
-    const [selectedBox, setSelectedBox] = useState<string>("box-category");
-    const [categoryData, setCategoryData] = useState<{}>({});
-    const [serviceData, setServiceData] = useState<{}>({});
-    const [categoryList, setCategoryList] = useState<CategoryModel[]>([]);
-    const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
+    const [selectedBox, setSelectedBox] = useState<string>("box-state");
+    const [stateData, setStateData] = useState<{}>({});
+    const [cityData, setCityData] = useState<{}>({});
+    const [stateList, setStateList] = useState<StateModel[]>([]);
+    const [cityList, setCityList] = useState<CityModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -33,21 +33,21 @@ const ServiceManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(2);
+        const { response, countModel } = await getCount(1);
         if (response && countModel) {
-            setCategoryData({ Total: countModel.total_category, Active: countModel.active_category, Inactive: countModel.inactive_category });
-            setServiceData({ Total: countModel.total_service, Active: countModel.active_service, Inactive: countModel.inactive_service });
+            setStateData({ Total: countModel.total_state, Active: countModel.active_state, Inactive: countModel.inactive_state });
+            setCityData({ Total: countModel.total_city, Active: countModel.active_city, Inactive: countModel.inactive_city });
         }
-        if (selected === "box-category") {
-            const { response, categories, totalPages } = await fetchCategory(currentPage, pageSize, { ...filters, });
+        if (selected === "box-state") {
+            const { response, states, totalPages } = await fetchState(currentPage, pageSize, { ...filters, });
             if (response) {
-                setCategoryList(categories);
+                setStateList(states);
                 setTotalPages(totalPages);
             }
-        } else if (selected === "box-service") {
-            const { response, services, totalPages } = await fetchService(currentPage, pageSize, { ...filters, });
+        } else if (selected === "box-city") {
+            const { response, cities, totalPages } = await fetchCity(currentPage, pageSize, { ...filters, });
             if (response) {
-                setServiceList(services);
+                setCityList(cities);
                 setTotalPages(totalPages);
             }
         }
@@ -75,17 +75,13 @@ const ServiceManagement = () => {
         }
     };
 
-    const categoryColumns = React.useMemo(() => [
+    const stateColumns = React.useMemo(() => [
         {
             Header: "SR No",
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Category ID", accessor: "category_id" },
-        { Header: "Category Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
-        { Header: "Services", accessor: "services" },
-        { Header: "Helpers", accessor: "helpers" },
+        { Header: "Name", accessor: "name" },
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
@@ -98,7 +94,7 @@ const ServiceManagement = () => {
                     row={row}
                     onEdit={
                         () => {
-                            AddEditCategoryDialog.show(true, row.original, () => refreshData("box-category"))
+                            AddEditStateDialog.show(true, row.original, () => refreshData("box-state"))
                         }
                     }
                     onDelete={async () => {
@@ -107,9 +103,9 @@ const ServiceManagement = () => {
                             "Delete",
                             "Cancle",
                             async () => {
-                                let response = await deleteCategory(row.original._id);
+                                let response = await deleteState(row.original._id);
                                 if (response) {
-                                    refreshData("box-category");
+                                    refreshData("box-state");
                                 }
                             });
                     }}
@@ -118,18 +114,13 @@ const ServiceManagement = () => {
         },
     ], [currentPage, pageSize]);
 
-    const serviceColumns = React.useMemo(() => [
+    const cityColumns = React.useMemo(() => [
         {
             Header: "SR No",
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Service ID", accessor: "service_id" },
-        { Header: "Service Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
-        { Header: "Category", accessor: "category_name" },
-        { Header: "Price", accessor: "price" },
-        { Header: "Helpers", accessor: "helpers" },
+        { Header: "Name", accessor: "name" },
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
@@ -142,7 +133,7 @@ const ServiceManagement = () => {
                     row={row}
                     onEdit={
                         () => {
-                            AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"))
+                            AddEditCityDialog.show(true, row.original, () => refreshData("box-city"))
                         }
                     }
                     onDelete={async () => {
@@ -151,9 +142,9 @@ const ServiceManagement = () => {
                             "Delete",
                             "Cancle",
                             async () => {
-                                let response = await deleteService(row.original._id);
+                                let response = await deleteCity(row.original._id);
                                 if (response) {
-                                    refreshData("box-service");
+                                    refreshData("box-city");
                                 }
                             });
                     }}
@@ -166,16 +157,16 @@ const ServiceManagement = () => {
         <>
             <div className="main-page-content">
                 <CustomHeader
-                    title="Service Management"
+                    title="Location Management"
                 />
 
                 <div className="box-container">
-                    {["box-category", "box-service"].map((id) => (
+                    {["box-state", "box-city"].map((id) => (
                         <CustomSummaryBox
                             key={id}
                             divId={id}
                             title={capitalizeString(id.replace("box-", "").replace("-", " "))}
-                            data={id === "box-category" ? categoryData : serviceData}
+                            data={id === "box-state" ? stateData : cityData}
                             onSelect={(divId) => {
                                 setSelectedBox(divId);
                                 handleFilterChange({});
@@ -190,13 +181,13 @@ const ServiceManagement = () => {
 
                 <CustomUtilityBox
                     addButtonLable={
-                        selectedBox === "box-category" ? "Add Category" : "Add Service"
+                        selectedBox === "box-state" ? "Add State" : "Add City"
                     }
-                    searchHint={`${selectedBox === "box-category" ? "Search Category name, ID, Description etc." : "Search Service name, ID, Description etc."}`}
+                    searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
                     onAddClick={() => {
-                        selectedBox === "box-category"
-                            ? AddEditCategoryDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                        selectedBox === "box-state"
+                            ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
+                            : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
                     }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
@@ -206,8 +197,8 @@ const ServiceManagement = () => {
                 />
 
                 <CustomTable
-                    columns={selectedBox === "box-category" ? categoryColumns : serviceColumns}
-                    data={selectedBox === "box-category" ? categoryList : serviceList}
+                    columns={selectedBox === "box-state" ? stateColumns : cityColumns}
+                    data={selectedBox === "box-state" ? stateList : cityList}
                     pageSize={pageSize}
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -224,4 +215,4 @@ const ServiceManagement = () => {
     );
 }
 
-export default ServiceManagement;
+export default LocationManagement;

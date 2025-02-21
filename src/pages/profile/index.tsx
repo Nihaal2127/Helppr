@@ -73,7 +73,7 @@ const Profile = () => {
 
     const uploadProfile = async (isEditable: boolean) => {
         const formData = new FormData();
-        formData.append("type", "2");
+        formData.append("type", "4");
         fileInputs.forEach((file) => formData.append("files", file));
         if (isEditable) {
             if (replaceUrls.length > 0) {

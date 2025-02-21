@@ -3,68 +3,33 @@ import { Form, Col } from "react-bootstrap";
 import Select from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
 
-interface CustomFormSelectProps {
+interface CustomMultiSelectProps {
   label: string;
   controlId: string;
-  register: UseFormRegister<any>;
   options: { value: string; label: string }[];
-  fieldName: string;
+  value: { value: string; label: string }[];
+  onChange: (selectedOptions: { value: string; label: string }[]) => void;
   error?: FieldError;
+  register?: UseFormRegister<any>;
+  fieldName?: string;
   requiredMessage?: string;
-  defaultValue?: string;
-  isValue?: boolean;
   setValue?: (name: string, value: any) => void;
-  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   asCol?: boolean;
 }
 
-const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
+const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   label,
   controlId,
   options,
+  value,
+  onChange,
+  error,
   register,
   fieldName,
-  error,
   requiredMessage,
-  defaultValue = "",
   setValue,
-  onChange,
-  isValue = false,
   asCol = true,
 }) => {
-
-  const [selectedOption, setSelectedOption] = useState<{ value: string; label: string } | null>(null);
-
-  useEffect(() => {
-    const defaultOption = options.find((option) =>
-      isValue ? option.label === defaultValue : option.value === defaultValue) || null;
-    setSelectedOption(defaultOption);
-    if (setValue && defaultOption) {
-      if (isValue) {
-        setValue(`${fieldName}_label`, defaultOption.label);
-        setValue(fieldName, defaultOption.label,);
-      } else {
-        setValue(fieldName, defaultOption.value);
-      }
-    }
-  }, [defaultValue, options, setValue, fieldName, isValue]);
-
-  const handleChange = (option: { value: string; label: string } | null) => {
-    setSelectedOption(option);
-    const value = option?.value || "";
-    const label = option?.label || "";
-    if (setValue) {
-      if (isValue) {
-        setValue(`${fieldName}_label`, label);
-        setValue(fieldName, label);
-      } else {
-        setValue(fieldName, value);
-      }
-    }
-
-    const fakeEvent = { target: { value, }, };
-    onChange?.(fakeEvent as React.ChangeEvent<HTMLSelectElement>);
-  };
 
   const customStyles = {
     control: (provided: any) => ({
@@ -106,28 +71,36 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
     }),
   };
 
+  const handleChange = (selectedOptions: { value: string; label: string }[]) => {
+    if (setValue && fieldName) {
+      setValue(fieldName, selectedOptions);
+    }
+    onChange([...selectedOptions]);
+  };
+
   return (
     <Form.Group
-      as={asCol ? Col : "div"}
-      {...(asCol ? { xs: 12, md: 4 } : {})}
-      controlId={controlId}
-      className="mb-0"
-    >
+         as={asCol ? Col : "div"}
+         {...(asCol ? { xs: 12, md: 4 } : {})}
+         controlId={controlId}
+         className="mb-0"
+       >
       <Form.Label>{label}</Form.Label>
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"
-        {...register(fieldName, { required: requiredMessage })}
+        isMulti
+        {...(register && fieldName ? register(fieldName, { required: requiredMessage }) : {})}
         options={options}
-        value={selectedOption}
+        value={value}
         onChange={handleChange}
-        placeholder={`Choose ${controlId}`}
+        styles={customStyles}
+        placeholder={`Select ${controlId}`}
         onBlur={() => {
-          if (!selectedOption && setValue) {
-            setValue(fieldName, "");
+          if (setValue && fieldName) {
+            setValue(fieldName, value || []);
           }
         }}
-        styles={customStyles}
       />
       {error && (
         <Form.Control.Feedback type="invalid" style={{ display: "block" }}>
@@ -138,4 +111,4 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   );
 };
 
-export default CustomFormSelect;
+export default CustomMultiSelect;

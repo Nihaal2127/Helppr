@@ -1,43 +1,47 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { CategoryModel } from "../../models/CategoryModel";
+import { ServiceModel } from "../../models/ServiceModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { getStatusOptions } from "../../helper/utility";
+import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
+import { fetchCategoryDropDown } from "../../services/categoryService";
+import { createOrUpdateService } from "../../services/servicesService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
-import { createOrUpdateCategory } from "../../services/categoryService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 
-type AddEditCategoryDialogProps = {
+type AddEditServiceDialogProps = {
     isEditable: boolean;
-    category: CategoryModel | null;
+    service: ServiceModel | null;
     onClose: () => void;
     onRefreshData: () => void;
 };
 
-const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
-    show: (isEditable: boolean, category: CategoryModel | null, onRefreshData: () => void) => void;
-} = ({ isEditable, category, onClose, onRefreshData }) => {
+const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
+    show: (isEditable: boolean, category: ServiceModel | null, onRefreshData: () => void) => void;
+} = ({ isEditable, service, onClose, onRefreshData }) => {
     const {
         register,
         handleSubmit,
         setValue,
         formState: { errors },
-    } = useForm<CategoryModel>({
+    } = useForm<ServiceModel>({
         defaultValues: {
-            name: category?.name || "",
-            desc: category?.desc || "",
-            is_active: category?.is_active ?? true,
+            name: service?.name || "",
+            desc: service?.desc || "",
+            price: service?.price || 0,
+            is_active: service?.is_active ?? true,
         },
     });
 
+    const [categories, setCategory] = useState<{ value: string; label: string }[]>([]);
     const [fileInputs, setFileInputs] = useState<File[]>([]);
     const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
     const [states, setState] = useState<{ value: string; label: string }[]>([]);
@@ -47,24 +51,31 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     const fetchRef = useRef(false);
     const fetchCityRef = useRef(false);
 
-    const fetchStateFromApi = async () => {
+    const fetchDataFromApi = async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
+            const categoryOptions = await fetchCategoryDropDown();
+            setCategory(categoryOptions);
+
             const stateOptions = await fetchStateDropDown();
             setState([{ value: "select-all", label: "Select All" }, ...stateOptions]);
 
-            if(isEditable && category){
-                setStateIds(category.state_ids);
-                setCityIds(category.city_ids);
-                await fetchCityFromApi(category.state_ids);
+            if (isEditable && service) {
+                setStateIds(service.state_ids);
+                setCityIds(service.city_ids);
+                await fetchCityFromApi(service.state_ids);
             }
         } catch (error) {
-            console.error("Error fetching city:", error);
+            console.error("Error fetching category:", error);
         } finally {
             fetchRef.current = false;
         }
     };
+
+    useEffect(() => {
+        fetchDataFromApi();
+    }, []);
 
     const fetchCityFromApi = async (stateIdList: string[]) => {
         if (fetchCityRef.current) return;
@@ -81,50 +92,50 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
     const handleStateSelection = async (selectedOptions: { value: string; label: string }[]) => {
         const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-    
+
         let selectedIds: string[] = [];
-    
+
         if (isSelectAllSelected) {
             const allStates = states.filter((state) => state.value !== "select-all");
             const isAllSelected =
                 states.length === allStates.length &&
                 allStates.every((state) => states.includes(state));
-    
+
             selectedIds = isAllSelected ? [] : allStates.map((state) => state.value);
         } else {
             selectedIds = selectedOptions.map((option) => option.value);
         }
-    
+
         setStateIds(selectedIds);
-    
+
         setCity([]);
         setCityIds([]);
-    
+
         if (selectedIds.length > 0) {
             await fetchCityFromApi(selectedIds);
         }
-    };    
+    };
 
     const handleCitySelection = (selectedOptions: { value: string; label: string }[],) => {
         const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-    
+
         let selectedIds: string[] = [];
-    
+
         if (isSelectAllSelected) {
             const allCity = cities.filter((city) => city.value !== "select-all");
             const isAllSelected =
-            cities.length === allCity.length &&
+                cities.length === allCity.length &&
                 allCity.every((city) => cities.includes(city));
-    
+
             selectedIds = isAllSelected ? [] : allCity.map((city) => city.value);
         } else {
             selectedIds = selectedOptions.map((option) => option.value);
         }
-    
+
         setCityIds(selectedIds);
     };
 
-    const onSubmitEvent = async (data: CategoryModel) => {
+    const onSubmitEvent = async (data: ServiceModel) => {
 
         let image_url = "";
         if (fileInputs.length > 0) {
@@ -139,7 +150,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
             let { response, fileList } = await createOrUpdateDocument(formData, isEditable);
             if (response) {
-                if(fileList.length > 0){
+                if (fileList.length > 0) {
                     image_url = fileList[0].toString();
                 }
             }
@@ -152,45 +163,52 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         const payload = {
             name: data.name,
             desc: data.desc,
+            price: data.price,
             is_active: data.is_active,
+            category_id: data.category_id,
             city_ids: cityIds,
             state_ids: stateIds,
             ...(image_url !== "" && { image_url })
         };
 
-        let responseCategory;
+        let responseService;
         if (isEditable) {
-            if (!category?._id) {
+            if (!service?._id) {
                 showErrorAlert("Unable to update. ID is missing.");
                 return;
             }
 
-            responseCategory = await createOrUpdateCategory(payload, true, category?._id);
+            responseService = await createOrUpdateService(payload, true, service?._id);
         } else {
-            responseCategory = await createOrUpdateCategory(payload, false,);
+            responseService = await createOrUpdateService(payload, false,);
         }
 
-        if (responseCategory) {
+        if (responseService) {
             onClose && onClose();
             onRefreshData();
         }
     };
 
     useEffect(() => {
-        fetchStateFromApi();
-    }, []);
+        if (isEditable && service?.is_active !== undefined) {
+            setValue("is_active", service.is_active);
+        }
+    }, [isEditable, service?.is_active]);
 
     useEffect(() => {
-        if (isEditable && category?.is_active !== undefined) {
-            setValue("is_active", category.is_active);
+        if (service?.category_id && categories.length > 0) {
+            const selectedCategory = categories.find((category) => category.value === service.category_id);
+            if (selectedCategory) {
+                setValue("category_id", service.category_id);
+            }
         }
-    }, [isEditable, category?.is_active]);
+    }, [categories, service?.category_id, setValue]);
 
     return (
         <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
             <Modal.Header className="py-3 px-4 border-bottom-0">
                 <Modal.Title as="h5" className="custom-modal-title">
-                    {isEditable ? "Edit" : "Add"} Category
+                    {isEditable ? "Edit" : "Add"} Service
                 </Modal.Title>
                 <CustomCloseButton onClose={onClose} />
             </Modal.Header>
@@ -202,27 +220,52 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                     onSubmit={handleSubmit(onSubmitEvent)}
                 >
                     <Row>
+
                         <CustomFormInput
                             label=""
                             controlId="name"
-                            placeholder="Enter Category Name"
+                            placeholder="Enter Service Name"
                             register={register}
                             error={errors.name}
                             asCol={false}
-                            validation={{ required: "Category name is required" }}
+                            validation={{ required: "Service name is required" }}
                         />
                         <CustomFormInput
                             label=""
                             controlId="desc"
-                            placeholder="Enter Category Description"
+                            placeholder="Enter Service Description"
                             register={register}
                             error={errors.desc}
                             asCol={false}
-                            validation={{ required: "Category description is required" }}
+                            validation={{ required: "Service description is required" }}
                             as="textarea"
                             rows={4}
                         />
-                        <CustomMultiSelect
+
+                        <CustomFormInput
+                            label=""
+                            controlId="price"
+                            placeholder="Enter Service Price"
+                            register={register}
+                            error={errors.price}
+                            asCol={false}
+                            inputType="number"
+                            validation={{ required: "Service price is required" }}
+                        />
+
+                        <CustomFormSelect
+                            label=""
+                            controlId="category"
+                            options={categories}
+                            register={register as unknown as UseFormRegister<any>}
+                            fieldName="category_id"
+                            error={errors.category_id}
+                            asCol={false}
+                            requiredMessage="Please select category"
+                            defaultValue={isEditable ? service?.category_id : ""}
+                            setValue={setValue as (name: string, value: any) => void}
+                        />
+<CustomMultiSelect
                             label=""
                             controlId="State"
                             options={states}
@@ -246,7 +289,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                             label="Upload Category Image"
                             maxFiles={1}
                             isEditable={isEditable}
-                            existingImages={category?.image_url ? [category.image_url] : []}
+                            existingImages={service?.image_url ? [service.image_url] : []}
                             onFileChange={(files, replaceUrls) => {
                                 setFileInputs(files);
                                 setReplaceUrl(replaceUrls);
@@ -256,7 +299,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                             label=""
                             name="is_active"
                             options={getStatusOptions()}
-                            defaultValue={isEditable ? category?.is_active?.toString() : "true"}
+                            defaultValue={isEditable ? service?.is_active?.toString() : "true"}
                             isEditable={isEditable}
                             setValue={setValue}
                         />
@@ -279,7 +322,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     );
 };
 
-AddEditCategoryDialog.show = (isEditable: boolean, category: CategoryModel | null, onRefreshData: () => void) => {
+AddEditServiceDialog.show = (isEditable: boolean, category: ServiceModel | null, onRefreshData: () => void) => {
     const modalContainer = document.createElement("div");
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
@@ -290,13 +333,13 @@ AddEditCategoryDialog.show = (isEditable: boolean, category: CategoryModel | nul
     };
 
     root.render(
-        <AddEditCategoryDialog
+        <AddEditServiceDialog
             isEditable={isEditable}
-            category={category}
+            service={category}
             onClose={closeModal}
             onRefreshData={onRefreshData}
         />
     );
 };
 
-export default AddEditCategoryDialog;
+export default AddEditServiceDialog;

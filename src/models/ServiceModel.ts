@@ -1,11 +1,13 @@
 
-export interface CategoryModel {
+export interface ServiceModel {
   _id: string;
-  category_id: string;
+  service_id: string;
   name: string;
   desc: string;
-  services: number;
-  helpers: number;
+  category_id: string;
+  category_name: string;
+  price: number;
+  helpers: string;
   state_ids: string[];
   city_ids: string[];
   image_url: string;

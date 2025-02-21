@@ -74,15 +74,6 @@ export const fetchById = async (id: string): Promise<UserModel | null> => {
   }
 };
 
-export const deleteUser = async (id: string): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.DELETE_USER(id), "DELETE");
-  if (response.success) {
-    return true;
-  } else {
-    return false;
-  }
-};
-
 export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,

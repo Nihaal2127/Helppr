@@ -1,8 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { mainMenuItems, profileMenuItems } from "./menuItems";
-import { showSuccessAlert } from "../helper/alertHelper";
 import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant } from "../constant/AppConstant";
 import { logout } from "../services/adminService";
@@ -11,6 +10,12 @@ import { openConfirmDialog } from "../components/CustomConfirmDialog";
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
+
+  const [isSidebarActive, setIsSidebarActive] = useState(false);
+
+  const toggleSidebar = () => {
+    setIsSidebarActive(!isSidebarActive);
+  };
 
   const handleLogoutClick = async (event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
     if (key === "logout") {
@@ -32,39 +37,42 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <nav id="sidebar" className="sidebar">
-      <h1>helper!</h1>
+    <>
 
-      {/* <div className="custom-menu">
-        <button type="button" id="sidebarCollapse" className="btn">
-          <i className="fa fa-bars"></i>
-          <span className="sr-only">Toggle Menu</span>
-        </button>
-      </div> */}
+      <nav id="sidebar" className={`sidebar ${isSidebarActive ? 'active' : ''}`}>
+        <h1>helper!</h1>
 
-      <div className="p-4 pt-5">
-        <ul className="list-unstyled components mb-5" id="nav-links">
-          {mainMenuItems.map(({ key, path, label }) => (
-            <li key={key}>
-              <NavLink to={path} className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
-                {label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+        {/* <div className="custom-menu">
+          <button type="button" id="sidebarCollapse" className="btn" onClick={toggleSidebar}>
+            <i className="fa fa-bars"></i>
+            <span className="sr-only">Toggle Menu</span>
+          </button>
+        </div> */}
 
-        <ul className="list-unstyled components mb-2">
-          {profileMenuItems.map(({ key, path, label, icon }) => (
-            <li key={key}>
-              <NavLink to={path} onClick={(e) => handleLogoutClick(e, key)}>
-                <img src={icon} alt={label} className="menu-icon" />
-                {label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
+        <div className="p-4 pt-2">
+          <ul className="list-unstyled components mb-5" id="nav-links">
+            {mainMenuItems.map(({ key, path, label }) => (
+              <li key={key || label}>
+                <NavLink to={path} className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
+                  {label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+
+          <ul className="list-unstyled components mb-2">
+            {profileMenuItems.map(({ key, path, label, icon }) => (
+               <li key={key || label}>
+                <NavLink to={path} onClick={(e) => handleLogoutClick(e, key)}>
+                  <img src={icon} alt={label} className="menu-icon" />
+                  {label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
+    </>
   );
 };
 
