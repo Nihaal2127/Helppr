@@ -85,7 +85,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
             {isEditable && existingImages[index] && !file ? (
               <div className="me-2">
                 <img
-                  alt={`Existing ${index}`}
+                  //alt={`Existing ${index}`}
                   src={`${AppConstant.IMAGE_BASE_URL}${existingImages[index]}?t=${Date.now()}`}
                   style={{ width: "50px", height: "50px", objectFit: "cover" }}
                 />
@@ -99,13 +99,13 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                 handleFileChange(index, e.target.files?.[0] || null)
               }
             />
-            <Button
+            {/* <Button
               variant="danger"
               className="ms-2"
               onClick={() => removeFileInput(index)}
             >
               Remove
-            </Button>
+            </Button> */}
           </div>
         ))}
         {fileInputs.length < maxFiles && (

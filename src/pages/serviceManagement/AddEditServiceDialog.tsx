@@ -67,7 +67,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 await fetchCityFromApi(service.state_ids);
             }
         } catch (error) {
-            console.error("Error fetching category:", error);
+            console.error("Error fetching:", error);
         } finally {
             fetchRef.current = false;
         }

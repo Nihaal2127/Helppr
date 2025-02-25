@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FieldErrors, UseFormSetValue } from "react-hook-form";
+import { UseFormSetValue } from "react-hook-form";
 import { Form } from "react-bootstrap";
 
 interface Option {

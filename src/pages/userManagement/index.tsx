@@ -5,7 +5,8 @@ import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, textUnderlineCell, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import AddEditCategoryDialog from "./AddEditCategoryDialog";
+import AddEditUserDialog from "./AddEditUserDialog";
+import AddPartnerDialog from "./AddPartnerDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { ServiceModel } from "../../models/ServiceModel";
 import { fetchUser } from "../../services/userService";
@@ -84,6 +85,7 @@ const UserManagement = () => {
     const userShow = () => {
 
     }
+
     const userColumns = React.useMemo(() => [
         {
             Header: "SR No",
@@ -95,10 +97,10 @@ const UserManagement = () => {
             Cell: textUnderlineCell("user_id", userShow),
         },
         {
-            Header: "User Name", accessor: "name" ,
+            Header: "User Name", accessor: "name",
             Cell: textUnderlineCell("name", userShow),
         },
-        { Header: "Service Taken", accessor: "service_taken" },
+        { Header: "Service Taken", accessor: "total_service" },
         { Header: "Service Paid", accessor: "service_paid" },
         { Header: "Service Unpaid", accessor: "service_unpaid" },
         { Header: "Total Amount", accessor: "total_amount" },
@@ -115,13 +117,13 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        
+
         {
             Header: "Partner ID", accessor: "user_id",
             Cell: textUnderlineCell("user_id", partnerShow),
         },
         {
-            Header: "Partner Name", accessor: "name" ,
+            Header: "Partner Name", accessor: "name",
             Cell: textUnderlineCell("name", partnerShow),
         },
         { Header: "No. of services", accessor: "no_of_services" },
@@ -187,8 +189,10 @@ const UserManagement = () => {
                     searchHint={"Search name, ID, Description etc."}
                     onAddClick={() => {
                         selectedBox === "box-user"
-                            ? AddEditCategoryDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                            ? AddEditUserDialog.show(true, false, null, () => refreshData(selectedBox))
+                            : selectedBox === "box-partner"
+                                ? AddPartnerDialog.show(() => refreshData(selectedBox))
+                                : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
                     }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}

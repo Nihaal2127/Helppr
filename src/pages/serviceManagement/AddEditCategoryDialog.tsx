@@ -60,7 +60,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 await fetchCityFromApi(category.state_ids);
             }
         } catch (error) {
-            console.error("Error fetching city:", error);
+            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
