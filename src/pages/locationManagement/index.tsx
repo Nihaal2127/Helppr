@@ -120,7 +120,10 @@ const LocationManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Name", accessor: "name" },
+        { Header: "State Name", accessor: "state_name" },
+        { Header: "City Name", accessor: "name" },
+        { Header: "City Service Price", accessor: "city_service_price" },
+        
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),

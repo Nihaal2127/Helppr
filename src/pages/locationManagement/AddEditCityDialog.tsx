@@ -75,6 +75,7 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
             name: data.name,
             state_id: data.state_id,
             is_active: data.is_active,
+            city_service_price:data.price,
         };
         let response;
 
@@ -134,7 +135,16 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
                             asCol={false}
                             validation={{ required: "City name is required" }}
                         />
-
+                        <CustomFormInput
+                            label=""
+                            controlId="price"
+                            placeholder="Enter City service Price"
+                            register={register}
+                            error={errors.price}
+                            asCol={false}
+                            inputType="number"
+                            validation={{ required: "City service price is required" }}
+                        />
                         <CustomRadioSelection
                             label=""
                             name="is_active"
