@@ -7,6 +7,7 @@ interface CustomTextFieldUploadProps {
     linkLable?: string;
     existingImages?: string[];
     onFileChange: (files: File[], replaceUrls: string[]) => void;
+    labelSize?: number;
 }
 
 const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
@@ -14,17 +15,18 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
     linkLable = "Upload",
     existingImages,
     onFileChange,
+    labelSize = 4,
 }) => {
 
     const [uploadShow, setUploadShow] = useState(false);
 
     return (
         <>
-            <Row className="align-items-center m-0 p-0">
-                <Col sm={4} className="mt-4 ms-2">
+            <Row className={`align-items-center ${labelSize !== 4 ? "mb-4" : ""}`}>
+                <Col sm={labelSize}>
                     <label className="custom-profile-lable">{label}</label>
                 </Col>
-                <Col className="mt-4 ms-2">
+                <Col>
                     <span
                         style={{
                             fontFamily: "Inter",
@@ -32,15 +34,14 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                             fontWeight: "normal",
                             color: "var(--primary-txt-color)",
                             textDecoration: "underline",
-                            cursor: "pointer"
+                            cursor: "pointer",
+                            
                         }}
                         onClick={(e) => {
                             e.preventDefault();
                             setUploadShow(true);
                         }}
-                    >
-                        {linkLable}
-                    </span>
+                    >{linkLable}</span>
                 </Col>
             </Row>
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
-import {CustomFormInput} from "./CustomFormInput";
+import { CustomFormInput } from "./CustomFormInput";
 
 interface CustomTextFieldProps {
     label: string;
@@ -9,6 +9,7 @@ interface CustomTextFieldProps {
     register: any;
     error?: any;
     validation?: object;
+    labelSize?: number;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -18,13 +19,14 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     register,
     error,
     validation,
+    labelSize = 4,
 }) => {
     return (
-        <Row className="align-items-center m-0 p-0">
-            <Col sm={4} className="mt-4 ms-2">
+        <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
+            <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
                 <label className="custom-profile-lable">{label}</label>
             </Col>
-            <Col>
+            <Col >
                 <CustomFormInput
                     label=""
                     controlId={controlId}

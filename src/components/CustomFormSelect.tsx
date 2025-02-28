@@ -83,6 +83,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       backgroundColor: "var(--bg-color)",
       fontFamily: "'Inter'",
       color: "var(--content-txt-color)",
+      marginBottom : "10px"
     }),
     option: (provided: any, state: any) => ({
       ...provided,
@@ -111,9 +112,8 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       as={asCol ? Col : "div"}
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
-      className="mb-0"
     >
-      <Form.Label>{label}</Form.Label>
+       {label?.trim() && <Form.Label>{label}</Form.Label>}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"

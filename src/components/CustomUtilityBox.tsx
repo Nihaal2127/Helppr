@@ -48,7 +48,10 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
                         style={{ width: "24.25rem", fontSize: "14px", fontWeight: "normal", fontFamily: "Inter" }}
                     />
                     <img src={searchIcon} alt="search" className="custom-search-icon"
-                        onClick={() => onSearch(searchValue)} />
+                        onClick={() => {
+                            onSearch(searchValue);
+                            setSearchValue("");
+                        }} />
                 </div>
 
                 <div className="custom-icon-container">

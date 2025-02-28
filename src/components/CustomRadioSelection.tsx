@@ -39,8 +39,8 @@ export const CustomRadioSelection: React.FC<CustomRadioSelectionProps> = ({
   const flexDirection = options.length === 2 ? "row" : "column";
 
   return (
-    <Form.Group className="mb-3">
-      <Form.Label className="custom-radio-label">{label}</Form.Label>
+    <Form.Group style={{ marginTop : "10px"}}>
+      {label?.trim() && <Form.Label className="custom-radio-label">{label}</Form.Label>}
       <div className={`d-flex`} style={{ flexDirection, gap: "8px" }}>
         {options.map((option, index) => (
           <Form.Check

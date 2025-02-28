@@ -14,6 +14,7 @@ import { fetchVerification } from "../../services/documentUploadService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import { VerificationModel } from "../../models/VerificationModel";
+import UserDetailsDialog from "./UserDetailsDialog";
 
 const UserManagement = () => {
     const { register } = useForm();
@@ -83,7 +84,7 @@ const UserManagement = () => {
     }
 
     const userShow = () => {
-
+        UserDetailsDialog.show(() => refreshData(selectedBox))
     }
 
     const userColumns = React.useMemo(() => [

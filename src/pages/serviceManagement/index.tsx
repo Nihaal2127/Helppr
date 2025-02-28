@@ -28,7 +28,7 @@ const ServiceManagement = () => {
     const fetchRef = useRef(false);
 
     const fetchData = useCallback(async (selected: string, filters: {
-        name?: string;
+        keyword?: string;
         status?: string
     }) => {
         if (fetchRef.current) return;
@@ -63,7 +63,7 @@ const ServiceManagement = () => {
     };
 
     const handleFilterChange = async (filters: {
-        name?: string;
+        keyword?: string;
         status?: string
     }) => {
         setCurrentPage(1);
@@ -201,7 +201,7 @@ const ServiceManagement = () => {
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
-                    onSearch={(value) => handleFilterChange({ name: value })}
+                    onSearch={(value) => handleFilterChange({ keyword: value })}
                     register={register}
                 />
 

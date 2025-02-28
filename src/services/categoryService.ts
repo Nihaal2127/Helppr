@@ -23,12 +23,12 @@ export const fetchCategoryDropDown =async (
 export const fetchCategory = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string }
+  filters: { keyword?: string; status?: string }
 ): Promise<{ response: boolean, categories: CategoryModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.name && { name: filters.name }),
+    ...(filters.keyword && { keyword: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
   });
 

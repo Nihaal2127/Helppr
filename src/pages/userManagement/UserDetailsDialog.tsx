@@ -17,12 +17,12 @@ import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 
-type AddPartnerDialogProps = {
+type UserDetailsDialogProps = {
     onClose: () => void;
     onRefreshData: () => void;
 };
 
-const AddPartnerDialog: React.FC<AddPartnerDialogProps> & {
+const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     show: (onRefreshData: () => void) => void;
 } = ({ onClose, onRefreshData }) => {
     const {
@@ -305,7 +305,7 @@ const AddPartnerDialog: React.FC<AddPartnerDialogProps> & {
     );
 };
 
-AddPartnerDialog.show = (onRefreshData: () => void) => {
+UserDetailsDialog.show = (onRefreshData: () => void) => {
     const modalContainer = document.createElement("div");
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
@@ -316,11 +316,11 @@ AddPartnerDialog.show = (onRefreshData: () => void) => {
     };
 
     root.render(
-        <AddPartnerDialog
+        <UserDetailsDialog
             onClose={closeModal}
             onRefreshData={onRefreshData}
         />
     );
 };
 
-export default AddPartnerDialog;
+export default UserDetailsDialog;

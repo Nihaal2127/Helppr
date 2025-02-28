@@ -18,7 +18,6 @@ interface CustomFormInputProps {
   maxLength?: number;
   as?: string;
   rows?: number;
-  className?: string;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -36,7 +35,6 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   maxLength,
   as,
   rows,
-  className,
 }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
@@ -46,7 +44,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      <Form.Label>{label}</Form.Label>
+      {label?.trim() && <Form.Label>{label}</Form.Label>}
       <InputGroup className="mb-0">
         <Form.Control
           className="custom-form-input"
@@ -58,6 +56,20 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           onChange={onChange}
           readOnly={!isEditable}
           maxLength={maxLength}
+          style={{
+            boxShadow: "none",
+            borderRadius: "8px",
+            borderColor:"var(--primary-color)",
+            fontSize: "14px",
+            fontWeight: "normal",
+            width: "100%",
+            height: as !== "textarea" ? "2.62rem" : "auto",
+            lineHeight: "18px",
+            backgroundColor: "var(--bg-color)",
+            fontFamily: "'Inter'",
+            color: "var(--content-txt-color)",
+            marginBottom : "10px"
+          }}
         />
         <div
           className={classNames("input-group-text", "input-group-password", {
@@ -84,7 +96,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      <Form.Label>{label}</Form.Label>
+     {label?.trim() && <Form.Label>{label}</Form.Label>}
       <Form.Control
         className="custom-form-input"
         type={inputType}
@@ -109,6 +121,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           backgroundColor: "var(--bg-color)",
           fontFamily: "'Inter'",
           color: "var(--content-txt-color)",
+          marginBottom : "10px"
         }}
       />
       {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}

@@ -48,6 +48,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       backgroundColor: "var(--bg-color)",
       fontFamily: "'Inter'",
       color: "var(--content-txt-color)",
+      marginBottom: "10px"
     }),
     option: (provided: any, state: any) => ({
       ...provided,
@@ -60,11 +61,11 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
     }),
     singleValue: (provided: any) => ({
       ...provided,
-      color:"var(--content-txt-color)",
+      color: "var(--content-txt-color)",
     }),
     placeholder: (provided: any) => ({
       ...provided,
-     // color: AppColor.selectPlaceholderColor,
+      // color: AppColor.selectPlaceholderColor,
       fontSize: "14px",
       color: "var(--placeholder-txt)",
       fontFamily: "Inter",
@@ -80,12 +81,11 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
 
   return (
     <Form.Group
-         as={asCol ? Col : "div"}
-         {...(asCol ? { xs: 12, md: 4 } : {})}
-         controlId={controlId}
-         className="mb-0"
-       >
-      <Form.Label>{label}</Form.Label>
+      as={asCol ? Col : "div"}
+      {...(asCol ? { xs: 12, md: 4 } : {})}
+      controlId={controlId}
+    >
+      {label?.trim() && <Form.Label>{label}</Form.Label>}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"
