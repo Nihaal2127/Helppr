@@ -6,10 +6,15 @@ import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument } from "../../helper/utility";
+import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument, showLog } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
 import AddEditBankAccountDialog from "./AddEditBankAccountDialog";
 import { DocumentModel } from "../../models/DocumentModel";
+import { AppConstant } from "../../constant/AppConstant";
+import CustomUploadDialog from "../../components/CustomUpload";
+import { createOrUpdateDocument } from "../../services/documentUploadService";
+import { updatePartnerDocument,deletePartnerDocument } from "../../services/partnerDocumentService";
+import { showErrorAlert } from "../../helper/alertHelper";
 
 type PartnerDetailsDialogProps = {
     userId: string;
@@ -32,8 +37,6 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
             if (response) {
                 setUserDetails(user!!);
             }
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -47,22 +50,44 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
 
     }
 
-    const addDocument = (document : DocumentModel) => {
-        console.log("Adding document:", document);
-        const payload = {
-            image_urls : []
+    const addDocument = (document: DocumentModel) => {
+        CustomUploadDialog.show(
+            async (files, replaceUrls) => {
+                const formData = new FormData();
+                formData.append("type", "1");
+                files.forEach((file) => formData.append("files", file));
+
+                let { response, fileList } = await createOrUpdateDocument(formData, false);
+
+                if (response) {
+
+                    const payload = {
+                        image_urls: fileList[0],
+                    };
+                    if (!userDetails?._id) {
+                        showErrorAlert("Unable to update. ID is missing.");
+                        return;
+                    }
+
+                    let responseUpdate = await updatePartnerDocument(payload, document._id);
+                    if (responseUpdate) {
+                        onRefreshuser();
+                    }
+                }
+            }
+        )
+    };
+
+    const viewDocument = (document: DocumentModel) => {
+        showLog("Viewing document:", document);
+
+    };
+
+    const deleteDocument = async (document: DocumentModel) => {
+        const response = await deletePartnerDocument(document._id);
+        if(response){
+            onRefreshuser();
         }
-      
-    };
-
-    const viewDocument = (document : DocumentModel) => {
-        console.log("Viewing document:", document);
-        
-    };
-
-    const deleteDocument = (document : DocumentModel) => {
-        console.log("Deleting document:", document);
-    
     };
 
     const onRefreshuser = async () => {
@@ -87,7 +112,9 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                         <div className="custom-info">
                             <div>
                                 <p>Personal</p>
-                                <img src={profileIcon} alt=" Profile Picture" width="160px" height="160px" />
+                                <img src={userDetails?.profile_url
+                                    ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}`
+                                    : profileIcon} alt=" Profile Picture" width="160px" height="160px" />
                             </div>
 
                             <div className="custom-personal-details">
@@ -124,8 +151,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                                 <section className="custom-other-details" style={{ marginLeft: "0px", marginRight: "0px" }}>
                                     <h3>Verification</h3>
                                     <DetailsRow title="Status" value={userDetails?.total_payment} />
-                                    <DetailsRow title="Verified Date" value={"11-Feb-2025"} />
-                                    {/* <DetailsRow title="Verified Date" value={formatDate(userDetails?.last_paid_date ? userDetails?.last_paid_date : "")} /> */}
+                                    <DetailsRow title="Verified Date" value={formatDate(userDetails?.last_paid_date ? userDetails?.last_paid_date : "")} />
                                     <DetailsRow title="Verification ID" value={userDetails?.received_payment} />
                                     <DetailsRow title="Registration ID" value={userDetails?.in_progress_payment} />
                                 </section>

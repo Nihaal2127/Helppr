@@ -1,5 +1,6 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
+import { showLog } from "../helper/utility";
 
 export const createOrUpdateDocument = async (
   data: FormData,
@@ -15,7 +16,7 @@ export const createOrUpdateDocument = async (
       response: true,
     };
   } else {
-    console.log("Document fail:", response.message || "Unknown error");
+    showLog("Document fail:", response.message || "Unknown error");
     return {
       fileList: [],
       response: false,

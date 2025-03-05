@@ -123,7 +123,7 @@ const LocationManagement = () => {
         { Header: "State Name", accessor: "state_name" },
         { Header: "City Name", accessor: "name" },
         { Header: "City Service Price", accessor: "city_service_price" },
-        
+
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
@@ -178,20 +178,22 @@ const LocationManagement = () => {
                             onFilterChange={(filter) => {
                                 handleFilterChange(filter);
                             }}
+                            isAddShow={true}
+                            addButtonLable={capitalizeString(id.replace("box-", "Add ").replace("-", " "))}
+                            onAddClick={() => {
+                                id === "box-state"
+                            ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
+                            : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
+                            }}
                         />
                     ))}
                 </div>
 
                 <CustomUtilityBox
-                    addButtonLable={
-                        selectedBox === "box-state" ? "Add State" : "Add City"
+                    title={
+                        selectedBox === "box-state" ? "States" : "Cities"
                     }
                     searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
-                    onAddClick={() => {
-                        selectedBox === "box-state"
-                            ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
-                    }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}

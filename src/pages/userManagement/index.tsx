@@ -3,17 +3,18 @@ import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, textUnderlineCell, statusCell } from "../../helper/utility";
+import { capitalizeString, textUnderlineCell, statusCell, showLog } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { fetchUser } from "../../services/userService";
-import { fetchVerification } from "../../services/documentUploadService";
+import { fetchPartnerDocuments } from "../../services/partnerDocumentService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import { VerificationModel } from "../../models/VerificationModel";
 import UserDetailsDialog from "./UserDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
+import { DocumentModel } from "../../models/DocumentModel";
 
 const UserManagement = () => {
     const { register } = useForm();
@@ -22,7 +23,7 @@ const UserManagement = () => {
     const [partnerData, setParnterData] = useState<{}>({});
     const [verificationData, setVerificationData] = useState<{}>({});
     const [userList, setUserList] = useState<UserModel[]>([]);
-    const [serviceList, setServiceList] = useState<VerificationModel[]>([]);
+    const [verificationList, setVerificationList] = useState<DocumentModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -41,10 +42,11 @@ const UserManagement = () => {
             //setUserData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
         }
+        showLog("selected:", selected);
         if (selected === "box-verification") {
-            const { response, verifications, totalPages } = await fetchVerification(currentPage, pageSize, { ...filters, });
+            const { response, partnerDocuments, totalPages } = await fetchPartnerDocuments(currentPage, pageSize, { ...filters, });
             if (response) {
-                setServiceList(verifications);
+                setVerificationList(partnerDocuments);
                 setTotalPages(totalPages);
             }
         } else {
@@ -94,11 +96,11 @@ const UserManagement = () => {
         },
         {
             Header: "User ID", accessor: "user_id",
-            Cell: textUnderlineCell("user_id", (row) => userShow(row._id)), 
+            Cell: textUnderlineCell("user_id", (row) => userShow(row._id)),
         },
         {
             Header: "User Name", accessor: "name",
-            Cell: textUnderlineCell("name", (row) => userShow(row._id)), 
+            Cell: textUnderlineCell("name", (row) => userShow(row._id)),
         },
         { Header: "Service Taken", accessor: "total_service" },
         { Header: "Service Paid", accessor: "service_paid" },
@@ -120,11 +122,11 @@ const UserManagement = () => {
 
         {
             Header: "Partner ID", accessor: "user_id",
-            Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)), 
+            Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)),
         },
         {
             Header: "Partner Name", accessor: "name",
-            Cell: textUnderlineCell("name", (row) => partnerShow(row._id)), 
+            Cell: textUnderlineCell("name", (row) => partnerShow(row._id)),
         },
         { Header: "No. of services", accessor: "no_of_services" },
         { Header: "Service Provided", accessor: "completed_service" },
@@ -178,22 +180,24 @@ const UserManagement = () => {
                             onFilterChange={(filter) => {
                                 handleFilterChange(filter);
                             }}
+                            isAddShow={id === "box-verification" ? false : true}
+                            addButtonLable={capitalizeString(id.replace("box-", "Add ").replace("-", " "))}
+                            onAddClick={() => {
+                                id === "box-user"
+                                    ? AddEditUserDialog.show(true, false, null, () => refreshData(selectedBox))
+                                    : id === "box-partner"
+                                        ? AddEditUserDialog.show(false, false, null, () => refreshData(selectedBox))
+                                        : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                            }}
                         />
                     ))}
                 </div>
 
                 <CustomUtilityBox
-                    addButtonLable={
-                        selectedBox === "box-user" ? "Add User" : selectedBox === "box-partner" ? "Add Partner" : "Add Verification"
+                    title={
+                        selectedBox === "box-user" ? "Users" : selectedBox === "box-partner" ? "Partners" : "Verifications"
                     }
                     searchHint={"Search name, ID, Description etc."}
-                    onAddClick={() => {
-                        selectedBox === "box-user"
-                            ? AddEditUserDialog.show(true, false, null, () => refreshData(selectedBox))
-                            : selectedBox === "box-partner"
-                                ?  AddEditUserDialog.show(false, false, null, () => refreshData(selectedBox))
-                                : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
-                    }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
@@ -202,8 +206,8 @@ const UserManagement = () => {
                 />
 
                 <CustomTable
-                    columns={selectedBox === "box-verificationData" ? verificationColumns : selectedBox === "box-user" ? userColumns : partnerColumns}
-                    data={selectedBox === "box-verificationData" ? serviceList : userList}
+                    columns={selectedBox === "box-verification" ? verificationColumns : selectedBox === "box-user" ? userColumns : partnerColumns}
+                    data={selectedBox === "box-verification" ? verificationList : userList}
                     pageSize={pageSize}
                     currentPage={currentPage}
                     totalPages={totalPages}

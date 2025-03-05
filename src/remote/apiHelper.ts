@@ -4,7 +4,7 @@ import { ROUTES } from '../routes/Routes';
 import { AppConstant } from "../constant/AppConstant";
 import { clearLocalStorage } from "../helper/localStorageHelper";
 import { ApiPaths } from "./apiPaths";
-import {getNavigate} from "../helper/utility";
+import { getNavigate, showLog } from "../helper/utility";
 
 export const apiRequest = async (
   endpoint: string,
@@ -21,15 +21,15 @@ export const apiRequest = async (
     };
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
-    console.log("API Request URL:", requestUrl);
-    console.log("API header :", headers);
-    console.log("isMultipart :", isMultipart);
+    showLog("API Request URL:", requestUrl);
+    showLog("API header :", headers);
+    showLog("isMultipart :", isMultipart);
     if (isMultipart) {
       payload.forEach((value: FormDataEntryValue, key: string) => {
-        console.log("API FormData :", `${key}: ${value}`);
+        showLog("API FormData :", `${key}: ${value}`);
       });
     } else {
-      console.log("API payload :", payload);
+      showLog("API payload :", payload);
     }
 
     const response = await fetch(requestUrl, {
@@ -41,13 +41,13 @@ export const apiRequest = async (
     hideLoader();
 
     const data = await response.json();
-    console.log("API Response:", data);
+    showLog("API Response:", data);
     if (response.ok) {
       if (method !== "GET") {
         if (endpoint !== ApiPaths.LOGOUT() &&
-        endpoint !== ApiPaths.DOCUMENT_UPLOAD  &&
-        endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
-        endpoint !== ApiPaths.GET_COUNT
+          endpoint !== ApiPaths.DOCUMENT_UPLOAD &&
+          endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
+          endpoint !== ApiPaths.GET_COUNT
         ) {
           const successMessage = data.message || "Operation successful!";
           showSuccessAlert(successMessage);
@@ -69,7 +69,7 @@ export const apiRequest = async (
   } catch (error: any) {
     hideLoader();
     showErrorAlert("An error occurred during the request.");
-    console.error("API Error:", error);
+    showLog("API Error:", error);
     return { success: false, error: error.message || "Network error" };
   }
 };
@@ -87,9 +87,9 @@ export const apiRequestBlob = async (
     };
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
-    console.log("API Request URL:", requestUrl);
-    //console.log("API header :", headers);
-    console.log("API payload :", payload);
+    showLog("API Request URL:", requestUrl);
+    //showLog("API header :", headers);
+    showLog("API payload :", payload);
 
     const response = await fetch(requestUrl, {
       method: 'POST',
@@ -133,7 +133,7 @@ export const apiRequestBlob = async (
   } catch (error: any) {
     hideLoader();
     showErrorAlert("An error occurred during the request.");
-    console.error("API Error:", error);
+    showLog("API Error:", error);
     return { success: false, error: error.message || "Network error" };
   }
 };

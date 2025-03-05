@@ -1,9 +1,10 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { CityModel } from "../models/CityModel";
+import { showLog } from "../helper/utility";
 
 export const fetchCityDropDown = async (
-  stateIdList : string[],
+  stateIdList: string[],
 ): Promise<{ value: string; label: string }[]> => {
   const params = stateIdList ? new URLSearchParams({ state_id: stateIdList.toString() }) : "";
 
@@ -18,7 +19,7 @@ export const fetchCityDropDown = async (
       label: city.name,
     }));
   } else {
-    console.log(response.message ||"Failed to fetch city");
+    showLog(response.message || "Failed to fetch city");
     return [];
   }
 };
@@ -47,7 +48,7 @@ export const fetchCity = async (
       totalPages: response.data.totalPages,
     };
   } else {
-    console.log(response.message ||"Failed to fetch city");
+    showLog(response.message || "Failed to fetch city");
     return {
       response: false,
       cities: [],
@@ -61,7 +62,7 @@ export const deleteCity = async (id: string): Promise<boolean> => {
   if (response.success) {
     return true;
   } else {
-    console.log(response.message ||"Failed to delete city");
+    showLog(response.message || "Failed to delete city");
     return false;
   }
 };

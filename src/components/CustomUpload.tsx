@@ -3,21 +3,21 @@ import ReactDOM from "react-dom/client";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import uploadIcon from '../assets/icons/upload.svg';
+import {showErrorAlert} from "../helper/alertHelper";
+import { AppConstant } from "../constant/AppConstant";
 
 type CustomUploadDialogProps = {
-    onFileChange: (files: File[], replaceUrls: string[]) => void;
-    onUploadSave: () => void;
+    onUploadSave: (files: File[], replaceUrls: string[]) => void;
     onClose: () => void;
     existingImages?: string[];
 };
 
 const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
     show: (
-        onFileChange: (files: File[], replaceUrls: string[]) => void,
-        onUploadSave: () => void,
+        onUploadSave: (files: File[], replaceUrls: string[]) => void,
         existingImages?: string[]
     ) => void;
-} = ({ onFileChange, onUploadSave, onClose, existingImages = [] }) => {
+} = ({ onUploadSave, onClose, existingImages = [] }) => {
 
     const [fileInputs, setFileInputs] = useState<(File | null)[]>([]);
     const [replaceUrls, setReplaceUrls] = useState<string[]>([]);
@@ -44,8 +44,18 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
         setFileInputs(updatedFiles);
         setReplaceUrls(updatedReplaceUrls);
 
-        onFileChange(updatedFiles.filter((f) => f !== null) as File[], updatedReplaceUrls);
+       // onFileChange(updatedFiles.filter((f) => f !== null) as File[], updatedReplaceUrls);
     };
+
+    const handleOnUploadSave = () =>{
+
+        if(fileInputs.length > 0){
+            onClose();
+            onUploadSave(fileInputs.filter((f) => f !== null) as File[],replaceUrls);
+        }else{
+            showErrorAlert("Please select file");
+        }
+    }
 
     return (
         <>
@@ -56,8 +66,8 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
                 <Modal.Body className="px-4 pb-4 pt-0">
                     <div className="text-center">
                         <img
-                            src={fileInputs[0] ? URL.createObjectURL(fileInputs[0]) : uploadIcon}
-                            alt="Upload"
+                            src={fileInputs[0] ? URL.createObjectURL(fileInputs[0]) : existingImages.length > 0 ? `${AppConstant.IMAGE_BASE_URL}${existingImages[0]}`: uploadIcon}
+                            alt={existingImages.toString()}
                             style={{
                                 height: "160px",
                                 width: "160px",
@@ -76,7 +86,6 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
                         onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                                console.log("Selected file:", file);
                                 handleFileChange(file)
                             }
                         }}
@@ -92,7 +101,7 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
                             height: "48px",
                             padding: "6px 12px",
                         }}
-                            onClick={onUploadSave}>
+                            onClick={handleOnUploadSave}>
                             Upload Photo
                         </Button>
                     </Row>
@@ -102,7 +111,7 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
     );
 };
 
-CustomUploadDialog.show = (onFileChange: (files: File[], replaceUrls: string[]) => void, onUploadSave: () => void, existingImages?: string[]) => {
+CustomUploadDialog.show = (onUploadSave: (files: File[], replaceUrls: string[]) => void, existingImages?: string[]) => {
     const existingModal = document.getElementById("upload-document-modal");
     if (existingModal) {
         return;
@@ -119,7 +128,7 @@ CustomUploadDialog.show = (onFileChange: (files: File[], replaceUrls: string[]) 
 
     root.render(
         <CustomUploadDialog
-            onFileChange={onFileChange}
+           // onFileChange={onFileChange}
             onUploadSave={onUploadSave}
             existingImages={existingImages}
             onClose={closeModal}

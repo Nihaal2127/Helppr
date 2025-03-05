@@ -1,6 +1,7 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
+import { showLog } from "../helper/utility";
 
 export const login = async (
   payload: any
@@ -13,14 +14,14 @@ export const login = async (
         response: true,
       };
     } else {
-      console.log("Admin login failed:", response.message || "Unknown error");
+      showLog("Admin login failed:", response.message || "Unknown error");
       return {
         admin: null,
         response: false,
       };
     }
   } catch (error) {
-    console.log("Error during admin login:", error);
+    showLog("Error during admin login:", error);
     return {
       admin: null,
       response: false,
@@ -39,7 +40,7 @@ export const forgotPassword = async (
       return false;
     }
   } catch (error) {
-    console.log("Error during forgot password:", error);
+    showLog("Error during forgot password:", error);
     return false;
   }
 };
@@ -50,11 +51,11 @@ export const logout = async (): Promise<Boolean> => {
     if (response.success) {
       return true;
     } else {
-      console.log("Admin logout failed:", response.message || "Unknown error");
+      showLog("Admin logout failed:", response.message || "Unknown error");
       return false;
     }
   } catch (error) {
-    console.log("Error during user logout:", error);
+    showLog("Error during user logout:", error);
     return false;
   }
 };
@@ -65,11 +66,11 @@ export const fetchById = async (id: string): Promise<UserModel | null> => {
     if (response.success) {
       return response.data.record;
     } else {
-      console.log("Failed to fetch user:", response.message || "Unknown error");
+      showLog("Failed to fetch user:", response.message || "Unknown error");
       return null;
     }
   } catch (error) {
-    console.log("Error during user login:", error);
+    showLog("Error during user login:", error);
     return null;
   }
 };

@@ -9,6 +9,7 @@ import profileIcon from "../../assets/icons/profile.svg"
 import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
+import { AppConstant } from "../../constant/AppConstant";
 
 type UserDetailsDialogProps = {
     userId: string;
@@ -31,8 +32,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
             if (response) {
                 setUserDetails(user!!);
             }
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -68,7 +67,9 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                         <div className="custom-info">
                             <div>
                                 <p>Personal</p>
-                                <img src={profileIcon} alt=" Profile Picture" width="160px" height="160px" />
+                                <img src={userDetails?.profile_url
+                                    ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}`
+                                    : profileIcon} alt=" Profile Picture" width="160px" height="160px" />
                             </div>
 
                             <div className="custom-personal-details">

@@ -44,8 +44,6 @@ const AddPartnerDialog: React.FC<AddPartnerDialogProps> & {
         try {
             const stateOptions = await fetchStateDropDown();
             setState(stateOptions);
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -57,8 +55,6 @@ const AddPartnerDialog: React.FC<AddPartnerDialogProps> & {
         try {
             const cityOptions = await fetchCityDropDown([stateId]);
             setCity(cityOptions);
-        } catch (error) {
-            console.error("Error fetching city:", error);
         } finally {
             fetchCityRef.current = false;
         }

@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getStatusOptions } from "../../helper/utility";
+import { getStatusOptions, showLog } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
@@ -63,8 +63,6 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             if (isEditable && user) {
                 await fetchCityFromApi(user.state_id ?? "");
             }
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -76,8 +74,6 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
         try {
             const cityOptions = await fetchCityDropDown([stateId]);
             setCity(cityOptions);
-        } catch (error) {
-            console.error("Error fetching city:", error);
         } finally {
             fetchCityRef.current = false;
         }
@@ -245,6 +241,8 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
                                 label="Profile Photo"
                                 {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
                                 onFileChange={(files, replaceUrls) => {
+                                    showLog("Profile files",files);
+                                    showLog("Profile replaceUrls",replaceUrls);
                                     setFileInputs(files);
                                     setReplaceUrl(replaceUrls);
                                 }}

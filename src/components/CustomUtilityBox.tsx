@@ -9,9 +9,8 @@ import { CustomFormInput } from "./CustomFormInput";
 import { Button } from "react-bootstrap";
 
 type CustomUtilityBoxProps = {
-    addButtonLable: string;
+    title: string;
     searchHint: string;
-    onAddClick: () => void;
     onDownloadClick: () => void;
     onSortClick: () => void;
     onMoreClick: () => void;
@@ -20,9 +19,8 @@ type CustomUtilityBoxProps = {
 };
 
 const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
-    addButtonLable,
+    title,
     searchHint,
-    onAddClick,
     onDownloadClick,
     onSortClick,
     onMoreClick,
@@ -33,10 +31,11 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
 
     return (
         <div className="custom-utilty-box">
-            <Button className="custom-add-button" onClick={onAddClick}>
+            <span className="custom-utilty-box-title">{title}</span>
+            {/* <Button className="custom-add-button" onClick={onAddClick}>
                 <img src={addIcon} />
                 {addButtonLable}
-            </Button>
+            </Button> */}
             <div>
                 <div className="custom-search-container">
                     <Form.Control

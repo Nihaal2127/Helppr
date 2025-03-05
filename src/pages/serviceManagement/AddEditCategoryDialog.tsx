@@ -59,8 +59,6 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 setCityIds(category.city_ids);
                 await fetchCityFromApi(category.state_ids);
             }
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -72,8 +70,6 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         try {
             const cityOptions = await fetchCityDropDown(stateIdList);
             setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
-        } catch (error) {
-            console.error("Error fetching city:", error);
         } finally {
             fetchCityRef.current = false;
         }

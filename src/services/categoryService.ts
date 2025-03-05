@@ -1,23 +1,24 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { CategoryModel } from "../models/CategoryModel";
+import { showLog } from "../helper/utility";
 
-export const fetchCategoryDropDown =async (
+export const fetchCategoryDropDown = async (
 ): Promise<{ value: string; label: string }[]> => {
-    const response = await apiRequest(
-      `${ApiPaths.GET_CATEGORY_DROP_DOWN()}`,
-      "GET"
-    );
+  const response = await apiRequest(
+    `${ApiPaths.GET_CATEGORY_DROP_DOWN()}`,
+    "GET"
+  );
 
-    if (response.success) {
-      return response.data.records.map((state: any) => ({
-        value: state._id,
-        label: state.name,
-      }));
-    } else {
-      console.log(response.message ||"Failed to fetch category");
-      return [];
-    }
+  if (response.success) {
+    return response.data.records.map((state: any) => ({
+      value: state._id,
+      label: state.name,
+    }));
+  } else {
+    showLog(response.message || "Failed to fetch category");
+    return [];
+  }
 };
 
 export const fetchCategory = async (
@@ -44,7 +45,7 @@ export const fetchCategory = async (
       totalPages: response.data.totalPages,
     };
   } else {
-    console.log(response.message ||"Failed to fetch category");
+    showLog(response.message || "Failed to fetch category");
     return {
       response: false,
       categories: [],
@@ -58,12 +59,12 @@ export const deleteCategory = async (id: string): Promise<boolean> => {
   if (response.success) {
     return true;
   } else {
-    console.log(response.message ||"Failed to delete category");
+    showLog(response.message || "Failed to delete category");
     return false;
   }
 };
 
-export const createOrUpdateCategory= async (
+export const createOrUpdateCategory = async (
   payload: any,
   isEditable: boolean,
   id?: string

@@ -12,19 +12,29 @@ export const getNavigate = () => navigate;
 export const capitalizeString = (str: string) =>
     str.replace(/\b\w/g, char => char.toUpperCase());
 
+
+export function showLog(message?: any, ...optionalParams: any[]): void {
+    console.log(message, ...optionalParams);
+}
+
 export const getStatusOptions = () => [
     { label: "Active", value: "true" },
     { label: "Inactive", value: "false" }
 ];
 
-export const formatDate = (isoString: string) => {
+export const formatDate = (isoString: string): string => {
     const date = new Date(isoString);
+    if (isNaN(date.getTime())) {
+        return "-";//"Invalid Date";
+    }
+
     const day = date.getDate();
     const month = date.toLocaleString("en-GB", { month: "short" });
     const year = date.getFullYear();
 
     return `${day}-${month}-${year}`;
 };
+
 
 export const textUnderlineCell = (field: string, onClick: (row: any) => void) =>
     ({ row }: { row: any }) => (

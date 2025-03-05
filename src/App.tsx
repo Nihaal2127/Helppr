@@ -7,7 +7,7 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { setNavigate } from "./helper/utility";
+import { setNavigate,showLog } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
@@ -48,7 +48,7 @@ function App() {
 
   useEffect(() => {
     const token = getLocalStorage(AppConstant.authToken);
-    //console.log("App Token:",token)
+    //showLog("App Token:",token)
     if (token) {
       setIsAuthenticated(true);
       if (location.pathname === ROUTES.LOGIN.path) {

@@ -1,23 +1,24 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { StateModel } from "../models/StateModel";
+import { showLog } from "../helper/utility";
 
-export const fetchStateDropDown =async (
+export const fetchStateDropDown = async (
 ): Promise<{ value: string; label: string }[]> => {
-    const response = await apiRequest(
-      `${ApiPaths.GET_STATE_DROP_DOWN()}`,
-      "GET"
-    );
+  const response = await apiRequest(
+    `${ApiPaths.GET_STATE_DROP_DOWN()}`,
+    "GET"
+  );
 
-    if (response.success) {
-      return response.data.records.map((state: any) => ({
-        value: state._id,
-        label: state.name,
-      }));
-    } else {
-      console.log(response.message ||"Failed to fetch state");
-      return [];
-    }
+  if (response.success) {
+    return response.data.records.map((state: any) => ({
+      value: state._id,
+      label: state.name,
+    }));
+  } else {
+    showLog(response.message || "Failed to fetch state");
+    return [];
+  }
 };
 
 export const fetchState = async (
@@ -44,7 +45,7 @@ export const fetchState = async (
       totalPages: response.data.totalPages,
     };
   } else {
-    console.log(response.message ||"Failed to fetch state");
+    showLog(response.message || "Failed to fetch state");
     return {
       response: false,
       states: [],
@@ -58,7 +59,7 @@ export const deleteState = async (id: string): Promise<boolean> => {
   if (response.success) {
     return true;
   } else {
-    console.log(response.message ||"Failed to delete state");
+    showLog(response.message || "Failed to delete state");
     return false;
   }
 };

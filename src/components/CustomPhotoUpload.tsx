@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../components/CustomCloseButton";
 import { Link } from 'react-router-dom';
+import { showLog } from "../helper/utility";
 
 interface CustomPhotoUploadProps {
     isOpen?: boolean;
@@ -92,7 +93,7 @@ const CustomPhotoUpload = ({
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                    console.log("Selected file:", file);
+                                    showLog("Selected file:", file);
                                     handleFileChange(file)
                                 }
                             }}

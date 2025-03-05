@@ -1,6 +1,7 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
+import { showLog } from "../helper/utility";
 
 export const fetchUserDropDown = async (
 ): Promise<{ value: string; label: string }[]> => {
@@ -15,7 +16,7 @@ export const fetchUserDropDown = async (
       label: user.name,
     }));
   } else {
-    console.log(response.message || "Failed to fetch user");
+    showLog(response.message || "Failed to fetch user");
     return [];
   }
 };
@@ -46,7 +47,7 @@ export const fetchUser = async (
       totalPages: response.data.totalPages,
     };
   } else {
-    console.log(response.message || "Failed to fetch users");
+    showLog(response.message || "Failed to fetch users");
     return {
       response: false,
       users: [],
@@ -75,7 +76,7 @@ export const deleteUser = async (id: string): Promise<boolean> => {
   if (response.success) {
     return true;
   } else {
-    console.log(response.message || "Failed to delete users");
+    showLog(response.message || "Failed to delete users");
     return false;
   }
 };

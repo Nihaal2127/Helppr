@@ -66,8 +66,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 setCityIds(service.city_ids);
                 await fetchCityFromApi(service.state_ids);
             }
-        } catch (error) {
-            console.error("Error fetching:", error);
         } finally {
             fetchRef.current = false;
         }
@@ -83,8 +81,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         try {
             const cityOptions = await fetchCityDropDown(stateIdList);
             setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
-        } catch (error) {
-            console.error("Error fetching city:", error);
         } finally {
             fetchCityRef.current = false;
         }

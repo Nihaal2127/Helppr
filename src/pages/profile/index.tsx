@@ -11,6 +11,7 @@ import CustomPhotoUpload from "../../components/CustomPhotoUpload";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
+import { showLog } from "../../helper/utility";
 
 const Profile = () => {
 
@@ -54,19 +55,14 @@ const Profile = () => {
 
     const onUploadSave = async () => {
         if (userDetails?.profile_url && (fileInputs.length > 0 && replaceUrls.length > 0)) {
-            //edit profile
-            console.log("Update Profile Photo");
             uploadProfile(true);
         } else if (userDetails?.profile_url && (fileInputs.length === 0 && replaceUrls.length === 0)) {
             //delete profile
-            console.log("Remove Profile");
+            showLog("Remove Profile");
         } else {
             // add profile   
             if (fileInputs.length > 0) {
-                console.log("Add Profile Photo");
                 uploadProfile(false);
-            } else {
-                console.log("No Profile Photo choose");
             }
         }
     };
@@ -285,8 +281,6 @@ const Profile = () => {
                     onFileChange={(files, replaceUrls) => {
                         setFileInputs(files);
                         setReplaceUrl(replaceUrls);
-                        console.log("files:", files)
-                        console.log("replaceUrls:", replaceUrls)
                     }}
                 />
             )}

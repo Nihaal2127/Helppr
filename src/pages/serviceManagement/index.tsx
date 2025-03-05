@@ -184,20 +184,22 @@ const ServiceManagement = () => {
                             onFilterChange={(filter) => {
                                 handleFilterChange(filter);
                             }}
+                            isAddShow={true}
+                            addButtonLable={capitalizeString(id.replace("box-", "Add ").replace("-", " "))}
+                            onAddClick={() => {
+                                id === "box-category"
+                                    ? AddEditCategoryDialog.show(false, null, () => refreshData(selectedBox))
+                                    : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                            }}
                         />
                     ))}
                 </div>
 
                 <CustomUtilityBox
-                    addButtonLable={
-                        selectedBox === "box-category" ? "Add Category" : "Add Service"
+                    title={
+                        selectedBox === "box-category" ? "Categories" : "Services"
                     }
                     searchHint={`${selectedBox === "box-category" ? "Search Category name, ID, Description etc." : "Search Service name, ID, Description etc."}`}
-                    onAddClick={() => {
-                        selectedBox === "box-category"
-                            ? AddEditCategoryDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
-                    }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}

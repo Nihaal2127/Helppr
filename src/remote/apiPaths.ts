@@ -37,5 +37,7 @@ export const ApiPaths = {
   DELETE_SERVICE: (id: string) => `/service/delete/${id}`,
   CREATE_BANK_ACCOUNT: '/bank_account/create',
   UPDATE_BANK_ACCOUNT: (id: string) => `/bank_account/update/${id}`,
+  GET_PARTNER_DOCUMENT: () => `/partner_document/getAll`,
   UPDATE_PARTNER_DOCUMENT: (id: string) => `/partner_document/updateDocument/${id}`,
+  DELETE_PARTNER_DOCUMENT: (id: string) => `/partner_document/delete/${id}`,
 };

@@ -1,23 +1,24 @@
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { ServiceModel } from "../models/ServiceModel";
+import { showLog } from "../helper/utility";
 
-export const fetchServiceDropDown =async (
+export const fetchServiceDropDown = async (
 ): Promise<{ value: string; label: string }[]> => {
-    const response = await apiRequest(
-      `${ApiPaths.GET_SERVICE_DROP_DOWN()}`,
-      "GET"
-    );
+  const response = await apiRequest(
+    `${ApiPaths.GET_SERVICE_DROP_DOWN()}`,
+    "GET"
+  );
 
-    if (response.success) {
-      return response.data.records.map((state: any) => ({
-        value: state._id,
-        label: state.name,
-      }));
-    } else {
-      console.log(response.message ||"Failed to fetch service");
-      return [];
-    }
+  if (response.success) {
+    return response.data.records.map((state: any) => ({
+      value: state._id,
+      label: state.name,
+    }));
+  } else {
+    showLog(response.message || "Failed to fetch service");
+    return [];
+  }
 };
 
 export const fetchService = async (
@@ -44,7 +45,7 @@ export const fetchService = async (
       totalPages: response.data.totalPages,
     };
   } else {
-    console.log(response.message ||"Failed to fetch service");
+    showLog(response.message || "Failed to fetch service");
     return {
       response: false,
       services: [],
@@ -58,12 +59,12 @@ export const deleteService = async (id: string): Promise<boolean> => {
   if (response.success) {
     return true;
   } else {
-    console.log(response.message ||"Failed to delete service");
+    showLog(response.message || "Failed to delete service");
     return false;
   }
 };
 
-export const createOrUpdateService= async (
+export const createOrUpdateService = async (
   payload: any,
   isEditable: boolean,
   id?: string

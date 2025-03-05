@@ -45,8 +45,6 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
         try {
             const stateOptions = await fetchStateDropDown();
             setState(stateOptions);
-        } catch (error) {
-            console.error("Error fetching state:", error);
         } finally {
             fetchRef.current = false;
         }
