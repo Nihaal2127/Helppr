@@ -6,15 +6,14 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, textUnderlineCell, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import AddPartnerDialog from "./AddPartnerDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
-import { ServiceModel } from "../../models/ServiceModel";
 import { fetchUser } from "../../services/userService";
 import { fetchVerification } from "../../services/documentUploadService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import { VerificationModel } from "../../models/VerificationModel";
 import UserDetailsDialog from "./UserDetailsDialog";
+import PartnerDetailsDialog from "./PartnerDetailsDialog";
 
 const UserManagement = () => {
     const { register } = useForm();
@@ -30,7 +29,7 @@ const UserManagement = () => {
     const fetchRef = useRef(false);
 
     const fetchData = useCallback(async (selected: string, filters: {
-        name?: string;
+        keyword?: string;
         status?: string
     }) => {
         if (fetchRef.current) return;
@@ -39,7 +38,7 @@ const UserManagement = () => {
         if (response && countModel) {
             setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
             setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner });
-            setUserData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });
+            //setUserData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
         }
         if (selected === "box-verification") {
@@ -67,7 +66,7 @@ const UserManagement = () => {
     };
 
     const handleFilterChange = async (filters: {
-        name?: string;
+        keyword?: string;
         status?: string
     }) => {
         setCurrentPage(1);
@@ -79,12 +78,12 @@ const UserManagement = () => {
         }
     };
 
-    const partnerShow = () => {
-
+    const partnerShow = (userId: string) => {
+        PartnerDetailsDialog.show(userId, () => refreshData("box-partner"))
     }
 
-    const userShow = () => {
-        UserDetailsDialog.show(() => refreshData(selectedBox))
+    const userShow = (userId: string) => {
+        UserDetailsDialog.show(userId, () => refreshData("box-user"))
     }
 
     const userColumns = React.useMemo(() => [
@@ -95,11 +94,11 @@ const UserManagement = () => {
         },
         {
             Header: "User ID", accessor: "user_id",
-            Cell: textUnderlineCell("user_id", userShow),
+            Cell: textUnderlineCell("user_id", (row) => userShow(row._id)), 
         },
         {
             Header: "User Name", accessor: "name",
-            Cell: textUnderlineCell("name", userShow),
+            Cell: textUnderlineCell("name", (row) => userShow(row._id)), 
         },
         { Header: "Service Taken", accessor: "total_service" },
         { Header: "Service Paid", accessor: "service_paid" },
@@ -121,14 +120,14 @@ const UserManagement = () => {
 
         {
             Header: "Partner ID", accessor: "user_id",
-            Cell: textUnderlineCell("user_id", partnerShow),
+            Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)), 
         },
         {
             Header: "Partner Name", accessor: "name",
-            Cell: textUnderlineCell("name", partnerShow),
+            Cell: textUnderlineCell("name", (row) => partnerShow(row._id)), 
         },
         { Header: "No. of services", accessor: "no_of_services" },
-        { Header: "Service Provided", accessor: "service_provided" },
+        { Header: "Service Provided", accessor: "completed_service" },
         { Header: "Total Earnings", accessor: "total_earnings" },
         { Header: "Bal Payment", accessor: "bal_payment" },
         { Header: "Rating", accessor: "rating" },
@@ -192,13 +191,13 @@ const UserManagement = () => {
                         selectedBox === "box-user"
                             ? AddEditUserDialog.show(true, false, null, () => refreshData(selectedBox))
                             : selectedBox === "box-partner"
-                                ? AddPartnerDialog.show(() => refreshData(selectedBox))
+                                ?  AddEditUserDialog.show(false, false, null, () => refreshData(selectedBox))
                                 : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
                     }}
                     onDownloadClick={() => { }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
-                    onSearch={(value) => handleFilterChange({ name: value })}
+                    onSearch={(value) => handleFilterChange({ keyword: value })}
                     register={register}
                 />
 

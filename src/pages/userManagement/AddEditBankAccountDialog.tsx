@@ -3,65 +3,60 @@ import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
 import { showErrorAlert } from "../../helper/alertHelper";
-import { createOrUpdateUser } from "../../services/userService";
+import { createOrUpdateBankAccount } from "../../services/bankAccountService";
 import CustomTextField from "../../components/CustomTextField";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
+import { BankAccountModel } from "../../models/BankAccountModel";
 
 type AddEditBankAccountDialogProps = {
+    partnerId: string;
     isEditable: boolean;
-    user: UserModel | null;
+    bankAccount: BankAccountModel | null;
     onClose: () => void;
     onRefreshData: () => void;
 };
 
 const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
-    show: (isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => void;
-} = ({ isEditable, user, onClose, onRefreshData }) => {
+    show: (partnerId: string, isEditable: boolean, user: BankAccountModel | null, onRefreshData: () => void) => void;
+} = ({ partnerId, isEditable, bankAccount, onClose, onRefreshData }) => {
     const {
         register,
         handleSubmit,
         setValue,
         formState: { errors },
-    } = useForm<UserModel>({
+    } = useForm<BankAccountModel>({
         defaultValues: {
-            name: user?.name || "",
-            email: user?.email || "",
-            phone_number: user?.phone_number || "",
-            address: user?.address || "",
-            state_id: user?.state_id || "",
-            city_id: user?.city_id || "",
-            is_active: user?.is_active ?? true,
+            account_holder_name: bankAccount?.account_holder_name || "",
+            account_number: bankAccount?.account_number || "",
+            ifsc_code: bankAccount?.ifsc_code || "",
+            branch_name: bankAccount?.branch_name || "",
+            bank_name: bankAccount?.account_holder_name || ""
         },
     });
 
-    const onSubmitEvent = async (data: UserModel) => {
+    const onSubmitEvent = async (data: BankAccountModel) => {
 
         const payload = {
-            type: 2,
-            is_from_web: true,
-            registration_type:1,
-            created_by_id:getLocalStorage(AppConstant.createdById),
-            name: data.name,
-            email: data.email,
-            phone_number: data.phone_number,
-            address: data.address,
-            state_id: data.state_id,
-            city_id: data.city_id,
-            is_active: data.is_active,
+            partner_id: partnerId,
+            account_holder_name: data.account_holder_name,
+            account_number: data.account_number,
+            ifsc_code: data.ifsc_code,
+            bank_name: data.bank_name,
+            branch_name: data.branch_name,
+            is_primary: true
         };
 
         let responseUser;
         if (isEditable) {
-            if (!user?._id) {
+            if (!bankAccount?._id) {
                 showErrorAlert("Unable to update. ID is missing.");
                 return;
             }
-            responseUser = await createOrUpdateUser(payload, true, user?._id);
+            responseUser = await createOrUpdateBankAccount(payload, true, bankAccount?._id);
         } else {
-            responseUser = await createOrUpdateUser(payload, false,);
+            responseUser = await createOrUpdateBankAccount(payload, false,);
         }
 
         if (responseUser) {
@@ -89,35 +84,43 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                         <Row>
                             <CustomTextField
                                 label="Account Name"
-                                controlId="name"
+                                controlId="account_holder_name"
                                 placeholder="Enter Account Name"
                                 register={register}
-                                error={errors.name}
+                                error={errors.account_holder_name}
                                 validation={{ required: "Account name is required" }}
                             />
                             <CustomTextField
                                 label="Account Number"
-                                controlId="email"
+                                controlId="account_number"
                                 placeholder="Enter Account Number"
                                 register={register}
-                                error={errors.email}
+                                error={errors.account_number}
                                 validation={{ required: "Account number is required" }}
                             />
                             <CustomTextField
                                 label="IFSC Code"
-                                controlId="phone_number"
+                                controlId="ifsc_code"
                                 placeholder="Enter IFSC Code"
                                 register={register}
-                                error={errors.phone_number}
+                                error={errors.ifsc_code}
                                 validation={{ required: "IFSC code is required" }}
                             />
                             <CustomTextField
                                 label="Bank Name"
-                                controlId="address"
+                                controlId="bank_name"
                                 placeholder="Enter Bank Name"
                                 register={register}
-                                error={errors.address}
+                                error={errors.bank_name}
                                 validation={{ required: "Bank name is required" }}
+                            />
+                            <CustomTextField
+                                label="Branch Name"
+                                controlId="branch_name"
+                                placeholder="Enter Branch Name"
+                                register={register}
+                                error={errors.branch_name}
+                                validation={{ required: "Branch name is required" }}
                             />
                         </Row>
                         <Row className="mt-4">
@@ -139,8 +142,13 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
     );
 };
 
-AddEditBankAccountDialog.show = (isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => {
+AddEditBankAccountDialog.show = (partnerId: string, isEditable: boolean, bankAccount: BankAccountModel | null, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 
@@ -151,8 +159,9 @@ AddEditBankAccountDialog.show = (isEditable: boolean, user: UserModel | null, on
 
     root.render(
         <AddEditBankAccountDialog
+            partnerId={partnerId}
             isEditable={isEditable}
-            user={user}
+            bankAccount={bankAccount}
             onClose={closeModal}
             onRefreshData={onRefreshData}
         />

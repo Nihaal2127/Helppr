@@ -32,6 +32,7 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
             name: city?.name || "",
             state_id: city?.state_id || "",
             is_active: city?.is_active ?? true,
+            city_service_price:city?.city_service_price || 0,
         },
     });
 
@@ -75,7 +76,7 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
             name: data.name,
             state_id: data.state_id,
             is_active: data.is_active,
-            city_service_price:data.price,
+            city_service_price:Number(data.city_service_price),
         };
         let response;
 
@@ -137,10 +138,10 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
                         />
                         <CustomFormInput
                             label=""
-                            controlId="price"
+                            controlId="city_service_price"
                             placeholder="Enter City service Price"
                             register={register}
-                            error={errors.price}
+                            error={errors.city_service_price}
                             asCol={false}
                             inputType="number"
                             validation={{ required: "City service price is required" }}
@@ -173,7 +174,12 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
 };
 
 AddEditCityDialog.show = (isEditable: boolean, city: CityModel | null, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "details-modal"; 
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

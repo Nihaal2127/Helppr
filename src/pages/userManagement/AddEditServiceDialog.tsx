@@ -323,7 +323,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 };
 
 AddEditServiceDialog.show = (isEditable: boolean, category: ServiceModel | null, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "details-modal"; 
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

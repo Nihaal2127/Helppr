@@ -5,7 +5,7 @@ export const ApiPaths = {
   SEND_OTP: () => `/otp/send-otp`,
   VERIFY_OTP: () => `/otp/verify-otp`,
   GET_COUNT: '/getCount',
-  GET_BY_ID: () => `/user/get`,
+  GET_USER_BY_ID: () => `/user/get`,
   CREATE_USER: '/user/create',
   GET_USER: () => `/user/getAll`,
   GET_USER_DROP_DOWN: () => `/user/getDropDown`,
@@ -35,4 +35,7 @@ export const ApiPaths = {
   CREATE_SERVICE: '/service/create',
   UPDATE_SERVICE: (id: string) => `/service/update/${id}`,
   DELETE_SERVICE: (id: string) => `/service/delete/${id}`,
+  CREATE_BANK_ACCOUNT: '/bank_account/create',
+  UPDATE_BANK_ACCOUNT: (id: string) => `/bank_account/update/${id}`,
+  UPDATE_PARTNER_DOCUMENT: (id: string) => `/partner_document/updateDocument/${id}`,
 };

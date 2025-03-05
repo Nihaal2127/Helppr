@@ -1,3 +1,5 @@
+import { BankAccountModel } from "./BankAccountModel";
+import { DocumentModel } from "./DocumentModel";
 
 export interface UserModel {
   _id: string;
@@ -8,6 +10,8 @@ export interface UserModel {
   landmark: string | null;
   state_id: string | null;
   city_id: string | null;
+  state_name: string | null;
+  city_name: string | null;
   pincode: string | null;
   profile_url: string | null;
   user_id: string | null;
@@ -32,6 +36,16 @@ export interface UserModel {
   updated_at: string | null;
 
 
+  total_payment: number | 0;
+  paid_amount: number | 0;
+  balance_amount: string | null;
+  received_payment: number | 0;
+  in_progress_payment: number | 0;
+  refund_payment: number | 0;
+  payment_mode: string | null;
+  last_paid_date: string | null;
+  last_service_date: string | null;
+
   total_service: number | 0;
   service_paid: number | 0;
   service_unpaid: number | 0;
@@ -39,6 +53,9 @@ export interface UserModel {
   completed_service: number | 0;
   cancelled_service: number | 0;
   my_services: string[] | [];
+
+  bank_account: BankAccountModel | null;
+  documents: DocumentModel[] | []
 }
 
 

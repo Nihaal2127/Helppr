@@ -45,7 +45,7 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                 </Col>
             </Row>
 
-            {uploadShow && (
+            {/* {uploadShow && (
                 <CustomUpload
                     isOpen={uploadShow}
                     onClose={() => setUploadShow(false)}
@@ -55,7 +55,7 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                     existingImages={existingImages}
                     onFileChange={onFileChange}
                 />
-            )}
+            )} */}
         </>
 
     );

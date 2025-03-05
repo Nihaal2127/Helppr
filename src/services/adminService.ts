@@ -61,7 +61,7 @@ export const logout = async (): Promise<Boolean> => {
 
 export const fetchById = async (id: string): Promise<UserModel | null> => {
   try {
-    const response = await apiRequest(`${ApiPaths.GET_BY_ID()}/${id}`, "GET");
+    const response = await apiRequest(`${ApiPaths.GET_USER_BY_ID()}/${id}`, "GET");
     if (response.success) {
       return response.data.record;
     } else {

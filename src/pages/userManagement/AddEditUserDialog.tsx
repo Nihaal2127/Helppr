@@ -41,6 +41,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             address: user?.address || "",
             state_id: user?.state_id || "",
             city_id: user?.city_id || "",
+            pincode: user?.pincode || "",
             is_active: user?.is_active ?? true,
         },
     });
@@ -119,7 +120,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             state_id: data.state_id,
             city_id: data.city_id,
             is_active: data.is_active,
-            
+            pincode: data.pincode,
             ...(profile_url !== "" && { profile_url })
         };
 
@@ -232,14 +233,20 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
                                     : ""}
                                 setValue={setValue as (name: string, value: any) => void}
                             />
+                             <CustomTextField
+                                label="Pincode"
+                                controlId="pincode"
+                                placeholder="Enter Pincode"
+                                register={register}
+                                error={errors.pincode}
+                                validation={{ required: "Pincode is required" }}
+                            />
                             <CustomTextFieldUpload
                                 label="Profile Photo"
                                 {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
                                 onFileChange={(files, replaceUrls) => {
                                     setFileInputs(files);
                                     setReplaceUrl(replaceUrls);
-                                    console.log("Dialog files:", files)
-                                    console.log("Dialog replaceUrls:", replaceUrls)
                                 }}
                             />
                             <CustomTextFieldRadio
@@ -271,7 +278,12 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
 };
 
 AddEditUserDialog.show = (isUser: boolean, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("add-user-details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "add-user-details-modal"; 
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

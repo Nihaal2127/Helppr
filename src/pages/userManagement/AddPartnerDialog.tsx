@@ -306,7 +306,13 @@ const AddPartnerDialog: React.FC<AddPartnerDialogProps> & {
 };
 
 AddPartnerDialog.show = (onRefreshData: () => void) => {
+    const existingModal = document.getElementById("details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "details-modal"; 
+
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

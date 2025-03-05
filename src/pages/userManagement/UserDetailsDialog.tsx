@@ -1,49 +1,36 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import { useForm } from "react-hook-form";
-import { Modal, Button, Row, Col } from "react-bootstrap";
+import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getStatusOptions } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
-import { fetchCityDropDown } from "../../services/cityService";
-import { fetchStateDropDown } from "../../services/stateService";
-import { createOrUpdateUser } from "../../services/userService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
-import CustomTextField from "../../components/CustomTextField";
-import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
+import { fetchUserById } from "../../services/userService";
+import editIcon from "../../assets/icons/edit_red.svg"
+import profileIcon from "../../assets/icons/profile.svg"
+import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../helper/utility";
+import AddEditUserDialog from "./AddEditUserDialog";
+import ServiceDetailsDialog from "./ServiceDetailsDialog";
 
 type UserDetailsDialogProps = {
+    userId: string;
     onClose: () => void;
     onRefreshData: () => void;
 };
 
 const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
-    show: (onRefreshData: () => void) => void;
-} = ({ onClose, onRefreshData }) => {
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        formState: { errors },
-    } = useForm<UserModel>({});
+    show: (userId: string, onRefreshData: () => void) => void;
+} = ({ userId, onClose, onRefreshData }) => {
 
-    const [fileInputs, setFileInputs] = useState<File[]>([]);
-    const [states, setState] = useState<{ value: string; label: string }[]>([]);
-    const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
+    const [userDetails, setUserDetails] = useState<UserModel>();
     const fetchRef = useRef(false);
-    const fetchCityRef = useRef(false);
 
-    const fetchStateFromApi = async () => {
+    const fetchDataFromApi = async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
-            const stateOptions = await fetchStateDropDown();
-            setState(stateOptions);
+            const { response, user } = await fetchUserById(userId);
+            if (response) {
+                setUserDetails(user!!);
+            }
         } catch (error) {
             console.error("Error fetching state:", error);
         } finally {
@@ -51,67 +38,18 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         }
     };
 
-    const fetchCityFromApi = async (stateId: string) => {
-        if (fetchCityRef.current) return;
-        fetchCityRef.current = true;
-        try {
-            const cityOptions = await fetchCityDropDown([stateId]);
-            setCity(cityOptions);
-        } catch (error) {
-            console.error("Error fetching city:", error);
-        } finally {
-            fetchCityRef.current = false;
-        }
-    };
-
-    const onSubmitEvent = async (data: UserModel) => {
-
-        let profile_url = "";
-        if (fileInputs.length > 0) {
-            const formData = new FormData();
-            formData.append("type", "4");
-            fileInputs.forEach((file) => formData.append("files", file));
-
-            let { response, fileList } = await createOrUpdateDocument(formData, false);
-            if (response) {
-                if (fileList.length > 0) {
-                    profile_url = fileList[0].toString();
-                }
-            }
-        }
-
-        if (profile_url === "") {
-            showErrorAlert("Please select image");
-            return;
-        }
-        const payload = {
-            type: 2,
-            is_from_web: true,
-            registration_type: 1,
-            created_by_id: getLocalStorage(AppConstant.createdById),
-            name: data.name,
-            email: data.email,
-            phone_number: data.phone_number,
-            address: data.address,
-            state_id: data.state_id,
-            city_id: data.city_id,
-            is_active: data.is_active,
-
-            ...(profile_url !== "" && { profile_url })
-        };
-
-        const responseUser = await createOrUpdateUser(payload, false,);
-
-        if (responseUser) {
-            onClose && onClose();
-            onRefreshData();
-        }
-    };
-
     useEffect(() => {
-        fetchStateFromApi();
+        fetchDataFromApi();
     }, []);
 
+    const openServices = (status: number | null) => {
+        ServiceDetailsDialog.show(status, onRefreshuser);
+    };
+
+    const onRefreshuser = async () => {
+        await fetchDataFromApi();
+        onRefreshData();
+    }
     return (
         <>
             <Modal
@@ -122,182 +60,57 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                 <div className="custom-model-detail">
                     <Modal.Header className="py-3 px-4 border-bottom-0">
                         <Modal.Title as="h5" className="custom-modal-title">
-                            Add Partner
+                            User Information
                         </Modal.Title>
                         <CustomCloseButton onClose={onClose} />
                     </Modal.Header>
                     <Modal.Body className="px-4 pb-4 pt-0">
-                        <form
-                            noValidate
-                            name="partner-form"
-                            id="partner-form"
-                            onSubmit={handleSubmit(onSubmitEvent)}
-                        >
-                            <Row>
-                                <Col xs={4}>
-                                    <Row>
-                                        <span className="custom-model-detail-title">Basic Details</span>
-                                        <CustomTextField
-                                            label="Name"
-                                            controlId="name"
-                                            placeholder="Enter Name"
-                                            register={register}
-                                            error={errors.name}
-                                            validation={{ required: "Name is required" }}
-                                        />
-                                        <CustomTextField
-                                            label="Email"
-                                            controlId="email"
-                                            placeholder="Enter Email"
-                                            register={register}
-                                            error={errors.email}
-                                            validation={{ required: "Email is required" }}
-                                        />
-                                        <CustomTextField
-                                            label="Phone No"
-                                            controlId="phone_number"
-                                            placeholder="Enter Phone No"
-                                            register={register}
-                                            error={errors.phone_number}
-                                            validation={{ required: "Phone no is required" }}
-                                        />
-                                        <CustomTextField
-                                            label="Address"
-                                            controlId="address"
-                                            placeholder="Enter Address"
-                                            register={register}
-                                            error={errors.address}
-                                            validation={{ required: "Address is required" }}
-                                        />
-                                        <CustomTextFieldSelect
-                                            label="State"
-                                            controlId="State"
-                                            options={states}
-                                            register={register}
-                                            fieldName="state_id"
-                                            error={errors.state_id}
-                                            requiredMessage="Please select state"
-                                            defaultValue=""
-                                            setValue={setValue as (name: string, value: any) => void}
-                                            onChange={(e) =>
-                                                fetchCityFromApi(e.target.value)
-                                            }
-                                        />
-                                        <CustomTextFieldSelect
-                                            label="City"
-                                            controlId="City"
-                                            options={cities}
-                                            register={register}
-                                            fieldName="city_id"
-                                            error={errors.city_id}
-                                            requiredMessage="Please select city"
-                                            defaultValue=""
-                                            setValue={setValue as (name: string, value: any) => void}
-                                        />
-                                        <CustomTextFieldUpload
-                                            label="Profile Photo"
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                            }}
-                                        />
-                                        <CustomTextFieldRadio
-                                            label="Status"
-                                            name="is_active"
-                                            options={getStatusOptions()}
-                                            defaultValue={"true"}
-                                            setValue={setValue}
-                                        />
-                                    </Row>
-                                </Col>
-                                <Col xs={4}>
-                                    <Row>
-                                        <span className="custom-model-detail-title">Documents</span>
-                                        <CustomTextFieldUpload
-                                            label="Aadhar Card"
-                                            labelSize={6}
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                            }}
-                                        />
-                                        <CustomTextFieldUpload
-                                            label="Pan Card"
-                                            labelSize={6}
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                            }}
-                                        />
-                                        <CustomTextFieldUpload
-                                            label="Vehicle Registration"
-                                            labelSize={6}
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                            }}
-                                        />
-                                        <CustomTextFieldUpload
-                                            labelSize={6}
-                                            label="Driving License"
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                            }}
-                                        />
-                                    </Row>
-                                </Col>
-                                <Col xs={4}>
-                                    <Row>
-                                        <span className="custom-model-detail-title">Bank Info</span>
-                                        <CustomTextField
-                                            label="Account Name"
-                                            controlId="name"
-                                            placeholder="Enter Account Name"
-                                            register={register}
-                                            error={errors.name}
-                                            validation={{ required: "Account name is required" }}
-                                            labelSize={5}
-                                        />
-                                        <CustomTextField
-                                            label="Account Number"
-                                            controlId="email"
-                                            placeholder="Enter Account Number"
-                                            register={register}
-                                            error={errors.email}
-                                            validation={{ required: "Account number is required" }}
-                                            labelSize={5}
-                                        />
-                                        <CustomTextField
-                                            label="IFSC Code"
-                                            controlId="phone_number"
-                                            placeholder="Enter IFSC Code"
-                                            register={register}
-                                            error={errors.phone_number}
-                                            validation={{ required: "IFSC code is required" }}
-                                            labelSize={5}
-                                        />
-                                        <CustomTextField
-                                            label="Bank Name"
-                                            controlId="address"
-                                            placeholder="Enter Bank Name"
-                                            register={register}
-                                            error={errors.address}
-                                            validation={{ required: "Bank name is required" }}
-                                            labelSize={5}
-                                        />
-                                    </Row>
-                                </Col>
-                            </Row>
+                        <div className="custom-info">
+                            <div>
+                                <p>Personal</p>
+                                <img src={profileIcon} alt=" Profile Picture" width="160px" height="160px" />
+                            </div>
 
-                            <Row className="mt-4">
-                                <Col xs={6} className="text-center">
-                                    <Button type="submit" className="custom-btn-primary" >
-                                        Add
-                                    </Button>
+                            <div className="custom-personal-details">
+
+                                <Col className="custom-helper-column">
+                                    <DetailsRow title="User ID" value={userDetails?.user_id} />
+                                    <DetailsRow title="User Name" value={userDetails?.name} />
+                                    <DetailsRow title="Email ID" value={userDetails?.email} />
+                                    <DetailsRow title="Phone No" value={userDetails?.phone_number} />
                                 </Col>
-                                <Col xs={6} className="text-center" onClick={onClose}>
-                                    <Button className="custom-btn-secondary">
-                                        Cancel
-                                    </Button>
+                                <Col className="custom-helper-column">
+                                    <DetailsRow title="Address" value={userDetails?.address} />
+                                    <DetailsRow title="State" value={userDetails?.state_name} />
+                                    <DetailsRow title="City" value={userDetails?.city_name} />
+                                    <DetailsRow title="Postal Code" value={userDetails?.pincode} />
                                 </Col>
-                            </Row>
-                        </form>
+                            </div>
+                            <img src={editIcon} alt="edit" onClick={() => {
+                                AddEditUserDialog.show(true, true, userDetails!!, onRefreshuser)
+                            }} />
+                        </div>
+                        <Row className="custom-helper-row">
+                            <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
+                                <h3>Services</h3>
+                                <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={() => openServices(null)} />
+                                <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={() => openServices(3)} />
+                                <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={() => openServices(2)} />
+                                <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={() => openServices(4)} />
+                                <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
+                                <DetailsRow title="Last Service Date" value={formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")} />
+                                <DetailsRowStatus title="Status" isActive={userDetails?.is_active ? userDetails?.is_active : false} />
+                            </section>
+                            <section className="custom-other-details">
+                                <h3>Payment</h3>
+                                <DetailsRow title="Total Payment" value={userDetails?.total_payment} />
+                                <DetailsRow title="Received" value={userDetails?.received_payment} />
+                                <DetailsRow title="In Progress" value={userDetails?.in_progress_payment} />
+                                <DetailsRow title="Refund" value={userDetails?.refund_payment} />
+                                <DetailsRow title="Payment Mode" value={userDetails?.payment_mode} />
+                                <DetailsRow title="Last Paid Date" value={formatDate(userDetails?.last_paid_date ? userDetails?.last_paid_date : "")} />
+                            </section>
+                        </Row>
                     </Modal.Body>
                 </div>
             </Modal>
@@ -305,8 +118,13 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     );
 };
 
-UserDetailsDialog.show = (onRefreshData: () => void) => {
+UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("user-details-modal");
+    if (existingModal) {
+        return;
+    }
     const modalContainer = document.createElement("div");
+    modalContainer.id = "user-details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 
@@ -317,6 +135,7 @@ UserDetailsDialog.show = (onRefreshData: () => void) => {
 
     root.render(
         <UserDetailsDialog
+            userId={userId}
             onClose={closeModal}
             onRefreshData={onRefreshData}
         />

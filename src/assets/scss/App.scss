@@ -282,11 +282,12 @@ body {
 
 .custom-model-detail {
   background-color: var(--bg-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   border-radius: 16px;
   border: none;
   width: 100vw;
   max-width: 100vh;
-  min-width: 80vw;
+  min-width: 70vw;
   position: fixed;
   top: 50%;
   left: 50%;
@@ -304,7 +305,7 @@ body {
   color: var(--navi-color);
   font-size: 16px;
   font-weight: bold;
-  font-family: "Inter";  
+  font-family: "Inter";
   margin-bottom: 10px;
 }
 
@@ -326,6 +327,7 @@ body {
   border: none !important;
   border-radius: 16px !important;
   background-color: var(--bg-color);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .custom-modal-title {
@@ -643,4 +645,188 @@ body {
 
 .custom-pagination li.disabled img {
   opacity: 0.3;
+}
+
+.custom-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  border: 1px solid var(--lb1-border);
+  border-radius: 5px;
+  padding: 1rem;
+}
+
+.custom-info p {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navi-color);
+}
+
+.custom-personal-details {
+  display: flex;
+  gap: 2rem;
+  flex: 1;
+  margin-top: 50px;
+}
+
+.custom-personal-row {
+  height: 36px;
+}
+
+.custom-personal-row-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--content-txt-color);
+}
+
+.custom-personal-row-value {
+  font-size: 16px;
+  font-weight: normal;
+  font-family: "Inter";
+  color: var(--txt-color);
+  width: 130px;
+  white-space: nowrap
+}
+
+.custom-personal-row-value a {
+  text-decoration: underline;
+  color: var(--txt-color);
+  text-underline-offset: 3px;
+}
+
+.custom-info-sections {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.custom-helper-column section,
+.custom-helper-row section {
+    flex: 1;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 12px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.custom-other-details {
+  flex: 1;
+  padding-top: 15px;
+  border: 1px solid var(--lb1-border);
+  border-radius: 5px;
+  margin: 0px;
+}
+
+.custom-other-details h3 {
+  color: var(--navi-color);
+  font-size: 16px;
+  font-weight: bold;
+  font-family: "Inter";
+}
+
+.custom-radio-button {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: start;
+}
+
+.custom-radio {
+  display: inline-block;
+  position: relative;
+  padding-left: 30px;
+  margin-right: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+}
+
+.custom-radio input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.custom-radio .checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background-color: var(--bg-color);
+  border: 2px solid var(--navi-color);
+  border-radius: 50%;
+}
+
+.custom-radio input:checked~.checkmark {
+  background-color: var(--bg-color);
+}
+
+.custom-radio .checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.custom-radio input:checked~.checkmark:after {
+  display: block;
+}
+
+.custom-radio .checkmark:after {
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--navi-color);
+  transform: translate(-50%, -50%);
+}
+
+.custom-document-title {
+  color: var(--txt-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.custom-document-view {
+  color: var(--btn-info);
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.custom-document-delete {
+  color: var(--btn-danger);
+  margin-left: 5px;
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.custom-document-add {
+  color: var(--btn-danger);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-family: "Inter";
+  font-size: 14px;
+  font-weight: normal;
+}
+
+@media (max-width: 768px) {
+
+  .custom-personal-details .row {
+    flex-direction: column;
+  }
+
+  .custom-personal-row-title,
+  .custom-personal-row-value {
+    text-align: left;
+    white-space: nowrap;
+  }
 }
