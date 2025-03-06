@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import { Modal, Col, Row } from "react-bootstrap";
+import { Modal, Col, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
-import editIcon from "../../assets/icons/edit_red.svg"
-import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../helper/utility";
-import AddEditUserDialog from "./AddEditUserDialog";
-import ServiceDetailsDialog from "./ServiceDetailsDialog";
+import { DetailsRow, formatDate, verificationStatusCell } from "../../helper/utility";
+import { DocumentModel } from "../../models/DocumentModel";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { updateStatusDocument } from "../../services/partnerDocumentService";
 import { AppConstant } from "../../constant/AppConstant";
+import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
+import RejectDocumentDialog from "./RejectDocumentDialog";
 
 type VerificationDetailsDialogProps = {
     userId: string;
@@ -41,11 +42,29 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const openServices = (status: number | null) => {
-        ServiceDetailsDialog.show(status, onRefreshuser);
+    const verificationStatusChange = async (status: number, document: DocumentModel) => {
+        openConfirmDialog(
+            "Are you sure you want to verify this document?",
+            "Verify",
+            "Cancle",
+            async () => {
+                const payload = {
+                    status: status
+                }
+                const response = await updateStatusDocument(payload, document._id);
+                if (response) {
+                    onRefreshUser();
+                }
+            },
+        );
+
     };
 
-    const onRefreshuser = async () => {
+    const rejectDocument = async (document: DocumentModel) => {
+       RejectDocumentDialog.show(document, () => onRefreshUser)
+    };
+
+    const onRefreshUser = async () => {
         await fetchDataFromApi();
         onRefreshData();
     }
@@ -67,10 +86,44 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
                         <Row className="custom-helper-row">
                             {userDetails?.documents?.map((document) => (
                                 <section className="custom-other-details">
-                                    <h3>{document.name}</h3>
-                                    <DetailsRow title="Name" value={document.name} />
-                                    <DetailsRow title="Submmitted Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
-                                    <DetailsRowStatus title="Verification Status" isActive={document.is_active ? document.is_active : false} />
+                                    <h3 className="d-flex justify-content-center mt-2">{document.name}</h3>
+                                    <DetailsRow title="Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
+                                    <DetailsRow title="Status" value={verificationStatusCell(document.verification_status)({})} />
+                                    {
+                                        (document.verification_status === 3) && (
+                                            <DetailsRow title="Reason" value={document.rejected_reasone} />
+                                        )
+                                    }
+                                    {
+                                        (document.document_image === "")
+                                            ? <h3 className="d-flex justify-content-center mt-2"> Document Not Provide</h3>
+                                            :
+                                            <>
+                                                <div className="d-flex justify-content-center align-items-center mt-2">
+                                                    <img
+                                                        src={`${AppConstant.IMAGE_BASE_URL}${document.document_image}`}
+                                                        alt="document"
+                                                        className="img-fluid"
+                                                        onClick={() => CustomImagePreviewDialog(document)}
+                                                        style={{ maxWidth: "80%", maxHeight: "80%" }}
+                                                    />
+                                                </div>
+
+                                                <Row className="mt-4">
+                                                    <Col xs={6} className="text-center">
+                                                        <Button className="custom-btn-primary" onClick={() => rejectDocument(document)}>
+                                                            Rejected
+                                                        </Button>
+                                                    </Col>
+                                                    <Col xs={6} className="text-center" onClick={() => verificationStatusChange(2, document)}>
+                                                        <Button className="custom-btn-secondary">
+                                                            Verified
+                                                        </Button>
+                                                    </Col>
+                                                </Row>
+                                            </>
+
+                                    }
                                 </section>
                             ))}
                         </Row>

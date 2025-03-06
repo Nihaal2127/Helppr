@@ -3,7 +3,7 @@ import { Modal } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import { DocumentModel } from "../models/DocumentModel";
 import { AppConstant } from "../constant/AppConstant";
-import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
+import { verificationStatusCell } from "../helper/utility";
 
 export const CustomImagePreviewDialog = (
     documentPreview: DocumentModel,
@@ -25,7 +25,7 @@ export const CustomImagePreviewDialog = (
         >
             <Modal.Header className="border-bottom-0">
                 <Modal.Title as="h5" className="custom-dialog-title mt-0">
-                    Verification Status: {VerificationStatusEnum.get(documentPreview.verification_status)?.label}
+                    Verification Status: {verificationStatusCell(documentPreview.verification_status)({})}
                 </Modal.Title>
                 <CustomCloseButton onClose={closeModal} />
             </Modal.Header>

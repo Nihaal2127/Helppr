@@ -30,3 +30,14 @@ export const deletePartnerDocument = async (id: string): Promise<boolean> => {
     return false;
   }
 };
+
+export const updateStatusDocument = async (payload: any,
+  id: string): Promise<boolean> => {
+  const response = await apiRequest(ApiPaths.UPDATE_STATUS_PARTNER_DOCUMENT(id), "PUT" , payload);
+  if (response.success) {
+    return true;
+  } else {
+    showLog(response.message || "Failed to update status partner document");
+    return false;
+  }
+};

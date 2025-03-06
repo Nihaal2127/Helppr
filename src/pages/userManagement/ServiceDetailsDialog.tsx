@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import ReactDOM from "react-dom/client";
 import { Modal } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { ServiceStatusEnum } from "../../constant/ServiceStatusEnum";
 import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
+import CustomTable from "../../components/CustomTable";
+import { ServiceModel } from "../../models/ServiceModel";
+import { fetchService } from "../../services/servicesService";
 
 type ServiceDetailsDialogProps = {
     status: number | null;
@@ -18,18 +21,56 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     const { register } = useForm();
     const statusLabel = status ? `${ServiceStatusEnum.get(status)?.label} Services` : "Total Services";
 
+    const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalPages, setTotalPages] = useState(0);
+    const fetchRef = useRef(false);
+
+    const fetchData = useCallback(async (filters: {
+        keyword?: string;
+        status?: string
+    }) => {
+        if (fetchRef.current) return;
+        fetchRef.current = true;
+        const { response, services, totalPages } = await fetchService(currentPage, pageSize, { ...filters, });
+        if (response) {
+            setServiceList(services);
+            setTotalPages(totalPages);
+        }
+        fetchRef.current = false;
+    }, [currentPage, pageSize]);
+
+    useEffect(() => {
+        fetchData({});
+    }, [pageSize, currentPage]);
+
     const handleFilterChange = async (filters: {
         keyword?: string;
         status?: string
     }) => {
-        // setCurrentPage(1);
-        // setTotalPages(0);
-        // if (Object.keys(filters).length === 0) {
-        //     fetchRef.current = false;
-        // } else {
-        //     await fetchData(selectedBox, filters);
-        // }
+        setCurrentPage(1);
+        setTotalPages(0);
+        if (Object.keys(filters).length === 0) {
+            fetchRef.current = false;
+        } else {
+            await fetchData(filters);
+        }
     };
+
+    const serviceColumns = React.useMemo(() => [
+        {
+            Header: "SR No",
+            accessor: "serial_no",
+            Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        },
+        { Header: "Service ID", accessor: "service_id" },
+        { Header: "Service Name", accessor: "name" },
+        { Header: "Description", accessor: "desc" },
+        { Header: "Category", accessor: "category_name" },
+        { Header: "Price", accessor: "price" },
+        { Header: "Helpers", accessor: "helpers" },
+    ], [currentPage, pageSize]);
 
     return (
         <>
@@ -54,6 +95,20 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                             onSearch={(value) => handleFilterChange({ keyword: value })}
                             register={register}
                         />
+                        <CustomTable
+                            columns={serviceColumns}
+                            data={serviceList}
+                            pageSize={pageSize}
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={(page: number) => setCurrentPage(page)}
+                            onLimitChange={(pageSize: number) => {
+                                setPageSize(pageSize);
+                                setCurrentPage(1);
+                            }}
+                            theadClass="table-light"
+                        />
+
                     </Modal.Body>
                 </div>
             </Modal>

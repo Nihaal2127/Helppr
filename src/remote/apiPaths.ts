@@ -40,4 +40,5 @@ export const ApiPaths = {
  
   UPDATE_PARTNER_DOCUMENT: (id: string) => `/partner_document/updateDocument/${id}`,
   DELETE_PARTNER_DOCUMENT: (id: string) => `/partner_document/delete/${id}`,
+  UPDATE_STATUS_PARTNER_DOCUMENT: (id: string) => `/partner_document/updateStatus/${id}`,
 };

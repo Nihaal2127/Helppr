@@ -3,6 +3,7 @@ export interface DocumentModel {
     partner_id: string | null;
     document_id: string | null;
     name: string | null;
+    rejected_reasone: string | "";
     document_image: string | "";
     verification_status: number | 1;
     is_optional: boolean | true;

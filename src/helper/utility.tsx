@@ -63,9 +63,9 @@ export const statusCell = (field: string) => {
     };
 };
 
-export const verificationStatusCell = (field: string) => {
-    return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
-        const value = row.original?.[field];
+export const verificationStatusCell = (field: string | number) => {
+    return ({ row }: { row?: { original: Record<string, any> } }): JSX.Element => {
+        const value = row?.original?.[field] ?? field; 
 
         const status = VerificationStatusEnum.get(value);
         const label = status ? status.label : "Unknown";
