@@ -11,6 +11,7 @@ import { fetchUser } from "../../services/userService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
+import VerificationDetailsDialog  from "./VerificationDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
 
 const UserManagement = () => {
@@ -84,6 +85,10 @@ const UserManagement = () => {
         UserDetailsDialog.show(userId, () => refreshData("box-user"))
     }
 
+    const verificationShow = (userId: string) => {
+        VerificationDetailsDialog.show(userId, () => refreshData("box-verification"))
+    }
+
     const userColumns = React.useMemo(() => [
         {
             Header: "SR No",
@@ -115,7 +120,6 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-
         {
             Header: "Partner ID", accessor: "user_id",
             Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)),
@@ -141,7 +145,10 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Registration ID", accessor: "registration_id" },
+        {
+            Header: "Registration ID", accessor: "registration_id",
+            Cell: textUnderlineCell("registration_id", (row) => verificationShow(row._id)),
+        },
         {
             Header: "Verification ID",
             accessor: "verification_id",
