@@ -1,13 +1,13 @@
 export interface DocumentModel {
-    _id: string; 
-    document_id: string | null;
-    document_images :  string[] | [];
-    is_optional: boolean | true; 
-    name: string | null;
+    _id: string;
     partner_id: string | null;
-    verification_id: string | null;
+    document_id: string | null;
+    name: string | null;
+    document_image: string | "";
     verification_status: number | 1;
-    deleted_at: string | null; 
+    is_optional: boolean | true;
+    is_active: boolean | true;
+    deleted_at: string | null;
     created_at: string | null;
     updated_at: string | null;
 }

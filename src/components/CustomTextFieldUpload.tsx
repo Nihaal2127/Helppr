@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React from "react";
 import { Row, Col } from "react-bootstrap";
-import CustomUpload from "./CustomUpload";
 import CustomUploadDialog from "./CustomUpload";
 
 interface CustomTextFieldUploadProps {
@@ -18,8 +17,6 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
     onFileChange,
     labelSize = 4,
 }) => {
-
-    //const [uploadShow, setUploadShow] = useState(false);
 
     return (
         <>
@@ -40,7 +37,6 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                         }}
                         onClick={(e) => {
                             e.preventDefault();
-                            //setUploadShow(true);
                             CustomUploadDialog.show((files, replaceUrls) => {
                                 onFileChange(files, replaceUrls);
                             },existingImages)
@@ -48,20 +44,7 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                     >{linkLable}</span>
                 </Col>
             </Row>
-
-            {/* {uploadShow && (
-                <CustomUpload
-                    isOpen={uploadShow}
-                    onClose={() => setUploadShow(false)}
-                    onUploadSave={() => {
-                        setUploadShow(false)
-                    }}
-                    existingImages={existingImages}
-                    onFileChange={onFileChange}
-                />
-            )} */}
         </>
-
     );
 };
 

@@ -241,8 +241,6 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
                                 label="Profile Photo"
                                 {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
                                 onFileChange={(files, replaceUrls) => {
-                                    showLog("Profile files",files);
-                                    showLog("Profile replaceUrls",replaceUrls);
                                     setFileInputs(files);
                                     setReplaceUrl(replaceUrls);
                                 }}

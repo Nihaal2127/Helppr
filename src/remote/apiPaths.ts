@@ -8,11 +8,11 @@ export const ApiPaths = {
   GET_USER_BY_ID: () => `/user/get`,
   CREATE_USER: '/user/create',
   GET_USER: () => `/user/getAll`,
+  GET_VERIFICATION: () => `/user/getVerificationAll`,
   GET_USER_DROP_DOWN: () => `/user/getDropDown`,
   UPDATE_USER: (id: string) => `/user/update/${id}`,
   DELETE_USER: (id: string) => `/user/delete/${id}`,
   CHANGE_PASSWORD: '/user/changePassword',
-  GET_VERIFICATION: '/document_upload/files',
   DOCUMENT_UPLOAD: '/document_upload/files',
   UPDATE_DOCUMENT_UPLOAD: '/document_upload/update_files',
   GET_STATE: () => `/state/getAll`,
@@ -37,7 +37,7 @@ export const ApiPaths = {
   DELETE_SERVICE: (id: string) => `/service/delete/${id}`,
   CREATE_BANK_ACCOUNT: '/bank_account/create',
   UPDATE_BANK_ACCOUNT: (id: string) => `/bank_account/update/${id}`,
-  GET_PARTNER_DOCUMENT: () => `/partner_document/getAll`,
+ 
   UPDATE_PARTNER_DOCUMENT: (id: string) => `/partner_document/updateDocument/${id}`,
   DELETE_PARTNER_DOCUMENT: (id: string) => `/partner_document/delete/${id}`,
 };

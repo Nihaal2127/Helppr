@@ -59,7 +59,7 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
 
     return (
         <>
-            <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+            <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal" >
                 <Modal.Header className="py-3 px-4 border-bottom-0">
                     <CustomCloseButton onClose={onClose} />
                 </Modal.Header>

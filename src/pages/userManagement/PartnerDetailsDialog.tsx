@@ -5,6 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
+import deleteIcon from "../../assets/icons/delete_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
 import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument, showLog } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
@@ -13,8 +14,10 @@ import { DocumentModel } from "../../models/DocumentModel";
 import { AppConstant } from "../../constant/AppConstant";
 import CustomUploadDialog from "../../components/CustomUpload";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import { updatePartnerDocument,deletePartnerDocument } from "../../services/partnerDocumentService";
+import { updatePartnerDocument, deletePartnerDocument } from "../../services/partnerDocumentService";
 import { showErrorAlert } from "../../helper/alertHelper";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 
 type PartnerDetailsDialogProps = {
     userId: string;
@@ -62,7 +65,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                 if (response) {
 
                     const payload = {
-                        image_urls: fileList[0],
+                        image_url: fileList[0],
                     };
                     if (!userDetails?._id) {
                         showErrorAlert("Unable to update. ID is missing.");
@@ -78,22 +81,27 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
         )
     };
 
-    const viewDocument = (document: DocumentModel) => {
-        showLog("Viewing document:", document);
-
-    };
-
     const deleteDocument = async (document: DocumentModel) => {
-        const response = await deletePartnerDocument(document._id);
-        if(response){
-            onRefreshuser();
-        }
+        openConfirmDialog(
+            "Are you sure you want to delete document?",
+            "Delete",
+            "Cancle",
+            async () => {
+                const response = await deletePartnerDocument(document._id);
+                if (response) {
+                    onRefreshuser();
+                }
+            },
+            deleteIcon
+        );
+
     };
 
     const onRefreshuser = async () => {
         await fetchDataFromApi();
         onRefreshData();
     }
+
     return (
         <>
             <Modal
@@ -113,7 +121,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                             <div>
                                 <p>Personal</p>
                                 <img src={userDetails?.profile_url
-                                    ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}`
+                                    ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}?t=${Date.now()}`
                                     : profileIcon} alt=" Profile Picture" width="160px" height="160px" />
                             </div>
 
@@ -161,43 +169,12 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                                     {userDetails?.documents?.map((document) => (
                                         <DetailsRowLinkDocument
                                             title={document.name || ""}
-                                            isEditable={document.document_images.length === 0 ? false : true}
-                                            onViewClick={() => viewDocument(document)}
+                                            isEditable={document.document_image === "" ? false : true}
+                                            onViewClick={() =>  CustomImagePreviewDialog(document)}
                                             onAddClick={() => addDocument(document)}
                                             onDeleteClick={() => deleteDocument(document)}
                                         />
                                     ))}
-                                    {/* <DetailsRowLinkDocument
-                                        title="Aadhar Card"
-                                        isEditable={false}
-                                        onViewClick={addDocument}
-                                        onAddClick={viewDocument}
-                                        onDeleteClick={deleteDocument}
-                                    />
-
-                                    <DetailsRowLinkDocument
-                                        title="Pan Card"
-                                        isEditable={true}
-                                        onViewClick={addDocument}
-                                        onAddClick={viewDocument}
-                                        onDeleteClick={deleteDocument}
-                                    />
-
-                                    <DetailsRowLinkDocument
-                                        title="Driving License"
-                                        isEditable={true}
-                                        onViewClick={addDocument}
-                                        onAddClick={viewDocument}
-                                        onDeleteClick={deleteDocument}
-                                    />
-
-                                    <DetailsRowLinkDocument
-                                        title="Vehicle Registration"
-                                        isEditable={true}
-                                        onViewClick={addDocument}
-                                        onAddClick={viewDocument}
-                                        onDeleteClick={deleteDocument}
-                                    /> */}
                                 </section>
                             </Col>
                             <Col>

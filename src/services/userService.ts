@@ -22,6 +22,7 @@ export const fetchUserDropDown = async (
 };
 
 export const fetchUser = async (
+  isVerification: boolean,
   type: number,
   page: number,
   pageSize: number,
@@ -36,7 +37,7 @@ export const fetchUser = async (
   });
 
   const response = await apiRequest(
-    `${ApiPaths.GET_USER()}?${params.toString()}`,
+    `${isVerification ? ApiPaths.GET_VERIFICATION() : ApiPaths.GET_USER()}?${params.toString()}`,
     "GET"
   );
 
@@ -55,6 +56,9 @@ export const fetchUser = async (
     };
   }
 };
+
+
+
 
 export const fetchUserById = async (id: string): Promise<{ response: boolean, user: UserModel | null; }> => {
   const response = await apiRequest(`${ApiPaths.GET_USER_BY_ID()}/${id}`, "GET");

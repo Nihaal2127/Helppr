@@ -1,5 +1,6 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
+import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
 
 let navigate: (path: string) => void;
 
@@ -50,7 +51,6 @@ export const textUnderlineCell = (field: string, onClick: (row: any) => void) =>
         </span>
     );
 
-
 export const statusCell = (field: string) => {
     return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
         const value = row.original?.[field];
@@ -58,6 +58,32 @@ export const statusCell = (field: string) => {
         return (
             <span className={`custom-${value ? "active" : "inactive"}`}>
                 {value ? "Active" : "Inactive"}
+            </span>
+        );
+    };
+};
+
+export const verificationStatusCell = (field: string) => {
+    return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
+        const value = row.original?.[field];
+
+        const status = VerificationStatusEnum.get(value);
+        const label = status ? status.label : "Unknown";
+
+        let className = "";
+        let color = "";
+
+        if (value === 1) {
+            className = "custom-active";
+        } else if (value === 2) {
+            className = "custom-inactive";
+        } else if (value === 3) {
+            className = "custom-active";
+            color = "var(--btn-pending)";
+        }
+        return (
+            <span className={className} style={{ color }}>
+                {label}
             </span>
         );
     };

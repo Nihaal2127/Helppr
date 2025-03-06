@@ -3,18 +3,15 @@ import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, textUnderlineCell, statusCell, showLog } from "../../helper/utility";
+import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { fetchUser } from "../../services/userService";
-import { fetchPartnerDocuments } from "../../services/partnerDocumentService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
-import { VerificationModel } from "../../models/VerificationModel";
 import UserDetailsDialog from "./UserDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
-import { DocumentModel } from "../../models/DocumentModel";
 
 const UserManagement = () => {
     const { register } = useForm();
@@ -23,7 +20,7 @@ const UserManagement = () => {
     const [partnerData, setParnterData] = useState<{}>({});
     const [verificationData, setVerificationData] = useState<{}>({});
     const [userList, setUserList] = useState<UserModel[]>([]);
-    const [verificationList, setVerificationList] = useState<DocumentModel[]>([]);
+    const [verificationList, setVerificationList] = useState<UserModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -42,15 +39,14 @@ const UserManagement = () => {
             //setUserData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
         }
-        showLog("selected:", selected);
         if (selected === "box-verification") {
-            const { response, partnerDocuments, totalPages } = await fetchPartnerDocuments(currentPage, pageSize, { ...filters, });
+            const { response, users, totalPages } = await fetchUser(true, 2, currentPage, pageSize, { ...filters, });
             if (response) {
-                setVerificationList(partnerDocuments);
+                setVerificationList(users);
                 setTotalPages(totalPages);
             }
         } else {
-            const { response, users, totalPages } = await fetchUser(selected === "box-user" ? 4 : 2, currentPage, pageSize, { ...filters, });
+            const { response, users, totalPages } = await fetchUser(false, selected === "box-user" ? 4 : 2, currentPage, pageSize, { ...filters, });
             if (response) {
                 setUserList(users);
                 setTotalPages(totalPages);
@@ -146,15 +142,27 @@ const UserManagement = () => {
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
         { Header: "Registration ID", accessor: "registration_id" },
-        { Header: "Verification ID", accessor: "verification_id" },
-        { Header: "Submitted Name", accessor: "submitted_name" },
-        { Header: "Submitted Date", accessor: "submitted_date" },
-        { Header: "Documents Uploaded", accessor: "documents_uploaded" },
-        { Header: "Location", accessor: "location" },
-        { Header: "Verified Date", accessor: "verified_date" },
         {
-            Header: "Status", accessor: "is_active",
-            Cell: statusCell("is_active"),
+            Header: "Verification ID",
+            accessor: "verification_id",
+            Cell: ({ row }) => row.original.verification_id || "-----"
+        },
+        { Header: "Submitted Name", accessor: "name" },
+        {
+            Header: "Submitted Date",
+            accessor: "submitted_at",
+            Cell: ({ row }) => formatDate(row.original.submitted_at ? row.original.submitted_at : "")
+        },
+        { Header: "Documents Uploaded", accessor: "document_uploaded_count" },
+        { Header: "Location", accessor: "city_name" },
+        {
+            Header: "Verified Date",
+            accessor: "verified_at",
+            Cell: ({ row }) => formatDate(row.original.verified_at ? row.original.verified_at : "")
+        },
+        {
+            Header: "Status", accessor: "verification_status",
+            Cell: verificationStatusCell("verification_status"),
         },
     ], [currentPage, pageSize]);
 
