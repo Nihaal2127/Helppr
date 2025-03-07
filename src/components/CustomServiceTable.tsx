@@ -54,7 +54,7 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
 
   return (
     <>
-      <div className="table-responsive" style={{ height: "80vh" }}>
+      <div className="table-responsive" style={{ height: "50vh", }}>
         <table
           {...dataTable.getTableProps()}
           className={classNames(
@@ -66,7 +66,7 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
             borderCollapse: "collapse",
           }}
         >
-          <thead className={props["theadClass"]} style={{ textAlign: "center" }}>
+          <thead className={props["theadClass"]} style={{ textAlign: "center",}}>
             {(dataTable.headerGroups || []).map((headerGroup: any) => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {(headerGroup.headers || []).map((column: any) => (
@@ -75,11 +75,11 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
                       column.sort && column.getSortByToggleProps()
                     )}
                     style={{
-                      backgroundColor: "var(--th-color)",
-                      color: "var(--th-txt-color)",
+                      backgroundColor: "var(--tr1-txt-color)",
+                      color: "var(--content-txt-color)",
                       fontFamily: "Inter",
-                      fontSize: "12px",
-                      fontWeight: 600,
+                      fontSize: "14px",
+                      fontWeight: "bold",
                     }}
                     className={classNames({
                       sorting_desc: column.isSortedDesc === true,
@@ -108,10 +108,10 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
                             },
                           ])}
                           style={{
-                            backgroundColor: i % 2 === 0 ? "var(--tr1-txt-color)" : "var(--tr2-txt-color)",
+                            backgroundColor: i % 2 === 0 ? "var(--tr2-txt-color)" : "var(--tr1-txt-color)",
                             color: "var(--content-txt-color)",
                             fontFamily: "Inter",
-                            fontSize: "12px",
+                            fontSize: "14px",
                             fontWeight: "normal",
                           }}
                         >

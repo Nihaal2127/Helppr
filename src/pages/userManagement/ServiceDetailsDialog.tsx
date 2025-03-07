@@ -5,9 +5,10 @@ import { Modal } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { ServiceStatusEnum } from "../../constant/ServiceStatusEnum";
 import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
-import CustomTable from "../../components/CustomTable";
+import CustomServiceTable from "../../components/CustomServiceTable";
 import { ServiceModel } from "../../models/ServiceModel";
 import { fetchService } from "../../services/servicesService";
+import { formatDate } from "../../helper/utility";
 
 type ServiceDetailsDialogProps = {
     status: number | null;
@@ -64,12 +65,19 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
+        { Header: "Order ID", accessor: "order_id" },
         { Header: "Service ID", accessor: "service_id" },
         { Header: "Service Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
         { Header: "Category", accessor: "category_name" },
-        { Header: "Price", accessor: "price" },
-        { Header: "Helpers", accessor: "helpers" },
+        {
+            Header: "Date",
+            accessor: "order_date",
+            Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : "")
+        },
+        { Header: "Amount", accessor: "amount" },
+        { Header: "Pay Status", accessor: "pay_status" },
+        { Header: "Pay Mode", accessor: "pay_mode" },
+        { Header: "Transaction ID", accessor: "transaction_id" },
     ], [currentPage, pageSize]);
 
     return (
@@ -95,7 +103,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                             onSearch={(value) => handleFilterChange({ keyword: value })}
                             register={register}
                         />
-                        <CustomTable
+                        <CustomServiceTable
                             columns={serviceColumns}
                             data={serviceList}
                             pageSize={pageSize}
