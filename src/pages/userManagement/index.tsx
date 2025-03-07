@@ -37,7 +37,6 @@ const UserManagement = () => {
         if (response && countModel) {
             setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
             setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner });
-            //setUserData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
         }
         if (selected === "box-verification") {
@@ -199,10 +198,8 @@ const UserManagement = () => {
                             addButtonLable={capitalizeString(id.replace("box-", "Add ").replace("-", " "))}
                             onAddClick={() => {
                                 id === "box-user"
-                                    ? AddEditUserDialog.show(true, false, null, () => refreshData(selectedBox))
-                                    : id === "box-partner"
-                                        ? AddEditUserDialog.show(false, false, null, () => refreshData(selectedBox))
-                                        : AddEditServiceDialog.show(false, null, () => refreshData(selectedBox));
+                                    ? AddEditUserDialog.show(4, false, null, () => refreshData(selectedBox))
+                                    : AddEditUserDialog.show(2, false, null, () => refreshData(selectedBox))
                             }}
                         />
                     ))}

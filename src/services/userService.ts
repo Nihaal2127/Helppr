@@ -57,9 +57,6 @@ export const fetchUser = async (
   }
 };
 
-
-
-
 export const fetchUserById = async (id: string): Promise<{ response: boolean, user: UserModel | null; }> => {
   const response = await apiRequest(`${ApiPaths.GET_USER_BY_ID()}/${id}`, "GET");
   if (response.success) {

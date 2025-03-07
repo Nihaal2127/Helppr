@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getStatusOptions, showLog } from "../../helper/utility";
+import { getRoleLabel, getStatusOptions, showLog } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
@@ -18,7 +18,7 @@ import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 
 type AddEditUserDialogProps = {
-    isUser: boolean;
+    role: number;
     isEditable: boolean;
     user: UserModel | null;
     onClose: () => void;
@@ -26,8 +26,8 @@ type AddEditUserDialogProps = {
 };
 
 const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
-    show: (isUser: boolean, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => void;
-} = ({ isUser, isEditable, user, onClose, onRefreshData }) => {
+    show: (role: number, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => void;
+} = ({ role, isEditable, user, onClose, onRefreshData }) => {
     const {
         register,
         handleSubmit,
@@ -105,10 +105,10 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             return;
         }
         const payload = {
-            type: isUser ? 4 : 2,
+            type: role,
             is_from_web: true,
-            registration_type:1,
-            created_by_id:getLocalStorage(AppConstant.createdById),
+            registration_type: 1,
+            created_by_id: getLocalStorage(AppConstant.createdById),
             name: data.name,
             email: data.email,
             phone_number: data.phone_number,
@@ -152,7 +152,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
                 <Modal.Header className="py-3 px-4 border-bottom-0">
                     <Modal.Title as="h5" className="custom-modal-title">
-                        {isEditable ? "Edit" : "Add"} {isUser ? "User" : "Partner"}
+                        {isEditable ? "Edit" : "Add"} {getRoleLabel(role)}
                     </Modal.Title>
                     <CustomCloseButton onClose={onClose} />
                 </Modal.Header>
@@ -229,7 +229,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
                                     : ""}
                                 setValue={setValue as (name: string, value: any) => void}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Pincode"
                                 controlId="pincode"
                                 placeholder="Enter Pincode"
@@ -273,13 +273,13 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
     );
 };
 
-AddEditUserDialog.show = (isUser: boolean, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => {
+AddEditUserDialog.show = (role: number, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => {
     const existingModal = document.getElementById("add-user-details-modal");
     if (existingModal) {
         return;
     }
     const modalContainer = document.createElement("div");
-    modalContainer.id = "add-user-details-modal"; 
+    modalContainer.id = "add-user-details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 
@@ -290,7 +290,7 @@ AddEditUserDialog.show = (isUser: boolean, isEditable: boolean, user: UserModel 
 
     root.render(
         <AddEditUserDialog
-            isUser={isUser}
+            role={role}
             isEditable={isEditable}
             user={user}
             onClose={closeModal}

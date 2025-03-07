@@ -58,17 +58,18 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           maxLength={maxLength}
           style={{
             boxShadow: "none",
-            borderRadius: "8px",
-            borderColor:"var(--primary-color)",
+            // borderRadius: "8px",
+            borderRadius: "8px 0 0 8px",
+            borderColor: "var(--primary-color)",
             fontSize: "14px",
             fontWeight: "normal",
-            width: "100%",
+            width: "80%",
             height: as !== "textarea" ? "2.62rem" : "auto",
             lineHeight: "18px",
             backgroundColor: "var(--bg-color)",
             fontFamily: "'Inter'",
             color: "var(--content-txt-color)",
-            marginBottom : "10px"
+            marginBottom: "10px"
           }}
         />
         <div
@@ -76,6 +77,16 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
             "show-password": showPassword,
           })}
           data-password={showPassword ? "true" : "false"}
+          style={{
+            width: "40px",
+            height: as !== "textarea" ? "2.62rem" : "auto",
+            borderColor: "var(--primary-color)",
+            borderRadius: "0 8px 8px 0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}
         >
           <span
             className="password-eye"
@@ -96,7 +107,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-     {label?.trim() && <Form.Label>{label}</Form.Label>}
+      {label?.trim() && <Form.Label>{label}</Form.Label>}
       <Form.Control
         className="custom-form-input"
         type={inputType}
@@ -112,7 +123,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         style={{
           boxShadow: "none",
           borderRadius: "8px",
-          borderColor:"var(--primary-color)",
+          borderColor: "var(--primary-color)",
           fontSize: "14px",
           fontWeight: "normal",
           width: "100%",
@@ -121,7 +132,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           backgroundColor: "var(--bg-color)",
           fontFamily: "'Inter'",
           color: "var(--content-txt-color)",
-          marginBottom : "10px"
+          marginBottom: "10px"
         }}
       />
       {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}

@@ -7,6 +7,8 @@ const Profile = React.lazy(() => import("../pages/profile"));
 const LocationManagement = React.lazy(() => import("../pages/locationManagement"));
 const ServiceManagement = React.lazy(() => import("../pages/serviceManagement"));
 const UserManagement = React.lazy(() => import("../pages/userManagement"));
+const Settings = React.lazy(() => import("../pages/settings"));
+const Role = React.lazy(() => import("../pages/settings/role"));
 const Error404 = React.lazy(() => import("../pages/Error404"));
 const Error500 = React.lazy(() => import("../pages/Error500"));
 
@@ -44,6 +46,16 @@ export const ROUTES = {
   USER_MANAGEMENT: {
     path: "/user-management",
     element: <UserManagement />,
+    isProtected: true,
+  },
+  SETTINGS: {
+    path: "/settings",
+    element: <Settings />,
+    isProtected: true,
+  },
+  ROLE: {
+    path: "/role",
+    element: <Role />,
     isProtected: true,
   },
   ERROR404: {

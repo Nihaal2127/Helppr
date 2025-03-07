@@ -10,6 +10,8 @@ interface CustomTextFieldProps {
     error?: any;
     validation?: object;
     labelSize?: number;
+    inputType?: string;
+    asCol?: boolean;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -20,6 +22,8 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     error,
     validation,
     labelSize = 4,
+    inputType = "text",
+    asCol = true,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -33,8 +37,9 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
                     placeholder={placeholder}
                     register={register}
                     error={error}
-                    asCol={false}
+                    asCol={asCol}
                     validation={validation}
+                    inputType={inputType}
                 />
             </Col>
         </Row>

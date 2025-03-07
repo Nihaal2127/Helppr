@@ -18,6 +18,7 @@ import { updatePartnerDocument, deletePartnerDocument } from "../../services/par
 import { showErrorAlert } from "../../helper/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
+import ServiceDetailsDialog from "./ServiceDetailsDialog";
 
 type PartnerDetailsDialogProps = {
     userId: string;
@@ -49,9 +50,9 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const openServices = () => {
-
-    }
+    const openServices = (status: number | null) => {
+        ServiceDetailsDialog.show(status, onRefreshuser);
+    };
 
     const addDocument = (document: DocumentModel) => {
         CustomUploadDialog.show(
@@ -141,16 +142,16 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                                 </Col>
                             </div>
                             <img src={editIcon} alt="edit" onClick={() => {
-                                AddEditUserDialog.show(false, true, userDetails!!, onRefreshuser)
+                                AddEditUserDialog.show(2, true, userDetails!!, onRefreshuser)
                             }} />
                         </div>
                         <Row className="custom-helper-row">
                             <section className="custom-other-details">
                                 <h3>Serviced</h3>
-                                <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={openServices} />
-                                <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={openServices} />
-                                <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={openServices} />
-                                <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={openServices} />
+                                <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={() => openServices(null)} />
+                                <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={() => openServices(3)} />
+                                <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={() => openServices(2)} />
+                                <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={() => openServices(4)} />
                                 <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
                                 <DetailsRow title="Last Service Date" value={formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")} />
                                 <DetailsRowStatus title="Status" isActive={userDetails?.is_active ? userDetails?.is_active : false} />
@@ -170,7 +171,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                                         <DetailsRowLinkDocument
                                             title={document.name || ""}
                                             isEditable={document.document_image === "" ? false : true}
-                                            onViewClick={() =>  CustomImagePreviewDialog(document)}
+                                            onViewClick={() => CustomImagePreviewDialog(document)}
                                             onAddClick={() => addDocument(document)}
                                             onDeleteClick={() => deleteDocument(document)}
                                         />

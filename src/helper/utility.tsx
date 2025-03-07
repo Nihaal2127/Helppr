@@ -1,6 +1,7 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
+import { RoleEnum } from "../constant/RoleEnum";
 
 let navigate: (path: string) => void;
 
@@ -172,4 +173,8 @@ export const DetailsRowLinkDocument = ({
             </Col>
         </Row>
     );
+};
+
+export const getRoleLabel = (roleId: number): string => {
+    return RoleEnum.get(roleId)?.label ?? "Unknown Role";
 };

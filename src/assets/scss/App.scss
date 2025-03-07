@@ -709,12 +709,12 @@ body {
 
 .custom-helper-column section,
 .custom-helper-row section {
-    flex: 1;
-    padding: 10px;
-    border-radius: 5px;
-    margin-top: 12px;
-    margin-left: 10px;
-    margin-right: 10px;
+  flex: 1;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 12px;
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .custom-other-details {
@@ -826,6 +826,34 @@ body {
   font-size: 14px;
   font-weight: normal;
   cursor: pointer;
+}
+
+.custom-grid-box-div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  justify-content: center;
+  padding: 20px;
+}
+
+.custom-grid-box {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  border: 1px solid var(--sb-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  color: var(--primary-txt-color);
+  font-size: 16px;
+  font-weight: bold;
+  font-family: "Inter", sans-serif;
+  text-align: center;
+  cursor: pointer;
+    white-space: pre-line;
+
 }
 
 @media (max-width: 768px) {

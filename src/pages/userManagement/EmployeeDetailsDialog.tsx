@@ -10,14 +10,16 @@ import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../
 import AddEditUserDialog from "./AddEditUserDialog";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import { AppConstant } from "../../constant/AppConstant";
+import { RoleEnum } from "../../constant/RoleEnum";
+import PasswordChangeDialog from "./PasswordChangeDialog";
 
-type UserDetailsDialogProps = {
+type EmployeeDetailsDialogProps = {
     userId: string;
     onClose: () => void;
     onRefreshData: () => void;
 };
 
-const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
+const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> & {
     show: (userId: string, onRefreshData: () => void) => void;
 } = ({ userId, onClose, onRefreshData }) => {
 
@@ -59,7 +61,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                 <div className="custom-model-detail">
                     <Modal.Header className="py-3 px-4 border-bottom-0">
                         <Modal.Title as="h5" className="custom-modal-title">
-                            User Information
+                            Employee Information
                         </Modal.Title>
                         <CustomCloseButton onClose={onClose} />
                     </Modal.Header>
@@ -88,28 +90,59 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                 </Col>
                             </div>
                             <img src={editIcon} alt="edit" onClick={() => {
-                                AddEditUserDialog.show(4, true, userDetails!!, onRefreshuser)
+                                AddEditUserDialog.show(3, true, userDetails!!, onRefreshuser)
                             }} />
                         </div>
                         <Row className="custom-helper-row">
                             <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
-                                <h3>Services</h3>
-                                <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={() => openServices(null)} />
-                                <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={() => openServices(3)} />
-                                <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={() => openServices(2)} />
-                                <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={() => openServices(4)} />
+                                <h3>Login Details</h3>
+                                <DetailsRow title="Login ID" value={userDetails?.user_id} />
+                                {/* <DetailsRow title="Password" value="**********" /> */}
+                                <Row className="row custom-personal-row">
+                                    <label className="col custom-personal-row-title">Password</label>
+
+                                    <Row className="col custom-personal-row-value">
+                                        <label className="col"
+                                            style={{
+                                                width: "250px",
+                                                display: "inline-block",
+                                                textAlign: "center"
+                                            }}>**********</label>
+
+                                        <span className="col"
+                                            style={{
+                                                fontFamily: "Inter",
+                                                fontSize: "14px",
+                                                fontWeight: "normal",
+                                                color: "var(--primary-txt-color)",
+                                                textDecoration: "underline",
+                                                cursor: "pointer",
+                                            }}
+                                            onClick={() => {
+                                                PasswordChangeDialog.show(userDetails!!, onRefreshuser)
+                                            }}>Change</span>
+                                    </Row>
+
+                                </Row>
                                 <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
-                                <DetailsRow title="Last Service Date" value={formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")} />
                                 <DetailsRowStatus title="Status" isActive={userDetails?.is_active ? userDetails?.is_active : false} />
                             </section>
                             <section className="custom-other-details">
-                                <h3>Payment</h3>
-                                <DetailsRow title="Total Payment" value={userDetails?.total_payment} />
-                                <DetailsRow title="Received" value={userDetails?.received_payment} />
-                                <DetailsRow title="In Progress" value={userDetails?.in_progress_payment} />
-                                <DetailsRow title="Refund" value={userDetails?.refund_payment} />
-                                <DetailsRow title="Payment Mode" value={userDetails?.payment_mode} />
-                                <DetailsRow title="Last Paid Date" value={formatDate(userDetails?.last_paid_date ? userDetails?.last_paid_date : "")} />
+                                <h3>Role</h3>
+                                <div className="col custom-personal-row-value custom-radio-button mt-2">
+                                    {Array.from(RoleEnum.entries()).map(([key, { label }]) => (
+                                        <label key={key} className="custom-radio">
+                                            <input
+                                                type="radio"
+                                                name="role"
+                                                value={key}
+                                                checked={userDetails?.type === key}
+                                                readOnly
+                                            />
+                                            <span className="checkmark"></span> {label}
+                                        </label>
+                                    ))}
+                                </div>
                             </section>
                         </Row>
                     </Modal.Body>
@@ -119,13 +152,13 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     );
 };
 
-UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("user-details-modal");
+EmployeeDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
+    const existingModal = document.getElementById("employee-details-modal");
     if (existingModal) {
         return;
     }
     const modalContainer = document.createElement("div");
-    modalContainer.id = "user-details-modal";
+    modalContainer.id = "employee-details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 
@@ -135,7 +168,7 @@ UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
     };
 
     root.render(
-        <UserDetailsDialog
+        <EmployeeDetailsDialog
             userId={userId}
             onClose={closeModal}
             onRefreshData={onRefreshData}
@@ -143,4 +176,4 @@ UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
     );
 };
 
-export default UserDetailsDialog;
+export default EmployeeDetailsDialog;
