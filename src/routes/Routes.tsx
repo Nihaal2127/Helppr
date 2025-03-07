@@ -54,7 +54,7 @@ export const ROUTES = {
     isProtected: true,
   },
   ROLE: {
-    path: "/role",
+    path: "/settings-role",
     element: <Role />,
     isProtected: true,
   },

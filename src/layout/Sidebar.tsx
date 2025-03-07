@@ -1,17 +1,24 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { mainMenuItems, profileMenuItems } from "./menuItems";
 import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant } from "../constant/AppConstant";
 import { logout } from "../services/adminService";
 import { ROUTES } from "../routes/Routes";
 import { openConfirmDialog } from "../components/CustomConfirmDialog";
+import clsx from "clsx"; 
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
-
+  const location = useLocation();
   const [isSidebarActive, setIsSidebarActive] = useState(false);
+
+  const isActive = (menuPath: string) => {
+    return location.pathname.startsWith(menuPath);
+  };
+
 
   const toggleSidebar = () => {
     setIsSidebarActive(!isSidebarActive);
@@ -52,7 +59,7 @@ const Sidebar: React.FC = () => {
         <div className="p-4 pt-2">
           <ul className="list-unstyled components mb-5" id="nav-links">
             {mainMenuItems.map(({ key, path, label }) => (
-              <li key={key || label}>
+              <li key={key || label} className={clsx({ active: isActive(path) })}>
                 <NavLink to={path} className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
                   {label}
                 </NavLink>
@@ -62,7 +69,7 @@ const Sidebar: React.FC = () => {
 
           <ul className="list-unstyled components mb-2">
             {profileMenuItems.map(({ key, path, label, icon }) => (
-               <li key={key || label}>
+              <li key={key || label}>
                 <NavLink to={path} onClick={(e) => handleLogoutClick(e, key)}>
                   <img src={icon} alt={label} className="menu-icon" />
                   {label}
