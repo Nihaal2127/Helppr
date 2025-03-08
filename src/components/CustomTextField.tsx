@@ -23,7 +23,7 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     validation,
     labelSize = 4,
     inputType = "text",
-    asCol = true,
+    asCol = false,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>

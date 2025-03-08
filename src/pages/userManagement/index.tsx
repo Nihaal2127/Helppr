@@ -6,7 +6,6 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import AddEditServiceDialog from "./AddEditServiceDialog";
 import { fetchUser } from "../../services/userService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";

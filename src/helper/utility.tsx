@@ -2,6 +2,7 @@ import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
 import { RoleEnum } from "../constant/RoleEnum";
+import { OrderStatusEnum } from "../constant/OrderStatusEnum";
 
 let navigate: (path: string) => void;
 

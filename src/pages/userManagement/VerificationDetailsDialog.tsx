@@ -61,7 +61,7 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
     };
 
     const rejectDocument = async (document: DocumentModel) => {
-       RejectDocumentDialog.show(document, () => onRefreshUser)
+        RejectDocumentDialog.show(document, () => onRefreshUser())
     };
 
     const onRefreshUser = async () => {
@@ -105,24 +105,25 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
                                                         alt="document"
                                                         className="img-fluid"
                                                         onClick={() => CustomImagePreviewDialog(document)}
-                                                        style={{ maxWidth: "80%", maxHeight: "80%" }}
+                                                        style={{ width: "80%", height: "80%" }}
                                                     />
                                                 </div>
 
-                                                <Row className="mt-4">
-                                                    <Col xs={6} className="text-center">
-                                                        <Button className="custom-btn-primary" onClick={() => rejectDocument(document)}>
-                                                            Rejected
-                                                        </Button>
-                                                    </Col>
-                                                    <Col xs={6} className="text-center" onClick={() => verificationStatusChange(2, document)}>
-                                                        <Button className="custom-btn-secondary">
-                                                            Verified
-                                                        </Button>
-                                                    </Col>
-                                                </Row>
+                                                {document.verification_status === 1 && (
+                                                    <Row className="mt-4">
+                                                        <Col xs={6} className="text-center">
+                                                            <Button className="custom-btn-primary" onClick={() => rejectDocument(document)}>
+                                                                Rejected
+                                                            </Button>
+                                                        </Col>
+                                                        <Col xs={6} className="text-center" onClick={() => verificationStatusChange(2, document)}>
+                                                            <Button className="custom-btn-secondary">
+                                                                Verified
+                                                            </Button>
+                                                        </Col>
+                                                    </Row>
+                                                )}
                                             </>
-
                                     }
                                 </section>
                             ))}
