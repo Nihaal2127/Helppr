@@ -68,7 +68,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                     const payload = {
                         image_url: fileList[0],
                     };
-                    if (!userDetails?._id) {
+                    if (!document?._id) {
                         showErrorAlert("Unable to update. ID is missing.");
                         return;
                     }
