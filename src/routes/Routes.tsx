@@ -10,6 +10,9 @@ const UserManagement = React.lazy(() => import("../pages/userManagement"));
 const OrderManagement = React.lazy(() => import("../pages/orderManagement"));
 const Settings = React.lazy(() => import("../pages/settings"));
 const Role = React.lazy(() => import("../pages/settings/role"));
+const Financials = React.lazy(() => import("../pages/financial"));
+const OrderPayments = React.lazy(() => import("../pages/financial/orderPayments"));
+const PartnerPayments = React.lazy(() => import("../pages/financial/partnerPayments"));
 const Error404 = React.lazy(() => import("../pages/Error404"));
 const Error500 = React.lazy(() => import("../pages/Error500"));
 
@@ -52,6 +55,21 @@ export const ROUTES = {
   ORDER_MANAGEMENT: {
     path: "/order-management",
     element: <OrderManagement />,
+    isProtected: true,
+  },
+  FINANCIALS: {
+    path: "/financial",
+    element: <Financials />,
+    isProtected: true,
+  },
+  ORDER_PAYMENTS: {
+    path: "/financial-order-payments",
+    element: <OrderPayments />,
+    isProtected: true,
+  },
+  PARTNER_PAYMENTS: {
+    path: "/financial-partner-payments",
+    element: <PartnerPayments />,
     isProtected: true,
   },
   SETTINGS: {

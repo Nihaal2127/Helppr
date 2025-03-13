@@ -4,7 +4,7 @@ import { CityModel } from "../models/CityModel";
 import { showLog } from "../helper/utility";
 
 export const fetchCityDropDown = async (
-  stateIdList: string[],
+  stateIdList?: string[],
 ): Promise<{ value: string; label: string }[]> => {
   const params = stateIdList ? new URLSearchParams({ state_id: stateIdList.toString() }) : "";
 

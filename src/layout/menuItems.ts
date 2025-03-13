@@ -33,7 +33,11 @@ export const mainMenuItems = [
         label: "Order Management",
         path: ROUTES.ORDER_MANAGEMENT.path,
     },
-    { path: "/financials", label: "Financials" },
+    {
+        key: "financials",
+        label: "Financials",
+        path: ROUTES.FINANCIALS.path,
+    },
     { path: "/reports", label: "Reports & Analytics" },
     {
         key: "settings",

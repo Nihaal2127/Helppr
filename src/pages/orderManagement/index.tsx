@@ -7,7 +7,7 @@ import CustomTable from "../../components/CustomTable";
 import { fetchOrder } from "../../services/orderService";
 import { OrderModel } from "../../models/OrderModel";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
-import { Button, Col, Row } from "react-bootstrap";
+import { Button } from "react-bootstrap";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
 
@@ -90,6 +90,7 @@ const OrderManagement = () => {
         },
         { Header: "Total Amount", accessor: "total_amount" },
         { Header: "Location", accessor: "city_name" },
+          { Header: "Payment Mode", accessor: "payment_mode" },
     ], [currentPage, pageSize]);
 
     return (

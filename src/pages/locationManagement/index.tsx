@@ -33,8 +33,8 @@ const LocationManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(1);
-        if (response && countModel) {
+        const { responseCount, countModel } = await getCount(1);
+        if (responseCount && countModel) {
             setStateData({ Total: countModel.total_state, Active: countModel.active_state, Inactive: countModel.inactive_state });
             setCityData({ Total: countModel.total_city, Active: countModel.active_city, Inactive: countModel.inactive_city });
         }

@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import { useForm, UseFormRegister } from "react-hook-form";
+import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { CustomFormInput } from "../../components/CustomFormInput";
-import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { getStatusOptions, showLog } from "../../helper/utility";
-import CustomFormSelect from "../../components/CustomFormSelect";
-import CustomImageUploader from "../../components/CustomImageUploader";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { ShowDetailsRow, showLog } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateOrder } from "../../services/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
-import { fetchStateDropDown } from "../../services/stateService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
-import CustomMultiSelect from "../../components/CustomMultiSelect";
+import CustomTextField from "../../components/CustomTextField";
+import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
+import ServiceItemForm from "./ServiceItemForm";
+import { CustomFormInput } from "../../components/CustomFormInput";
+import { fetchUserDropDown } from "../../services/userService";
+import { UserModel } from "../../models/UserModel";
+import { getLocalStorage } from "../../helper/localStorageHelper";
+import { AppConstant } from "../../constant/AppConstant";
+import { showErrorAlert } from "../../helper/alertHelper";
+import { OrderItemModel } from "../../models/OrderItemModel";
 
 type CreateUpdateOrderDialogProps = {
     isEditable: boolean;
@@ -27,45 +29,51 @@ type CreateUpdateOrderDialogProps = {
 const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     show: (isEditable: boolean, order: OrderModel | null, onRefreshData: () => void) => void;
 } = ({ isEditable, order, onClose, onRefreshData }) => {
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        formState: { errors },
-    } = useForm<OrderModel>({
-        defaultValues: {
-            // name: service?.name || "",
-            // desc: service?.desc || "",
-            // price: service?.price || 0,
-            // is_active: service?.is_active ?? true,
-        },
-    });
+    const { register, formState: { errors }, setValue, getValues, handleSubmit } = useForm();
 
     const [categories, setCategory] = useState<{ value: string; label: string }[]>([]);
-    const [fileInputs, setFileInputs] = useState<File[]>([]);
-    const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
-    const [states, setState] = useState<{ value: string; label: string }[]>([]);
     const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
-    const [stateIds, setStateIds] = useState<string[]>([]);
-    const [cityIds, setCityIds] = useState<string[]>([]);
-    const fetchRef = useRef(false);
-    const fetchCityRef = useRef(false);
+    const [partnerList, setPartnerList] = useState<UserModel[]>([]);
+    const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
+    const [selectedPartner, setSelectedPartner] = useState<UserModel>();
+    const [selectedUser, setSelectedUser] = useState<UserModel>();
+    const [totalAmount, setTotalAmount] = useState<number>(0);
+    const [payments, setPaymentMode] = useState<{ value: string; label: string }[]>([{ value: "1", label: "COD" }, { value: "2", label: "Credit Card" }]);
+    const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
 
-    const fetchDataFromApi = async () => {
+    const fetchRef = useRef(false);
+
+    const fetchCategoryFromApi = async (cityId: string) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
             const categoryOptions = await fetchCategoryDropDown();
             setCategory(categoryOptions);
+        } finally {
+            fetchRef.current = false;
+        }
+    };
 
-            const stateOptions = await fetchStateDropDown();
-            setState([{ value: "select-all", label: "Select All" }, ...stateOptions]);
+    const fetchDataFromApi = async () => {
+        if (fetchRef.current) return;
+        fetchRef.current = true;
+        try {
+            const cityOptions = await fetchCityDropDown();
+            setCity(cityOptions);
+            const { users } = await fetchUserDropDown(2);
+            setPartnerList(users);
+            setPartner(users.map((partner: any) => ({ value: partner._id, label: partner.name })));
+        } finally {
+            fetchRef.current = false;
+        }
+    };
 
-            // if (isEditable && order) {
-            //     setStateIds(order.state_id);
-            //     setCityIds(order.city_id);
-            //     await fetchCityFromApi(order.state_id);
-            // }
+    const fetchUserFromApi = async (phone_number: string) => {
+        if (fetchRef.current) return;
+        fetchRef.current = true;
+        try {
+            const { users } = await fetchUserDropDown(4);
+            setSelectedUser(users.find((user) => user.phone_number === phone_number));
         } finally {
             fetchRef.current = false;
         }
@@ -75,96 +83,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const fetchCityFromApi = async (stateIdList: string[]) => {
-        if (fetchCityRef.current) return;
-        fetchCityRef.current = true;
-        try {
-            const cityOptions = await fetchCityDropDown(stateIdList);
-            setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
-        } finally {
-            fetchCityRef.current = false;
-        }
-    };
+    const onSubmitEvent = async (data: any) => {
 
-    const handleStateSelection = async (selectedOptions: { value: string; label: string }[]) => {
-        const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-
-        let selectedIds: string[] = [];
-
-        if (isSelectAllSelected) {
-            const allStates = states.filter((state) => state.value !== "select-all");
-            const isAllSelected =
-                states.length === allStates.length &&
-                allStates.every((state) => states.includes(state));
-
-            selectedIds = isAllSelected ? [] : allStates.map((state) => state.value);
-        } else {
-            selectedIds = selectedOptions.map((option) => option.value);
-        }
-
-        setStateIds(selectedIds);
-
-        setCity([]);
-        setCityIds([]);
-
-        if (selectedIds.length > 0) {
-            await fetchCityFromApi(selectedIds);
-        }
-    };
-
-    const handleCitySelection = (selectedOptions: { value: string; label: string }[],) => {
-        const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-
-        let selectedIds: string[] = [];
-
-        if (isSelectAllSelected) {
-            const allCity = cities.filter((city) => city.value !== "select-all");
-            const isAllSelected =
-                cities.length === allCity.length &&
-                allCity.every((city) => cities.includes(city));
-
-            selectedIds = isAllSelected ? [] : allCity.map((city) => city.value);
-        } else {
-            selectedIds = selectedOptions.map((option) => option.value);
-        }
-
-        setCityIds(selectedIds);
-    };
-
-    const onSubmitEvent = async (data: OrderModel) => {
-
-        let image_url = "";
-        if (fileInputs.length > 0) {
-            const formData = new FormData();
-            formData.append("type", "2");
-            fileInputs.forEach((file) => formData.append("files", file));
-            if (isEditable) {
-                if (replaceUrls.length > 0) {
-                    formData.append("update_file_urls", JSON.stringify(replaceUrls));
-                }
-            }
-
-            let { response, fileList } = await createOrUpdateDocument(formData, isEditable);
-            if (response) {
-                if (fileList.length > 0) {
-                    image_url = fileList[0].toString();
-                }
-            }
-        }
-
-        if (!isEditable && image_url === "") {
-            showErrorAlert("Please select image");
-            return;
-        }
         const payload = {
-            // name: data.name,
-            // desc: data.desc,
-            // price: data.price,
-            // is_active: data.is_active,
-            // category_id: data.category_id,
-            city_ids: cityIds,
-            state_ids: stateIds,
-            ...(image_url !== "" && { image_url })
+            user_id: selectedUser?._id,
+            user_unique_id: selectedUser?.user_id,
+            partner_id: selectedPartner?._id,
+            partner_unique_id: selectedPartner?.user_id,
+            city_id: data.city_id,
+            category_id: data.category_id,
+            payment_id: data.payment_id,
+            comments: data.comments,
+            total_amount: totalAmount,
+            service_items: serviceItems, 
+            created_by_id: getLocalStorage(AppConstant.createdById),
         };
 
         let responseService;
@@ -185,20 +117,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         }
     };
 
-    // useEffect(() => {
-    //     if (isEditable && service?.is_active !== undefined) {
-    //         setValue("is_active", service.is_active);
-    //     }
-    // }, [isEditable, service?.is_active]);
-
-    // useEffect(() => {
-    //     if (service?.category_id && categories.length > 0) {
-    //         const selectedCategory = categories.find((category) => category.value === service.category_id);
-    //         if (selectedCategory) {
-    //             setValue("category_id", service.category_id);
-    //         }
-    //     }
-    // }, [categories, service?.category_id, setValue]);
+    const onChangePartner = (selectedPartnerId: string) => {
+        setValue("partner_id", selectedPartnerId);
+        setSelectedPartner(partnerList.find((partner) => partner._id === selectedPartnerId));
+    };
 
     return (
         <Modal show={true} onHide={onClose} centered>
@@ -209,15 +131,145 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     </Modal.Title>
                     <CustomCloseButton onClose={onClose} />
                 </Modal.Header>
-                <Modal.Body className="px-4 pb-4 pt-0">
+                <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
                     <form
                         noValidate
                         name="order-form"
                         id="order-form"
-                        onSubmit={handleSubmit(onSubmitEvent)}
-                    >
+                        onSubmit={handleSubmit(onSubmitEvent)}>
                         <section className="custom-other-details" style={{ padding: "10px" }}>
                             <h3>User</h3>
+                            <Row>
+                                <Col xs={4}>
+                                    <CustomTextField
+                                        label="Phone No"
+                                        controlId="user_phone_number"
+                                        placeholder="Enter Phone Number"
+                                        register={register}
+                                        error={errors.user_phone_number}
+                                        validation={{ required: "Phone number is required" }}
+                                        // value={isEditable
+                                        //     ? order?.user_phone_number
+                                        //         ? order?.user_phone_number
+                                        //         : getValues("user_phone_number")
+                                        //     : getValues("user_phone_number")}
+                                        onChange={async (value) => await fetchUserFromApi(value)}
+                                    />
+                                </Col>
+                                <ShowDetailsRow title="User ID" value={selectedUser?.user_id} />
+                                <ShowDetailsRow title="User Name" value={selectedUser?.name} />
+                            </Row>
+                            <Row>
+                                <ShowDetailsRow title="Location" value={selectedUser?.city_name} />
+                                <ShowDetailsRow title="Address" value={selectedUser?.address} />
+                            </Row>
+                        </section>
+                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <h3>Partner</h3>
+                            <Row>
+                                <Col xs={4}>
+                                    <CustomTextFieldSelect
+                                        label="Partner Name"
+                                        controlId="Partner"
+                                        options={partners}
+                                        register={register}
+                                        fieldName="partner_id"
+                                        error={errors.partner_id}
+                                        requiredMessage="Please select partner"
+                                        defaultValue={isEditable
+                                            ? order?.partner_id
+                                                ? order?.partner_id
+                                                : getValues("partner_id")
+                                            : getValues("partner_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                        onChange={(e) => onChangePartner(e.target.value)}
+                                    />
+                                </Col>
+                                <ShowDetailsRow title="Partner ID" value={selectedPartner?.user_id} />
+                                <ShowDetailsRow title="Partner Number" value={selectedPartner?.phone_number} />
+                            </Row>
+                        </section>
+                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <Row>
+                                <Col xs={4} className="mt-2">
+                                    <CustomTextFieldSelect
+                                        label="City"
+                                        controlId="City"
+                                        options={cities}
+                                        register={register}
+                                        fieldName="city_id"
+                                        error={errors.city_id}
+                                        requiredMessage="Please select city"
+                                        defaultValue={isEditable
+                                            ? order?.city_id
+                                                ? order?.city_id
+                                                : getValues("city_id")
+                                            : getValues("city_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                        onChange={async (e) =>
+                                            await fetchCategoryFromApi(e.target.value)
+                                        }
+                                    />
+                                </Col>
+                                <Col xs={4} className="mt-2">
+                                    <CustomTextFieldSelect
+                                        label="Category"
+                                        controlId="Category"
+                                        options={categories}
+                                        register={register}
+                                        fieldName="category_id"
+                                        error={errors.category_id}
+                                        requiredMessage="Please select category"
+                                        defaultValue={isEditable
+                                            ? order?.category_id
+                                                ? order?.category_id
+                                                : getValues("category_id")
+                                            : getValues("category_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                        onChange={async (e) =>
+                                            await fetchCategoryFromApi(e.target.value)
+                                        }
+                                    />
+                                </Col>
+                                <Col xs={4} className="mt-2">
+                                    <CustomTextFieldSelect
+                                        label="Payment Mode"
+                                        controlId="Payment"
+                                        options={payments}
+                                        register={register}
+                                        fieldName="payment_id"
+                                        error={errors.payment_id}
+                                        requiredMessage="Please select payment"
+                                        defaultValue={isEditable
+                                            ? order?.payment_id
+                                                ? order?.payment_id
+                                                : getValues("payment_id")
+                                            : getValues("payment_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                    />
+                                </Col>
+                            </Row>
+                        </section>
+                        <ServiceItemForm categoryId={getValues("category_id")} onChange={setServiceItems} />
+                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <h3>Comments</h3>
+                            <CustomFormInput
+                                label=""
+                                controlId="comments"
+                                placeholder="Write Something"
+                                register={register}
+                                as="textarea"
+                                asCol={false}
+                                rows={5}
+                            />
+                        </section>
+                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <Row>
+                                <Col xs={8} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 25 }}>Total Amount: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 25 }}>{totalAmount}</label>
+                                </Col>
+                            </Row>
                         </section>
                         <Row className="mt-4">
                             <Col xs={6} className="text-center">

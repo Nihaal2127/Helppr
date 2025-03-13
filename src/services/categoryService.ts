@@ -11,9 +11,9 @@ export const fetchCategoryDropDown = async (
   );
 
   if (response.success) {
-    return response.data.records.map((state: any) => ({
-      value: state._id,
-      label: state.name,
+    return response.data.records.map((category: any) => ({
+      value: category._id,
+      label: category.name,
     }));
   } else {
     showLog(response.message || "Failed to fetch category");

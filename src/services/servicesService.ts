@@ -4,16 +4,17 @@ import { ServiceModel } from "../models/ServiceModel";
 import { showLog } from "../helper/utility";
 
 export const fetchServiceDropDown = async (
-): Promise<{ value: string; label: string }[]> => {
+): Promise<{ value: string; label: string,price?: number }[]> => {
   const response = await apiRequest(
     `${ApiPaths.GET_SERVICE_DROP_DOWN()}`,
     "GET"
   );
 
   if (response.success) {
-    return response.data.records.map((state: any) => ({
-      value: state._id,
-      label: state.name,
+    return response.data.records.map((service: any) => ({
+      value: service._id,
+      label: service.name,
+      price: service.price
     }));
   } else {
     showLog(response.message || "Failed to fetch service");

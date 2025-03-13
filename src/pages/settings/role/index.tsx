@@ -33,8 +33,8 @@ const RoleManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(3);
-        if (response && countModel) {
+        const { responseCount, countModel } = await getCount(3);
+        if (responseCount && countModel) {
             setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
             setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner });
             setEmployeeData({ Total: countModel.total_employee, Active: countModel.active_employee, Inactive: countModel.inactive_employee });

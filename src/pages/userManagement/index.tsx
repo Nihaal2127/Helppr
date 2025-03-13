@@ -32,8 +32,8 @@ const UserManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(3);
-        if (response && countModel) {
+        const { responseCount, countModel } = await getCount(3);
+        if (responseCount && countModel) {
             setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
             setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });

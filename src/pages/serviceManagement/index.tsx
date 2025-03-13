@@ -33,8 +33,8 @@ const ServiceManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, countModel } = await getCount(2);
-        if (response && countModel) {
+        const { responseCount, countModel } = await getCount(2);
+        if (responseCount && countModel) {
             setCategoryData({ Total: countModel.total_category, Active: countModel.active_category, Inactive: countModel.inactive_category });
             setServiceData({ Total: countModel.total_service, Active: countModel.active_service, Inactive: countModel.inactive_service });
         }

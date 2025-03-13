@@ -3,7 +3,7 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
 
-export const getCount = async (type: number): Promise<{ countModel: CountModel | null | null; response: boolean }> => {
+export const getCount = async (type: number): Promise<{ countModel: CountModel | null | null; responseCount: boolean }> => {
   try {
     const payload = {
       type: type,
@@ -12,20 +12,20 @@ export const getCount = async (type: number): Promise<{ countModel: CountModel |
     if (response.success) {
       return {
         countModel: response.data.record,
-        response: true,
+        responseCount: true,
       };
     } else {
       showLog("Get count failed:", response.message || "Unknown error");
       return {
         countModel: null,
-        response: false,
+        responseCount: false,
       };
     }
   } catch (error) {
     showLog("Error during get count:", error);
     return {
       countModel: null,
-      response: false,
+      responseCount: false,
     };
   }
 };

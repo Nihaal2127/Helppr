@@ -3,21 +3,23 @@ import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 
-export const fetchUserDropDown = async (
-): Promise<{ value: string; label: string }[]> => {
+export const fetchUserDropDown = async (type: number
+): Promise<{ users: UserModel[]; }> => {
+  const params = new URLSearchParams({
+    type: String(type),
+  });
   const response = await apiRequest(
-    `${ApiPaths.GET_USER_DROP_DOWN()}`,
+    `${ApiPaths.GET_USER_DROP_DOWN()}?${params.toString()}`,
     "GET"
   );
 
   if (response.success) {
-    return response.data.records.map((user: any) => ({
-      value: user._id,
-      label: user.name,
-    }));
+    return {
+      users: response.data.records,
+  };
   } else {
     showLog(response.message || "Failed to fetch user");
-    return [];
+    return { users: [] };
   }
 };
 

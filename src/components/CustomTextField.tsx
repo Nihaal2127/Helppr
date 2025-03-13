@@ -12,6 +12,9 @@ interface CustomTextFieldProps {
     labelSize?: number;
     inputType?: string;
     asCol?: boolean;
+    isEditable?: boolean;
+    value?: string | string[] | number;
+    onChange?: (value: string) => void;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -24,13 +27,16 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     labelSize = 4,
     inputType = "text",
     asCol = false,
+    isEditable = true,
+    onChange,
+    value,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
             <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
                 <label className="custom-profile-lable">{label}</label>
             </Col>
-            <Col >
+            <Col>
                 <CustomFormInput
                     label=""
                     controlId={controlId}
@@ -40,6 +46,9 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
                     asCol={asCol}
                     validation={validation}
                     inputType={inputType}
+                    isEditable={isEditable}
+                    onChange={onChange}
+                    value={value}
                 />
             </Col>
         </Row>

@@ -67,7 +67,7 @@ export const statusCell = (field: string) => {
 
 export const verificationStatusCell = (field: string | number) => {
     return ({ row }: { row?: { original: Record<string, any> } }): JSX.Element => {
-        const value = row?.original?.[field] ?? field; 
+        const value = row?.original?.[field] ?? field;
 
         const status = VerificationStatusEnum.get(value);
         const label = status ? status.label : "Unknown";
@@ -178,4 +178,19 @@ export const DetailsRowLinkDocument = ({
 
 export const getRoleLabel = (roleId: number): string => {
     return RoleEnum.get(roleId)?.label ?? "Unknown Role";
+};
+
+export const ShowDetailsRow = ({ title, value }: { title: string; value: any }) => {
+    return (
+        <Col xs={4}>
+            <Row>
+                <Col sm={4}>
+                    <label className="custom-profile-lable">{title}</label>
+                </Col>
+                <Col>
+                    <label className="custom-personal-row-value">{(value === undefined || value === "" || value === null) ? "-" : value}</label>
+                </Col>
+            </Row>
+        </Col>
+    );
 };

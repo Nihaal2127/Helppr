@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import { Eye, EyeOff } from "react-feather";
 import classNames from "classnames";
@@ -12,7 +12,7 @@ interface CustomFormInputProps {
   error?: any;
   asCol?: boolean;
   value?: string | string[] | number;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (value: string) => void;
   inputType?: string;
   isEditable?: boolean;
   maxLength?: number;
@@ -36,7 +36,20 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   as,
   rows,
 }) => {
+  const [inputValue, setInputValue] = useState<string>(String(value));
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (onChange) {
+        onChange(inputValue); 
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [inputValue]); 
 
   return inputType === "password" ? (
     <Form.Group
@@ -53,7 +66,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           {...register(controlId, validation)}
           isInvalid={!!error}
           value={value}
-          onChange={onChange}
+          onChange={(e) => setInputValue(e.target.value)}
           readOnly={!isEditable}
           maxLength={maxLength}
           style={{
@@ -115,7 +128,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         {...register(controlId, validation)}
         isInvalid={!!error}
         value={value}
-        onChange={onChange}
+        onChange={(e) => setInputValue(e.target.value)}
         readOnly={!isEditable}
         maxLength={maxLength}
         as={as}
