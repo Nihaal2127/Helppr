@@ -72,23 +72,23 @@ const OrderManagement = () => {
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
         {
-            Header: "Order ID", accessor: "order_id",
-            Cell: textUnderlineCell("order_id", (row) => orderShow(row._id)),
+            Header: "Order ID", accessor: "unique_id",
+            Cell: textUnderlineCell("unique_id", (row) => orderShow(row._id)),
         },
         {
-            Header: "Helper ID", accessor: "partner_id",
-            Cell: textUnderlineCell("name", (row) => orderShow(row._id)),
+            Header: "Helper ID", accessor: "partner_unique_id",
+            Cell: textUnderlineCell("partner_unique_id", (row) => orderShow(row._id)),
         },
         {
-            Header: "User ID", accessor: "user_id",
-            Cell: textUnderlineCell("name", (row) => orderShow(row._id)),
+            Header: "User ID", accessor: "user_unique_id",
+            Cell: textUnderlineCell("user_unique_id", (row) => orderShow(row._id)),
         },
         {
             Header: "Order Date",
             accessor: "order_date",
             Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : "")
         },
-        { Header: "Total Amount", accessor: "total_amount" },
+        { Header: "Total Amount", accessor: "total_price" },
         { Header: "Location", accessor: "city_name" },
           { Header: "Payment Mode", accessor: "payment_mode" },
     ], [currentPage, pageSize]);
