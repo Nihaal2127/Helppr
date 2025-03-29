@@ -7,6 +7,7 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
+import { fetchUserDropDown } from "../../services/userService";
 import addIcon from "../../assets/icons/add.svg";
 import { showLog } from "../../helper/utility";
 
@@ -19,18 +20,20 @@ type ServiceItemFormProps = {
 const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange }) => {
     const { register, formState: { errors }, setValue, getValues } = useForm<OrderItemModel>();
     const [services, setService] = useState<{ value: string; label: string; price?: number }[]>([]);
+    const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([
         {
             _id: "",
             order_id: "",
             service_id: "",
             service_price: 0,
+            partner_id: "",
             service_date: "",
             service_from_time: "",
             service_to_time: "",
         },
     ]);
-    const fetchServiceRef = useRef(false);
+    const fetchRef = useRef(false);
 
     useEffect(() => {
         onChange(serviceItems);
@@ -38,18 +41,30 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
 
     useEffect(() => {
         fetchServiceFromApi();
-    }, []);
+    }, [categoryId]);
 
     const fetchServiceFromApi = async () => {
-        if (fetchServiceRef.current) return;
-        fetchServiceRef.current = true;
+        if (fetchRef.current) return;
+        fetchRef.current = true;
         try {
-            const serviceOptions = await fetchServiceDropDown();
+            const serviceOptions = await fetchServiceDropDown(categoryId);
             setService(serviceOptions);
         } finally {
-            fetchServiceRef.current = false;
+            fetchRef.current = false;
         }
     };
+
+    const fetchUserFromApi = async (serviceId: string) => {
+        if (fetchRef.current) return;
+        fetchRef.current = true;
+        try {
+            const { users } = await fetchUserDropDown(4, serviceId);
+            setPartner(users.map((partner: any) => ({ value: partner._id, label: partner.name })));
+        } finally {
+            fetchRef.current = false;
+        }
+    };
+
 
     const addServiceItem = () => {
         setServiceItems(prevServiceItems => [
@@ -59,13 +74,15 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                 order_id: "",
                 service_id: "",
                 service_price: 0,
+                partner_id: "",
                 service_date: "",
                 service_from_time: "",
                 service_to_time: "",
+
             },
         ]);
     };
-    
+
 
     const removeServiceItem = (index: number) => {
         if (serviceItems.length > 1) {
@@ -93,31 +110,31 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
     const handleInputChange = (index: number, field: keyof OrderItemModel, value: any) => {
         setServiceItems(prevServiceItems => {
             const updatedServices = [...prevServiceItems];
-    
+
             if (field === "service_id") {
                 const selectedService = services.find(service => service.value === value);
                 const price = selectedService?.price ?? 0;
-    
-                updatedServices[index] = { 
-                    ...updatedServices[index], 
-                    service_price: price, 
-                    service_id: value 
+                showLog("selected service price is:",price);
+                updatedServices[index] = {
+                    ...updatedServices[index],
+                    service_price: price,
+                    service_id: value
                 };
-    
+
                 setValue(`serviceItems.${index}.service_price` as any, price);
+                fetchUserFromApi(selectedService?.value!);
             } else {
-                updatedServices[index] = { 
-                    ...updatedServices[index], 
-                    [field]: value 
+                updatedServices[index] = {
+                    ...updatedServices[index],
+                    [field]: value
                 };
                 setValue(`serviceItems.${index}.${field}` as any, value);
             }
-    
+
             return updatedServices;
         });
     };
 
-    
     return (
         <>
             {serviceItems.map((service, index) => (
@@ -159,7 +176,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                         <Col xs={6} className="mt-2">
                             <CustomTextFieldSelect
                                 label="Service"
-                                controlId={`serviceItems.${index}.service_id`}
+                                controlId={`Service`}
                                 options={services}
                                 register={register}
                                 fieldName={`serviceItems.${index}.service_id`}
@@ -175,40 +192,60 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                                 labelSize={2}
                             />
                         </Col>
-                        <Col xs={4} className="mt-2">
+                        <Col xs={6} className="mt-2">
+                            <CustomTextFieldSelect
+                                label="Partner"
+                                controlId={`Partner`}
+                                options={partners}
+                                register={register}
+                                fieldName={`serviceItems.${index}.partner_id`}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_id}
+                                requiredMessage="Please select partner"
+                                defaultValue={service?.partner_id
+                                    ? service?.partner_id
+                                    : getValues(`serviceItems.${index}.partner_id` as any)}
+                                setValue={setValue as (name: string, value: any) => void}
+                                onChange={(e) => {
+                                    handleInputChange(index, "partner_id", e.target.value)
+                                }}
+                                labelSize={2}
+                            />
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={3} className="mt-3">
                             <CustomTextField
                                 label="Price"
                                 controlId={`serviceItems.${index}.price`}
                                 placeholder="Enter Price"
                                 register={register}
+                                value={serviceItems[index].service_price}
                                 error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_price}
                                 //error={(errors as Record<string, any>)[`service_price_${index}`]} 
                                 validation={{ required: "Price is required" }}
                                 isEditable={false}
                             />
                         </Col>
-                    </Row>
-                    <Row>
-                        <Col xs={4} >
+                        <Col xs={3} >
                             <CustomTextFieldDatePicket
                                 label="Service Date"
                                 controlId="service_date"
                                 selectedDate={service?.service_date ?? getValues(`service_date`)}
                                 onChange={(date) => handleInputChange(index, "service_date", date?.toISOString() || "")}
-                                placeholderText="Select service date"
+                                placeholderText="Select date"
                                 error={errors.service_date}
                                 register={register}
                                 validation={{ required: "Service date is required" }}
                                 setValue={setValue}
                             />
                         </Col>
-                        <Col xs={4}>
+                        <Col xs={3}>
                             <CustomTextFieldTimePicket
                                 label="From Time"
                                 controlId="service_from_time"
                                 selectedTime={service?.service_from_time ?? getValues(`service_from_time`)}
                                 onChange={(date) => handleInputChange(index, "service_from_time", date?.toISOString() || "")}
-                                placeholderText="Select from time"
+                                placeholderText="Select time"
                                 error={errors.service_from_time}
                                 register={register}
                                 validation={{ required: "From time is required" }}
@@ -219,13 +256,13 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                                 }}
                             />
                         </Col>
-                        <Col xs={4}>
+                        <Col xs={3}>
                             <CustomTextFieldTimePicket
                                 label="To Time"
                                 controlId="service_to_time"
                                 selectedTime={service?.service_to_time ?? getValues(`service_to_time`)}
                                 onChange={(date) => handleInputChange(index, "service_to_time", date?.toISOString() || "")}
-                                placeholderText="Select to time"
+                                placeholderText="Select time"
                                 error={errors.service_to_time}
                                 register={register}
                                 validation={{ required: "To time is required" }}
@@ -236,6 +273,9 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                                 }}
                             />
                         </Col>
+                    </Row>
+                    <Row>
+
                     </Row>
                 </section>
             ))}

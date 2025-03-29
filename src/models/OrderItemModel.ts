@@ -3,6 +3,7 @@ export interface OrderItemModel {
     order_id: string;
     service_id: string;
     service_price: number;
+    partner_id: string;
     service_date: string;
     service_from_time: string;
     service_to_time: string;

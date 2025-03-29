@@ -6,7 +6,7 @@ import { textUnderlineCell, formatDate, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import { fetchOrder } from "../../services/orderService";
 import { OrderModel } from "../../models/OrderModel";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import OrderInfoDialog from "./OrderInfoDialog";
 import { Button } from "react-bootstrap";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
@@ -62,7 +62,7 @@ const OrderManagement = () => {
     };
 
     const orderShow = (orderId: string) => {
-        UserDetailsDialog.show(orderId, () => refreshData())
+        OrderInfoDialog.show(orderId, () => refreshData())
     }
 
     const orderColumns = React.useMemo(() => [

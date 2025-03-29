@@ -3,10 +3,13 @@ import { ApiPaths } from "../remote/apiPaths";
 import { CategoryModel } from "../models/CategoryModel";
 import { showLog } from "../helper/utility";
 
-export const fetchCategoryDropDown = async (
+export const fetchCategoryDropDown = async (cityId?: string
 ): Promise<{ value: string; label: string }[]> => {
+  const params = new URLSearchParams({
+    ...(cityId && { city_id: cityId }),
+  });
   const response = await apiRequest(
-    `${ApiPaths.GET_CATEGORY_DROP_DOWN()}`,
+    `${ApiPaths.GET_CATEGORY_DROP_DOWN()}?${params.toString()}`,
     "GET"
   );
 

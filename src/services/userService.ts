@@ -3,10 +3,11 @@ import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 
-export const fetchUserDropDown = async (type: number
+export const fetchUserDropDown = async (type: number, serviceId?: string
 ): Promise<{ users: UserModel[]; }> => {
   const params = new URLSearchParams({
     type: String(type),
+    ...(serviceId && { service_id: serviceId }),
   });
   const response = await apiRequest(
     `${ApiPaths.GET_USER_DROP_DOWN()}?${params.toString()}`,

@@ -18,6 +18,7 @@ import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { OrderItemModel } from "../../models/OrderItemModel";
+import { CategoryModel } from "../../models/CategoryModel";
 
 type CreateUpdateOrderDialogProps = {
     isEditable: boolean;
@@ -33,12 +34,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
     const [categories, setCategory] = useState<{ value: string; label: string }[]>([]);
     const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
-    const [partnerList, setPartnerList] = useState<UserModel[]>([]);
-    const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
-    const [selectedPartner, setSelectedPartner] = useState<UserModel>();
+    const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [selectedUser, setSelectedUser] = useState<UserModel>();
     const [totalAmount, setTotalAmount] = useState<number>(0);
-    const [payments, setPaymentMode] = useState<{ value: string; label: string }[]>([{ value: "1", label: "COD" }, { value: "2", label: "Credit Card" }]);
+    const [payments] = useState<{ value: string; label: string }[]>([{ value: "1", label: "COD" }, { value: "2", label: "Credit Card" }]);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
 
     const fetchRef = useRef(false);
@@ -47,22 +46,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
-            const categoryOptions = await fetchCategoryDropDown();
+            const categoryOptions = await fetchCategoryDropDown(cityId);
             setCategory(categoryOptions);
-        } finally {
-            fetchRef.current = false;
-        }
-    };
-
-    const fetchDataFromApi = async () => {
-        if (fetchRef.current) return;
-        fetchRef.current = true;
-        try {
-            const cityOptions = await fetchCityDropDown();
-            setCity(cityOptions);
-            const { users } = await fetchUserDropDown(2);
-            setPartnerList(users);
-            setPartner(users.map((partner: any) => ({ value: partner._id, label: partner.name })));
         } finally {
             fetchRef.current = false;
         }
@@ -79,6 +64,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         }
     };
 
+    const fetchDataFromApi = async () => {
+        if (fetchRef.current) return;
+        fetchRef.current = true;
+        try {
+            const cityOptions = await fetchCityDropDown();
+            setCity(cityOptions);
+            const { users } = await fetchUserDropDown(2);
+        } finally {
+            fetchRef.current = false;
+        }
+    };
+
+
     useEffect(() => {
         fetchDataFromApi();
     }, []);
@@ -88,38 +86,32 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         const payload = {
             user_id: selectedUser?._id,
             user_unique_id: selectedUser?.user_id,
-            partner_id: selectedPartner?._id,
-            partner_unique_id: selectedPartner?.user_id,
             city_id: data.city_id,
             category_id: data.category_id,
             payment_id: data.payment_id,
             comments: data.comments,
             total_amount: totalAmount,
-            service_items: serviceItems, 
+            service_items: serviceItems,
             created_by_id: getLocalStorage(AppConstant.createdById),
         };
 
-        let responseService;
-        if (isEditable) {
-            if (!order?._id) {
-                showErrorAlert("Unable to update. ID is missing.");
-                return;
-            }
+        showLog("payload:", payload);
+        // let responseService;
+        // if (isEditable) {
+        //     if (!order?._id) {
+        //         showErrorAlert("Unable to update. ID is missing.");
+        //         return;
+        //     }
 
-            responseService = await createOrUpdateOrder(payload, true, order?._id);
-        } else {
-            responseService = await createOrUpdateOrder(payload, false,);
-        }
+        //     responseService = await createOrUpdateOrder(payload, true, order?._id);
+        // } else {
+        //     responseService = await createOrUpdateOrder(payload, false,);
+        // }
 
-        if (responseService) {
-            onClose && onClose();
-            onRefreshData();
-        }
-    };
-
-    const onChangePartner = (selectedPartnerId: string) => {
-        setValue("partner_id", selectedPartnerId);
-        setSelectedPartner(partnerList.find((partner) => partner._id === selectedPartnerId));
+        // if (responseService) {
+        //     onClose && onClose();
+        //     onRefreshData();
+        // }
     };
 
     return (
@@ -165,31 +157,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             </Row>
                         </section>
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                            <h3>Partner</h3>
-                            <Row>
-                                <Col xs={4}>
-                                    <CustomTextFieldSelect
-                                        label="Partner Name"
-                                        controlId="Partner"
-                                        options={partners}
-                                        register={register}
-                                        fieldName="partner_id"
-                                        error={errors.partner_id}
-                                        requiredMessage="Please select partner"
-                                        defaultValue={isEditable
-                                            ? order?.partner_id
-                                                ? order?.partner_id
-                                                : getValues("partner_id")
-                                            : getValues("partner_id")}
-                                        setValue={setValue as (name: string, value: any) => void}
-                                        onChange={(e) => onChangePartner(e.target.value)}
-                                    />
-                                </Col>
-                                <ShowDetailsRow title="Partner ID" value={selectedPartner?.user_id} />
-                                <ShowDetailsRow title="Partner Number" value={selectedPartner?.phone_number} />
-                            </Row>
-                        </section>
-                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <Row>
                                 <Col xs={4} className="mt-2">
                                     <CustomTextFieldSelect
@@ -227,7 +194,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                             : getValues("category_id")}
                                         setValue={setValue as (name: string, value: any) => void}
                                         onChange={async (e) =>
-                                            await fetchCategoryFromApi(e.target.value)
+                                            setSelectedCategory(e.target.value)
                                         }
                                     />
                                 </Col>
@@ -250,7 +217,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
-                        <ServiceItemForm categoryId={getValues("category_id")} onChange={setServiceItems} />
+                        <ServiceItemForm categoryId={selectedCategory} onChange={setServiceItems} />
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Comments</h3>
                             <CustomFormInput
@@ -264,10 +231,23 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             />
                         </section>
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <h3>Payment</h3>
                             <Row>
-                                <Col xs={8} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 25 }}>Total Amount: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 25 }}>{totalAmount}</label>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Service Amount: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax Amount: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Platform Charges: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Amount: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{totalAmount}</label>
                                 </Col>
                             </Row>
                         </section>

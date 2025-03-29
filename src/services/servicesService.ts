@@ -3,10 +3,14 @@ import { ApiPaths } from "../remote/apiPaths";
 import { ServiceModel } from "../models/ServiceModel";
 import { showLog } from "../helper/utility";
 
-export const fetchServiceDropDown = async (
+export const fetchServiceDropDown = async (categoryId ?: string
 ): Promise<{ value: string; label: string,price?: number }[]> => {
+  const params = new URLSearchParams({
+    ...(categoryId && { category_id: categoryId }),
+  });
+
   const response = await apiRequest(
-    `${ApiPaths.GET_SERVICE_DROP_DOWN()}`,
+    `${ApiPaths.GET_SERVICE_DROP_DOWN()}?${params.toString()}`,
     "GET"
   );
 
