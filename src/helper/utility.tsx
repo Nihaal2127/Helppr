@@ -100,6 +100,12 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
     );
 };
 
+export function convertToUTC(timeStr: string): string {
+    const today: string = new Date().toISOString().split('T')[0];
+    const localDateTime: Date = new Date(`${today} ${timeStr}`);
+    return localDateTime.toISOString();
+}
+
 export const DetailsRowLink = ({ title, value, onClick }: { title: string; value: number | null | undefined; onClick: () => void }) => {
     return (
         <Row className="row custom-personal-row">

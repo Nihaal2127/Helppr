@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
@@ -7,7 +7,7 @@ import { createOrUpdateOrder } from "../../services/orderService";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
-
+import { convertToUTC } from "../../helper/utility";
 
 type EditOrderServiceDialogProps = {
     orderItemModel: OrderItemModel;
@@ -23,13 +23,9 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
         handleSubmit,
         setValue,
         formState: { errors },
-    } = useForm<OrderItemModel>({
-        defaultValues: {
-            service_date: orderItemModel.service_date ? orderItemModel.service_date: "",
-            service_from_time: orderItemModel.service_from_time ? orderItemModel.service_from_time : "",
-            service_to_time: orderItemModel.service_to_time ? orderItemModel.service_to_time : "",
-        }
-    });
+    } = useForm<OrderItemModel>();
+    const [fromTime, setFromTime] = useState<string>(convertToUTC(orderItemModel.service_from_time ? orderItemModel.service_from_time : ""));
+    const [toTime, setToTime] = useState<string>(convertToUTC(orderItemModel.service_to_time ? orderItemModel.service_to_time : ""));
 
     const onSubmitEvent = async (data: OrderItemModel) => {
 
@@ -84,13 +80,14 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
                             <CustomTextFieldTimePicket
                                 label="From Time"
                                 controlId="service_from_time"
-                                selectedTime={orderItemModel?.service_from_time}
+                                selectedTime={fromTime}
                                 onChange={(date) => {
                                     const serviceTime = date?.toISOString() || "";
-                                    if (orderItemModel) {
-                                        orderItemModel.service_from_time = serviceTime;
-                                        setValue("service_from_time", serviceTime)
-                                    }
+                                    setFromTime(serviceTime);
+                                    // if (orderItemModel) {
+                                    //     orderItemModel.service_from_time = serviceTime;
+                                    //     setValue("service_from_time", serviceTime)
+                                    // }
                                 }}
                                 placeholderText="Select time"
                                 error={errors.service_from_time}
@@ -105,13 +102,14 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
                             <CustomTextFieldTimePicket
                                 label="To Time"
                                 controlId="service_to_time"
-                                selectedTime={orderItemModel?.service_to_time}
+                                selectedTime={toTime}
                                 onChange={(date) => {
                                     const serviceTime = date?.toISOString() || "";
-                                    if (orderItemModel) {
-                                        orderItemModel.service_to_time = serviceTime;
-                                        setValue("service_to_time", serviceTime)
-                                    }
+                                    setToTime(serviceTime);
+                                    // if (orderItemModel) {
+                                    //     orderItemModel.service_to_time = serviceTime;
+                                    //     setValue("service_to_time", serviceTime)
+                                    // }
                                 }}
                                 placeholderText="Select time"
                                 error={errors.service_to_time}
@@ -144,12 +142,12 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
 };
 
 EditOrderServiceDialog.show = (orderItemModel: OrderItemModel, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("assign-partner-modal");
+    const existingModal = document.getElementById("order-edit-service-modal");
     if (existingModal) {
         return;
     }
     const modalContainer = document.createElement("div");
-    modalContainer.id = "assign-partner-modal";
+    modalContainer.id = "order-edit-service-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

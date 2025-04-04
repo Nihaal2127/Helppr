@@ -75,3 +75,13 @@ export const createOrUpdateOrder = async (
   }
   return false;
 };
+
+export const cancelOrderService = async (id: string): Promise<boolean> => {
+  const response = await apiRequest(ApiPaths.ORDER_CANCLE_SERVICE(id), "PUT");
+  if (response.success) {
+    return true;
+  } else {
+    showLog(response.message || "Failed to order cancle service");
+    return false;
+  }
+};

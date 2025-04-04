@@ -45,4 +45,5 @@ export const ApiPaths = {
   GET_ORDER_BY_ID: () => `/order/get`,
   UPDATE_ORDER: (id: string) => `/order/update/${id}`,
   DELETE_ORDER: (id: string) => `/order/delete/${id}`,
+  ORDER_CANCLE_SERVICE: (id: string) => `/order/cancleService/${id}`,
 };

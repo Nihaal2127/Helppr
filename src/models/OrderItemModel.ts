@@ -1,3 +1,6 @@
+import { ServiceModel } from "./ServiceModel";
+import { UserModel } from "./UserModel";
+
 export interface OrderItemModel {
     _id: string ;
     order_id: string;
@@ -7,21 +10,17 @@ export interface OrderItemModel {
     service_date: string;
     service_from_time: string;
     service_to_time: string;
-
-
-
-    // product_id: string | null;
-    // item_code: string;
-    // product_title: string;
-    // quantity: number;
-    // price: number;
-    // total_price: number;
-    // tax_id: string;
-    // is_tax_included: boolean;
-    // gst_amount: number;
-    // gst_percentage: number;
-    // promo_code: string | null;
-    // promo_value: number | null;
-    // discount_amount: number | null;
-    // promo_type: string | null;
+    service_info?: ServiceModel;
+    sub_total?: number | 0;
+    tax?: number | 0;
+    user_paltform_fee?: number | 0;
+    partner_commison_platform_fee?: number | 0;
+    total_price?: number | 0;
+    partner_earning?: number | 0;
+    admin_earning?: number | 0;
+    rating?: number | 0;
+    cancellation_reasone?: string | null;
+    service_status?: number | 0;
+    service_payment_status?: boolean | false;
+    partner_info?: UserModel | null;
 }

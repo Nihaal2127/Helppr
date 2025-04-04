@@ -76,10 +76,6 @@ const OrderManagement = () => {
             Cell: textUnderlineCell("unique_id", (row) => orderShow(row._id)),
         },
         {
-            Header: "Helper ID", accessor: "partner_unique_id",
-            Cell: textUnderlineCell("partner_unique_id", (row) => orderShow(row._id)),
-        },
-        {
             Header: "User ID", accessor: "user_unique_id",
             Cell: textUnderlineCell("user_unique_id", (row) => orderShow(row._id)),
         },
