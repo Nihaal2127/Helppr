@@ -123,7 +123,6 @@ const OrderManagement = () => {
                     />
                 </div>
 
-
                 <CustomTable
                     columns={orderColumns}
                     data={orderList}

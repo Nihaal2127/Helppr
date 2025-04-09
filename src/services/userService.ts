@@ -24,6 +24,26 @@ export const fetchUserDropDown = async (type: number, serviceId?: string
   }
 };
 
+export const fetchPartnerDropDown = async (serviceId?: string
+): Promise<{ partners: UserModel[]; }> => {
+  const params = new URLSearchParams({
+    ...(serviceId && { service_id: serviceId }),
+  });
+  const response = await apiRequest(
+    `${ApiPaths.GET_PARTNER_DROP_DOWN()}?${params.toString()}`,
+    "GET"
+  );
+
+  if (response.success) {
+    return {
+      partners: response.data.records,
+  };
+  } else {
+    showLog(response.message || "Failed to fetch partner");
+    return { partners: [] };
+  }
+};
+
 export const fetchUser = async (
   isVerification: boolean,
   type: number,

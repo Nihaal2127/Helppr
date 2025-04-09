@@ -10,6 +10,7 @@ export const ApiPaths = {
   GET_USER: () => `/user/getAll`,
   GET_VERIFICATION: () => `/user/getVerificationAll`,
   GET_USER_DROP_DOWN: () => `/user/getDropDown`,
+  GET_PARTNER_DROP_DOWN: () => `/user/getPartnerDropDown`,
   UPDATE_USER: (id: string) => `/user/update/${id}`,
   DELETE_USER: (id: string) => `/user/delete/${id}`,
   CHANGE_PASSWORD: '/user/changePassword',
@@ -45,5 +46,11 @@ export const ApiPaths = {
   GET_ORDER_BY_ID: () => `/order/get`,
   UPDATE_ORDER: (id: string) => `/order/update/${id}`,
   DELETE_ORDER: (id: string) => `/order/delete/${id}`,
+  CANCLE_ORDER: (id: string) => `/order/cancle/${id}`,
   ORDER_CANCLE_SERVICE: (id: string) => `/order/cancleService/${id}`,
+  ORDER_UPDATE_SERVICE: (id: string) => `/order/serviceUpdate/${id}`,
+  GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
+  CREATE_TAX_OTHER_CHARGES: '/tax/create',
+  UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,
+
 };

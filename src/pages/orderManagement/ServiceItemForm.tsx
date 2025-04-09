@@ -7,30 +7,36 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
-import { fetchUserDropDown } from "../../services/userService";
+import { fetchPartnerDropDown } from "../../services/userService";
 import addIcon from "../../assets/icons/add.svg";
-import { showLog } from "../../helper/utility";
+import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 
 type ServiceItemFormProps = {
+    taxDetails: TaxOtherChargesModel
     categoryId: string,
     onChange: (items: OrderItemModel[]) => void;
 };
 
-
-const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange }) => {
+const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryId, onChange }) => {
     const { register, formState: { errors }, setValue, getValues } = useForm<OrderItemModel>();
     const [services, setService] = useState<{ value: string; label: string; price?: number }[]>([]);
     const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([
         {
-            _id: "",
-            order_id: "",
             service_id: "",
             service_price: 0,
             partner_id: "",
             service_date: "",
             service_from_time: "",
             service_to_time: "",
+
+            sub_total: 0,
+            tax: 0,
+            user_paltform_fee: 0,
+            partner_commison_platform_fee: 0,
+            partner_earning: 0,
+            total_price: 0,
+            admin_earning: 0,
         },
     ]);
     const fetchRef = useRef(false);
@@ -54,35 +60,38 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
         }
     };
 
-    const fetchUserFromApi = async (serviceId: string) => {
+    const fetchPartnerFromApi = async (serviceId: string) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
-            const { users } = await fetchUserDropDown(4, serviceId);
-            setPartner(users.map((partner: any) => ({ value: partner._id, label: partner.name })));
+            const { partners } = await fetchPartnerDropDown(serviceId);
+            setPartner(partners.map((partner: any) => ({ value: partner.partner_id, label: partner.partner_name })));
         } finally {
             fetchRef.current = false;
         }
     };
 
-
     const addServiceItem = () => {
         setServiceItems(prevServiceItems => [
             ...prevServiceItems,
             {
-                _id: "",
-                order_id: "",
                 service_id: "",
                 service_price: 0,
                 partner_id: "",
                 service_date: "",
                 service_from_time: "",
                 service_to_time: "",
+                sub_total: 0,
+                tax: 0,
+                user_paltform_fee: 0,
+                partner_commison_platform_fee: 0,
+                partner_earning: 0,
+                total_price: 0,
+                admin_earning: 0,
 
             },
         ]);
     };
-
 
     const removeServiceItem = (index: number) => {
         if (serviceItems.length > 1) {
@@ -113,17 +122,39 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
 
             if (field === "service_id") {
                 const selectedService = services.find(service => service.value === value);
-                const price = selectedService?.price ?? 0;
-                showLog("selected service price is:",price);
+                const servicePrice = selectedService?.price ?? 0;
+
+                fetchPartnerFromApi(selectedService?.value!);
+
+                const tax = (servicePrice * (taxDetails.tax_for_customer / 100));
+                const subTotal = servicePrice - tax;
+                const userPlatformFee = (servicePrice * (taxDetails.user_platform_fee / 100));
+                const totalPrice = servicePrice + userPlatformFee;
+                const partnerCommissionPlatformFee = (servicePrice * ((taxDetails.partner_commision_fee + taxDetails.partner_platform_fee) / 100));
+                const partnerEarning = (subTotal - partnerCommissionPlatformFee);
+                const adminEarning = (userPlatformFee + partnerCommissionPlatformFee);
+
                 updatedServices[index] = {
                     ...updatedServices[index],
-                    service_price: price,
-                    service_id: value
+                    service_price: servicePrice,
+                    service_id: value,
+                    sub_total: subTotal,
+                    tax: tax,
+                    user_paltform_fee: userPlatformFee,
+                    partner_commison_platform_fee: partnerCommissionPlatformFee,
+                    partner_earning: partnerEarning,
+                    total_price: totalPrice,
+                    admin_earning: adminEarning,
                 };
-
-                setValue(`serviceItems.${index}.service_price` as any, price);
-                fetchUserFromApi(selectedService?.value!);
-            } else {
+            } 
+            // else if (field === "service_from_time" || field === "service_to_time") {
+            //     updatedServices[index] = {
+            //         ...updatedServices[index],
+            //         [field]: formatUtcToLocalTime(value)
+            //     };
+            //     setValue(`serviceItems.${index}.${field}` as any, formatUtcToLocalTime(value));
+            // } 
+            else {
                 updatedServices[index] = {
                     ...updatedServices[index],
                     [field]: value
@@ -243,7 +274,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                             <CustomTextFieldTimePicket
                                 label="From Time"
                                 controlId="service_from_time"
-                                selectedTime={service?.service_from_time ?? getValues(`service_from_time`)}
+                                selectedTime={serviceItems[index].service_from_time ? serviceItems[index].service_from_time : ""}
                                 onChange={(date) => handleInputChange(index, "service_from_time", date?.toISOString() || "")}
                                 placeholderText="Select time"
                                 error={errors.service_from_time}
@@ -260,7 +291,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                             <CustomTextFieldTimePicket
                                 label="To Time"
                                 controlId="service_to_time"
-                                selectedTime={service?.service_to_time ?? getValues(`service_to_time`)}
+                                selectedTime={serviceItems[index].service_to_time ? serviceItems[index].service_to_time : ""}
                                 onChange={(date) => handleInputChange(index, "service_to_time", date?.toISOString() || "")}
                                 placeholderText="Select time"
                                 error={errors.service_to_time}
@@ -275,7 +306,90 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ categoryId, onChange 
                         </Col>
                     </Row>
                     <Row>
-
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Sub Total"
+                                controlId={`serviceItems.${index}.sub_total`}
+                                placeholder="Enter Sub Total"
+                                register={register}
+                                value={serviceItems[index].sub_total}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.sub_total}
+                                validation={{ required: "Sub total is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Tax"
+                                controlId={`serviceItems.${index}.tax`}
+                                placeholder="Enter Tax"
+                                register={register}
+                                value={serviceItems[index].tax}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.tax}
+                                validation={{ required: "Tax is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="User Paltform Fee"
+                                controlId={`serviceItems.${index}.user_paltform_fee`}
+                                placeholder="Enter User Paltform Fee"
+                                register={register}
+                                value={serviceItems[index].user_paltform_fee}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.user_paltform_fee}
+                                validation={{ required: "User paltform fee is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Partner Commison Paltform Fee"
+                                controlId={`serviceItems.${index}.partner_commison_platform_fee`}
+                                placeholder="Enter Partner Commison Paltform Fee"
+                                register={register}
+                                value={serviceItems[index].partner_commison_platform_fee}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_commison_platform_fee}
+                                validation={{ required: "Partner commison paltform fee is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Partner Earning"
+                                controlId={`serviceItems.${index}.partner_earning`}
+                                placeholder="Enter Partner Earning"
+                                register={register}
+                                value={serviceItems[index].partner_earning}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_earning}
+                                validation={{ required: "Partner earning is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Total Price"
+                                controlId={`serviceItems.${index}.total_price`}
+                                placeholder="Enter Total Price"
+                                register={register}
+                                value={serviceItems[index].total_price}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.total_price}
+                                validation={{ required: "Total price is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
+                        <Col xs={3} className="mt-3">
+                            <CustomTextField
+                                label="Admin Earning"
+                                controlId={`serviceItems.${index}.admin_earning`}
+                                placeholder="Enter Admin Earning"
+                                register={register}
+                                value={serviceItems[index].admin_earning}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.admin_earning}
+                                validation={{ required: "Admin earning is required" }}
+                                isEditable={false}
+                            />
+                        </Col>
                     </Row>
                 </section>
             ))}

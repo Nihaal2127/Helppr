@@ -3,8 +3,8 @@ import ReactDOM from "react-dom/client";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { DetailsRow, formatDate, } from "../../helper/utility";
-import { fetchOrderById, cancelOrderService } from "../../services/orderService";
+import { DetailsRow, formatDate, formatUtcToLocalTime } from "../../helper/utility";
+import { fetchOrderById, cancelOrderService, cancelOrder } from "../../services/orderService";
 import { AppConstant } from "../../constant/AppConstant";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
@@ -12,6 +12,8 @@ import AssignPartnerDialog from "./AssignPartnerDialog";
 import EditOrderServiceDialog from "./EditOrderServiceDialog";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
+import EditOrderDialog from "./EditOrderDialog";
+import CancleDialog from "./CancleDialog";
 
 type OrderInfoDialogProps = {
     orderId: string;
@@ -42,19 +44,30 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const cancleService = async (serviceId: string) => {
-        openConfirmDialog(
-            "Are you sure you want to cancle this service?",
-            "Yes",
-            "No",
-            async () => {
-                const response = await cancelOrderService(serviceId);
-                if (response) {
-                    onRefreshData();
-                }
-            },
-        );
+    const cancleService = async (serviceId: string, reason:string) => {
+        const payload = {
+            cancellation_reasone: reason,
+            service_items_id: serviceId,
+        };
+        const response = await cancelOrderService(orderId, payload);
+        if (response) {
+            refreshInfoData();
+        }
+    };
 
+    const cancleOrder = async (reason: string) => {
+        const payload = {
+            cancellation_reasone: reason,
+        };
+        const response = await cancelOrder(orderId, payload);
+        if (response) {
+            refreshInfoData();
+        }
+    };
+
+    const refreshInfoData = async () => {
+        await fetchDataFromApi();
+        onRefreshData();
     };
 
     return (
@@ -69,22 +82,37 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
                     <section className="custom-other-details" style={{ padding: "10px" }}>
 
-                        <h3>Order</h3>
+                        <Row className="d-flex justify-content-between align-items-center mb-2">
+                            <Col>
+                                <h3 className="mb-0">Order</h3>
+                            </Col>
+                            <Col className="text-end">
+                                <label onClick={(e) => {
+                                    e.preventDefault();
+                                    CancleDialog.show("order", (reason) => {
+                                        cancleOrder(reason);
+                                    });
+                                }} className="custom-document-add me-4">Cancel</label>
+                                <img src={editIcon} alt="edit" onClick={() => {
+                                    EditOrderDialog.show(orderDetails!, refreshInfoData)
+                                }} />
+                            </Col>
+                        </Row>
                         <Row>
                             <Col className="custom-helper-column">
                                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
-                                <DetailsRow title="Payment Mode" value={orderDetails?.payment_mode} />
+                                <DetailsRow title="Payment Mode" value={orderDetails?.payment_id === "1" ? "COD" : "Online"} />
                                 <DetailsRow title="Payment Status" value={orderDetails?.is_paid === true ? "Paid" : "Unpaid"} />
                             </Col>
                             <Col className="custom-helper-column">
                                 <DetailsRow title="Order Date" value={formatDate(orderDetails?.order_date ? orderDetails?.order_date : "")} />
-                                <DetailsRow title="City ID" value={orderDetails?.city_info.city_id} />
                                 <DetailsRow title="Categoty ID" value={orderDetails?.category_info.category_id} />
+                                <DetailsRow title="Categoty Name" value={orderDetails?.category_info.name} />
                             </Col>
                             <Col className="custom-helper-column">
                                 <DetailsRow title="Order Status" value={OrderStatusEnum.get(orderDetails?.order_status!)?.label} />
                                 <DetailsRow title="City Name" value={orderDetails?.city_info.name} />
-                                <DetailsRow title="Categoty Name" value={orderDetails?.category_info.name} />
+
                             </Col>
                         </Row>
 
@@ -122,10 +150,12 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 <Col className="text-end">
                                     <label onClick={(e) => {
                                         e.preventDefault();
-                                        cancleService(service._id);
+                                        CancleDialog.show("service", (reason) => {
+                                            cancleService(service._id!,reason);
+                                        });
                                     }} className="custom-document-add me-4">Cancel</label>
                                     <img src={editIcon} alt="edit" onClick={() => {
-                                        EditOrderServiceDialog.show(service, onRefreshData)
+                                        EditOrderServiceDialog.show(service, refreshInfoData)
                                     }} />
                                 </Col>
                             </Row>
@@ -137,12 +167,12 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 </Col>
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service Name" value={service.service_info?.name} />
-                                    <DetailsRow title="From Time" value={service.service_from_time} />
-                                    <DetailsRow title="To Time" value={service.service_to_time} />
+                                    <DetailsRow title="From Time" value={formatUtcToLocalTime(service.service_from_time)} />
+                                    <DetailsRow title="To Time" value={formatUtcToLocalTime(service.service_to_time)} />
                                 </Col>
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service Date" value={formatDate(service.service_date ? service.service_date : "")} />
-                                    <DetailsRow title="Service Status" value={OrderStatusEnum.get(service.service_status!)} />
+                                    <DetailsRow title="Service Status" value={OrderStatusEnum.get(service.service_status!)?.label} />
                                     <DetailsRow title="Payment Status" value={service.service_payment_status === true ? "Paid" : "Unpaid"} />
                                 </Col>
                             </Row>
@@ -153,7 +183,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 </Col>
                                 <Col className="text-end">
                                     <img src={editIcon} alt="edit" onClick={() => {
-                                        AssignPartnerDialog.show(service.partner_info?._id!, onRefreshData)
+                                        AssignPartnerDialog.show(service.service_info?._id!!, service._id!!, refreshInfoData)
                                     }} />
                                 </Col>
                             </Row>
@@ -190,19 +220,27 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                         <Row>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Service Amount: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`\$${orderDetails?.sub_total}`}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.sub_total.toFixed(2)}</label>
                             </Col>
                             <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax Amount: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`\$${orderDetails?.tax}`}</label>
+                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax: </label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.tax.toFixed(2)}</label>
                             </Col>
                             <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Platform Charges: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`\$${orderDetails?.user_paltform_fee}`}</label>
+                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>User Platform Fee: </label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.user_paltform_fee.toFixed(2)}</label>
                             </Col>
                             <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Amount: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{`\$${orderDetails?.total_price}`}</label>
+                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Partner Commission Platform Fee: </label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.partner_commison_platform_fee.toFixed(2)}</label>
+                            </Col>
+                            <Col xs={12} className="text-end">
+                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Admin Earning: </label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.admin_earning.toFixed(2)}</label>
+                            </Col>
+                            <Col xs={12} className="text-end">
+                                <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>${orderDetails?.total_price.toFixed(2)}</label>
                             </Col>
                         </Row>
                     </section>

@@ -100,11 +100,27 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
     );
 };
 
-export function convertToUTC(timeStr: string): string {
-    const today: string = new Date().toISOString().split('T')[0];
-    const localDateTime: Date = new Date(`${today} ${timeStr}`);
-    return localDateTime.toISOString();
-}
+// export function convertToUTC(timeStr: string): string {
+//     const today: string = new Date().toISOString().split('T')[0];
+//     const localDateTime: Date = new Date(`${today} ${timeStr}`);
+//     return localDateTime.toISOString();
+// }
+
+export const formatUtcToLocalTime = (
+    utcString: string
+): string => {
+    try {
+        const date = new Date(utcString);
+        return date.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        });
+    } catch (error) {
+        console.error("Invalid UTC date:", error);
+        return "";
+    }
+};
 
 export const DetailsRowLink = ({ title, value, onClick }: { title: string; value: number | null | undefined; onClick: () => void }) => {
     return (

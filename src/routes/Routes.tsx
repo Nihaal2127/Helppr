@@ -10,6 +10,7 @@ const UserManagement = React.lazy(() => import("../pages/userManagement"));
 const OrderManagement = React.lazy(() => import("../pages/orderManagement"));
 const Settings = React.lazy(() => import("../pages/settings"));
 const Role = React.lazy(() => import("../pages/settings/role"));
+const TaxOtherCharges = React.lazy(() => import("../pages/settings/taxOtherCharges"));
 const Financials = React.lazy(() => import("../pages/financial"));
 const OrderPayments = React.lazy(() => import("../pages/financial/orderPayments"));
 const PartnerPayments = React.lazy(() => import("../pages/financial/partnerPayments"));
@@ -80,6 +81,11 @@ export const ROUTES = {
   ROLE: {
     path: "/settings-role",
     element: <Role />,
+    isProtected: true,
+  },
+  TAX_OTHER_CHARGES: {
+    path: "/settings-tax-other-charges",
+    element: <TaxOtherCharges />,
     isProtected: true,
   },
   ERROR404: {

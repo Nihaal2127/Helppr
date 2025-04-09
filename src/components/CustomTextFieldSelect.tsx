@@ -14,6 +14,7 @@ interface CustomTextFieldSelectProps {
     setValue?: (name: string, value: any) => void;
     onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
     labelSize?: number;
+    asCol?: boolean;
 }
 
 const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
@@ -28,6 +29,7 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
     setValue,
     onChange,
     labelSize = 4,
+    asCol = false,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -45,7 +47,7 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
                     requiredMessage={requiredMessage}
                     defaultValue={defaultValue}
                     setValue={setValue}
-                    asCol={false}
+                    asCol={asCol}
                     onChange={onChange}
                 />
             </Col>

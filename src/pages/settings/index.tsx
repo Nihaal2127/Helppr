@@ -6,12 +6,14 @@ import { ROUTES } from "../../routes/Routes";
 const Settings = () => {
     const navigate = getNavigate();
     const [settingList] = useState<string[]>([
-        "Offers", "Roles", "Expense\nTypes", "Expense\nCategory", "Marketing\nCategory", "Marketing\nTypes", "Privacy Policy"
+        "Offers", "Roles", "Expense\nTypes", "Expense\nCategory", "Marketing\nCategory", "Marketing\nTypes", "Privacy Policy","Tax Charges\n&\nOther Charges"
     ]);
 
     const handleOnClick = (title: string) => {
         if (title == "Roles") {
             navigate?.(ROUTES.ROLE.path);
+        }else if(title == "Tax Charges\n&\nOther Charges"){
+            navigate?.(ROUTES.TAX_OTHER_CHARGES.path);
         }
     }
 

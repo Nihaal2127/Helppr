@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { ShowDetailsRow, showLog } from "../../helper/utility";
+import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateOrder } from "../../services/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
+import { fetchTaxOtherChargesById } from "../../services/taxOtherChargesService";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import ServiceItemForm from "./ServiceItemForm";
@@ -19,6 +20,7 @@ import { AppConstant } from "../../constant/AppConstant";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import { CategoryModel } from "../../models/CategoryModel";
+import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 
 type CreateUpdateOrderDialogProps = {
     isEditable: boolean;
@@ -36,8 +38,16 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string>("");
     const [selectedUser, setSelectedUser] = useState<UserModel>();
-    const [totalAmount, setTotalAmount] = useState<number>(0);
-    const [payments] = useState<{ value: string; label: string }[]>([{ value: "1", label: "COD" }, { value: "2", label: "Credit Card" }]);
+    const [taxDetails, setTaxDetails] = useState<TaxOtherChargesModel | null>();
+    const [paymentDetails, setPaymentDetails] = useState({
+        subTotal: 0,
+        tax: 0,
+        userPlatformFee: 0,
+        totalPrice: 0,
+        partnerCommissionPlatformFee: 0,
+        adminEarning: 0
+    });
+    const [payments] = useState<{ value: string; label: string }[]>([{ value: "1", label: "COD" }, { value: "2", label: "Online" }]);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
 
     const fetchRef = useRef(false);
@@ -70,48 +80,98 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         try {
             const cityOptions = await fetchCityDropDown();
             setCity(cityOptions);
-            const { users } = await fetchUserDropDown(2);
+            const { response, taxOtherCharges } = await fetchTaxOtherChargesById();
+            if (response) {
+                setTaxDetails(taxOtherCharges);
+            }
         } finally {
             fetchRef.current = false;
         }
     };
 
-
     useEffect(() => {
         fetchDataFromApi();
     }, []);
 
+    const calculatePrices = () => {
+        let subTotal = 0;
+        let tax = 0;
+        let userPlatformFee = 0;
+        let totalPrice = 0;
+        let partnerCommissionPlatformFee = 0;
+        let adminEarning = 0;
+
+        for (let i = 0; i < serviceItems.length; i++) {
+            const serviceItem = serviceItems[i];
+            subTotal += serviceItem.sub_total ?? 0;
+            tax += serviceItem.tax ?? 0;
+            userPlatformFee += serviceItem.user_paltform_fee ?? 0;
+            totalPrice += serviceItem.total_price ?? 0;
+            partnerCommissionPlatformFee += serviceItem.partner_commison_platform_fee ?? 0;
+            adminEarning += serviceItem.admin_earning ?? 0;
+        }
+
+        setPaymentDetails({
+            subTotal,
+            tax,
+            userPlatformFee,
+            totalPrice,
+            partnerCommissionPlatformFee,
+            adminEarning
+        });
+    };
+
+    useEffect(() => {
+        calculatePrices();
+    }, [serviceItems]);
+
     const onSubmitEvent = async (data: any) => {
+        const updatedServiceItems = serviceItems.map(item => ({
+            ...item,
+            user_id: selectedUser?._id,
+            category_id: data.category_id
+        }));
 
         const payload = {
             user_id: selectedUser?._id,
             user_unique_id: selectedUser?.user_id,
             city_id: data.city_id,
             category_id: data.category_id,
-            payment_id: data.payment_id,
-            comments: data.comments,
-            total_amount: totalAmount,
-            service_items: serviceItems,
+            is_paid: false,
+            payment_mode_id: data.payment_id,
+            transaction_id: "",
             created_by_id: getLocalStorage(AppConstant.createdById),
+            order_status: 1,
+            type: 1,
+            order_date: new Date().toISOString(),
+            address: selectedUser?.address,
+            sub_total: paymentDetails.subTotal,
+            tax: paymentDetails.tax,
+            discount_amount: 0,
+            user_paltform_fee: paymentDetails.userPlatformFee,
+            partner_commison_platform_fee: paymentDetails.partnerCommissionPlatformFee,
+            total_price: paymentDetails.totalPrice,
+            admin_earning: paymentDetails.adminEarning,
+            service_items: updatedServiceItems,
+            comments: data.comments,
+
         };
+        let responseService;
+        if (isEditable) {
+            if (!order?._id) {
+                showErrorAlert("Unable to update. ID is missing.");
+                return;
+            }
 
-        showLog("payload:", payload);
-        // let responseService;
-        // if (isEditable) {
-        //     if (!order?._id) {
-        //         showErrorAlert("Unable to update. ID is missing.");
-        //         return;
-        //     }
+            responseService = await createOrUpdateOrder(payload, true, order?._id);
+        } else {
+            responseService = await createOrUpdateOrder(payload, false,);
+        }
 
-        //     responseService = await createOrUpdateOrder(payload, true, order?._id);
-        // } else {
-        //     responseService = await createOrUpdateOrder(payload, false,);
-        // }
-
-        // if (responseService) {
-        //     onClose && onClose();
-        //     onRefreshData();
-        // }
+        if (responseService) {
+            onClose && onClose();
+            onRefreshData();
+        }
     };
 
     return (
@@ -217,7 +277,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
-                        <ServiceItemForm categoryId={selectedCategory} onChange={setServiceItems} />
+                        <ServiceItemForm taxDetails={taxDetails!} categoryId={selectedCategory} onChange={setServiceItems} />
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Comments</h3>
                             <CustomFormInput
@@ -235,19 +295,27 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             <Row>
                                 <Col xs={12} className="text-end">
                                     <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Service Amount: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${paymentDetails.subTotal.toFixed(2)}</label>
                                 </Col>
                                 <Col xs={12} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax Amount: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${paymentDetails.tax.toFixed(2)}</label>
                                 </Col>
                                 <Col xs={12} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Platform Charges: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{totalAmount}</label>
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>User Platform Fee: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${paymentDetails.userPlatformFee.toFixed(2)}</label>
                                 </Col>
                                 <Col xs={12} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Amount: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{totalAmount}</label>
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Partner Commission Platform Fee: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${paymentDetails.partnerCommissionPlatformFee.toFixed(2)}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Admin Earning: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${paymentDetails.adminEarning.toFixed(2)}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>${paymentDetails.totalPrice.toFixed(2)}</label>
                                 </Col>
                             </Row>
                         </section>
