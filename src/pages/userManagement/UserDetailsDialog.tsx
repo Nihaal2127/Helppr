@@ -42,7 +42,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     }, []);
 
     const openServices = (status: number | null) => {
-        ServiceDetailsDialog.show(status, onRefreshuser);
+        ServiceDetailsDialog.show(userId, status, onRefreshuser);
     };
 
     const onRefreshuser = async () => {

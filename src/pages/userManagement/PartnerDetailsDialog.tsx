@@ -51,7 +51,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
     }, []);
 
     const openServices = (status: number | null) => {
-        ServiceDetailsDialog.show(status, onRefreshuser);
+        ServiceDetailsDialog.show(userId, status, onRefreshuser);
     };
 
     const addDocument = (document: DocumentModel) => {

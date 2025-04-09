@@ -43,10 +43,6 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const openServices = (status: number | null) => {
-        ServiceDetailsDialog.show(status, onRefreshuser);
-    };
-
     const onRefreshuser = async () => {
         await fetchDataFromApi();
         onRefreshData();

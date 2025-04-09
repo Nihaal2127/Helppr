@@ -2,12 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
-import { textUnderlineCell, formatDate } from "../../../helper/utility";
+import { formatDate, priceCell } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
-import { fetchUser } from "../../../services/userService";
+import { fetchFinancial } from "../../../services/financialService";
 import { getCount } from "../../../services/getCountService";
-import { UserModel } from "../../../models/UserModel";
-import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
+import { FinancialModel } from "../../../models/FinancialModel";
 
 const PartnerPayments = () => {
     const { register } = useForm();
@@ -18,7 +17,7 @@ const PartnerPayments = () => {
     ];
     const [selectedStatus, setSelectedStatus] = useState(statuses[0][0]);
     const [userData, setUserData] = useState<{}>({});
-    const [userList, setUserList] = useState<UserModel[]>([]);
+    const [financialList, setFinancialList] = useState<FinancialModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -34,9 +33,9 @@ const PartnerPayments = () => {
         if (responseCount && countModel) {
             setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
         }
-        const { response, users, totalPages } = await fetchUser(false, 2, currentPage, pageSize, { ...filters, });
+        const { response, financials, totalPages } = await fetchFinancial(currentPage, pageSize, { ...filters, });
         if (response) {
-            setUserList(users);
+            setFinancialList(financials);
             setTotalPages(totalPages);
         }
         fetchRef.current = false;
@@ -65,20 +64,13 @@ const PartnerPayments = () => {
         }
     };
 
-    const userShow = (userId: string) => {
-        UserDetailsDialog.show(userId, () => fetchData({}))
-    }
-
-    const orderPaymentsColumns = React.useMemo(() => [
+    const financialColumns = React.useMemo(() => [
         {
             Header: "SR No",
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        {
-            Header: "Order ID", accessor: "order_id",
-            Cell: textUnderlineCell("order_id", (row) => userShow(row._id)),
-        },
+        { Header: "Order ID", accessor: "order_id" },
         { Header: "Partner ID", accessor: "partner_id" },
         { Header: "Service Name", accessor: "service_name" },
         {
@@ -86,9 +78,18 @@ const PartnerPayments = () => {
             accessor: "service_date",
             Cell: ({ row }) => formatDate(row.original.service_date ? row.original.service_date : "")
         },
-        { Header: "Total Amount", accessor: "total_amount" },
-        { Header: "Balance Amount", accessor: "balance_amount" },
-        { Header: "Pay Amount", accessor: "pay_amount" },
+        {
+            Header: "Total Amount", accessor: "total_price",
+            Cell: priceCell("total_price"),
+        },
+        {
+            Header: "Balance Amount", accessor: "balance_amount",
+            Cell: priceCell("balance_amount"),
+        },
+        {
+            Header: "Paid Amount", accessor: "paid_amount",
+            Cell: priceCell("paid_amount"),
+        },
     ], [currentPage, pageSize]);
 
     return (
@@ -129,8 +130,8 @@ const PartnerPayments = () => {
                 />
 
                 <CustomTable
-                    columns={orderPaymentsColumns}
-                    data={userList}
+                    columns={financialColumns}
+                    data={financialList}
                     pageSize={pageSize}
                     currentPage={currentPage}
                     totalPages={totalPages}

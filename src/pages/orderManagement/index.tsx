@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { textUnderlineCell, formatDate, } from "../../helper/utility";
+import { textUnderlineCell, formatDate, priceCell, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import { fetchOrder } from "../../services/orderService";
 import { OrderModel } from "../../models/OrderModel";
@@ -10,6 +10,8 @@ import OrderInfoDialog from "./OrderInfoDialog";
 import { Button } from "react-bootstrap";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
+import { PaymentEnum } from "../../constant/PaymentEnum";
+import UserDetailsDialog from "../userManagement/UserDetailsDialog";
 
 const OrderManagement = () => {
     const { register } = useForm();
@@ -65,6 +67,10 @@ const OrderManagement = () => {
         OrderInfoDialog.show(orderId, () => refreshData())
     }
 
+    const userShow = (userId: string) => {
+        UserDetailsDialog.show(userId, () => refreshData())
+    }
+
     const orderColumns = React.useMemo(() => [
         {
             Header: "SR No",
@@ -77,16 +83,20 @@ const OrderManagement = () => {
         },
         {
             Header: "User ID", accessor: "user_unique_id",
-            Cell: textUnderlineCell("user_unique_id", (row) => orderShow(row._id)),
+            Cell: textUnderlineCell("user_unique_id", (row) => userShow(row.user_id)),
         },
         {
             Header: "Order Date",
             accessor: "order_date",
             Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : "")
         },
-        { Header: "Total Amount", accessor: "total_price" },
+        { Header: "Total Price", accessor: "total_price", Cell: priceCell("total_price"), },
         { Header: "Location", accessor: "city_name" },
-          { Header: "Payment Mode", accessor: "payment_mode" },
+        {
+            Header: "Payment Mode",
+            accessor: "payment_mode_id",
+            Cell: ({ row }) => PaymentEnum.get(Number(row.original.payment_mode_id))?.label || "-",
+        },
     ], [currentPage, pageSize]);
 
     return (

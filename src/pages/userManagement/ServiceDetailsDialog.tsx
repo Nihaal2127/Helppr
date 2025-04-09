@@ -6,23 +6,25 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { ServiceStatusEnum } from "../../constant/ServiceStatusEnum";
 import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
 import CustomServiceTable from "../../components/CustomServiceTable";
-import { ServiceModel } from "../../models/ServiceModel";
-import { fetchService } from "../../services/servicesService";
-import { formatDate } from "../../helper/utility";
+import { FinancialModel } from "../../models/FinancialModel";
+import { fetchFinancial } from "../../services/financialService";
+import { formatDate, priceCell } from "../../helper/utility";
+import { PaymentEnum } from "../../constant/PaymentEnum";
 
 type ServiceDetailsDialogProps = {
+    user_id: string;
     status: number | null;
     onClose: () => void;
     onRefreshData: () => void;
 };
 
 const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
-    show: (status: number | null, onRefreshData: () => void) => void;
-} = ({ status, onClose, onRefreshData }) => {
+    show: (user_id: string, status: number | null, onRefreshData: () => void) => void;
+} = ({ user_id, status, onClose, onRefreshData }) => {
     const { register } = useForm();
     const statusLabel = status ? `${ServiceStatusEnum.get(status)?.label} Services` : "Total Services";
 
-    const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
+    const [serviceList, setServiceList] = useState<FinancialModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
@@ -34,9 +36,9 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { response, services, totalPages } = await fetchService(currentPage, pageSize, { ...filters, });
+        const { response, financials, totalPages } = await fetchFinancial(currentPage, pageSize, { ...filters, });
         if (response) {
-            setServiceList(services);
+            setServiceList(financials);
             setTotalPages(totalPages);
         }
         fetchRef.current = false;
@@ -67,16 +69,20 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
         },
         { Header: "Order ID", accessor: "order_id" },
         { Header: "Service ID", accessor: "service_id" },
-        { Header: "Service Name", accessor: "name" },
+        { Header: "Service Name", accessor: "service_name" },
         { Header: "Category", accessor: "category_name" },
         {
-            Header: "Date",
-            accessor: "order_date",
-            Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : "")
+            Header: "Service Date",
+            accessor: "service_date",
+            Cell: ({ row }) => formatDate(row.original.service_date ? row.original.service_date : "")
         },
-        { Header: "Amount", accessor: "amount" },
-        { Header: "Pay Status", accessor: "pay_status" },
-        { Header: "Pay Mode", accessor: "pay_mode" },
+        { Header: "Amount", accessor: "total_price", Cell: priceCell("total_price"), },
+        { Header: "Pay Status", accessor: "is_paid" },
+        {
+            Header: "Pay Mode",
+            accessor: "payment_mode_id",
+            Cell: ({ row }) => PaymentEnum.get(Number(row.original.payment_mode_id))?.label || "-",
+        },
         { Header: "Transaction ID", accessor: "transaction_id" },
     ], [currentPage, pageSize]);
 
@@ -124,7 +130,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     );
 };
 
-ServiceDetailsDialog.show = (status: number | null, onRefreshData: () => void) => {
+ServiceDetailsDialog.show = (user_id: string, status: number | null, onRefreshData: () => void) => {
     const existingModal = document.getElementById("service-details-modal");
     if (existingModal) {
         return;
@@ -142,6 +148,7 @@ ServiceDetailsDialog.show = (status: number | null, onRefreshData: () => void) =
 
     root.render(
         <ServiceDetailsDialog
+            user_id={user_id}
             status={status}
             onClose={closeModal}
             onRefreshData={onRefreshData}

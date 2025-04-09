@@ -138,7 +138,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             city_id: data.city_id,
             category_id: data.category_id,
             is_paid: false,
-            payment_mode_id: data.payment_id,
+            payment_mode_id: data.payment_mode_id,
             transaction_id: "",
             created_by_id: getLocalStorage(AppConstant.createdById),
             order_status: 1,
@@ -264,14 +264,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                         controlId="Payment"
                                         options={payments}
                                         register={register}
-                                        fieldName="payment_id"
-                                        error={errors.payment_id}
+                                        fieldName="payment_mode_id"
+                                        error={errors.payment_mode_id}
                                         requiredMessage="Please select payment"
                                         defaultValue={isEditable
-                                            ? order?.payment_id
-                                                ? order?.payment_id
-                                                : getValues("payment_id")
-                                            : getValues("payment_id")}
+                                            ? order?.payment_mode_id
+                                                ? order?.payment_mode_id
+                                                : getValues("payment_mode_id")
+                                            : getValues("payment_mode_id")}
                                         setValue={setValue as (name: string, value: any) => void}
                                     />
                                 </Col>

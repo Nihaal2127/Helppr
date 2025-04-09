@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { DetailsRow, formatDate, formatUtcToLocalTime } from "../../helper/utility";
+import { DetailsRow, DetailsPaymentStatusRow, formatDate, formatUtcToLocalTime, DetailsOrderStatusRow } from "../../helper/utility";
 import { fetchOrderById, cancelOrderService, cancelOrder } from "../../services/orderService";
 import { AppConstant } from "../../constant/AppConstant";
 import editIcon from "../../assets/icons/edit_red.svg"
@@ -14,6 +14,7 @@ import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import EditOrderDialog from "./EditOrderDialog";
 import CancleDialog from "./CancleDialog";
+import { PaymentEnum } from "../../constant/PaymentEnum";
 
 type OrderInfoDialogProps = {
     orderId: string;
@@ -44,7 +45,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const cancleService = async (serviceId: string, reason:string) => {
+    const cancleService = async (serviceId: string, reason: string) => {
         const payload = {
             cancellation_reasone: reason,
             service_items_id: serviceId,
@@ -86,23 +87,25 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             <Col>
                                 <h3 className="mb-0">Order</h3>
                             </Col>
-                            <Col className="text-end">
-                                <label onClick={(e) => {
-                                    e.preventDefault();
-                                    CancleDialog.show("order", (reason) => {
-                                        cancleOrder(reason);
-                                    });
-                                }} className="custom-document-add me-4">Cancel</label>
-                                <img src={editIcon} alt="edit" onClick={() => {
-                                    EditOrderDialog.show(orderDetails!, refreshInfoData)
-                                }} />
-                            </Col>
+                            {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
+                                <Col className="text-end">
+                                    <label onClick={(e) => {
+                                        e.preventDefault();
+                                        CancleDialog.show("order", (reason) => {
+                                            cancleOrder(reason);
+                                        });
+                                    }} className="custom-document-add me-4">Cancel</label>
+                                    <img src={editIcon} alt="edit" onClick={() => {
+                                        EditOrderDialog.show(orderDetails!, refreshInfoData)
+                                    }} />
+                                </Col>
+                            )}
                         </Row>
                         <Row>
                             <Col className="custom-helper-column">
                                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
-                                <DetailsRow title="Payment Mode" value={orderDetails?.payment_id === "1" ? "COD" : "Online"} />
-                                <DetailsRow title="Payment Status" value={orderDetails?.is_paid === true ? "Paid" : "Unpaid"} />
+                                <DetailsRow title="Payment Mode" value={PaymentEnum.get(Number(orderDetails?.payment_mode_id))?.label} />
+                                <DetailsPaymentStatusRow title="Payment Status" value={orderDetails?.is_paid === true ? "Paid" : "Unpaid"} />
                             </Col>
                             <Col className="custom-helper-column">
                                 <DetailsRow title="Order Date" value={formatDate(orderDetails?.order_date ? orderDetails?.order_date : "")} />
@@ -110,7 +113,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 <DetailsRow title="Categoty Name" value={orderDetails?.category_info.name} />
                             </Col>
                             <Col className="custom-helper-column">
-                                <DetailsRow title="Order Status" value={OrderStatusEnum.get(orderDetails?.order_status!)?.label} />
+                                <DetailsOrderStatusRow title="Order Status" value={orderDetails?.order_status!} />
                                 <DetailsRow title="City Name" value={orderDetails?.city_info.name} />
 
                             </Col>
@@ -140,24 +143,26 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 
                     </div>
 
-                    {orderDetails?.service_items.map((service, index) => (
+                    {orderDetails?.service_items.map((service) => (
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
 
                             <Row className="d-flex justify-content-between align-items-center">
                                 <Col>
                                     <h3 className="mb-0">Service</h3>
                                 </Col>
-                                <Col className="text-end">
-                                    <label onClick={(e) => {
-                                        e.preventDefault();
-                                        CancleDialog.show("service", (reason) => {
-                                            cancleService(service._id!,reason);
-                                        });
-                                    }} className="custom-document-add me-4">Cancel</label>
-                                    <img src={editIcon} alt="edit" onClick={() => {
-                                        EditOrderServiceDialog.show(service, refreshInfoData)
-                                    }} />
-                                </Col>
+                                {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
+                                    <Col className="text-end">
+                                        <label onClick={(e) => {
+                                            e.preventDefault();
+                                            CancleDialog.show("service", (reason) => {
+                                                cancleService(service._id!, reason);
+                                            });
+                                        }} className="custom-document-add me-4">Cancel</label>
+                                        <img src={editIcon} alt="edit" onClick={() => {
+                                            EditOrderServiceDialog.show(service, refreshInfoData)
+                                        }} />
+                                    </Col>
+                                )}
                             </Row>
                             <Row className="mt-3">
                                 <Col className="custom-helper-column">
@@ -172,8 +177,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 </Col>
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service Date" value={formatDate(service.service_date ? service.service_date : "")} />
-                                    <DetailsRow title="Service Status" value={OrderStatusEnum.get(service.service_status!)?.label} />
-                                    <DetailsRow title="Payment Status" value={service.service_payment_status === true ? "Paid" : "Unpaid"} />
+                                    <DetailsOrderStatusRow title="Service Status" value={service.service_status} />
+                                    <DetailsPaymentStatusRow title="Payment Status" value={service.service_payment_status === true ? "Paid" : "Unpaid"} />
                                 </Col>
                             </Row>
 
@@ -181,11 +186,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 <Col>
                                     <h3 className="mb-0">Partner</h3>
                                 </Col>
-                                <Col className="text-end">
-                                    <img src={editIcon} alt="edit" onClick={() => {
-                                        AssignPartnerDialog.show(service.service_info?._id!!, service._id!!, refreshInfoData)
-                                    }} />
-                                </Col>
+                                {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
+                                    <Col className="text-end">
+                                        <img src={editIcon} alt="edit" onClick={() => {
+                                            AssignPartnerDialog.show(service.service_info?._id!!, service._id!!, refreshInfoData)
+                                        }} />
+                                    </Col>
+                                )}
                             </Row>
 
                             <Row className="mt-3">

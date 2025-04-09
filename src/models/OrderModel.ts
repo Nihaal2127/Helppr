@@ -12,7 +12,6 @@ export interface OrderModel {
     user_address: string;
     city_id: string;
     category_id: string;
-    payment_id: string | null;
     partner_id: string | null;
     created_by_id: string | null;
     service_items: OrderItemModel[];

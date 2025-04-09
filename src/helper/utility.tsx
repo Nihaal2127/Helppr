@@ -92,10 +92,60 @@ export const verificationStatusCell = (field: string | number) => {
 };
 
 export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
+    const displayValue =
+        value === undefined || value === "" || value === null ? "-" : value;
+
     return (
         <Row className="row custom-personal-row">
             <label className="col custom-personal-row-title">{title}</label>
-            <label className="col custom-personal-row-value">{(value === undefined || value === "" || value === null) ? "-" : value}</label>
+            <label className="col custom-personal-row-value text-truncate">{displayValue}</label>
+        </Row>
+    );
+};
+
+export const DetailsPaymentStatusRow = ({ title, value }: { title: string; value: any }) => {
+    return (
+        <Row className="row custom-personal-row">
+            <label className="col custom-personal-row-title">{title}</label>
+            <label
+                className={`col custom-${value === "Paid" ? "active" : "inactive"
+                    }`}
+            >
+                {value ? value : "-"}
+            </label>
+
+        </Row>
+    );
+};
+
+export const DetailsOrderStatusRow = ({
+    title,
+    value,
+}: {
+    title: string;
+    value: number | undefined | null;
+}) => {
+    const status = OrderStatusEnum.get(value ?? -1)?.label || "-";
+
+    let color = "";
+
+    if (value === 1) {
+        color = "var(--btn-pending)";
+    } else if (value === 2) {
+        color = "var(--primary-color)";
+    } else if (value === 3) {
+        color = "var(--btn-success)";
+    }
+    else if (value === 4) {
+        color = "var(--btn-danger)";
+    }
+
+    return (
+        <Row className="row custom-personal-row">
+            <label className="col custom-personal-row-title">{title}</label>
+            <label className={`col custom-personal-row-value`} style={{ color }}>
+                {status}
+            </label>
         </Row>
     );
 };
@@ -105,6 +155,18 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
 //     const localDateTime: Date = new Date(`${today} ${timeStr}`);
 //     return localDateTime.toISOString();
 // }
+
+export const priceCell = (field: string) => {
+    return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
+        const value = row.original?.[field];
+
+        return (
+            <span>
+                {value !== undefined && value !== null ? `$${value}` : "-"}
+            </span>
+        );
+    };
+};
 
 export const formatUtcToLocalTime = (
     utcString: string
