@@ -14,6 +14,8 @@ const TaxOtherCharges = React.lazy(() => import("../pages/settings/taxOtherCharg
 const Financials = React.lazy(() => import("../pages/financial"));
 const OrderPayments = React.lazy(() => import("../pages/financial/orderPayments"));
 const PartnerPayments = React.lazy(() => import("../pages/financial/partnerPayments"));
+const PartnerPayout = React.lazy(() => import("../pages/financial/partnerPayout"));
+const PartnerPayoutShow = React.lazy(() => import("../pages/financial/partnerPayout/show"));
 const Error404 = React.lazy(() => import("../pages/Error404"));
 const Error500 = React.lazy(() => import("../pages/Error500"));
 
@@ -71,6 +73,16 @@ export const ROUTES = {
   PARTNER_PAYMENTS: {
     path: "/financial-partner-payments",
     element: <PartnerPayments />,
+    isProtected: true,
+  },
+  PARTNER_PAYOUT: {
+    path: "/financial-partner-payout",
+    element: <PartnerPayout />,
+    isProtected: true,
+  },
+  PARTNER_PAYOUT_SHOW: {
+    path: "/financial-partner-payout-show",
+    element: <PartnerPayoutShow />,
     isProtected: true,
   },
   SETTINGS: {

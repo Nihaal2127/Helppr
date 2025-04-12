@@ -23,6 +23,6 @@ export interface OrderItemModel {
     rating?: number | 0;
     cancellation_reasone?: string | null;
     service_status?: number | 0;
-    service_payment_status?: boolean | false;
+    is_paid?: boolean | false;
     partner_info?: UserModel | null;
 }

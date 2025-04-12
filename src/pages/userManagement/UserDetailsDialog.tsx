@@ -42,7 +42,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     }, []);
 
     const openServices = (status: number | null) => {
-        ServiceDetailsDialog.show(userId, status, onRefreshuser);
+        ServiceDetailsDialog.show(userId, false, status, onRefreshuser);
     };
 
     const onRefreshuser = async () => {
@@ -104,12 +104,9 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                             </section>
                             <section className="custom-other-details">
                                 <h3>Payment</h3>
-                                <DetailsRow title="Total Payment" value={userDetails?.total_payment} />
-                                <DetailsRow title="Received" value={userDetails?.received_payment} />
-                                <DetailsRow title="In Progress" value={userDetails?.in_progress_payment} />
+                                <DetailsRow title="Total Payment" value={userDetails?.total_amount} />
+                                <DetailsRow title="Balance Amount" value={userDetails?.balance_amount} />
                                 <DetailsRow title="Refund" value={userDetails?.refund_payment} />
-                                <DetailsRow title="Payment Mode" value={userDetails?.payment_mode} />
-                                <DetailsRow title="Last Paid Date" value={formatDate(userDetails?.last_paid_date ? userDetails?.last_paid_date : "")} />
                             </section>
                         </Row>
                     </Modal.Body>

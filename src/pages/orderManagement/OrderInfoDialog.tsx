@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
-import { Modal, Button, Row, Col } from "react-bootstrap";
+import { Modal, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
 import { DetailsRow, DetailsPaymentStatusRow, formatDate, formatUtcToLocalTime, DetailsOrderStatusRow } from "../../helper/utility";
@@ -10,8 +10,6 @@ import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
 import AssignPartnerDialog from "./AssignPartnerDialog";
 import EditOrderServiceDialog from "./EditOrderServiceDialog";
-import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import EditOrderDialog from "./EditOrderDialog";
 import CancleDialog from "./CancleDialog";
 import { PaymentEnum } from "../../constant/PaymentEnum";
@@ -178,7 +176,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service Date" value={formatDate(service.service_date ? service.service_date : "")} />
                                     <DetailsOrderStatusRow title="Service Status" value={service.service_status} />
-                                    <DetailsPaymentStatusRow title="Payment Status" value={service.service_payment_status === true ? "Paid" : "Unpaid"} />
+                                    <DetailsPaymentStatusRow title="Payment Status" value={service.is_paid === true ? "Paid" : "Unpaid"} />
                                 </Col>
                             </Row>
 

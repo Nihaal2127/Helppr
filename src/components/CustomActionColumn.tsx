@@ -1,4 +1,5 @@
 import React from "react";
+import eyeIcon from "../assets/icons/eye.svg";
 import editIcon from "../assets/icons/Edit.svg";
 import deleteIcon from "../assets/icons/delete_action.svg";
 
@@ -14,29 +15,17 @@ const CustomActionColumn = ({
   onView?: (partner: any) => void;
 }) => {
 
-  const handleAction = (action: string) => {
-    if (action === "view" && onView) {
-      onView(row.original);
-    } else if (action === "edit" && onEdit) {
-      onEdit(row.original);
-    } else if (action === "delete" && onDelete) {
-      onDelete(row.original);
-    }
-  };
-
   return (
     <>
       {onView && (
-        <a
-          href="#"
-          className="action-icon"
-          onClick={(e) => {
-            e.preventDefault();
-            handleAction("view");
-          }}
-        >
-          <i className="mdi mdi-eye"></i>
-        </a>
+         <img
+         src={eyeIcon}
+         alt="view"
+         width={24}
+         height={24}
+         className="custom-table-action-view me-2"
+         onClick={() => onView(row)}
+       />
       )}
       {onEdit && (
         <img

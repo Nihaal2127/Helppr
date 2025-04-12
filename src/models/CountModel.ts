@@ -33,6 +33,12 @@ export interface CountModel {
   pending_document: number | 0;
   verified_document: number | 0;
   reject_document: number | 0;
+
+  received_amount: number | 0;
+  pending_amount: number | 0;
+
+  completed_amount: number | 0;
+  returned_amount: number | 0;
 }
 
 

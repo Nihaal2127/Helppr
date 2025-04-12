@@ -6,15 +6,18 @@ import { ROUTES } from "../../routes/Routes";
 const Financials = () => {
     const navigate = getNavigate();
     const [settingList] = useState<string[]>([
-        "Order\nPayments", "Partner\nPayments",
+        "Order\nPayments", "Partner\nPayments", "Partner\nPayout",
     ]);
 
     const handleOnClick = (title: string) => {
         if (title == "Order\nPayments") {
             navigate?.(ROUTES.ORDER_PAYMENTS.path);
         }
-        if (title == "Partner\nPayments") {
+        else if (title == "Partner\nPayments") {
             navigate?.(ROUTES.PARTNER_PAYMENTS.path);
+        }
+        else if (title == "Partner\nPayout") {
+            navigate?.(ROUTES.PARTNER_PAYOUT.path);
         }
     }
 

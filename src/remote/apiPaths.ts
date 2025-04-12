@@ -49,6 +49,8 @@ export const ApiPaths = {
   CANCLE_ORDER: (id: string) => `/order/cancle/${id}`,
   ORDER_CANCLE_SERVICE: (id: string) => `/order/cancleService/${id}`,
   ORDER_UPDATE_SERVICE: (id: string) => `/order/serviceUpdate/${id}`,
+  GET_COMISSION_ORDER: () => `/order/getComissionOrder`,
+  PAY_COMISSION: '/order_service/payComission',
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
   CREATE_TAX_OTHER_CHARGES: '/tax/create',
   UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,

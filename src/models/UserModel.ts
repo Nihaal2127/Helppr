@@ -34,7 +34,7 @@ export interface UserModel {
   deleted_at: string | null;
   created_at: string | null;
   updated_at: string | null;
-
+  total_amount: number | 0;
 
   total_payment: number | 0;
   paid_amount: number | 0;

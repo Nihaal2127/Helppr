@@ -11,7 +11,7 @@ import CustomPagination from "./CustomPagination";
 
 interface CustomTableProps {
   columns: {
-    Header: string;
+    Header: any;
     accessor: string;
     sort?: boolean;
     Cell?: any;

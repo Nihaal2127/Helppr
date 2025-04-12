@@ -16,7 +16,7 @@ const OrderPayments = () => {
         [2, { label: "Pending" }]
     ];
     const [selectedStatus, setSelectedStatus] = useState(statuses[0][0]);
-    const [userData, setUserData] = useState<{}>({});
+    const [userData, setUserData] = useState<{ Received?: number; Pending?: number }>({});
     const [financialList, setFinancialList] = useState<FinancialModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -25,13 +25,15 @@ const OrderPayments = () => {
 
     const fetchData = useCallback(async (filters: {
         keyword?: string;
-        status?: string
+        is_paid?: string
+        service_status?:string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { responseCount, countModel } = await getCount(3);
+        filters.service_status = "3";
+        const { responseCount, countModel } = await getCount(4);
         if (responseCount && countModel) {
-            setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
+            setUserData({ Received: countModel.received_amount, Pending: countModel.pending_amount });
         }
         const { response, financials, totalPages } = await fetchFinancial(currentPage, pageSize, { ...filters, });
         if (response) {
@@ -42,18 +44,18 @@ const OrderPayments = () => {
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        fetchData({});
+        fetchData({ is_paid: "true" });
     }, []);
-
 
     const handleStatusClick = async (statusKey: number) => {
         setSelectedStatus(statusKey);
-        await handleFilterChange({ status: statusKey.toString() });
+
+        await handleFilterChange({ is_paid: statusKey === 1 ? "true" : "false" });
     };
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
+        is_paid?: string
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -70,9 +72,9 @@ const OrderPayments = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Order ID", accessor: "order_id" },
-        { Header: "Partner ID", accessor: "partner_id" },
-        { Header: "User ID", accessor: "user_id" },
+        { Header: "Order ID", accessor: "order_unique_id" },
+        { Header: "Partner ID", accessor: "partner_unique_id" },
+        { Header: "User ID", accessor: "user_unique_id" },
         { Header: "Service Name", accessor: "service_name" },
         {
             Header: "Service Date",
@@ -121,7 +123,7 @@ const OrderPayments = () => {
                                 {status.label}
                             </div>
                             <span className="custom-box-count-span mt-2">
-                                500
+                                {key === 1 ? userData.Received ?? 0 : userData.Pending ?? 0}
                             </span>
                         </div>
                     ))}

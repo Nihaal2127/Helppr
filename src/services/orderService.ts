@@ -106,3 +106,18 @@ export const updateOrderService = async (
   }
   return false;
 };
+
+export const payComission = async (
+  payload: any,
+): Promise<boolean> => {
+  try {
+    const response = await apiRequest(ApiPaths.PAY_COMISSION, "POST", payload);
+    if (response.success) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error fetching creating order:", error);
+    return false;
+  }
+};

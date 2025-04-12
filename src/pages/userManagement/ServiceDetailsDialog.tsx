@@ -8,19 +8,19 @@ import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
 import CustomServiceTable from "../../components/CustomServiceTable";
 import { FinancialModel } from "../../models/FinancialModel";
 import { fetchFinancial } from "../../services/financialService";
-import { formatDate, priceCell } from "../../helper/utility";
+import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 
 type ServiceDetailsDialogProps = {
     user_id: string;
+    is_partner: boolean;
     status: number | null;
     onClose: () => void;
-    onRefreshData: () => void;
 };
 
 const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
-    show: (user_id: string, status: number | null, onRefreshData: () => void) => void;
-} = ({ user_id, status, onClose, onRefreshData }) => {
+    show: (user_id: string, is_partner: boolean, status: number | null, onRefreshData: () => void) => void;
+} = ({ user_id, is_partner, status, onClose }) => {
     const { register } = useForm();
     const statusLabel = status ? `${ServiceStatusEnum.get(status)?.label} Services` : "Total Services";
 
@@ -32,10 +32,23 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
 
     const fetchData = useCallback(async (filters: {
         keyword?: string;
-        status?: string
+        service_status?: string;
+        user_id?: string;
+        partner_id?: string;
+        is_paid?: string;
+        is_partner_paid?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
+        if (status !== null) {
+            filters.service_status = String(status);
+        }
+        if (is_partner !== undefined && is_partner === true) {
+            filters.partner_id = user_id;
+        }
+        if (is_partner !== undefined && is_partner === false) {
+            filters.user_id = user_id;
+        }
         const { response, financials, totalPages } = await fetchFinancial(currentPage, pageSize, { ...filters, });
         if (response) {
             setServiceList(financials);
@@ -50,7 +63,6 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -67,8 +79,8 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Order ID", accessor: "order_id" },
-        { Header: "Service ID", accessor: "service_id" },
+        { Header: "Order ID", accessor: "order_unique_id" },
+        { Header: "Service ID", accessor: "service_unique_id" },
         { Header: "Service Name", accessor: "service_name" },
         { Header: "Category", accessor: "category_name" },
         {
@@ -77,13 +89,20 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             Cell: ({ row }) => formatDate(row.original.service_date ? row.original.service_date : "")
         },
         { Header: "Amount", accessor: "total_price", Cell: priceCell("total_price"), },
-        { Header: "Pay Status", accessor: "is_paid" },
+        {
+            Header: "Payment Status", accessor: "is_paid",
+            Cell: paymentStatusCell("is_paid"),
+        },
         {
             Header: "Pay Mode",
             accessor: "payment_mode_id",
             Cell: ({ row }) => PaymentEnum.get(Number(row.original.payment_mode_id))?.label || "-",
         },
-        { Header: "Transaction ID", accessor: "transaction_id" },
+        {
+            Header: "Transaction ID",
+            accessor: "transaction_id",
+            Cell: ({ row }) => row.original.transaction_id || "---"
+        },
     ], [currentPage, pageSize]);
 
     return (
@@ -130,7 +149,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     );
 };
 
-ServiceDetailsDialog.show = (user_id: string, status: number | null, onRefreshData: () => void) => {
+ServiceDetailsDialog.show = (user_id: string, is_partner: boolean, status: number | null,) => {
     const existingModal = document.getElementById("service-details-modal");
     if (existingModal) {
         return;
@@ -149,9 +168,9 @@ ServiceDetailsDialog.show = (user_id: string, status: number | null, onRefreshDa
     root.render(
         <ServiceDetailsDialog
             user_id={user_id}
+            is_partner={is_partner}
             status={status}
             onClose={closeModal}
-            onRefreshData={onRefreshData}
         />
     );
 };

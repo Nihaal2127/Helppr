@@ -65,6 +65,18 @@ export const statusCell = (field: string) => {
     };
 };
 
+export const paymentStatusCell = (field: string) => {
+    return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
+        const value = row.original?.[field];
+
+        return (
+            <span className={`custom-${value ? "active" : "inactive"}`}>
+                {value ? "Paid" : "Unpaid"}
+            </span>
+        );
+    };
+};
+
 export const verificationStatusCell = (field: string | number) => {
     return ({ row }: { row?: { original: Record<string, any> } }): JSX.Element => {
         const value = row?.original?.[field] ?? field;
@@ -100,6 +112,17 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
             <label className="col custom-personal-row-title">{title}</label>
             <label className="col custom-personal-row-value text-truncate">{displayValue}</label>
         </Row>
+    );
+};
+
+export const DashboardCard = ({ title, count, color }: { title: string; count: number, color: string }) => {
+    return (
+        <div className="custom-dashboard-border">
+            <label className="custom-dashboard-sub-title" style={{ color }}>
+                {title}
+            </label>
+            <label className="custom-dashboard-title-count">{count}</label>
+        </div>
     );
 };
 

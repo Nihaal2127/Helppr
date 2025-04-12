@@ -10,13 +10,13 @@ import { FinancialModel } from "../../../models/FinancialModel";
 
 const PartnerPayments = () => {
     const { register } = useForm();
-    const statuses: [number, { label: string }][] = [
-        [1, { label: "Completed" }],
-        [2, { label: "Pending" }],
-        [3, { label: "Returned" }]
+    const statuses: [number, { value: number, label: string }][] = [
+        [1, { value: 2, label: "Pending" }],
+        [2, { value: 1, label: "Completed" }],
+        [3, { value: 3, label: "Returned" }]
     ];
     const [selectedStatus, setSelectedStatus] = useState(statuses[0][0]);
-    const [userData, setUserData] = useState<{}>({});
+    const [userData, setUserData] = useState<{ completed_amount?: number; pending_amount?: number; returned_amount?: number }>({});
     const [financialList, setFinancialList] = useState<FinancialModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -25,13 +25,15 @@ const PartnerPayments = () => {
 
     const fetchData = useCallback(async (filters: {
         keyword?: string;
-        status?: string
+        partner_paid_status?: string;
+        service_status?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        const { responseCount, countModel } = await getCount(3);
+        filters.service_status = "3";
+        const { responseCount, countModel } = await getCount(5);
         if (responseCount && countModel) {
-            setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
+            setUserData({ completed_amount: countModel.completed_amount, pending_amount: countModel.pending_amount, returned_amount: countModel.returned_amount });
         }
         const { response, financials, totalPages } = await fetchFinancial(currentPage, pageSize, { ...filters, });
         if (response) {
@@ -42,18 +44,18 @@ const PartnerPayments = () => {
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        fetchData({});
+        fetchData({ partner_paid_status: "1" });
     }, []);
-
 
     const handleStatusClick = async (statusKey: number) => {
         setSelectedStatus(statusKey);
-        await handleFilterChange({ status: statusKey.toString() });
+        await handleFilterChange({ partner_paid_status: statusKey.toString() });
     };
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
+        partner_paid_status?: string;
+        service_status?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -70,8 +72,8 @@ const PartnerPayments = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Order ID", accessor: "order_id" },
-        { Header: "Partner ID", accessor: "partner_id" },
+        { Header: "Order ID", accessor: "order_unique_id" },
+        { Header: "Partner ID", accessor: "partner_unique_id" },
         { Header: "Service Name", accessor: "service_name" },
         {
             Header: "Service Date",
@@ -83,13 +85,18 @@ const PartnerPayments = () => {
             Cell: priceCell("total_price"),
         },
         {
-            Header: "Balance Amount", accessor: "balance_amount",
-            Cell: priceCell("balance_amount"),
-        },
-        {
-            Header: "Paid Amount", accessor: "paid_amount",
-            Cell: priceCell("paid_amount"),
-        },
+            Header: "Partner Earning",
+            accessor: "partner_earning",
+            Cell: ({ value }: { value: number }) => <span>${value}</span>,
+          },
+        // {
+        //     Header: "Balance Amount", accessor: "balance_amount",
+        //     Cell: priceCell("balance_amount"),
+        // },
+        // {
+        //     Header: "Paid Amount", accessor: "paid_amount",
+        //     Cell: priceCell("paid_amount"),
+        // },
     ], [currentPage, pageSize]);
 
     return (
@@ -100,7 +107,7 @@ const PartnerPayments = () => {
                 />
 
                 <div className="d-flex gap-2" style={{ width: "100%" }}>
-                    {statuses.map(([key, status]: [number, { label: string }]) => (
+                    {statuses.map(([key, status]: [number, { value: number, label: string }]) => (
                         <div
                             className="custom-box-count"
                             key={key}
@@ -109,11 +116,11 @@ const PartnerPayments = () => {
                             }}
                             onClick={() => handleStatusClick(key)}
                         >
-                            <div className={`box-rw-clr${key + 1}`} style={{ textDecoration: "none" }}>
+                            <div className={`box-rw-clr${status.value + 1}`} style={{ textDecoration: "none" }}>
                                 {status.label}
                             </div>
                             <span className="custom-box-count-span mt-2">
-                                500
+                                {key === 1 ? userData.pending_amount ?? 0 : key === 2 ? userData.completed_amount ?? 0 : userData.returned_amount ?? 0}
                             </span>
                         </div>
                     ))}

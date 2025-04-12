@@ -42,7 +42,7 @@ const OrderManagement = () => {
     }, []);
 
     const refreshData = async () => {
-        await fetchData({});
+        await fetchData({status: "1"});
     };
 
     const handleFilterChange = async (filters: {
@@ -88,7 +88,7 @@ const OrderManagement = () => {
         {
             Header: "Order Date",
             accessor: "order_date",
-            Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : "")
+            Cell: ({ row }) => formatDate(row.original.order_date ? row.original.order_date : ""),
         },
         { Header: "Total Price", accessor: "total_price", Cell: priceCell("total_price"), },
         { Header: "Location", accessor: "city_name" },
