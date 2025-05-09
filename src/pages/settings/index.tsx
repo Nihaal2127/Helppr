@@ -1,19 +1,17 @@
 import { useState } from "react";
 import CustomHeader from "../../components/CustomHeader";
-import { getNavigate, showLog } from "../../helper/utility";
 import { ROUTES } from "../../routes/Routes";
 
 const Settings = () => {
-    const navigate = getNavigate();
     const [settingList] = useState<string[]>([
         "Offers", "Roles", "Expense\nTypes", "Expense\nCategory", "Marketing\nCategory", "Marketing\nTypes", "Privacy Policy","Tax Charges\n&\nOther Charges"
     ]);
 
     const handleOnClick = (title: string) => {
         if (title == "Roles") {
-            navigate?.(ROUTES.ROLE.path);
+            window.open(ROUTES.ROLE.path, "_blank");
         }else if(title == "Tax Charges\n&\nOther Charges"){
-            navigate?.(ROUTES.TAX_OTHER_CHARGES.path);
+            window.open(ROUTES.TAX_OTHER_CHARGES.path, "_blank");
         }
     }
 

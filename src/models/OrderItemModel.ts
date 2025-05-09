@@ -2,7 +2,7 @@ import { ServiceModel } from "./ServiceModel";
 import { UserModel } from "./UserModel";
 
 export interface OrderItemModel {
-    _id?: string ;
+    _id?: string;
     order_id?: string;
     user_id?: string;
     category_id?: string;
@@ -25,4 +25,6 @@ export interface OrderItemModel {
     service_status?: number | 0;
     is_paid?: boolean | false;
     partner_info?: UserModel | null;
+    per_hour_price?: number;
+    hours?: number;
 }

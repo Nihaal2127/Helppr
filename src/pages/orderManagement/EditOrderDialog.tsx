@@ -22,7 +22,11 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
         register,
         handleSubmit,
         setValue,
-    } = useForm<OrderModel>();
+    } = useForm<OrderModel>({
+        defaultValues: {
+            is_paid: orderDetails.is_paid ? orderDetails.is_paid : false
+        }
+    });
 
     const statuses: { value: string; label: string }[] = Array.from(OrderStatusEnum.entries())
         .map(([key, value]) => ({

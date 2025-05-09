@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
-import { formatUtcToLocalTime, formatDate, priceCell } from "../../../helper/utility";
+import { formatUtcToLocalTime, formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
 import { fetchFinancial } from "../../../services/financialService";
 import { getCount } from "../../../services/getCountService";
 import { FinancialModel } from "../../../models/FinancialModel";
 import { PaymentEnum } from "../../../constant/PaymentEnum";
+import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
+import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
+import { ROUTES } from "../../../routes/Routes";
 
 const OrderPayments = () => {
+    const navigate = useNavigate();
     const { register } = useForm();
     const statuses: [number, { label: string }][] = [
         [1, { label: "Received" }],
@@ -26,7 +31,7 @@ const OrderPayments = () => {
     const fetchData = useCallback(async (filters: {
         keyword?: string;
         is_paid?: string
-        service_status?:string;
+        service_status?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -72,9 +77,18 @@ const OrderPayments = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Order ID", accessor: "order_unique_id" },
-        { Header: "Partner ID", accessor: "partner_unique_id" },
-        { Header: "User ID", accessor: "user_unique_id" },
+        {
+            Header: "Order ID", accessor: "order_unique_id",
+            Cell: textUnderlineCell("order_unique_id", (row) => { OrderInfoDialog.show(row.order_id, () => { }) }),
+        },
+        {
+            Header: "Partner ID", accessor: "partner_unique_id",
+            Cell: textUnderlineCell("partner_unique_id", (row) => { navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.partner_id}`) }),
+        },
+        {
+            Header: "User ID", accessor: "user_unique_id",
+            Cell: textUnderlineCell("user_unique_id", (row) => { UserDetailsDialog.show(row.user_id, () => { }) }),
+        },
         { Header: "Service Name", accessor: "service_name" },
         {
             Header: "Service Date",

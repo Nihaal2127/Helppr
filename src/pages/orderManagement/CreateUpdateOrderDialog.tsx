@@ -141,7 +141,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             payment_mode_id: data.payment_mode_id,
             transaction_id: "",
             created_by_id: getLocalStorage(AppConstant.createdById),
-            order_status: 1,
+            order_status: 2,
             type: 1,
             order_date: new Date().toISOString(),
             address: selectedUser?.address,
@@ -176,7 +176,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
     return (
         <Modal show={true} onHide={onClose} centered>
-            <div className="custom-model-detail">
+            <div className="custom-order-model-detail">
                 <Modal.Header className="py-3 px-4 border-bottom-0">
                     <Modal.Title as="h5" className="custom-modal-title">
                         {isEditable ? "Update" : "Create"} Order
@@ -277,7 +277,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
-                        <ServiceItemForm taxDetails={taxDetails!} categoryId={selectedCategory} onChange={setServiceItems} />
+                        <ServiceItemForm
+                            taxDetails={taxDetails!}
+                            categoryId={selectedCategory}
+                            onChange={setServiceItems}
+                            register={register}
+                            setValue={setValue}
+                            getValues={getValues}
+                            errors={errors}
+                        />
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Comments</h3>
                             <CustomFormInput

@@ -1,23 +1,21 @@
 import { useState } from "react";
 import CustomHeader from "../../components/CustomHeader";
-import { getNavigate, showLog } from "../../helper/utility";
 import { ROUTES } from "../../routes/Routes";
 
 const Financials = () => {
-    const navigate = getNavigate();
     const [settingList] = useState<string[]>([
         "Order\nPayments", "Partner\nPayments", "Partner\nPayout",
     ]);
 
     const handleOnClick = (title: string) => {
         if (title == "Order\nPayments") {
-            navigate?.(ROUTES.ORDER_PAYMENTS.path);
+            window.open(ROUTES.ORDER_PAYMENTS.path, "_blank");
         }
         else if (title == "Partner\nPayments") {
-            navigate?.(ROUTES.PARTNER_PAYMENTS.path);
+            window.open(ROUTES.PARTNER_PAYMENTS.path, "_blank");
         }
         else if (title == "Partner\nPayout") {
-            navigate?.(ROUTES.PARTNER_PAYOUT.path);
+            window.open(ROUTES.PARTNER_PAYOUT.path, "_blank");
         }
     }
 

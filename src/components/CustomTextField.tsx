@@ -15,6 +15,8 @@ interface CustomTextFieldProps {
     isEditable?: boolean;
     value?: string | string[] | number;
     onChange?: (value: string) => void;
+    as?: string;
+    rows?: number;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -30,6 +32,8 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     isEditable = true,
     onChange,
     value,
+    as,
+    rows
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -49,6 +53,8 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
                     isEditable={isEditable}
                     onChange={onChange}
                     value={value}
+                    as={as}
+                    rows={rows}
                 />
             </Col>
         </Row>

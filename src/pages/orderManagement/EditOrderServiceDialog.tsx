@@ -9,6 +9,7 @@ import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicke
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
+import CustomTextFieldSwitch from "../../components/CustomTextFieldSwitch";
 
 type EditOrderServiceDialogProps = {
     orderItemModel: OrderItemModel;
@@ -26,10 +27,11 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
         formState: { errors },
     } = useForm<OrderItemModel>({
         defaultValues: {
-            service_date : orderItemModel.service_date ? orderItemModel.service_date : "",
-            service_from_time : orderItemModel.service_from_time ? orderItemModel.service_from_time : "",
-            service_to_time : orderItemModel.service_to_time ? orderItemModel.service_to_time : "",
-            service_status: orderItemModel.service_status ? orderItemModel.service_status : 1
+            service_date: orderItemModel.service_date ? orderItemModel.service_date : "",
+            service_from_time: orderItemModel.service_from_time ? orderItemModel.service_from_time : "",
+            service_to_time: orderItemModel.service_to_time ? orderItemModel.service_to_time : "",
+            service_status: orderItemModel.service_status ? orderItemModel.service_status : 1,
+            is_paid: orderItemModel.is_paid ? orderItemModel.is_paid : false
         }
     });
 
@@ -46,7 +48,8 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
             service_date: data.service_date,
             service_from_time: data.service_from_time,
             service_to_time: data.service_to_time,
-            service_status: Number(data.service_status)
+            service_status: Number(data.service_status),
+            is_paid: data.is_paid,
         };
 
         const responseUser = await updateOrderService(payload, orderItemModel._id!);
@@ -142,11 +145,18 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
                                 defaultValue={orderItemModel?.service_status ? String(orderItemModel?.service_status) : "1"}
                                 setValue={setValue}
                             />
+
+                            <CustomTextFieldSwitch
+                                label="Is Paid"
+                                controlId="formIsPaid"
+                                register={register}
+                                fieldName="is_paid"
+                            />
                         </Row>
                         <Row className="mt-4">
                             <Col xs={6} className="text-center">
                                 <Button type="submit" className="custom-btn-primary" >
-                                    Assign
+                                    Update
                                 </Button>
                             </Col>
                             <Col xs={6} className="text-center" onClick={onClose}>

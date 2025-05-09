@@ -152,7 +152,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
             <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
                 <Modal.Header className="py-3 px-4 border-bottom-0">
                     <Modal.Title as="h5" className="custom-modal-title">
-                        {isEditable ? "Edit" : "Add"} {getRoleLabel(role)}
+                        {isEditable ? "Update" : "Add"} {getRoleLabel(role)}
                     </Modal.Title>
                     <CustomCloseButton onClose={onClose} />
                 </Modal.Header>

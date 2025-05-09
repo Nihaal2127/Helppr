@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
-import { formatDate, priceCell } from "../../../helper/utility";
+import { formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
 import { fetchFinancial } from "../../../services/financialService";
 import { getCount } from "../../../services/getCountService";
 import { FinancialModel } from "../../../models/FinancialModel";
+import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
+import { ROUTES } from "../../../routes/Routes";
 
 const PartnerPayments = () => {
+    const navigate = useNavigate();
     const { register } = useForm();
     const statuses: [number, { value: number, label: string }][] = [
         [1, { value: 2, label: "Pending" }],
@@ -72,8 +76,18 @@ const PartnerPayments = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Order ID", accessor: "order_unique_id" },
-        { Header: "Partner ID", accessor: "partner_unique_id" },
+        {
+            Header: "Order ID", accessor: "order_unique_id",
+            Cell: textUnderlineCell("order_unique_id", (row) => { OrderInfoDialog.show(row.order_id, () => { }) }),
+        },
+        {
+            Header: "Partner ID", accessor: "partner_unique_id",
+            Cell: textUnderlineCell("partner_unique_id", (row) => { navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.partner_id}`) }),
+        },
+        // {
+        //     Header: "Partner Name", accessor: "partner_unique_id",
+        //     Cell: textUnderlineCell("partner_unique_id", (row) => { navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.partner_id}`) }),
+        // },
         { Header: "Service Name", accessor: "service_name" },
         {
             Header: "Service Date",
@@ -88,7 +102,7 @@ const PartnerPayments = () => {
             Header: "Partner Earning",
             accessor: "partner_earning",
             Cell: ({ value }: { value: number }) => <span>${value}</span>,
-          },
+        },
         // {
         //     Header: "Balance Amount", accessor: "balance_amount",
         //     Cell: priceCell("balance_amount"),

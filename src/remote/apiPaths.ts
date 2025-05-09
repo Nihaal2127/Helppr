@@ -55,4 +55,9 @@ export const ApiPaths = {
   CREATE_TAX_OTHER_CHARGES: '/tax/create',
   UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,
   GET_FINANCIAL: () => `/order_service/getAll`,
+  GET_TICKET: () => `/ticket/getAll`,
+  GET_TICKET_BY_ID: () => `/ticket/get`,
+  CREATE_TICKET: '/ticket/create',
+  UPDATE_TICKET_STATUS: (id: string) => `/ticket/updateTicketStatus/${id}`,
+  DELETE_TICKET: (id: string) => `/ticket/delete/${id}`,
 };

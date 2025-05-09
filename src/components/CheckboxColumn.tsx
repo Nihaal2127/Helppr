@@ -4,16 +4,14 @@ const CheckboxColumn = (
   data: FinancialModel[],
   selectedOrders: string[],
   setSelectedOrderIds: React.Dispatch<React.SetStateAction<string[]>>,
-  setTotalPrice: React.Dispatch<React.SetStateAction<number>> 
 ) => {
   const selectAll = selectedOrders.length === data.length && data.length > 0;
-  
+
   const handleSelectAll = () => {
     const ids = selectAll ? [] : Array.from(new Set(data.map((item) => item._id)));
     setSelectedOrderIds(ids);
-    calculateTotalPrice(ids);
   };
-  
+
   const handleSelectItem = (orderId: string) => {
     setSelectedOrderIds((prev) => {
       let updated: string[];
@@ -22,27 +20,20 @@ const CheckboxColumn = (
       } else {
         updated = Array.from(new Set([...prev, orderId]));
       }
-      calculateTotalPrice(updated);
       return updated;
     });
   };
 
-  const calculateTotalPrice = (selectedIds: string[]) => {
-    const total = data
-      .filter((item) => selectedIds.includes(item._id))
-      .reduce((sum, item) => sum + (item.partner_earning || 0), 0);
-  
-    setTotalPrice(total);
-  };
-
-  
   return {
     Header: () => (
-      
+
       <input
         type="checkbox"
         checked={selectAll}
-        onChange={handleSelectAll}
+        onChange={() => {
+          console.log("handleSelectAll");
+          handleSelectAll();
+        }}
         style={{
           width: "16px",
           height: "16px",

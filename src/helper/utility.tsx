@@ -1,13 +1,14 @@
-import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
 import { RoleEnum } from "../constant/RoleEnum";
 import { OrderStatusEnum } from "../constant/OrderStatusEnum";
+import { NavigateFunction } from "react-router-dom";
+import { ResolveStatusEnum } from "../constant/ResolveStatusEnum";
 
-let navigate: (path: string) => void;
+let navigate: NavigateFunction;
 
-export const setNavigate = (nav: (path: string) => void) => {
-    navigate = nav;
+export const setNavigate = (nav: NavigateFunction) => {
+  navigate = nav;
 };
 
 export const getNavigate = () => navigate;
@@ -115,6 +116,18 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
     );
 };
 
+export const FullDetailsRow = ({ title, value }: { title: string; value: any }) => {
+    const displayValue =
+        value === undefined || value === "" || value === null ? "-" : value;
+
+    return (
+        <Row className="row custom-personal-row">
+            <label className="col custom-personal-row-title">{title}</label>
+            <label className="col custom-personal-row-value text-wrap">{displayValue}</label>
+        </Row>
+    );
+};
+
 export const DashboardCard = ({ title, count, color }: { title: string; count: number, color: string }) => {
     return (
         <div className="custom-dashboard-border">
@@ -160,6 +173,36 @@ export const DetailsOrderStatusRow = ({
         color = "var(--btn-success)";
     }
     else if (value === 4) {
+        color = "var(--btn-danger)";
+    }
+
+    return (
+        <Row className="row custom-personal-row">
+            <label className="col custom-personal-row-title">{title}</label>
+            <label className={`col custom-personal-row-value`} style={{ color }}>
+                {status}
+            </label>
+        </Row>
+    );
+};
+
+export const DetailsResolveStatusRow = ({
+    title,
+    value,
+}: {
+    title: string;
+    value: number | undefined | null;
+}) => {
+    const status = ResolveStatusEnum.get(value ?? -1)?.label || "-";
+
+    let color = "";
+
+    if (value === 1) {
+        color = "var(--btn-pending)";
+    } else if (value === 2) {
+        color = "var(--btn-success)";
+    }
+    else if (value === 3) {
         color = "var(--btn-danger)";
     }
 

@@ -4,10 +4,11 @@ import { useLocation } from "react-router-dom";
 import CustomTable from "../../../components/CustomTable";
 import { FinancialModel } from "../../../models/FinancialModel";
 import CheckboxColumn from "../../../components/CheckboxColumn";
-import { formatDate } from "../../../helper/utility";
+import { formatDate, textUnderlineCell } from "../../../helper/utility";
 import { payComission } from "../../../services/orderService";
 import { fetchFinancial } from "../../../services/financialService";
 import PayoutDialog from "./PayoutDialog";
+import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
 
 const ShowPartnerPayout = () => {
   const location = useLocation();
@@ -17,9 +18,7 @@ const ShowPartnerPayout = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
-  const [activeTab, setActiveTab] = useState<string>("partner");
   const [selectedOrders, setSelectedOrderIds] = useState<string[]>([]);
-  const [totalPrice, setTotalPrice] = useState<number>(0);
   const fetchTabRef = useRef(false);
 
   const fetchTabData = useCallback(async () => {
@@ -42,11 +41,11 @@ const ShowPartnerPayout = () => {
     } finally {
       fetchTabRef.current = false;
     }
-  }, [activeTab, currentPage, pageSize]);
+  }, [currentPage, pageSize]);
 
   useEffect(() => {
     fetchTabData();
-  }, [activeTab, fetchTabData,]);
+  }, [fetchTabData,]);
 
   const financialColumns = React.useMemo(() => [
     {
@@ -54,8 +53,11 @@ const ShowPartnerPayout = () => {
       accessor: "serial_no",
       Cell: ({ row }: { row: any }) => row.index + 1,
     },
-    CheckboxColumn(financialList, selectedOrders, setSelectedOrderIds, setTotalPrice),
-    { Header: "Order No", accessor: "order_unique_id" },
+    CheckboxColumn(financialList, selectedOrders, setSelectedOrderIds),
+    {
+      Header: "Order No", accessor: "order_unique_id",
+      Cell: textUnderlineCell("order_unique_id", (row) => { OrderInfoDialog.show(row.order_id, () => { }) }),
+    },
     { Header: "Service Name", accessor: "service_name" },
     {
       Header: "Service Date",
@@ -74,7 +76,7 @@ const ShowPartnerPayout = () => {
       accessor: "partner_earning",
       Cell: ({ value }: { value: number }) => <span>${value}</span>,
     },
-  ], [selectedOrders, totalPrice, currentPage, pageSize]);
+  ], [selectedOrders, currentPage, pageSize]);
 
   const handleOrderPayment = async () => {
     const payload = {
@@ -86,6 +88,12 @@ const ShowPartnerPayout = () => {
       setSelectedOrderIds([]);
       await fetchTabData();
     }
+  };
+
+  const getSelectedTotalPrice = () => {
+    return financialList
+      .filter((item) => selectedOrders.includes(item._id))
+      .reduce((acc, item) => acc + item.partner_earning, 0);
   };
 
   return (
@@ -101,7 +109,8 @@ const ShowPartnerPayout = () => {
               className="custom-btn-secondary"
               style={{ maxWidth: "100px", backgroundColor: "#000000" }}
               onClick={() => {
-                PayoutDialog.show(totalPrice, handleOrderPayment);
+                const total = getSelectedTotalPrice();
+                PayoutDialog.show(total, handleOrderPayment);
               }}>
               Pay Now</Button>
           </Col>

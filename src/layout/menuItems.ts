@@ -44,7 +44,11 @@ export const mainMenuItems = [
         label: "Settings",
         path: ROUTES.SETTINGS.path,
     },
-    { path: "/support", label: "Support Center" },
+    {
+        key: "support-center",
+        label: "Support Center",
+        path: ROUTES.TICKET_MANAGEMENT.path,
+    },
     { path: "/marketing", label: "Marketing & Promotions" },
     { path: "/notifications", label: "Notifications" },
     { path: "/calendar", label: "Calendar" },

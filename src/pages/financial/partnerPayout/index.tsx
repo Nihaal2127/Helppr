@@ -8,6 +8,8 @@ import { fetchUser } from "../../../services/userService";
 import { UserModel } from "../../../models/UserModel";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
+import { textUnderlineCell } from "../../../helper/utility";
+import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
 
 const PartnerPayout = () => {
     const navigate = useNavigate();
@@ -24,7 +26,7 @@ const PartnerPayout = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        filters.status ="true";
+        filters.status = "true";
         const { response, users, totalPages } = await fetchUser(false, 2, currentPage, pageSize, { ...filters, });
         if (response) {
             setPartnerList(users);
@@ -56,7 +58,10 @@ const PartnerPayout = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        { Header: "Partner ID", accessor: "user_id", },
+        {
+            Header: "Partner ID", accessor: "user_id",
+            Cell: textUnderlineCell("user_id", (row) => {  PartnerDetailsDialog.show(row._id, () => {})}),
+        },
         { Header: "Partner Name", accessor: "name", },
         { Header: "No. of services", accessor: "no_of_services" },
         { Header: "Service Provided", accessor: "completed_service" },

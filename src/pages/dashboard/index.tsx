@@ -14,7 +14,7 @@ const Dashboard = () => {
                 <div className="custom-dashboard-card">
                     <h3 className="custom-dashboard-title">Today’s Progress</h3>
                     <div className="d-flex gap-2">
-                        <DashboardCard title="Requests Received" count={300} color="var(--btn-info" />
+                        <DashboardCard title="Requests Received" count={300} color="var(--btn-info)" />
                         <DashboardCard title="In Progress" count={300} color="var(--btn-warning)" />
                         <DashboardCard title="Completed" count={300} color="var(--btn-success)" />
                         <DashboardCard title="Cancelled" count={300} color="var(--btn-danger)" />

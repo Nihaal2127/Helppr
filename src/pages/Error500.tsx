@@ -1,9 +1,21 @@
+import { useEffect } from "react";
 import { Card, Button } from "react-bootstrap";
 import appLogo from "../assets/icons/login_logo.svg";
-import { ROUTES } from "../routes/Routes";
 import { getNavigate } from "../helper/utility";
 
 const ServerError = () => {
+  const navigate = getNavigate();
+  useEffect(() => {
+    const modals = document.querySelectorAll(".modal.show");
+    modals.forEach((modal) => {
+      (modal as HTMLElement).classList.remove("show");
+      (modal as HTMLElement).style.display = "none";
+      document.body.classList.remove("modal-open");
+      const backdrop = document.querySelector(".modal-backdrop");
+      if (backdrop) backdrop.remove();
+    });
+  }, []);
+
   return (
     <div
       style={{
@@ -22,11 +34,9 @@ const ServerError = () => {
             <Button
               type="submit"
               className="custom-btn-primary mt-2"
-              onClick={() => {
-                getNavigate()?.(ROUTES.DASHBOARD.path);
-              }}
+              onClick={() => navigate(-1)}
             >
-              Back to Home
+              Back
             </Button>
           </div>
         </Card.Body>
