@@ -118,10 +118,9 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                     service_price: 0,
                     ...calculateServiceDetails(0),
                 };
+                 setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
             } else if (field === "service_from_time" || field === "service_to_time") {
-                console.log("updatedServices field:", updatedServices);
                 const updated = { ...updatedServices[index], [field]: value };
-                console.log("updated:", updated);
                 const { service_from_time, service_to_time, service_price } = updated;
 
                 const perHourPrice = updated.per_hour_price ?? 0;
@@ -134,6 +133,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 updatedServices[index] = updated;
                 setValue(`serviceItems.${index}.${field}`, value);
                 setValue(`serviceItems.${index}.service_price`, price);
+               
             }
             else {
                 updatedServices[index] = {

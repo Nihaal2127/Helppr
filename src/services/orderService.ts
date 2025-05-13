@@ -72,8 +72,10 @@ export const createOrUpdateOrder = async (
   const response = await apiRequest(path, method, payload);
   if (response.success) {
     return true;
+  } else {
+    showLog(response.message || "Failed to create or update order");
+    return false;
   }
-  return false;
 };
 
 export const cancelOrderService = async (orderId: string, payload: any): Promise<boolean> => {

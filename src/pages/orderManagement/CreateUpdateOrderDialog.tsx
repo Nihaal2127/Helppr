@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { ShowDetailsRow } from "../../helper/utility";
+import { ShowDetailsRow, showLog } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateOrder } from "../../services/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
@@ -19,7 +19,6 @@ import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { OrderItemModel } from "../../models/OrderItemModel";
-import { CategoryModel } from "../../models/CategoryModel";
 import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 
 type CreateUpdateOrderDialogProps = {
@@ -154,21 +153,22 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             admin_earning: paymentDetails.adminEarning,
             service_items: updatedServiceItems,
             comments: data.comments,
-
+            name: selectedUser?.name,
+            email: selectedUser?.email,
+            contact: selectedUser?.phone_number,
         };
-        let responseService;
+        let response;
         if (isEditable) {
             if (!order?._id) {
                 showErrorAlert("Unable to update. ID is missing.");
                 return;
             }
-
-            responseService = await createOrUpdateOrder(payload, true, order?._id);
+            response = await createOrUpdateOrder(payload, true, order?._id);
         } else {
-            responseService = await createOrUpdateOrder(payload, false,);
+            response = await createOrUpdateOrder(payload, false,);
         }
 
-        if (responseService) {
+        if (response) {
             onClose && onClose();
             onRefreshData();
         }
