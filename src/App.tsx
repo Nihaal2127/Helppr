@@ -7,7 +7,8 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { setNavigate,showLog } from "./helper/utility";
+import { requestPermission } from './NotificationService';
+import { setNavigate, showLog } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
@@ -25,6 +26,16 @@ function App() {
   const isAuthRoute = location.pathname.includes("/auth");
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));
 
+
+
+  useEffect(() => {
+    const fetchPermission = async () => {
+      await requestPermission();
+    };
+
+    fetchPermission();
+  }, []);
+
   useEffect(() => {
     if (width < 1140) {
       document.body.classList.add("is-mobile");
@@ -36,15 +47,6 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
-
-  // useEffect(() => {
-  //   if (location.pathname.startsWith("/auth")) {
-  //     document.body.style.overflow = "hidden";
-  //   } else {
-  //     document.body.style.overflow = "auto";
-  //     window.scrollTo(0, 0);
-  //   }
-  // }, [location.pathname]);
 
   useEffect(() => {
     const token = getLocalStorage(AppConstant.authToken);

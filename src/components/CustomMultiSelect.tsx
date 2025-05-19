@@ -43,7 +43,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       fontSize: "14px",
       fontWeight: "normal",
       width: "100%",
-      height: "2.62rem",
+      height: "auto",
       lineHeight: "18px",
       backgroundColor: "var(--bg-color)",
       fontFamily: "'Inter'",

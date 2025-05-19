@@ -121,7 +121,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
         options={options}
         value={selectedOption}
         onChange={handleChange}
-        placeholder={`Choose ${controlId}`}
+        placeholder={`Select ${controlId}`}
         onBlur={() => {
           if (!selectedOption && setValue) {
             setValue(fieldName, "");
