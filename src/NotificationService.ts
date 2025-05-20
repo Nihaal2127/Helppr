@@ -38,8 +38,10 @@ export const requestPermission = async () => {
 };
 
 export const onMessageListener = () =>
+  console.log('onMessageListener ');
   new Promise((resolve) => {
     onMessage(messaging, (payload) => {
+      console.log('Foreground Message data',payload);
       resolve(payload);
     });
   });
