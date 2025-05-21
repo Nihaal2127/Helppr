@@ -29,13 +29,14 @@ export const fetchServiceDropDown = async (categoryId ?: string
 export const fetchService = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string }
+  filters: { keyword?: string; status?: string ; sort?: string; }
 ): Promise<{ response: boolean, services: ServiceModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { keyword: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+  ...(filters.sort && { sort: filters.sort }),
   });
 
   const response = await apiRequest(

@@ -22,7 +22,8 @@ const PartnerPayout = () => {
 
     const fetchData = useCallback(async (filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -41,7 +42,8 @@ const PartnerPayout = () => {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -92,7 +94,7 @@ const PartnerPayout = () => {
                     onDownloadClick={async () => {
                         await exportData(ApiPaths.EXPORT_FINANCIAL())
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

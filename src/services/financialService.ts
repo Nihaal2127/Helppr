@@ -12,18 +12,20 @@ export const fetchFinancial = async (
     user_id?: string;
     partner_id?: string;
     is_paid?: string;
-    partner_paid_status? : string;
+    partner_paid_status?: string;
+    sort?: string;
   }
 ): Promise<{ response: boolean, financials: FinancialModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { name: filters.keyword }),
-    ...(filters.service_status && { service_status: filters.service_status}),
-    ...(filters.user_id && { user_id: filters.user_id}),
-    ...(filters.partner_id && { partner_id: filters.partner_id}),
-    ...(filters.is_paid && { is_paid: filters.is_paid.toLowerCase()}),
-    ...(filters.partner_paid_status && { partner_paid_status: filters.partner_paid_status}),
+    ...(filters.service_status && { service_status: filters.service_status }),
+    ...(filters.user_id && { user_id: filters.user_id }),
+    ...(filters.partner_id && { partner_id: filters.partner_id }),
+    ...(filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
+    ...(filters.partner_paid_status && { partner_paid_status: filters.partner_paid_status }),
+    ...(filters.sort && { sort: filters.sort }),
   });
 
   const response = await apiRequest(

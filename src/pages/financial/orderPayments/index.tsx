@@ -32,6 +32,7 @@ const OrderPayments = () => {
         keyword?: string;
         is_paid?: string
         service_status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -60,7 +61,8 @@ const OrderPayments = () => {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        is_paid?: string
+        is_paid?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -147,9 +149,9 @@ const OrderPayments = () => {
                     title="Order Payments"
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                       await exportData(ApiPaths.EXPORT_FINANCIAL())
+                        await exportData(ApiPaths.EXPORT_FINANCIAL())
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

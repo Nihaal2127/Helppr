@@ -39,6 +39,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
         partner_id?: string;
         is_paid?: string;
         is_partner_paid?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -65,6 +66,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -127,7 +129,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                             onDownloadClick={async () => {
                                 await exportData(ApiPaths.EXPORT_FINANCIAL())
                             }}
-                            onSortClick={() => { }}
+                            onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                             onMoreClick={() => { }}
                             onSearch={(value) => handleFilterChange({ keyword: value })}
                         />

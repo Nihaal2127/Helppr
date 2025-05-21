@@ -17,7 +17,7 @@ export const fetchUserDropDown = async (type: number, serviceId?: string
   if (response.success) {
     return {
       users: response.data.records,
-  };
+    };
   } else {
     showLog(response.message || "Failed to fetch user");
     return { users: [] };
@@ -37,7 +37,7 @@ export const fetchPartnerDropDown = async (serviceId?: string
   if (response.success) {
     return {
       partners: response.data.records,
-  };
+    };
   } else {
     showLog(response.message || "Failed to fetch partner");
     return { partners: [] };
@@ -49,7 +49,7 @@ export const fetchUser = async (
   type: number,
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string }
+  filters: { keyword?: string; status?: string; sort?: string; }
 ): Promise<{ response: boolean, users: UserModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     type: String(type),
@@ -57,6 +57,7 @@ export const fetchUser = async (
     limit: String(pageSize),
     ...(filters.keyword && { name: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.sort && { sort: filters.sort }),
   });
 
   const response = await apiRequest(

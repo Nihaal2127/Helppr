@@ -31,6 +31,7 @@ const PartnerPayments = () => {
         keyword?: string;
         partner_paid_status?: string;
         service_status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -60,6 +61,7 @@ const PartnerPayments = () => {
         keyword?: string;
         partner_paid_status?: string;
         service_status?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -146,7 +148,7 @@ const PartnerPayments = () => {
                     onDownloadClick={async () => {
                         await exportData(ApiPaths.EXPORT_FINANCIAL())
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

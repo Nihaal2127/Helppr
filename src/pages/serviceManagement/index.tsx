@@ -29,7 +29,8 @@ const ServiceManagement = () => {
 
     const fetchData = useCallback(async (selected: string, filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -64,7 +65,8 @@ const ServiceManagement = () => {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -204,7 +206,7 @@ const ServiceManagement = () => {
                         selectedBox === "box-category" ? await exportData(ApiPaths.EXPORT_CATEGORY())
                             : await exportData(ApiPaths.EXPORT_SERVICE())
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value })}}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

@@ -6,13 +6,14 @@ import { showLog } from "../helper/utility";
 export const fetchOrder = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string }
+  filters: { keyword?: string; status?: string ; sort?: string; }
 ): Promise<{ response: boolean, orders: OrderModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { name: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { order_status: filters.status.toLowerCase() }),
+    ...(filters.sort && { sort: filters.sort }),
   });
 
   const response = await apiRequest(

@@ -8,7 +8,7 @@ import actionIcon from "../assets/icons/3_dots.svg";
 type CustomServiceUtilityBoxProps = {
     searchHint: string;
     onDownloadClick: () => void;
-    onSortClick: () => void;
+    onSortClick: (sortValue: "-1" | "1") => void;
     onMoreClick: () => void;
     onSearch: (value: string) => void;
 };
@@ -21,6 +21,7 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
     onSearch,
 }) => {
     const [searchValue, setSearchValue] = useState("");
+    const [sortDirection, setSortDirection] = useState<"-1" | "1">("-1");
 
     const handleEnterKey = (e: any) => {
         if (e.key === "Enter") {
@@ -28,6 +29,12 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
             onSearch(searchValue);
         }
     }
+
+    const handleSortClick = () => {
+        const newDirection = sortDirection === "-1" ? "1" : "-1";
+        setSortDirection(newDirection);
+        onSortClick(newDirection);
+    };
 
     return (
         <div className="custom-utilty-box">
@@ -52,7 +59,7 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
 
             <div className="custom-icon-container">
                 <img src={downloadIcon} alt="download" onClick={onDownloadClick} />
-                <img src={sortIcon} alt="sort" onClick={onSortClick} />
+                <img src={sortIcon} alt="sort" onClick={handleSortClick} />
                 <img src={actionIcon} alt="more options" onClick={onMoreClick} />
             </div>
         </div>

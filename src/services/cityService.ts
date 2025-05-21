@@ -27,13 +27,14 @@ export const fetchCityDropDown = async (
 export const fetchCity = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string }
+  filters: { name?: string; status?: string; sort?: string; }
 ): Promise<{ response: boolean, cities: CityModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.name && { name: filters.name }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.sort && { sort: filters.sort }),
   });
 
   const response = await apiRequest(

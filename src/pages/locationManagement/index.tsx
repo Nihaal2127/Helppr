@@ -29,7 +29,8 @@ const LocationManagement = () => {
 
     const fetchData = useCallback(async (selected: string, filters: {
         name?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -64,7 +65,8 @@ const LocationManagement = () => {
 
     const handleFilterChange = async (filters: {
         name?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -196,9 +198,9 @@ const LocationManagement = () => {
                     searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
                     onDownloadClick={async () => {
                         selectedBox === "box-state" ? await exportData(ApiPaths.EXPORT_STATE())
-                        : await exportData(ApiPaths.EXPORT_CITY())
+                            : await exportData(ApiPaths.EXPORT_CITY())
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value })}}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ name: value })}
                 />
