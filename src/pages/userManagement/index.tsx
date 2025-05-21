@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -10,11 +9,12 @@ import { fetchUser } from "../../services/userService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
-import VerificationDetailsDialog  from "./VerificationDetailsDialog";
+import VerificationDetailsDialog from "./VerificationDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../remote/apiPaths";
 
 const UserManagement = () => {
-    const { register } = useForm();
     const [selectedBox, setSelectedBox] = useState<string>("box-user");
     const [userData, setUserData] = useState<{}>({});
     const [partnerData, setParnterData] = useState<{}>({});
@@ -209,11 +209,14 @@ const UserManagement = () => {
                         selectedBox === "box-user" ? "Users" : selectedBox === "box-partner" ? "Partners" : "Verifications"
                     }
                     searchHint={"Search name, ID, Description etc."}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER())
+                        : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_USER())
+                            : await exportData(ApiPaths.EXPORT_USER())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

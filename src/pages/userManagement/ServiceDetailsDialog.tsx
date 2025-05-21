@@ -10,6 +10,8 @@ import { FinancialModel } from "../../models/FinancialModel";
 import { fetchFinancial } from "../../services/financialService";
 import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
 import { PaymentEnum } from "../../constant/PaymentEnum";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../remote/apiPaths";
 
 type ServiceDetailsDialogProps = {
     user_id: string;
@@ -122,11 +124,12 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                     <Modal.Body className="px-4 pb-4 pt-0">
                         <CustomServiceUtilityBox
                             searchHint={"Search name, ID, Description etc."}
-                            onDownloadClick={() => { }}
+                            onDownloadClick={async () => {
+                                await exportData(ApiPaths.EXPORT_FINANCIAL())
+                            }}
                             onSortClick={() => { }}
                             onMoreClick={() => { }}
                             onSearch={(value) => handleFilterChange({ keyword: value })}
-                            register={register}
                         />
                         <CustomServiceTable
                             columns={serviceColumns}

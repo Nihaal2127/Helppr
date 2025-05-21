@@ -76,7 +76,7 @@ export const apiRequest = async (
 
 export const apiRequestBlob = async (
   endpoint: string,
-  payload: any,
+ // payload: any,
 ) => {
   try {
     showLoader();
@@ -89,12 +89,12 @@ export const apiRequestBlob = async (
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
     showLog("API Request URL:", requestUrl);
     //showLog("API header :", headers);
-    showLog("API payload :", payload);
+   // showLog("API payload :", payload);
 
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload),
+      //body: JSON.stringify(payload),
     });
 
     hideLoader();

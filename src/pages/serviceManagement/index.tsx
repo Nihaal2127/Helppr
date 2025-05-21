@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -14,9 +13,10 @@ import { deleteService, fetchService } from "../../services/servicesService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { getCount } from "../../services/getCountService";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../remote/apiPaths";
 
 const ServiceManagement = () => {
-    const { register } = useForm();
     const [selectedBox, setSelectedBox] = useState<string>("box-category");
     const [categoryData, setCategoryData] = useState<{}>({});
     const [serviceData, setServiceData] = useState<{}>({});
@@ -200,11 +200,13 @@ const ServiceManagement = () => {
                         selectedBox === "box-category" ? "Categories" : "Services"
                     }
                     searchHint={`${selectedBox === "box-category" ? "Search Category name, ID, Description etc." : "Search Service name, ID, Description etc."}`}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        selectedBox === "box-category" ? await exportData(ApiPaths.EXPORT_CATEGORY())
+                            : await exportData(ApiPaths.EXPORT_SERVICE())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

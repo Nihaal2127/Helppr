@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -10,10 +9,11 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
 import { textUnderlineCell } from "../../../helper/utility";
 import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
+import { exportData } from "../../../services/exportService";
+import { ApiPaths } from "../../../remote/apiPaths";
 
 const PartnerPayout = () => {
     const navigate = useNavigate();
-    const { register } = useForm();
     const [partnerList, setPartnerList] = useState<UserModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -60,7 +60,7 @@ const PartnerPayout = () => {
         },
         {
             Header: "Partner ID", accessor: "user_id",
-            Cell: textUnderlineCell("user_id", (row) => {  PartnerDetailsDialog.show(row._id, () => {})}),
+            Cell: textUnderlineCell("user_id", (row) => { PartnerDetailsDialog.show(row._id, () => { }) }),
         },
         { Header: "Partner Name", accessor: "name", },
         { Header: "No. of services", accessor: "no_of_services" },
@@ -89,11 +89,12 @@ const PartnerPayout = () => {
                 <CustomUtilityBox
                     title="Partner Payout"
                     searchHint={"Search name, ID, Description etc."}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        await exportData(ApiPaths.EXPORT_FINANCIAL())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { textUnderlineCell, formatDate, priceCell, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import { fetchOrder } from "../../services/orderService";
+import { exportData } from "../../services/exportService";
 import { OrderModel } from "../../models/OrderModel";
 import OrderInfoDialog from "./OrderInfoDialog";
 import { Button } from "react-bootstrap";
@@ -12,9 +12,9 @@ import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import { ApiPaths } from "../../remote/apiPaths";
 
 const OrderManagement = () => {
-    const { register } = useForm();
     const statuses = Array.from(OrderStatusEnum.entries());
     const [selectedStatus, setSelectedStatus] = useState(statuses[0][0]);
     const [orderList, setOrderList] = useState<OrderModel[]>([]);
@@ -42,7 +42,7 @@ const OrderManagement = () => {
     }, []);
 
     const refreshData = async () => {
-        await fetchData({status: "1"});
+        await fetchData({ status: "1" });
     };
 
     const handleFilterChange = async (filters: {
@@ -99,6 +99,14 @@ const OrderManagement = () => {
         },
     ], [currentPage, pageSize]);
 
+    // const handleExport = async () => {
+    //     if (!startDate || !endDate) {
+    //         showErrorAlert("Please select both Start Date and End Date.");
+    //         return;
+    //     }
+    //     const response = await exportData(ApiPaths.EXPORT_ORDER);
+
+    // };
     return (
         <>
             <div className="main-page-content">
@@ -125,11 +133,12 @@ const OrderManagement = () => {
                     <CustomUtilityBox
                         title=""
                         searchHint={"Search name, ID, Description etc."}
-                        onDownloadClick={() => { }}
+                        onDownloadClick={async () => {
+                            await exportData(ApiPaths.EXPORT_ORDER())
+                        }}
                         onSortClick={() => { }}
                         onMoreClick={() => { }}
                         onSearch={(value) => handleFilterChange({ keyword: value })}
-                        register={register}
                     />
                 </div>
 

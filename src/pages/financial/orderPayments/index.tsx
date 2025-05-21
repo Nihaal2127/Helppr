@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -12,10 +11,11 @@ import { PaymentEnum } from "../../../constant/PaymentEnum";
 import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
 import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
 import { ROUTES } from "../../../routes/Routes";
+import { exportData } from "../../../services/exportService";
+import { ApiPaths } from "../../../remote/apiPaths";
 
 const OrderPayments = () => {
     const navigate = useNavigate();
-    const { register } = useForm();
     const statuses: [number, { label: string }][] = [
         [1, { label: "Received" }],
         [2, { label: "Pending" }]
@@ -146,11 +146,12 @@ const OrderPayments = () => {
                 <CustomUtilityBox
                     title="Order Payments"
                     searchHint={"Search name, ID, Description etc."}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                       await exportData(ApiPaths.EXPORT_FINANCIAL())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

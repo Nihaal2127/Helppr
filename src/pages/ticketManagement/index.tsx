@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { formatDate, textUnderlineCell } from "../../helper/utility";
@@ -11,9 +10,10 @@ import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import TicketDetailsDialog from "./TicketDetailsDialog";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../remote/apiPaths";
 
 const TicketManagement = () => {
-    const { register } = useForm();
     const [ticketList, setTicketList] = useState<TicketModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -143,11 +143,11 @@ const TicketManagement = () => {
                     row={row}
                     onEdit={
                         row.original.status === 1
-                          ? () => {
-                              EditTicketDialog.show(true, row.original, () => refreshData());
+                            ? () => {
+                                EditTicketDialog.show(true, row.original, () => refreshData());
                             }
-                          : undefined
-                      }
+                            : undefined
+                    }
                     onDelete={async () => {
                         openConfirmDialog(
                             "Are you sure you want to delete? ",
@@ -175,11 +175,12 @@ const TicketManagement = () => {
                 <CustomUtilityBox
                     title=""
                     searchHint="Search ticket name, ID, created name etc."
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        await exportData(ApiPaths.EXPORT_TICKET())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

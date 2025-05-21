@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -14,9 +13,10 @@ import EmployeeDetailsDialog from "../../userManagement/EmployeeDetailsDialog";
 import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
+import { exportData } from "../../../services/exportService";
+import { ApiPaths } from "../../../remote/apiPaths";
 
 const RoleManagement = () => {
-    const { register } = useForm();
     const [selectedBox, setSelectedBox] = useState<string>("box-employee");
     const [userData, setUserData] = useState<{}>({});
     const [partnerData, setParnterData] = useState<{}>({});
@@ -287,11 +287,14 @@ const RoleManagement = () => {
                         selectedBox === "box-user" ? "Users" : selectedBox === "box-partner" ? "Partners" : "Employees"
                     }
                     searchHint={"Search name, ID, Description etc."}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER())
+                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_USER())
+                                : await exportData(ApiPaths.EXPORT_USER())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
-                    register={register}
                 />
 
                 <CustomTable

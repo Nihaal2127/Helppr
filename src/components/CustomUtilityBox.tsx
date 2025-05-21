@@ -5,8 +5,7 @@ import searchIcon from "../assets/icons/search.svg";
 import downloadIcon from "../assets/icons/download.svg";
 import sortIcon from "../assets/icons/sort.svg";
 import actionIcon from "../assets/icons/3_dots.svg";
-import { CustomFormInput } from "./CustomFormInput";
-import { Button } from "react-bootstrap";
+
 
 type CustomUtilityBoxProps = {
     title: string;
@@ -15,7 +14,6 @@ type CustomUtilityBoxProps = {
     onSortClick: () => void;
     onMoreClick: () => void;
     onSearch: (value: string) => void;
-    register: any;
 };
 
 const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
@@ -25,10 +23,15 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
     onSortClick,
     onMoreClick,
     onSearch,
-    register,
 }) => {
     const [searchValue, setSearchValue] = useState("");
 
+    const handleEnterKey = (e: any) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            onSearch(searchValue);
+        }
+    }
     return (
         <div className="custom-utilty-box">
             <span className="custom-utilty-box-title">{title}</span>
@@ -45,10 +48,11 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         style={{ width: "24.25rem", fontSize: "14px", fontWeight: "normal", fontFamily: "Inter" }}
+                        onKeyDown={(e) => { handleEnterKey(e) }}
                     />
                     <img src={searchIcon} alt="search" className="custom-search-icon"
                         onClick={() => {
-                            onSearch(searchValue);
+                            onSearch(searchValue); 
                             setSearchValue("");
                         }} />
                 </div>

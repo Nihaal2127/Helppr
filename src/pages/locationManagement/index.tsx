@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -14,9 +13,10 @@ import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { CityModel } from "../../models/CityModel";
 import { getCount } from "../../services/getCountService";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../remote/apiPaths";
 
 const LocationManagement = () => {
-    const { register } = useForm();
     const [selectedBox, setSelectedBox] = useState<string>("box-state");
     const [stateData, setStateData] = useState<{}>({});
     const [cityData, setCityData] = useState<{}>({});
@@ -182,8 +182,8 @@ const LocationManagement = () => {
                             addButtonLable={capitalizeString(id.replace("box-", "Add ").replace("-", " "))}
                             onAddClick={() => {
                                 id === "box-state"
-                            ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
-                            : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
+                                    ? AddEditStateDialog.show(false, null, () => refreshData(selectedBox))
+                                    : AddEditCityDialog.show(false, null, () => refreshData(selectedBox));
                             }}
                         />
                     ))}
@@ -194,11 +194,13 @@ const LocationManagement = () => {
                         selectedBox === "box-state" ? "States" : "Cities"
                     }
                     searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
-                    onDownloadClick={() => { }}
+                    onDownloadClick={async () => {
+                        selectedBox === "box-state" ? await exportData(ApiPaths.EXPORT_STATE())
+                        : await exportData(ApiPaths.EXPORT_CITY())
+                    }}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ name: value })}
-                    register={register}
                 />
 
                 <CustomTable

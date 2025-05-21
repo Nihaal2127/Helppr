@@ -11,7 +11,6 @@ type CustomServiceUtilityBoxProps = {
     onSortClick: () => void;
     onMoreClick: () => void;
     onSearch: (value: string) => void;
-    register: any;
 };
 
 const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
@@ -20,14 +19,20 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
     onSortClick,
     onMoreClick,
     onSearch,
-    register,
 }) => {
     const [searchValue, setSearchValue] = useState("");
+
+    const handleEnterKey = (e: any) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            onSearch(searchValue);
+        }
+    }
 
     return (
         <div className="custom-utilty-box">
             <div>
-            <div className="custom-search-container">
+                <div className="custom-search-container">
                     <Form.Control
                         className="custom-form-input"
                         type="text"
@@ -35,6 +40,7 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         style={{ width: "24.25rem", fontSize: "14px", fontWeight: "normal", fontFamily: "Inter" }}
+                        onKeyDown={(e) => { handleEnterKey(e) }}
                     />
                     <img src={searchIcon} alt="search" className="custom-search-icon"
                         onClick={() => {
@@ -43,14 +49,13 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
                         }} />
                 </div>
             </div>
-                
 
-                <div className="custom-icon-container">
-                    <img src={downloadIcon} alt="download" onClick={onDownloadClick} />
-                    <img src={sortIcon} alt="sort" onClick={onSortClick} />
-                    <img src={actionIcon} alt="more options" onClick={onMoreClick} />
-                </div>
+            <div className="custom-icon-container">
+                <img src={downloadIcon} alt="download" onClick={onDownloadClick} />
+                <img src={sortIcon} alt="sort" onClick={onSortClick} />
+                <img src={actionIcon} alt="more options" onClick={onMoreClick} />
             </div>
+        </div>
     );
 };
 
