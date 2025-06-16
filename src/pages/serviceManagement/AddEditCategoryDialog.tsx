@@ -54,7 +54,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             const stateOptions = await fetchStateDropDown();
             setState([{ value: "select-all", label: "Select All" }, ...stateOptions]);
 
-            if(isEditable && category){
+            if (isEditable && category) {
                 setStateIds(category.state_ids);
                 setCityIds(category.city_ids);
                 await fetchCityFromApi(category.state_ids);
@@ -77,46 +77,46 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
     const handleStateSelection = async (selectedOptions: { value: string; label: string }[]) => {
         const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-    
+
         let selectedIds: string[] = [];
-    
+
         if (isSelectAllSelected) {
             const allStates = states.filter((state) => state.value !== "select-all");
             const isAllSelected =
                 states.length === allStates.length &&
                 allStates.every((state) => states.includes(state));
-    
+
             selectedIds = isAllSelected ? [] : allStates.map((state) => state.value);
         } else {
             selectedIds = selectedOptions.map((option) => option.value);
         }
-    
+
         setStateIds(selectedIds);
-    
+
         setCity([]);
         setCityIds([]);
-    
+
         if (selectedIds.length > 0) {
             await fetchCityFromApi(selectedIds);
         }
-    };    
+    };
 
     const handleCitySelection = (selectedOptions: { value: string; label: string }[],) => {
         const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
-    
+
         let selectedIds: string[] = [];
-    
+
         if (isSelectAllSelected) {
             const allCity = cities.filter((city) => city.value !== "select-all");
             const isAllSelected =
-            cities.length === allCity.length &&
+                cities.length === allCity.length &&
                 allCity.every((city) => cities.includes(city));
-    
+
             selectedIds = isAllSelected ? [] : allCity.map((city) => city.value);
         } else {
             selectedIds = selectedOptions.map((option) => option.value);
         }
-    
+
         setCityIds(selectedIds);
     };
 
@@ -135,7 +135,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
             let { response, fileList } = await createOrUpdateDocument(formData, isEditable);
             if (response) {
-                if(fileList.length > 0){
+                if (fileList.length > 0) {
                     image_url = fileList[0].toString();
                 }
             }
@@ -248,6 +248,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                                 setReplaceUrl(replaceUrls);
                             }}
                         />
+                        <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
                         <CustomRadioSelection
                             label=""
                             name="is_active"
@@ -281,7 +282,7 @@ AddEditCategoryDialog.show = (isEditable: boolean, category: CategoryModel | nul
         return;
     }
     const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal"; 
+    modalContainer.id = "details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

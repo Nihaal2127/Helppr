@@ -121,7 +121,7 @@ const TicketManagement = () => {
             Header: "Contact Type", accessor: "contact_type",
             Cell: ({ row }: { row: any }) => (
                 <span>
-                    {row.original.status === 1 ? "Mail" : "Call"}
+                    {row.original.contact_type === 1 ? "Mail" : "Call"}
                 </span>
             ),
         },
@@ -178,7 +178,7 @@ const TicketManagement = () => {
                     title=""
                     searchHint="Search ticket name, ID, created name etc."
                     onDownloadClick={async () => {
-                        await exportData(ApiPaths.EXPORT_TICKET())
+                        await exportData(ApiPaths.EXPORT_TICKET)
                     }}
                     onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}

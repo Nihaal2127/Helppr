@@ -13,6 +13,7 @@ import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
 import { ROUTES } from "../../../routes/Routes";
 import { exportData } from "../../../services/exportService";
 import { ApiPaths } from "../../../remote/apiPaths";
+import { AppConstant } from "../../../constant/AppConstant";
 
 const OrderPayments = () => {
     const navigate = useNavigate();
@@ -50,8 +51,8 @@ const OrderPayments = () => {
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        fetchData({ is_paid: "true" });
-    }, []);
+        fetchData({ is_paid: selectedStatus === 1 ? "true" : "false" });
+    }, [currentPage, pageSize]);
 
     const handleStatusClick = async (statusKey: number) => {
         setSelectedStatus(statusKey);
@@ -62,10 +63,12 @@ const OrderPayments = () => {
     const handleFilterChange = async (filters: {
         keyword?: string;
         is_paid?: string;
+        service_status?: string;
         sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
+
         if (Object.keys(filters).length === 0) {
             fetchRef.current = false;
         } else {
@@ -139,7 +142,7 @@ const OrderPayments = () => {
                                 {status.label}
                             </div>
                             <span className="custom-box-count-span mt-2">
-                                {key === 1 ? userData.Received ?? 0 : userData.Pending ?? 0}
+                                {`${AppConstant.currencySymbol}${key === 1 ? userData.Received ?? 0 : userData.Pending ?? 0}`}
                             </span>
                         </div>
                     ))}
@@ -149,9 +152,14 @@ const OrderPayments = () => {
                     title="Order Payments"
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                        await exportData(ApiPaths.EXPORT_FINANCIAL())
+                        await exportData(ApiPaths.EXPORT_ORDER_PAYMENTS, { is_paid: selectedStatus === 1 })
                     }}
-                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
+                    onSortClick={(value) => {
+                        handleFilterChange({
+                            sort: value,
+                            is_paid: selectedStatus === 1 ? "true" : "false"
+                        })
+                    }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

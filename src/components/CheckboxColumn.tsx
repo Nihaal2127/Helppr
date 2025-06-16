@@ -31,7 +31,6 @@ const CheckboxColumn = (
         type="checkbox"
         checked={selectAll}
         onChange={() => {
-          console.log("handleSelectAll");
           handleSelectAll();
         }}
         style={{

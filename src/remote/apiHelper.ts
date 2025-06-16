@@ -76,25 +76,26 @@ export const apiRequest = async (
 
 export const apiRequestBlob = async (
   endpoint: string,
- // payload: any,
+  payload?: any,
 ) => {
   try {
     showLoader();
 
     const headers: HeadersInit = {
       Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-      ...({ "Content-Type": "application/json" }),
+      "Content-Type": "application/json",
+      "Accept-Encoding": "identity"
     };
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
     showLog("API Request URL:", requestUrl);
     //showLog("API header :", headers);
-   // showLog("API payload :", payload);
+    showLog("API payload :", payload);
 
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers,
-      //body: JSON.stringify(payload),
+      ...(payload !== undefined && { body: JSON.stringify(payload) }),
     });
 
     hideLoader();
@@ -105,26 +106,42 @@ export const apiRequestBlob = async (
         ? contentDisposition.split('filename=')[1]?.replace(/['"]/g, '')
         : 'report.xlsx';
 
-      const blob = await response.blob();
+      const contentType = response.headers.get("Content-Type") || "";
+      showLog('contentType', contentType);
 
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
+      if (contentType.includes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
+        const base64Data = await response.text();
+        const binaryData = atob(base64Data);
 
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      showSuccessAlert("Download Successfully");
-      return { success: true };
+        const byteNumbers = new Array(binaryData.length);
+        for (let i = 0; i < binaryData.length; i++) {
+          byteNumbers[i] = binaryData.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: contentType });
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showSuccessAlert("Download Successfully");
+        return { success: true };
+      }
+
+      showErrorAlert("Invalid file format received");
+      return { success: false, message: "Invalid file format received" };
     } else {
       const navigate = getNavigate();
       if (response.status === 500) {
         navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         clearLocalStorage();
-        navigate?.(ROUTES.LOGIN.path);
+        navigate?.(ROUTES.LOGIN.path, { replace: true });
       }
 
       showErrorAlert("Failed to download the file");

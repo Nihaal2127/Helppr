@@ -7,7 +7,7 @@ import { fetchUser } from "../../../services/userService";
 import { UserModel } from "../../../models/UserModel";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
-import { textUnderlineCell } from "../../../helper/utility";
+import { priceCell, textUnderlineCell } from "../../../helper/utility";
 import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
 import { exportData } from "../../../services/exportService";
 import { ApiPaths } from "../../../remote/apiPaths";
@@ -38,7 +38,7 @@ const PartnerPayout = () => {
 
     useEffect(() => {
         fetchData({});
-    }, []);
+    }, [currentPage, pageSize]);
 
     const handleFilterChange = async (filters: {
         keyword?: string;
@@ -67,8 +67,14 @@ const PartnerPayout = () => {
         { Header: "Partner Name", accessor: "name", },
         { Header: "No. of services", accessor: "no_of_services" },
         { Header: "Service Provided", accessor: "completed_service" },
-        { Header: "Total Earnings", accessor: "total_earnings" },
-        { Header: "Bal Payment", accessor: "bal_payment" },
+        {
+            Header: "Total Earnings", accessor: "total_earnings",
+            Cell: priceCell("total_earnings"),
+        },
+        {
+            Header: "Bal Payment", accessor: "bal_payment",
+            Cell: priceCell("bal_payment"),
+        },
         {
             Header: "Action",
             accessor: "action",
@@ -92,7 +98,7 @@ const PartnerPayout = () => {
                     title="Partner Payout"
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                        await exportData(ApiPaths.EXPORT_FINANCIAL())
+                        await exportData(ApiPaths.EXPORT_PARTNER)
                     }}
                     onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}

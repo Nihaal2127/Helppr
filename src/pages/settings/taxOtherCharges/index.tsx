@@ -4,6 +4,7 @@ import { fetchTaxOtherChargesById } from "../../../services/taxOtherChargesServi
 import { TaxOtherChargesModel } from "../../../models/TaxOtherChargesModel";
 import AddEditTaxOtherChargesDialog from "./AddEditTaxOtherChargesDialog";
 import CustomHeader from "../../../components/CustomHeader";
+import { AppConstant } from "../../../constant/AppConstant";
 
 const TaxOtherCharges = () => {
 
@@ -49,25 +50,25 @@ const TaxOtherCharges = () => {
                             <Row>
                                 <Col>
                                     <label className="custom-title-lable">User Platform Fee:</label>
-                                    <label className="custom-subtitle-lable">{taxOtherChargesDetails?.user_platform_fee}</label>
+                                    <label className="custom-subtitle-lable"> {`${taxOtherChargesDetails?.user_platform_fee ? taxOtherChargesDetails?.user_platform_fee : 0}${AppConstant.percentageSymbol}`}</label>
                                 </Col>
                             </Row>
                             <Row>
                                 <Col>
                                     <label className="custom-title-lable">Partner Platform Fee:</label>
-                                    <label className="custom-subtitle-lable">{taxOtherChargesDetails?.partner_platform_fee}</label>
+                                    <label className="custom-subtitle-lable">{`${taxOtherChargesDetails?.partner_platform_fee ? taxOtherChargesDetails?.partner_platform_fee : 0}${AppConstant.percentageSymbol}`}</label>
                                 </Col>
                             </Row>
                             <Row>
                                 <Col>
                                     <label className="custom-title-lable">Partner Commision Fee:</label>
-                                    <label className="custom-subtitle-lable">{taxOtherChargesDetails?.partner_commision_fee}</label>
+                                    <label className="custom-subtitle-lable">{`${taxOtherChargesDetails?.partner_commision_fee ? taxOtherChargesDetails?.partner_commision_fee : 0}${AppConstant.percentageSymbol}`}</label>
                                 </Col>
                             </Row>
                             <Row>
                                 <Col>
                                     <label className="custom-title-lable">Tax For Customer:</label>
-                                    <label className="custom-subtitle-lable">{taxOtherChargesDetails?.tax_for_customer}</label>
+                                    <label className="custom-subtitle-lable">{`${taxOtherChargesDetails?.tax_for_customer ? taxOtherChargesDetails?.tax_for_customer : 0}${AppConstant.percentageSymbol}`}</label>
                                 </Col>
                             </Row>
                             <Button type="submit" className="custom-btn-primary mt-3"

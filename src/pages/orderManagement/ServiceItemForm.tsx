@@ -118,7 +118,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                     service_price: 0,
                     ...calculateServiceDetails(0),
                 };
-                 setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
+                setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
             } else if (field === "service_from_time" || field === "service_to_time") {
                 const updated = { ...updatedServices[index], [field]: value };
                 const { service_from_time, service_to_time, service_price } = updated;
@@ -133,7 +133,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 updatedServices[index] = updated;
                 setValue(`serviceItems.${index}.${field}`, value);
                 setValue(`serviceItems.${index}.service_price`, price);
-               
+
             }
             else {
                 updatedServices[index] = {
@@ -142,8 +142,6 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 };
                 setValue(`serviceItems.${index}.${field}` as any, value);
             }
-
-            console.log("updatedServices:", updatedServices);
             return updatedServices;
         });
     };
@@ -158,13 +156,13 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
         const adminEarning = (userPlatformFee + partnerCommissionPlatformFee);
 
         return {
-            tax: parseFloat(tax.toFixed(2)),
-            sub_total: parseFloat(subTotal.toFixed(2)),
-            user_paltform_fee: parseFloat(userPlatformFee.toFixed(2)),
-            total_price: parseFloat(totalPrice.toFixed(2)),
-            partner_commison_platform_fee: parseFloat(partnerCommissionPlatformFee.toFixed(2)),
-            partner_earning: parseFloat(partnerEarning.toFixed(2)),
-            admin_earning: parseFloat(adminEarning.toFixed(2)),
+            tax: Math.round(tax),
+            sub_total: Math.round(subTotal),
+            user_paltform_fee: Math.round(userPlatformFee),
+            total_price: Math.round(totalPrice),
+            partner_commison_platform_fee: Math.round(partnerCommissionPlatformFee),
+            partner_earning: Math.round(partnerEarning),
+            admin_earning: Math.round(adminEarning),
         };
     };
 
@@ -178,7 +176,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
 
         const roundedHours = parseFloat(hours.toFixed(2));
         const calculatedPrice = roundedHours * pricePerHour;
-        const roundedPrice = parseFloat(calculatedPrice.toFixed(2));
+        const roundedPrice = Math.round(calculatedPrice);
 
         return { hours: roundedHours, price: roundedPrice };
     };

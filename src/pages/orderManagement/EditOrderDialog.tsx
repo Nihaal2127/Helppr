@@ -37,7 +37,7 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
     const onSubmitEvent = async (data: OrderModel) => {
 
         const payload = {
-            order_status: data.order_status,
+            order_status: Number(data.order_status),
             is_paid: data.is_paid,
         };
 

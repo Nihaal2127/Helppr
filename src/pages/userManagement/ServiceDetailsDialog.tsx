@@ -127,7 +127,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                         <CustomServiceUtilityBox
                             searchHint={"Search name, ID, Description etc."}
                             onDownloadClick={async () => {
-                                await exportData(ApiPaths.EXPORT_FINANCIAL())
+                                await exportData(ApiPaths.EXPORT_USER_SERVICE, { service_status: status === null ? 0 : status, user_id: user_id })
                             }}
                             onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                             onMoreClick={() => { }}

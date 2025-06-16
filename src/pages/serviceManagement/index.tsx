@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell } from "../../helper/utility";
+import { capitalizeString, priceCell, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
@@ -130,7 +130,10 @@ const ServiceManagement = () => {
         { Header: "Service Name", accessor: "name" },
         { Header: "Description", accessor: "desc" },
         { Header: "Category", accessor: "category_name" },
-        { Header: "Price", accessor: "price" },
+        {
+            Header: "Price", accessor: "price",
+            Cell: priceCell("price"),
+        },
         { Header: "Helpers", accessor: "helpers" },
         {
             Header: "Status", accessor: "is_active",
@@ -203,10 +206,10 @@ const ServiceManagement = () => {
                     }
                     searchHint={`${selectedBox === "box-category" ? "Search Category name, ID, Description etc." : "Search Service name, ID, Description etc."}`}
                     onDownloadClick={async () => {
-                        selectedBox === "box-category" ? await exportData(ApiPaths.EXPORT_CATEGORY())
-                            : await exportData(ApiPaths.EXPORT_SERVICE())
+                        selectedBox === "box-category" ? await exportData(ApiPaths.EXPORT_CATEGORY)
+                            : await exportData(ApiPaths.EXPORT_SERVICE)
                     }}
-                    onSortClick={(value) => { handleFilterChange({ sort: value })}}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

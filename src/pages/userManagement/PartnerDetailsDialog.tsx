@@ -181,10 +181,10 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                             <Col>
                                 <section className="custom-other-details" style={{ marginLeft: "0px", marginRight: "0px" }}>
                                     <h3>Payment</h3>
-                                    <DetailsRow title="Total Payment" value={userDetails?.total_amount} />
-                                    <DetailsRow title="Paid Amount" value={userDetails?.paid_amount} />
-                                    <DetailsRow title="Balance Amount" value={userDetails?.balance_amount} />
-                                    <DetailsRow title="Refund" value={userDetails?.refund_payment} />
+                                    <DetailsRow title="Total Payment" value={`${AppConstant.currencySymbol}${userDetails?.total_amount ? userDetails?.total_amount : 0}`} />
+                                    <DetailsRow title="Paid Amount" value={`${AppConstant.currencySymbol}${userDetails?.paid_amount ? userDetails?.paid_amount : 0}`} />
+                                    <DetailsRow title="Balance Amount" value={`${AppConstant.currencySymbol}${userDetails?.balance_amount ? userDetails?.balance_amount : 0}`} />
+                                    <DetailsRow title="Refund" value={`${AppConstant.currencySymbol}${userDetails?.refund_payment ? userDetails?.refund_payment : 0}`} />
                                 </section>
 
                                 <section className="custom-other-details" style={{ marginLeft: "0px", marginRight: "0px" }}>

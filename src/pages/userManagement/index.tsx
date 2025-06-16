@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate } from "../../helper/utility";
+import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import { fetchUser } from "../../services/userService";
@@ -106,8 +106,14 @@ const UserManagement = () => {
         { Header: "Service Taken", accessor: "total_service" },
         { Header: "Service Paid", accessor: "service_paid" },
         { Header: "Service Unpaid", accessor: "service_unpaid" },
-        { Header: "Total Amount", accessor: "total_amount" },
-        { Header: "Balance Amount", accessor: "balance_amount" },
+        {
+            Header: "Total Amount", accessor: "total_amount",
+            Cell: priceCell("total_amount"),
+        },
+        {
+            Header: "Balance Amount", accessor: "balance_amount",
+            Cell: priceCell("balance_amount"),
+        },
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
@@ -130,8 +136,14 @@ const UserManagement = () => {
         },
         { Header: "No. of services", accessor: "no_of_services" },
         { Header: "Service Provided", accessor: "completed_service" },
-        { Header: "Total Earnings", accessor: "total_earnings" },
-        { Header: "Bal Payment", accessor: "bal_payment" },
+        {
+            Header: "Total Earnings", accessor: "total_earnings",
+            Cell: priceCell("total_earnings"),
+        },
+        {
+            Header: "Bal Payment", accessor: "bal_payment",
+            Cell: priceCell("bal_payment"),
+        },
         { Header: "Rating", accessor: "rating" },
         {
             Header: "Status", accessor: "is_active",
@@ -212,9 +224,9 @@ const UserManagement = () => {
                     }
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER())
-                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_USER())
-                                : await exportData(ApiPaths.EXPORT_USER())
+                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER)
+                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_PARTNER)
+                                : await exportData(ApiPaths.EXPORT_VERIFICATION_USER)
                     }}
                     onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}

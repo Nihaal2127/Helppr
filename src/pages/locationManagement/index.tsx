@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell } from "../../helper/utility";
+import { capitalizeString, priceCell, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditStateDialog from "./AddEditStateDialog";
 import AddEditCityDialog from "./AddEditCityDialog";
@@ -124,8 +124,10 @@ const LocationManagement = () => {
         },
         { Header: "State Name", accessor: "state_name" },
         { Header: "City Name", accessor: "name" },
-        { Header: "City Service Price", accessor: "city_service_price" },
-
+        {
+            Header: "City Service Price", accessor: "city_service_price",
+            Cell: priceCell("city_service_price"),
+        },
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
@@ -197,10 +199,10 @@ const LocationManagement = () => {
                     }
                     searchHint={`Search ${selectedBox === "box-state" ? "State" : "City"} Name`}
                     onDownloadClick={async () => {
-                        selectedBox === "box-state" ? await exportData(ApiPaths.EXPORT_STATE())
-                            : await exportData(ApiPaths.EXPORT_CITY())
+                        selectedBox === "box-state" ? await exportData(ApiPaths.EXPORT_STATE)
+                            : await exportData(ApiPaths.EXPORT_CITY)
                     }}
-                    onSortClick={(value) => { handleFilterChange({ sort: value })}}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ name: value })}
                 />

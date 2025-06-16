@@ -165,8 +165,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             <Row className="mt-3">
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service ID" value={service.service_info?.service_id} />
-                                    <DetailsRow title="Service Price" value={`\$${service.service_price}`} />
-                                    <DetailsRow title="Total Price" value={`\$${service.total_price}`} />
+                                    <DetailsRow title="Service Price" value={`${AppConstant.currencySymbol}${service.service_price ? service.service_price : 0}`} />
+                                    <DetailsRow title="Total Price" value={`${AppConstant.currencySymbol}${service.total_price ? service.total_price : 0}`} />
                                 </Col>
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="Service Name" value={service.service_info?.name} />
@@ -225,27 +225,27 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                         <Row>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Service Amount: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.sub_total.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.sub_total ? orderDetails?.sub_total.toFixed(2) : 0}`}</label>
                             </Col>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.tax.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.tax ? orderDetails?.tax.toFixed(2) : 0}`}</label>
                             </Col>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>User Platform Fee: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.user_paltform_fee.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.user_paltform_fee ? orderDetails?.user_paltform_fee.toFixed(2) : 0}`}</label>
                             </Col>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Partner Commission Platform Fee: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.partner_commison_platform_fee.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.partner_commison_platform_fee ? orderDetails?.partner_commison_platform_fee.toFixed(2) : 0}`}</label>
                             </Col>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Admin Earning: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>${orderDetails?.admin_earning.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.admin_earning ? orderDetails?.admin_earning.toFixed(2) : 0}`}</label>
                             </Col>
                             <Col xs={12} className="text-end">
                                 <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>${orderDetails?.total_price.toFixed(2)}</label>
+                                <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{`${AppConstant.currencySymbol}${orderDetails?.total_price ? orderDetails?.total_price.toFixed(2) : 0}`}</label>
                             </Col>
                         </Row>
                     </section>

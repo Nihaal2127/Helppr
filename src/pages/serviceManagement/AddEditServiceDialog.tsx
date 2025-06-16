@@ -291,6 +291,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 setReplaceUrl(replaceUrls);
                             }}
                         />
+                        <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
                         <CustomRadioSelection
                             label=""
                             name="is_active"
@@ -324,7 +325,7 @@ AddEditServiceDialog.show = (isEditable: boolean, category: ServiceModel | null,
         return;
     }
     const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal"; 
+    modalContainer.id = "details-modal";
     document.body.appendChild(modalContainer);
     const root = ReactDOM.createRoot(modalContainer);
 

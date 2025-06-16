@@ -29,7 +29,8 @@ const RoleManagement = () => {
 
     const fetchData = useCallback(async (selected: string, filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
@@ -65,7 +66,8 @@ const RoleManagement = () => {
 
     const handleFilterChange = async (filters: {
         keyword?: string;
-        status?: string
+        status?: string;
+        sort?: string;
     }) => {
         setCurrentPage(1);
         setTotalPages(0);
@@ -288,11 +290,11 @@ const RoleManagement = () => {
                     }
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER())
-                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_USER())
-                                : await exportData(ApiPaths.EXPORT_USER())
+                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER_ROLE, { type: 4 })
+                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_USER_ROLE, { type: 2 })
+                                : await exportData(ApiPaths.EXPORT_USER_ROLE, { type: 3 })
                     }}
-                    onSortClick={() => { }}
+                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

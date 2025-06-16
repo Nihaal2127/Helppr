@@ -11,6 +11,7 @@ import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
 import { ROUTES } from "../../../routes/Routes";
 import { exportData } from "../../../services/exportService";
 import { ApiPaths } from "../../../remote/apiPaths";
+import { AppConstant } from "../../../constant/AppConstant";
 
 const PartnerPayments = () => {
     const navigate = useNavigate();
@@ -49,8 +50,8 @@ const PartnerPayments = () => {
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        fetchData({ partner_paid_status: "1" });
-    }, []);
+        fetchData({ partner_paid_status: selectedStatus.toString() });
+    }, [currentPage, pageSize]);
 
     const handleStatusClick = async (statusKey: number) => {
         setSelectedStatus(statusKey);
@@ -101,9 +102,8 @@ const PartnerPayments = () => {
             Cell: priceCell("total_price"),
         },
         {
-            Header: "Partner Earning",
-            accessor: "partner_earning",
-            Cell: ({ value }: { value: number }) => <span>${value}</span>,
+            Header: "Partner Earning", accessor: "partner_earning",
+            Cell: priceCell("partner_earning"),
         },
         // {
         //     Header: "Balance Amount", accessor: "balance_amount",
@@ -136,7 +136,7 @@ const PartnerPayments = () => {
                                 {status.label}
                             </div>
                             <span className="custom-box-count-span mt-2">
-                                {key === 1 ? userData.pending_amount ?? 0 : key === 2 ? userData.completed_amount ?? 0 : userData.returned_amount ?? 0}
+                                {`${AppConstant.currencySymbol}${key === 1 ? userData.pending_amount ?? 0 : key === 2 ? userData.completed_amount ?? 0 : userData.returned_amount ?? 0}`}
                             </span>
                         </div>
                     ))}
@@ -146,9 +146,14 @@ const PartnerPayments = () => {
                     title="Partner Payments"
                     searchHint={"Search name, ID, Description etc."}
                     onDownloadClick={async () => {
-                        await exportData(ApiPaths.EXPORT_FINANCIAL())
+                        await exportData(ApiPaths.EXPORT_PARTNER_PAYMENTS, { partner_paid_status: selectedStatus })
                     }}
-                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
+                    onSortClick={(value) => {
+                        handleFilterChange({
+                            sort: value,
+                            partner_paid_status: selectedStatus.toString()
+                        })
+                    }}
                     onMoreClick={() => { }}
                     onSearch={(value) => handleFilterChange({ keyword: value })}
                 />

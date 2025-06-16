@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { textUnderlineCell, formatDate, priceCell, } from "../../helper/utility";
+import { textUnderlineCell, formatDate, priceCell, showLog, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import { fetchOrder } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
@@ -40,10 +40,10 @@ const OrderManagement = () => {
 
     useEffect(() => {
         refreshData();
-    }, []);
+    }, [selectedStatus, currentPage]);
 
     const refreshData = async () => {
-        await fetchData({ status: "1" });
+        await fetchData({ status: selectedStatus.toString() });
     };
 
     const handleFilterChange = async (filters: {
@@ -101,14 +101,6 @@ const OrderManagement = () => {
         },
     ], [currentPage, pageSize]);
 
-    // const handleExport = async () => {
-    //     if (!startDate || !endDate) {
-    //         showErrorAlert("Please select both Start Date and End Date.");
-    //         return;
-    //     }
-    //     const response = await exportData(ApiPaths.EXPORT_ORDER);
-
-    // };
     return (
         <>
             <div className="main-page-content">
@@ -136,9 +128,14 @@ const OrderManagement = () => {
                         title=""
                         searchHint={"Search name, ID, Description etc."}
                         onDownloadClick={async () => {
-                            await exportData(ApiPaths.EXPORT_ORDER())
+                            await exportData(ApiPaths.EXPORT_ORDER, { order_status: selectedStatus })
                         }}
-                        onSortClick={(value) => { handleFilterChange({ sort: value }) }}
+                        onSortClick={(value) => {
+                            handleFilterChange({
+                                sort: value,
+                                status: selectedStatus.toString(),
+                            })
+                        }}
                         onMoreClick={() => { }}
                         onSearch={(value) => handleFilterChange({ keyword: value })}
                     />

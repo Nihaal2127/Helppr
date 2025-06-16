@@ -1,6 +1,8 @@
 // src/NotificationService.ts
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { showLog } from './helper/utility';
+import { showSuccessAlert } from './helper/alertHelper';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDzaqzSJk94bou_yWMt6aQFbCHtrG_xbHE',
@@ -18,8 +20,6 @@ export const requestPermission = async () => {
     const permission = await Notification.requestPermission();
 
     if (permission === 'granted') {
-      console.log('Notification permission granted.');
-
       const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
 
       const token = await getToken(messaging, {
@@ -27,21 +27,39 @@ export const requestPermission = async () => {
         serviceWorkerRegistration: swReg,
       });
 
-      console.log('FCM Token:', token);
+      showLog('FCM Token:', token);
+      onMessageListener();
       return token;
     } else {
-      console.warn('Notification permission not granted.');
+      showLog('Notification permission not granted.');
     }
   } catch (err) {
-    console.error('Error getting FCM token:', err);
+    showLog('Error getting FCM token:', err);
   }
 };
 
 export const onMessageListener = () =>
-  console.log('onMessageListener ');
   new Promise((resolve) => {
     onMessage(messaging, (payload) => {
-      console.log('Foreground Message data',payload);
       resolve(payload);
+      const { title, body } = payload?.notification || {};
+      if (Notification.permission === 'granted') {
+        new Notification(title || 'Notification', {
+          body: body || '',
+          icon: '/notification/icon-192x192.png',
+        });
+        const notificationAudio = new Audio('/notification/notify.wav');
+        notificationAudio.load();
+        notificationAudio.play().then(() => {
+          notificationAudio?.pause();
+          notificationAudio.currentTime = 0;
+          showLog('✅ Notification sound unlocked');
+        }).catch((err) => {
+          showLog('⚠️ Failed to unlock audio:', err);
+        });
+
+      } else {
+        showLog('Foreground Notification permission not granted');
+      }
     });
   });

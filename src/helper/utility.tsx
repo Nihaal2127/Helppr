@@ -4,6 +4,7 @@ import { RoleEnum } from "../constant/RoleEnum";
 import { OrderStatusEnum } from "../constant/OrderStatusEnum";
 import { NavigateFunction } from "react-router-dom";
 import { ResolveStatusEnum } from "../constant/ResolveStatusEnum";
+import { AppConstant } from "../constant/AppConstant";
 
 let navigate: NavigateFunction;
 
@@ -128,7 +129,7 @@ export const FullDetailsRow = ({ title, value }: { title: string; value: any }) 
     );
 };
 
-export const DashboardCard = ({ title, count, color }: { title: string; count: number, color: string }) => {
+export const DashboardCard = ({ title, count, color }: { title: string; count: any, color: string }) => {
     return (
         <div className="custom-dashboard-border">
             <label className="custom-dashboard-sub-title" style={{ color }}>
@@ -228,7 +229,7 @@ export const priceCell = (field: string) => {
 
         return (
             <span>
-                {value !== undefined && value !== null ? `$${value}` : "-"}
+                {value !== undefined && value !== null ? `${AppConstant.currencySymbol}${value}` : "-"}
             </span>
         );
     };

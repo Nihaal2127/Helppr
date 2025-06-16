@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import CustomTable from "../../../components/CustomTable";
 import { FinancialModel } from "../../../models/FinancialModel";
 import CheckboxColumn from "../../../components/CheckboxColumn";
-import { formatDate, textUnderlineCell } from "../../../helper/utility";
+import { formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
 import { payComission } from "../../../services/orderService";
 import { fetchFinancial } from "../../../services/financialService";
 import PayoutDialog from "./PayoutDialog";
@@ -67,14 +67,12 @@ const ShowPartnerPayout = () => {
       }
     },
     {
-      Header: "Total Price",
-      accessor: "total_price",
-      Cell: ({ value }: { value: number }) => <span>${value}</span>,
+      Header: "Total Price", accessor: "total_price",
+      Cell: priceCell("total_price"),
     },
-    {
-      Header: "Partner Earning",
-      accessor: "partner_earning",
-      Cell: ({ value }: { value: number }) => <span>${value}</span>,
+     {
+      Header: "Partner Earning", accessor: "partner_earning",
+      Cell: priceCell("partner_earning"),
     },
   ], [selectedOrders, currentPage, pageSize]);
 

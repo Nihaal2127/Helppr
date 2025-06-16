@@ -141,7 +141,6 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 setValue(`serviceItems.${index}.${field}` as any, value);
             }
 
-            console.log("updatedServices:",updatedServices);
             return updatedServices;
         });
     };

@@ -1,7 +1,7 @@
 import { apiRequestBlob } from "../remote/apiHelper";
 
 export const exportData = async (path: string, payload?: any) => {
-  const response = await apiRequestBlob(path);
+  const response = await apiRequestBlob(path, payload);
   if (response.success) {
     return true;
   }

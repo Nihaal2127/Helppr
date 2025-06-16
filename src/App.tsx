@@ -7,7 +7,7 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { requestPermission } from './NotificationService';
+import { requestPermission, onMessageListener } from './NotificationService';
 import { setNavigate, showLog } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
@@ -26,13 +26,10 @@ function App() {
   const isAuthRoute = location.pathname.includes("/auth");
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));
 
-
-
   useEffect(() => {
     const fetchPermission = async () => {
       await requestPermission();
     };
-
     fetchPermission();
   }, []);
 
@@ -50,7 +47,6 @@ function App() {
 
   useEffect(() => {
     const token = getLocalStorage(AppConstant.authToken);
-    //showLog("App Token:",token)
     if (token) {
       setIsAuthenticated(true);
       if (location.pathname === ROUTES.LOGIN.path) {

@@ -66,47 +66,54 @@ const CustomTable = (props: CustomTableProps) => {
             borderCollapse: "collapse",
           }}
         >
-          <thead className={props["theadClass"]} style={{ textAlign: "center" }}>
-            {(dataTable.headerGroups || []).map((headerGroup: any) => (
-              <tr {...headerGroup.getHeaderGroupProps()}>
-                {(headerGroup.headers || []).map((column: any) => (
-                  <th
-                    {...column.getHeaderProps(
+          <thead className={props.theadClass} style={{ textAlign: "center" }}>
+            {(dataTable.headerGroups || []).map((headerGroup: any) => {
+              const { key: groupKey, ...groupProps } = headerGroup.getHeaderGroupProps();
+              return (
+                <tr key={groupKey} {...groupProps}>
+                  {(headerGroup.headers || []).map((column: any) => {
+                    const headerProps = column.getHeaderProps(
                       column.sort && column.getSortByToggleProps()
-                    )}
-                    style={{
-                      backgroundColor: "var(--th-color)",
-                      color: "var(--th-txt-color)",
-                      fontFamily: "Inter",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                    }}
-                    className={classNames({
-                      sorting_desc: column.isSortedDesc === true,
-                      sorting_asc: column.isSortedDesc === false,
-                      sortable: column.sort === true,
-                    })}
-                  >
-                    {column.render("Header")}
-                  </th>
-                ))}
-              </tr>
-            ))}
+                    );
+                    const { key: thKey, ...thProps } = headerProps;
+                    return (
+                      <th
+                        key={thKey}
+                        {...thProps}
+                        className={classNames({
+                          sorting_desc: column.isSortedDesc === true,
+                          sorting_asc: column.isSortedDesc === false,
+                          sortable: column.sort === true,
+                        })}
+                        style={{
+                          backgroundColor: "var(--th-color)",
+                          color: "var(--th-txt-color)",
+                          fontFamily: "Inter",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {column.render("Header")}
+                      </th>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </thead>
           <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
-            {(rows && rows.length > 0) ? (
-              (rows || []).map((row: any, i: number) => {
+            {rows && rows.length > 0 ? (
+              rows.map((row: any, i: number) => {
                 dataTable.prepareRow(row);
+                const { key, ...rowProps } = row.getRowProps();
                 return (
-                  <tr {...row.getRowProps()}>
-                    {(row.cells || []).map((cell: any) => {
+                  <tr key={key} {...rowProps}>
+                    {row.cells.map((cell: any) => {
+                      const { key: cellKey, ...cellProps } = cell.getCellProps([
+                        { className: cell.column.className },
+                      ]);
                       return (
-                        <td
-                          {...cell.getCellProps([
-                            {
-                              className: cell.column.className,
-                            },
-                          ])}
+                        <td key={cellKey} {...cellProps}
                           style={{
                             backgroundColor: i % 2 === 0 ? "var(--tr1-txt-color)" : "var(--tr2-txt-color)",
                             color: "var(--content-txt-color)",
