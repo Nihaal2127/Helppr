@@ -12,6 +12,7 @@ import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { showLog } from "../../helper/utility";
+import { ROUTES } from "../../routes/Routes";
 
 const Profile = () => {
 
@@ -211,13 +212,22 @@ const Profile = () => {
                                 fontWeight: 600,
                                 color: "var(--secondary-btn)",
                             }}>Policies</span>
-                            <Link to="#" className="custom-profile-link">
+                            <Link to={ROUTES.TERMS_CONDITIONS.path}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="custom-profile-link">
                                 Terms & Conditions
                             </Link>
-                            <Link to="#" className="custom-profile-link">
+                            <Link to={ROUTES.PRIVACY_POLICY.path}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="custom-profile-link">
                                 Privacy Policy
                             </Link>
-                            <Link to="#" className="custom-profile-link">
+                            <Link to={ROUTES.COOKIES_POLICY.path}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="custom-profile-link">
                                 Cookies Policy
                             </Link>
                         </div>

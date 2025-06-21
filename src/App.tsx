@@ -1,20 +1,20 @@
-import React, { useEffect, useState, Suspense, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Container } from "react-bootstrap";
+import React, { useEffect, useState, Suspense } from "react";
+import { useLocation, useNavigate, matchPath } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import { getLocalStorage } from "./helper/localStorageHelper";
 import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { requestPermission, onMessageListener } from './NotificationService';
-import { setNavigate, showLog } from "./helper/utility";
+import { requestPermission } from './NotificationService';
+import { setNavigate } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
 import "./assets/scss/loader.scss";
 import "./assets/scss/Sidebar.scss";
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { routes } from "./routes/Routes";
 
 function App() {
   const { width } = useViewport();
@@ -24,6 +24,7 @@ function App() {
   const is404Page = location.pathname === "/404";
   const is500Page = location.pathname === "/500";
   const isAuthRoute = location.pathname.includes("/auth");
+  const [isRouteProtected, setIsRouteProtected] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));
 
   useEffect(() => {
@@ -47,6 +48,12 @@ function App() {
 
   useEffect(() => {
     const token = getLocalStorage(AppConstant.authToken);
+    const currentRoute = routes.find((route) =>
+      matchPath(route.path, location.pathname)
+    );
+    const isRouteProtected = currentRoute?.isProtected;
+    setIsRouteProtected(isRouteProtected ? isRouteProtected : false);
+
     if (token) {
       setIsAuthenticated(true);
       if (location.pathname === ROUTES.LOGIN.path) {
@@ -54,15 +61,16 @@ function App() {
       }
     } else {
       setIsAuthenticated(false);
-      if (!location.pathname.startsWith("/auth")) {
+      if (isRouteProtected) {
         navigate(ROUTES.LOGIN.path, { replace: true });
       }
     }
   }, [location.pathname, navigate]);
+
   return (
 
-    <div className={`custom-app-layout ${!isAuthRoute && !is404Page && !is500Page ? "with-sidebar" : "without-sidebar"}`}>
-      {!isAuthRoute && !is404Page && !is500Page && (
+    <div className={`custom-app-layout ${!isAuthRoute && !is404Page && !is500Page && isRouteProtected ? "with-sidebar" : "without-sidebar"}`}>
+      {!isAuthRoute && !is404Page && !is500Page && isRouteProtected && (
         <aside className="custom-sidebar">
           <Suspense fallback={null}>
             <Sidebar />

@@ -19,6 +19,10 @@ const PartnerPayoutShow = React.lazy(() => import("../pages/financial/partnerPay
 const TicketManagement = React.lazy(() => import("../pages/ticketManagement"));
 const Error404 = React.lazy(() => import("../pages/Error404"));
 const Error500 = React.lazy(() => import("../pages/Error500"));
+const PrivacyPolicy = React.lazy(() => import("../pages/PrivacyPolicy"));
+const CookiesPolicy = React.lazy(() => import("../pages/CookiesPolicy"));
+const TermsConditions = React.lazy(() => import("../pages/TermsConditions"));
+const AboutUs = React.lazy(() => import("../pages/AboutUs"));
 
 export const ROUTES = {
   LOGIN: {
@@ -114,6 +118,26 @@ export const ROUTES = {
   ERROR500: {
     path: "/500",
     element: <Error500 />,
+    isProtected: false,
+  },
+  PRIVACY_POLICY: {
+    path: "/privacy-policy",
+    element: <PrivacyPolicy />,
+    isProtected: false,
+  },
+  COOKIES_POLICY: {
+    path: "/cookies-policy",
+    element: <CookiesPolicy />,
+    isProtected: false,
+  },
+   TERMS_CONDITIONS: {
+    path: "/terms-conditions",
+    element: <TermsConditions />,
+    isProtected: false,
+  },
+   ABOUT_US: {
+    path: "/about-us",
+    element: <AboutUs />,
     isProtected: false,
   },
 }
