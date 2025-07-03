@@ -11,6 +11,7 @@ const OrderManagement = React.lazy(() => import("../pages/orderManagement"));
 const Settings = React.lazy(() => import("../pages/settings"));
 const Role = React.lazy(() => import("../pages/settings/role"));
 const TaxOtherCharges = React.lazy(() => import("../pages/settings/taxOtherCharges"));
+const UserHomeCounts = React.lazy(() => import("../pages/settings/userHomeCounts"));
 const Financials = React.lazy(() => import("../pages/financial"));
 const OrderPayments = React.lazy(() => import("../pages/financial/orderPayments"));
 const PartnerPayments = React.lazy(() => import("../pages/financial/partnerPayments"));
@@ -105,6 +106,11 @@ export const ROUTES = {
     element: <TaxOtherCharges />,
     isProtected: true,
   },
+  USER_HOME_COUNTS: {
+    path: "/settings-user-home-counts",
+    element: <UserHomeCounts />,
+    isProtected: true,
+  },
   TICKET_MANAGEMENT: {
     path: "/ticket-management",
     element: <TicketManagement />,
@@ -130,12 +136,12 @@ export const ROUTES = {
     element: <CookiesPolicy />,
     isProtected: false,
   },
-   TERMS_CONDITIONS: {
+  TERMS_CONDITIONS: {
     path: "/terms-conditions",
     element: <TermsConditions />,
     isProtected: false,
   },
-   ABOUT_US: {
+  ABOUT_US: {
     path: "/about-us",
     element: <AboutUs />,
     isProtected: false,
