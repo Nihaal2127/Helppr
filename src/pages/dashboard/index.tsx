@@ -94,7 +94,7 @@ const Dashboard = () => {
                 <Row>
                     <Col sm={8}>
                         <div className="custom-dashboard-card">
-                            <h3 className="custom-dashboard-title">{formatDate(selectedDate)} Services</h3>
+                            <h3 className="custom-dashboard-title">Services</h3>
                             <div className="d-flex gap-2">
                                 <DashboardCard title="Total" count={dashboardDetails!.total_service} color="var(--btn-info)" />
                                 <DashboardCard title="Active" count={dashboardDetails!.active_service} color="var(--btn-success)" />
@@ -102,7 +102,7 @@ const Dashboard = () => {
                             </div>
                         </div>
                         <div className="custom-dashboard-card">
-                            <h3 className="custom-dashboard-title">{formatDate(selectedDate)} Partners</h3>
+                            <h3 className="custom-dashboard-title">Partners</h3>
                             <div className="d-flex gap-2">
                                 <DashboardCard title="Total" count={dashboardDetails!.total_partner} color="var(--btn-info)" />
                                 <DashboardCard title="Active" count={dashboardDetails!.active_partner} color="var(--btn-success)" />

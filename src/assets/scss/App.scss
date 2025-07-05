@@ -229,7 +229,6 @@ body {
   background-color: var(--bg-color);
 }
 
-
 .main-page-content h4 {
   font-weight: bold;
   color: var(--primary-txt-color);
@@ -941,5 +940,14 @@ body {
   .custom-personal-row-value {
     text-align: left;
     white-space: nowrap;
+  }
+
+  .custom-content {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .custom-content::-webkit-scrollbar {
+    display: none;
   }
 }
