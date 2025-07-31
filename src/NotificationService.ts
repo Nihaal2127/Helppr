@@ -5,11 +5,12 @@ import { showLog } from './helper/utility';
 import { showSuccessAlert } from './helper/alertHelper';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyDzaqzSJk94bou_yWMt6aQFbCHtrG_xbHE',
-  authDomain: 'logicraft-infotech.firebaseapp.com',
-  projectId: 'logicraft-infotech',
-  messagingSenderId: '827992132800',
-  appId: '1:827992132800:web:5508462ff14cf02e7bb125',
+  
+  apiKey: 'AIzaSyDbvu_VONThJcXYYp_ikMY4_qyXPUVScbE',
+  authDomain: 'helppr-bc0ba.firebaseapp.com',
+  projectId: 'helppr-bc0ba',
+  messagingSenderId: '944474510158',
+  appId: '1:944474510158:web:14d411b2c94fc9c8d7041f',
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -23,7 +24,7 @@ export const requestPermission = async () => {
       const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
 
       const token = await getToken(messaging, {
-        vapidKey: 'BJUHKd3FSufYi04Wh4BoxoMrkHuPaxMI6uEe28Tvv88J1BeHlg5KOwbQIWDLM18DsFPePvq2wkefKA9VlD8n2lw',
+        vapidKey: 'BLxRotJ_pgm3JdzjDifCxSCabbm9S70cUuUasqpfSO0Ib6wBoaAJQ7gBdrdQkwwmK3V1IEMbUidJUvRXZWqNMbk',
         serviceWorkerRegistration: swReg,
       });
 
