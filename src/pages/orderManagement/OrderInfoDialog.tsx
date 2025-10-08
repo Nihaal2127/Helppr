@@ -119,6 +119,22 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 
                     </section>
 
+                    <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                        <Row className="d-flex justify-content-between align-items-center mb-2">
+                            <h3 className="mb-0">Service Address</h3>
+                            <label
+                                className="col custom-personal-row-value mt-2"
+                                style={{
+                                    whiteSpace: 'normal',
+                                    wordBreak: 'break-word',
+                                    overflowWrap: 'break-word',
+                                }}
+                            >
+                                {orderDetails?.address}
+                            </label>
+                        </Row>
+                    </section>
+
                     <div className="custom-info mt-3">
                         <div>
                             <p>User</p>
