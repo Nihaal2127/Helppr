@@ -27,7 +27,6 @@ export const requestPermission = async () => {
       });
 
       showLog('FCM Token:', token);
-       if (token) localStorage.setItem(AppConstant.deviceToken, token);
       onMessageListener();
       return token;
     } else {
