@@ -4,11 +4,11 @@ importScripts('https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.11.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyDzaqzSJk94bou_yWMt6aQFbCHtrG_xbHE',
-  authDomain: 'logicraft-infotech.firebaseapp.com',
-  projectId: 'logicraft-infotech',
-  messagingSenderId: '827992132800',
-  appId: '1:827992132800:web:5508462ff14cf02e7bb125',
+  apiKey: 'AIzaSyDbvu_VONThJcXYYp_ikMY4_qyXPUVScbE',
+  authDomain: 'helppr-bc0ba.firebaseapp.com',
+  projectId: 'helppr-bc0ba',
+  messagingSenderId: '944474510158',
+  appId: '1:944474510158:web:14d411b2c94fc9c8d7041f',
 });
 
 const messaging = firebase.messaging();

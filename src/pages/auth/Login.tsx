@@ -7,7 +7,7 @@ import { CustomFormInput } from '../../components/CustomFormInput';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../routes/Routes';
 import { login } from "../../services/adminService";
-import { setLocalStorage } from "../../helper/localStorageHelper";
+import { getLocalStorage, setLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from '../../constant/AppConstant';
 
 const Login = () => {
@@ -19,6 +19,7 @@ const Login = () => {
             email: data.email,
             password: data.password,
             type: 1,
+            device_token: getLocalStorage(AppConstant.deviceToken)
         };
         let { admin, response } = await login(payload);
         if (response) {

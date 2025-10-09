@@ -1,11 +1,9 @@
-// src/NotificationService.ts
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { showLog } from './helper/utility';
-import { showSuccessAlert } from './helper/alertHelper';
+import { AppConstant } from './constant/AppConstant';
 
 const firebaseConfig = {
-  
   apiKey: 'AIzaSyDbvu_VONThJcXYYp_ikMY4_qyXPUVScbE',
   authDomain: 'helppr-bc0ba.firebaseapp.com',
   projectId: 'helppr-bc0ba',
@@ -29,6 +27,7 @@ export const requestPermission = async () => {
       });
 
       showLog('FCM Token:', token);
+       if (token) localStorage.setItem(AppConstant.deviceToken, token);
       onMessageListener();
       return token;
     } else {
