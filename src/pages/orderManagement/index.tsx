@@ -3,7 +3,7 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { textUnderlineCell, formatDate, priceCell, showLog, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import { fetchOrder } from "../../services/orderService";
+import { downloadInvoice, fetchOrder } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
 import { OrderModel } from "../../models/OrderModel";
 import OrderInfoDialog from "./OrderInfoDialog";
@@ -13,6 +13,7 @@ import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
 import { ApiPaths } from "../../remote/apiPaths";
+import downloadIcon from "../../assets/icons/download.svg";
 
 const OrderManagement = () => {
     const statuses = Array.from(OrderStatusEnum.entries());
@@ -98,6 +99,19 @@ const OrderManagement = () => {
             Header: "Payment Mode",
             accessor: "payment_mode_id",
             Cell: ({ row }) => PaymentEnum.get(Number(row.original.payment_mode_id))?.label || "-",
+        }, {
+            Header: "Action",
+            accessor: "action",
+            Cell: ({ row }: { row: any }) => (
+                <img
+                    src={downloadIcon}
+                    alt="download"
+                    width={24}
+                    height={24}
+                    className="custom-table-action-view me-2"
+                    onClick={async () =>{await downloadInvoice(row.original._id);}}
+                />
+            ),
         },
     ], [currentPage, pageSize]);
 

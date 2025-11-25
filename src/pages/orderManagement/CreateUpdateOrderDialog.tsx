@@ -306,13 +306,18 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.subTotal ? paymentDetails.subTotal : 0}`}</label>
                                 </Col>
                                 <Col xs={12} className="text-end">
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>User Platform Fee: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.userPlatformFee ? paymentDetails.userPlatformFee : 0}`}</label>
+                                </Col>
+                                <Col xs={12} className="text-end">
                                     <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax: </label>
                                     <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.tax ? paymentDetails.tax : 0}`}</label>
                                 </Col>
                                 <Col xs={12} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>User Platform Fee: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.userPlatformFee ? paymentDetails.userPlatformFee : 0}`}</label>
+                                    <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
+                                    <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{`${AppConstant.currencySymbol}${paymentDetails.totalPrice ? paymentDetails.totalPrice : 0}`}</label>
                                 </Col>
+
                                 <Col xs={12} className="text-end">
                                     <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Partner Commission Platform Fee: </label>
                                     <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.partnerCommissionPlatformFee ? paymentDetails.partnerCommissionPlatformFee : 0}`}</label>
@@ -320,10 +325,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 <Col xs={12} className="text-end">
                                     <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Admin Earning: </label>
                                     <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${paymentDetails.adminEarning ? paymentDetails.adminEarning : 0}`}</label>
-                                </Col>
-                                <Col xs={12} className="text-end">
-                                    <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
-                                    <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{`${AppConstant.currencySymbol}${paymentDetails.totalPrice ? paymentDetails.totalPrice : 0}`}</label>
                                 </Col>
                             </Row>
                         </section>

@@ -2,16 +2,18 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { OrderModel } from "../models/OrderModel";
 import { showLog } from "../helper/utility";
+import { invoicePdfTemplate } from "../pages/invoice/invoicePdfTemplate";
+import html2pdf from "html2pdf.js";
 
 export const fetchOrder = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string ; sort?: string; }
+  filters: { keyword?: string; status?: string; sort?: string; }
 ): Promise<{ response: boolean, orders: OrderModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.keyword && { name: filters.keyword }),
+    ...(filters.keyword && { keyword: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { order_status: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
   });
@@ -122,5 +124,22 @@ export const payComission = async (
   } catch (error) {
     console.error("Error fetching creating order:", error);
     return false;
+  }
+};
+
+export const downloadInvoice = async (orderId: string) => {
+  const { response, order } = await fetchOrderById(orderId);
+  if (response && order) {
+    const invoiceHtml = invoicePdfTemplate(order);
+    const html2pdfOptions = {
+      margin: 0,
+      filename: `invoice_${order.unique_id}.pdf`,
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+    html2pdf()
+      .from(invoiceHtml)
+      .set(html2pdfOptions)
+      .save();
   }
 };

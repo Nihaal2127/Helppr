@@ -119,7 +119,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                     ...calculateServiceDetails(0),
                 };
                 setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
-            } else if (field === "service_from_time" || field === "service_to_time") {
+            } else if (field === "service_from_time" || field === "service_to_time" || field === "per_hour_price") {
                 const updated = { ...updatedServices[index], [field]: value };
                 const { service_from_time, service_to_time, service_price } = updated;
 
@@ -265,10 +265,11 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 controlId={`serviceItems.${index}.per_hour_price`}
                                 placeholder="Enter Hours Price"
                                 register={register}
-                                value={serviceItems[index].per_hour_price ?? getValues(`serviceItems.${index}.per_hour_price` as any)}
+                                // value={serviceItems[index].per_hour_price ?? getValues(`serviceItems.${index}.per_hour_price` as any)}
                                 error={errors.serviceItems?.[index]?.per_hour_price}
                                 validation={{ required: "Price is required" }}
-                                isEditable={false}
+                                //isEditable={false}
+                                onChange={(value) => handleInputChange(index, "per_hour_price", value)}
                             />
                         </Col>
                         <Col xs={3} >

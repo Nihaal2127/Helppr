@@ -15,4 +15,8 @@ export const AppConstant = {
     CART_KEY: "cart",
     currencySymbol: "₹",
     percentageSymbol: "%",
+    companyName: "Helper",
+    helplineNumber: "+61434380737",
+    supportEmail: "info@sostyres.com.au",
+    companyLocation: " 8/41 Lensworth St, Coopers plains,4108, Australia",
 }
