@@ -1,5 +1,3 @@
-import appLogo from "../assets/icons/login_logo.svg";
-
 const TermsConditions = () => {
   return (
     <div
@@ -26,8 +24,7 @@ const TermsConditions = () => {
             gap: "10px",
           }}
         >
-          <img src={appLogo} alt="logo" style={{ height: "40px" }} />
-          <h1 style={{ color: "var(--bg-color)", margin: 0 }}>helper!</h1>
+          <h1 style={{ color: "var(--bg-color)", margin: 0 }}>Helppr</h1>
         </div>
 
         <h1 style={{ color: "var(--bg-color)", marginTop: "20px" }}>
@@ -41,75 +38,78 @@ const TermsConditions = () => {
           lineHeight: "1.6",
         }}
       >
-        <p>
-          We are committed to protecting your privacy in accordance with the Australian Privacy Principles under the Privacy Act 1988 (Cth). This Privacy Policy outlines how we collect, use, disclose, and store your personal information when you visit our website, make a booking, or use our services.
-        </p>
+        <p>Welcome to Helppr. By using our Platform (website, mobile app, or services), you agree to these legally binding Terms and Conditions, which operate under the Indian Contract Act, 1872. Please read them carefully.</p>
 
-        <h2>1. What Personal Information We Collect</h2>
-        <ul>
-          <li>Full name</li>
-          <li>Email address</li>
-          <li>Phone number</li>
-          <li>Billing and shipping address</li>
-          <li>Vehicle make, model, and registration</li>
-          <li>Payment details (via secure third-party providers)</li>
-          <li>IP address and browser type (for website analytics)</li>
-        </ul>
+        <h2>1. Acceptance of Terms</h2>
+        <p>You must be at least 18 years old and legally capable of entering into a contract to use Helppr. Do not use the Platform if you do not agree to these Terms.</p>
+        <p>Your explicit consent to these Terms is obtained through an unchecked consent box during registration or booking, in line with CCPA guidelines on dark patterns (2025).</p>
+        <p>Helppr reserves the right to refuse service at its sole discretion.</p>
 
-        <h2>2. How We Collect Personal Information</h2>
-        <ul>
-          <li>When you submit an enquiry via our website</li>
-          <li>When you make a booking or purchase online or in-store</li>
-          <li>When you contact us via phone, email, or social media</li>
-          <li>Through cookies and website tracking tools (see Section 7)</li>
-        </ul>
+        <h2>2. Services Offered</h2>
+        <p>Helppr functions as an intermediary marketplace, connecting users with verified professionals ("Helpers") for services such as personal assistance, photography, and real estate.</p>
+        <p>Service availability may vary by location. Helppr may modify or discontinue services with prior notice, as per Consumer Protection (E-Commerce) Rules, 2020.</p>
+        <p>Helppr is not a party to the service agreements between users and Helpers.</p>
 
-        <h2>3. Why We Collect Your Information</h2>
-        <ul>
-          <li>To provide our tyre products and vehicle services</li>
-          <li>To confirm bookings and service appointments</li>
-          <li>To process payments and issue receipts/invoices</li>
-          <li>To send service reminders, promotions, and updates (with your consent)</li>
-          <li>To comply with legal obligations</li>
-        </ul>
+        <h2>3. User Responsibilities</h2>
+        <p>Provide accurate information during registration and booking. Inaccurate data may lead to cancellation without refund.</p>
+        <p>Do not misuse the Platform, including contacting Helpers outside the Platform, reverse engineering, or engaging in fraudulent activities. Violations may result in account termination and legal action under the Information Technology Act, 2000.</p>
+        <p>Ensure safe access to your premises for Helpers and comply with all applicable laws.</p>
+        <p>You agree to indemnify Helppr against any claims arising from your misuse of the Platform or interactions with Helpers.</p>
 
-        <h2>4. Disclosure of Personal Information</h2>
-        <p>We do not sell your personal information. We may disclose it to:</p>
-        <ul>
-          <li>Our employees and service technicians</li>
-          <li>Third-party providers</li>
-          <li>Regulatory or law enforcement authorities</li>
-        </ul>
+        <h2>4. Pricing and Payments</h2>
+        <p><strong>Pricing : </strong>Helppr sets service prices in collaboration with Helpers. Prices include taxes (e.g., GST) and fees (e.g., platform or surge fees), all clearly displayed at checkout.</p>
+        <p><strong>Payment Methods : </strong>We accept Credit/Debit Cards (Visa, MasterCard, RuPay), UPI, Net Banking, and Digital Wallets, processed via RBI-authorized gateways. Helppr stores payment data within India as per RBI regulations and does not retain sensitive data (e.g., CVV) beyond necessity.</p>
+        <p><strong>Booking : </strong>Full or partial upfront payment is required, with clear notification. Services are rendered only after payment verification. Unpaid bookings may be canceled with notice.</p>
+        <p><strong>Platform Fees : </strong>Helppr charges a non-refundable platform fee, disclosed at checkout, unless Helppr cancels the service or there is a verified service failure.</p>
+        <p><strong>Payment Protection : </strong>Selected services utilize an RBI-compliant escrow system, holding funds until service completion.</p>
 
-        <h2>5. Data Storage and Security</h2>
-        <p>We take reasonable steps to protect your personal information...</p>
-        <ul>
-          <li>Secure website encryption (SSL)</li>
-          <li>Restricted employee access</li>
-          <li>Regular data backups and security updates</li>
-        </ul>
+        <h2>5. Cancellations and Refunds</h2>
+        <p><strong>By You : </strong>You may cancel via the Platform before service commencement to avoid charges. Cancellations after service begins may incur fees based on the Helper's policy, subject to fair review.</p>
+        <p><strong>By Helper or Helppr : </strong>If a service is canceled by us or the Helper, you will receive a full refund or credit, processed within 5-7 business days.</p>
+        <p><strong>Refunds : </strong>Refunds for verified service failures are issued within 5-7 business days. No refunds are provided for completed services. Disputes are reviewed fairly, with decisions appealable via our grievance redressal process.</p>
 
-        <h2>6. Access and Correction</h2>
-        <p>You have the right to access and correct your data...</p>
+        <h2>6. Taxes</h2>
+        <p>Payments include GST, displayed at checkout. Helppr collects and remits taxes as required. You are responsible for your own tax obligations.</p>
 
-        <h2>7. Cookies and Analytics</h2>
-        <p>Our website uses cookies and third-party tools such as Google Analytics...</p>
+        <h2>7. Service Quality and Liability</h2>
+        <p>Helppr verifies Helpers but does not guarantee service outcomes. You assume risks associated with the services.</p>
+        <p>Report any issues (e.g., damages) within 24 hours via the Platform. While Helppr may investigate, it is not obligated to resolve disputes.</p>
+        <p>Helppr’s liability is limited to the booking amount paid, excluding indirect or consequential damages, as per Indian law.</p>
+        <p>Helppr complies with BIS Guidelines, 2025, and is not liable for non-compliant services rendered by Helpers.</p>
 
-        <h2>8. Direct Marketing</h2>
-        <p>We may send promotional materials or reminders if you have opted in...</p>
+        <h2>8. Intellectual Property</h2>
+        <p>All Platform content, including logos, text, and software, is owned by Helppr or used under license and is protected by Indian copyright laws. You are granted a limited, non-transferable license for personal use.</p>
+        <p>Unauthorized reproduction or commercial use may lead to legal action.</p>
 
-        <h2>9. Contact Us</h2>
-        <p>
-          For questions or complaints, contact: <br />
-          <strong>SOS Tyres & Wheels</strong><br />
-          8/41 Lensworth St, Coopers Plains QLD 4108, Australia<br />
-          Phone: <a href="tel:+61434380737">+61 434 380 737</a><br />
-          Email: <a href="mailto:info@sostyres.com.au">info@sostyres.com.au</a><br />
-          Website: <a href="https://sostyres.com.au">sostyres.com.au</a>
-        </p>
+        <h2>9. Privacy and Data Protection</h2>
+        <p>Your data is handled in accordance with our Privacy Policy and the DPDP Act, 2023. Explicit consent is obtained for data processing, with retention up to 3 years as per DPDP Rules, 2025.</p>
+        <p>Data is used for service delivery, analytics, and marketing (with opt-out options). Payment data is stored in India, as per RBI mandates.</p>
+        <p>You acknowledge the inherent risks of digital platforms despite our reasonable security measures.</p>
 
-        <h2>10. Changes to This Policy</h2>
-        <p>We may update this Privacy Policy from time to time...</p>
+        <h2>10. Disputes and Chargebacks</h2>
+        <p>Report payment errors to info@helppr.in within 48 hours for fair investigation by Helppr.</p>
+        <p>Unauthorized chargebacks may lead to account review, as per CPA guidelines.</p>
+
+        <h2>11. Account Suspension or Termination</h2>
+        <p>Helppr may suspend or terminate your account for abuse, fraud, non-payment, or violations of these Terms, with or without notice.</p>
+        <p>Upon termination, your Platform access will be revoked, and data will be retained as per legal requirements.</p>
+
+        <h2>12. Grievance Redressal</h2>
+        <p>Contact our Grievance Officer ([Name/Designation]) at grievance@helppr.in or +91 6301981170. Grievances are acknowledged within 24 hours and resolved within 15 days, as per CPA.</p>
+        <p>Unresolved issues can be escalated to the Central Consumer Protection Authority or consumer forums.</p>
+
+        <h2>13. Changes to Terms</h2>
+        <p>Helppr may update these Terms with 15 days’ notice via the Platform or email. Your continued use signifies acceptance of the updated Terms.</p>
+
+        <h2>14. Governing Law</h2>
+        <p>These Terms are governed by Indian laws, with jurisdiction in Hyderabad, Telangana courts. Disputes will be resolved amicably or through arbitration under the Arbitration and Conciliation Act, 1996.</p>
+
+        <h2>15. Contact Information</h2>
+        <p><strong>Email:</strong> <a href="mailto:info@helppr.in">info@helppr.in</a></p>
+        <p><strong>Phone:</strong> <a href="tel:+916301981170">+91 6301981170</a></p>
+        <p><strong>Address:</strong> Unit 601, 6th Floor, Manjeera Majestic Commercial, KPHB, Hyderabad-500072</p>
+        <p><strong>Website:</strong> <a href="https://helppr.in">https://helppr.in</a></p>
+
       </section>
     </div>
   );

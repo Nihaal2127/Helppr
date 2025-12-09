@@ -1,5 +1,3 @@
-import appLogo from "../assets/icons/login_logo.svg";
-
 const PrivacyPolicy = () => {
   return (
     <div
@@ -26,8 +24,7 @@ const PrivacyPolicy = () => {
             gap: "10px",
           }}
         >
-          <img src={appLogo} alt="logo" style={{ height: "40px" }} />
-          <h1 style={{ color: "var(--bg-color)", margin: 0 }}>helper!</h1>
+          <h1 style={{ color: "var(--bg-color)", margin: 0 }}>Helppr</h1>
         </div>
 
         <h1 style={{ color: "var(--bg-color)", marginTop: "20px" }}>
@@ -41,75 +38,88 @@ const PrivacyPolicy = () => {
           lineHeight: "1.6",
         }}
       >
-        <p>
-          We are committed to protecting your privacy in accordance with the Australian Privacy Principles under the Privacy Act 1988 (Cth). This Privacy Policy outlines how we collect, use, disclose, and store your personal information when you visit our website, make a booking, or use our services.
+        <p>Helppr, owned by HELPPR (registered at Unit 601, 6th Floor, Manjeera Majestic Commercial, KPHB, Hyderabad-500072), acts as the data fiduciary (controller) for your personal data under the Digital Personal Data Protection Act, 2023 (DPDP Act). This Privacy Policy explains how we collect, process, store, and protect your personal data when you use the Helppr website, mobile application, or services (collectively, the “Platform”). By using the Platform, you provide explicit and verifiable consent to this Policy, in compliance with Indian laws. Please read it carefully.</p>
+
+        <h2>1. Personal Information We Collect</h2>
+
+        <p>We collect the following personal data to provide, improve, and personalize our services:</p>
+        <p><strong>Device Information:</strong> Automatically collected when you access the Platform, including IP address, web browser type, device type, time zone, cookies, and usage data (e.g., pages viewed, search terms, and interactions). This information helps us enhance user experience, detect abuse, and generate anonymized analytics.</p>
+        <p><strong>User-Provided Information : </strong>When you register, book services, or interact with the Platform, we may collect:
+          <ul>
+            <li>Name, email, phone number, address, and city of residence.</li>
+            <li>Payment information (processed via RBI-authorized gateways; sensitive data like CVV is not stored).</li>
+            <li> Optional details (e.g., organization, preferences) for enhanced services or marketing.</li>
+            <li>Feedback, reviews, or communications with us or Helpers.</li>
+          </ul>
         </p>
+        <p><strong>Consent for Collection : </strong>We collect only data necessary for specified purposes, with explicit consent obtained via unchecked consent boxes at registration or booking, as per DPDP Rules, 2025, and CCPA guidelines on dark patterns. You may choose not to provide certain data, which may limit access to some features (e.g., bookings, newsletters).</p>
 
-        <h2>1. What Personal Information We Collect</h2>
+        <h2>2. Why We Process Your Data</h2>
+
+        <p>We process your personal data for the following lawful purposes under the DPDP Act, 2023:</p>
+        <p><strong>Platform Improvement : </strong>To analyze usage patterns, optimize functionality, and enhance user experience using anonymized data.</p>
+        <p><strong>Marketing and Personalization : </strong>To send promotional offers, newsletters, or tailored recommendations, with your explicit consent (opt-out available).</p>
+        <p><strong>Security and Fraud Prevention: </strong>To detect and prevent abuse, fraud, or unauthorized access.</p>
+        <p><strong>Legal Compliance: </strong>To comply with Indian laws, such as tax obligations or regulatory requests.</p>
+        <p><strong>Legitimate Business Interests: </strong>To conduct analytics, improve services, and develop new features, ensuring minimal data usage and anonymization where possible.</p>
+
+        <h2>3. How We Use and Share Your Data</h2>
+        <p>Internal Use: Data is used to provide services, process payments, communicate with you, and improve the Platform.</p>
+        <p><strong>Sharing with Third Parties:</strong></p>
         <ul>
-          <li>Full name</li>
-          <li>Email address</li>
-          <li>Phone number</li>
-          <li>Billing and shipping address</li>
-          <li>Vehicle make, model, and registration</li>
-          <li>Payment details (via secure third-party providers)</li>
-          <li>IP address and browser type (for website analytics)</li>
+          <li><p><strong>Service Providers:</strong> We share necessary data with Helpers to fulfill bookings (e.g., name, address).</p></li>
+          <li><p><strong>Payment Processors:</strong> RBI-authorized gateways securely process payments, with data stored in India as per RBI guidelines.</p></li>
+          <li><p><strong>Analytics and Marketing Partners:</strong> Anonymized or consented data may be shared for analytics or targeted advertising.</p></li>
+          <li><p><strong>Cross-Border Transfers:</strong> Data may be transferred to servers outside India (e.g., for cloud storage) only to jurisdictions approved under DPDP Rules, 2025, with your consent and equivalent data protection standards.</p></li>
         </ul>
 
-        <h2>2. How We Collect Personal Information</h2>
-        <ul>
-          <li>When you submit an enquiry via our website</li>
-          <li>When you make a booking or purchase online or in-store</li>
-          <li>When you contact us via phone, email, or social media</li>
-          <li>Through cookies and website tracking tools (see Section 7)</li>
-        </ul>
+        <p><strong>Consent and Control:</strong> You may withdraw consent for non-essential data processing (e.g., marketing) via settings or by emailing info@helppr.in. Withdrawal does not affect lawful processing already completed.</p>
 
-        <h2>3. Why We Collect Your Information</h2>
-        <ul>
-          <li>To provide our tyre products and vehicle services</li>
-          <li>To confirm bookings and service appointments</li>
-          <li>To process payments and issue receipts/invoices</li>
-          <li>To send service reminders, promotions, and updates (with your consent)</li>
-          <li>To comply with legal obligations</li>
-        </ul>
+        <h2>4. Data Retention</h2>
+        <p>We retain personal data for up to 3 years after your last interaction, as required for large digital platforms under DPDP Rules, 2025, or longer if mandated by law (e.g., tax records under GST laws).</p>
+        <p>Anonymized data may be retained indefinitely for analytics.</p>
+        <p>You may request deletion of non-mandatory data, subject to legal obligations, via grievance@helppr.in.</p>
 
-        <h2>4. Disclosure of Personal Information</h2>
-        <p>We do not sell your personal information. We may disclose it to:</p>
-        <ul>
-          <li>Our employees and service technicians</li>
-          <li>Third-party providers</li>
-          <li>Regulatory or law enforcement authorities</li>
-        </ul>
+        <h2>5. Your Rights</h2>
+        <p>Under the DPDP Act, 2023, and CPA, 2019, you have the following rights:</p>
+        <p><strong>Access:</strong> Request details of your data being processed.</p>
+        <p><strong>Correction:</strong> Request correction of inaccurate data.</p>
+        <p><strong>Deletion:</strong> Request deletion of non-essential data, subject to retention obligations.</p>
+        <p><strong>Portability:</strong> Request a copy of your data in a portable format.</p>
+        <p><strong>Withdraw Consent:</strong> Opt out of non-essential processing (e.g., marketing).</p>
+        <p><strong>Grievance Redressal:</strong> Escalate concerns to our Grievance Officer or the Data Protection Board of India.</p>
+        <p>To exercise these rights, contact our Data Protection Officer at dpo@helppr.in.</p>
 
-        <h2>5. Data Storage and Security</h2>
-        <p>We take reasonable steps to protect your personal information...</p>
-        <ul>
-          <li>Secure website encryption (SSL)</li>
-          <li>Restricted employee access</li>
-          <li>Regular data backups and security updates</li>
-        </ul>
+        <h2>6. Links to Other Websites</h2>
+        <p>Our Platform may contain links to third-party websites not owned or controlled by Helppr. We are not responsible for their privacy practices. Please review their policies before sharing data.</p>
 
-        <h2>6. Access and Correction</h2>
-        <p>You have the right to access and correct your data...</p>
+        <h2>7. Information Security</h2>
+        <p>We implement reasonable administrative, technical, and physical safeguards (e.g., encryption, access controls) to protect your data, in compliance with IT Rules, 2021, and DPDP Act requirements.</p>
+        <p>All payment data is processed via RBI-authorized gateways, with sensitive data stored in India.</p>
+        <p>While we strive to secure your data, no internet transmission is fully secure. You acknowledge this risk when using the Platform.</p>
 
-        <h2>7. Cookies and Analytics</h2>
-        <p>Our website uses cookies and third-party tools such as Google Analytics...</p>
+        <h2>8. Legal Disclosure</h2>
+        <p>We may disclose your data if required by Indian law, including:</p>
+        <p>To comply with court orders, subpoenas, or regulatory requests (e.g., under the IT Act, 2000).</p>
+        <p>To protect Helppr’s rights, safety, or property, or those of users or Helpers.</p>
+        <p>To investigate fraud or respond to government inquiries, with minimal disclosure.</p>
 
-        <h2>8. Direct Marketing</h2>
-        <p>We may send promotional materials or reminders if you have opted in...</p>
+        <h2>9. Grievance Redressal</h2>
+        <p><strong>Grievance Officer:</strong> [Name/Designation], contactable at grievance@helppr.in or +91 6301981170.</p>
+        <p><strong>Data Protection Officer:</strong> [Name/Designation], contactable at dpo@helppr.in for data-related concerns.</p>
+        <p>Grievances will be acknowledged within 24 hours and resolved within 15 days, as per CPA and DPDP Rules. You can escalate unresolved issues to the Central Consumer Protection Authority or Data Protection Board of India.</p>
 
-        <h2>9. Contact Us</h2>
-        <p>
-          For questions or complaints, contact: <br />
-          <strong>SOS Tyres & Wheels</strong><br />
-          8/41 Lensworth St, Coopers Plains QLD 4108, Australia<br />
-          Phone: <a href="tel:+61434380737">+61 434 380 737</a><br />
-          Email: <a href="mailto:info@sostyres.com.au">info@sostyres.com.au</a><br />
-          Website: <a href="https://sostyres.com.au">sostyres.com.au</a>
-        </p>
+        <h2>10. Changes to Privacy Policy</h2>
+        <p>We may update this Policy with at least 15 days’ notice via the Platform or email, as per CPA transparency requirements.</p>
+        <p>Continued use after changes constitutes consent. If you disagree, please stop using the Platform.</p>
 
-        <h2>10. Changes to This Policy</h2>
-        <p>We may update this Privacy Policy from time to time...</p>
+        <h2>11. Contact Information</h2>
+        <p>For questions or concerns about this Policy or your data, please contact us:</p>
+        <p><strong>Email:</strong> <a href="mailto:info@helppr.in">info@helppr.in</a></p>
+        <p><strong>Phone:</strong> <a href="tel:+916301981170">+91 6301981170</a></p>
+        <p><strong>Address:</strong> Unit 601, 6th Floor, Manjeera Majestic Commercial, KPHB, Hyderabad-500072</p>
+        <p><strong>Website:</strong> <a href="https://helppr.in">https://helppr.in</a></p>
+
       </section>
     </div>
   );

@@ -224,12 +224,6 @@ const Profile = () => {
                                 className="custom-profile-link">
                                 Privacy Policy
                             </Link>
-                            <Link to={ROUTES.COOKIES_POLICY.path}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="custom-profile-link">
-                                Cookies Policy
-                            </Link>
                         </div>
                         <Row>
                             <Col sm={6}>
