@@ -5,6 +5,7 @@ import { AppConstant } from "../constant/AppConstant";
 import { clearLocalStorage } from "../helper/localStorageHelper";
 import { ApiPaths } from "./apiPaths";
 import { getNavigate, showLog } from "../helper/utility";
+import { closeAllModals } from "../helper/DialogManager";
 
 export const apiRequest = async (
   endpoint: string,
@@ -57,6 +58,7 @@ export const apiRequest = async (
     } else {
       const navigate = getNavigate();
       if (response.status === 500) {
+        closeAllModals();
         navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         clearLocalStorage();
@@ -138,6 +140,7 @@ export const apiRequestBlob = async (
     } else {
       const navigate = getNavigate();
       if (response.status === 500) {
+        closeAllModals();
         navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         clearLocalStorage();

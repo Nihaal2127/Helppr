@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -10,7 +9,7 @@ import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateTicket } from "../../services/ticketService";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
-import { showLog } from "../../helper/utility";
+import { openDialog} from "../../helper/DialogManager";
 
 type EditTicketDialogProps = {
     isEditable: boolean;
@@ -106,7 +105,7 @@ const EditTicketDialog: React.FC<EditTicketDialogProps> & {
                             isEditable={isEditable}
                             setValue={setValue}
                         />
-                         <CustomTextFieldRadio
+                        <CustomTextFieldRadio
                             label="Resolve Status"
                             name="resolve_status"
                             options={resolveStatus}
@@ -134,28 +133,14 @@ const EditTicketDialog: React.FC<EditTicketDialogProps> & {
 };
 
 EditTicketDialog.show = (isEditable: boolean, ticket: TicketModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("edit-ticket-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "edit-ticket-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("edit-ticket-modal", (close) => (
         <EditTicketDialog
             isEditable={isEditable}
             ticket={ticket}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default EditTicketDialog;

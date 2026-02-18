@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
-import ReactDOM from "react-dom/client";
 import { Modal } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { ServiceStatusEnum } from "../../constant/ServiceStatusEnum";
@@ -12,6 +11,7 @@ import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
+import { openDialog } from "../../helper/DialogManager";
 
 type ServiceDetailsDialogProps = {
     user_id: string;
@@ -155,29 +155,14 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
 };
 
 ServiceDetailsDialog.show = (user_id: string, is_partner: boolean, status: number | null,) => {
-    const existingModal = document.getElementById("service-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "service-details-modal";
-
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("service-details-modal", (close) => (
         <ServiceDetailsDialog
             user_id={user_id}
             is_partner={is_partner}
             status={status}
-            onClose={closeModal}
+            onClose={close}
         />
-    );
+    ));
 };
 
 export default ServiceDetailsDialog;

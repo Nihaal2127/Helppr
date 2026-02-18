@@ -1,5 +1,4 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
@@ -7,6 +6,7 @@ import { showErrorAlert } from "../../../helper/alertHelper";
 import CustomTextField from "../../../components/CustomTextField";
 import { TaxOtherChargesModel } from "../../../models/TaxOtherChargesModel";
 import { createOrUpdateTaxOtherCharges } from "../../../services/taxOtherChargesService"
+import { openDialog } from "../../../helper/DialogManager";
 
 type AddEditTaxOtherChargesDialogProps = {
     isEditable: boolean;
@@ -83,7 +83,7 @@ const AddEditTaxOtherChargesDialog: React.FC<AddEditTaxOtherChargesDialogProps> 
                                 error={errors.user_platform_fee}
                                 validation={{ required: "User platform fee is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Partner Platform Fee"
                                 controlId="partner_platform_fee"
                                 placeholder="Enter partner platform fee"
@@ -91,7 +91,7 @@ const AddEditTaxOtherChargesDialog: React.FC<AddEditTaxOtherChargesDialogProps> 
                                 error={errors.partner_platform_fee}
                                 validation={{ required: "Partner platform fee is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Partner Commision Fee"
                                 controlId="partner_commision_fee"
                                 placeholder="Enter partner commision fee"
@@ -99,7 +99,7 @@ const AddEditTaxOtherChargesDialog: React.FC<AddEditTaxOtherChargesDialogProps> 
                                 error={errors.partner_commision_fee}
                                 validation={{ required: "Partner commision fee is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Tax For Customer"
                                 controlId="tax_for_customer"
                                 placeholder="Enter tax for customer"
@@ -128,28 +128,14 @@ const AddEditTaxOtherChargesDialog: React.FC<AddEditTaxOtherChargesDialogProps> 
 };
 
 AddEditTaxOtherChargesDialog.show = (isEditable: boolean, taxOtherCharges: TaxOtherChargesModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("add-user-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "add-user-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("add-user-details-modal", (close) => (
         <AddEditTaxOtherChargesDialog
             isEditable={isEditable}
             taxOtherCharges={taxOtherCharges}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditTaxOtherChargesDialog;

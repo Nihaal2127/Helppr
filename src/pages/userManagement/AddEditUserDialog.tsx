@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getRoleLabel, getStatusOptions, showLog } from "../../helper/utility";
+import { getRoleLabel, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
@@ -16,6 +15,7 @@ import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
+import { openDialog } from "../../helper/DialogManager";
 
 type AddEditUserDialogProps = {
     role: number;
@@ -274,29 +274,15 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
 };
 
 AddEditUserDialog.show = (role: number, isEditable: boolean, user: UserModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("add-user-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "add-user-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("add-user-details-modal", (close) => (
         <AddEditUserDialog
             role={role}
             isEditable={isEditable}
             user={user}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditUserDialog;

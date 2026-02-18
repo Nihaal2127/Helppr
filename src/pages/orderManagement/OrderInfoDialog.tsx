@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
@@ -13,6 +12,7 @@ import EditOrderServiceDialog from "./EditOrderServiceDialog";
 import EditOrderDialog from "./EditOrderDialog";
 import CancleDialog from "./CancleDialog";
 import { PaymentEnum } from "../../constant/PaymentEnum";
+import { openDialog } from "../../helper/DialogManager";
 
 type OrderInfoDialogProps = {
     orderId: string;
@@ -272,27 +272,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 };
 
 OrderInfoDialog.show = (orderId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("order-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "order-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("order-details-modal", (close) => (
         <OrderInfoDialog
             orderId={orderId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default OrderInfoDialog;

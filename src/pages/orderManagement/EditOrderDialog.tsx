@@ -1,5 +1,4 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -8,6 +7,7 @@ import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import { OrderModel } from "../../models/OrderModel";
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CustomTextFieldSwitch from "../../components/CustomTextFieldSwitch";
+import { openDialog,} from "../../helper/DialogManager";
 
 type EditOrderDialogProps = {
     orderDetails: OrderModel;
@@ -104,27 +104,13 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
 };
 
 EditOrderDialog.show = (orderDetails: OrderModel, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("edit-order-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "edit-order-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("edit-order-modal", (close) => (
         <EditOrderDialog
             orderDetails={orderDetails}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default EditOrderDialog;

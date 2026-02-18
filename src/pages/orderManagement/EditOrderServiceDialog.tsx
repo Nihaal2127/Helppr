@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import ReactDOM from "react-dom/client";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -10,6 +9,7 @@ import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicke
 import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomTextFieldSwitch from "../../components/CustomTextFieldSwitch";
+import { openDialog } from "../../helper/DialogManager";
 
 type EditOrderServiceDialogProps = {
     orderItemModel: OrderItemModel;
@@ -173,27 +173,13 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
 };
 
 EditOrderServiceDialog.show = (orderItemModel: OrderItemModel, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("order-edit-service-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "order-edit-service-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("order-edit-service-modal", (close) => (
         <EditOrderServiceDialog
             orderItemModel={orderItemModel}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default EditOrderServiceDialog;

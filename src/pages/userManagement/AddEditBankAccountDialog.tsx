@@ -1,14 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateBankAccount } from "../../services/bankAccountService";
 import CustomTextField from "../../components/CustomTextField";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
 import { BankAccountModel } from "../../models/BankAccountModel";
+import { openDialog } from "../../helper/DialogManager";
 
 type AddEditBankAccountDialogProps = {
     partnerId: string;
@@ -143,29 +141,15 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
 };
 
 AddEditBankAccountDialog.show = (partnerId: string, isEditable: boolean, bankAccount: BankAccountModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("details-modal", (close) => (
         <AddEditBankAccountDialog
             partnerId={partnerId}
             isEditable={isEditable}
             bankAccount={bankAccount}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditBankAccountDialog;

@@ -1,9 +1,9 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
+import { openDialog } from "../../helper/DialogManager";
 
 type CancleDialogProps = {
     title: string,
@@ -18,7 +18,7 @@ const CancleDialog: React.FC<CancleDialogProps> & {
 
     const onSubmit = (data: any) => {
         onClose && onClose();
-        onCancleOrder(data.cancellation_reason); 
+        onCancleOrder(data.cancellation_reason);
     };
 
     return (
@@ -36,7 +36,7 @@ const CancleDialog: React.FC<CancleDialogProps> & {
                         name="cancle-form"
                         id="cancle-form"
                         onSubmit={handleSubmit(onSubmit)}
-                        >
+                    >
 
                         <Row className="mt-4">
                             <CustomTextField
@@ -64,27 +64,13 @@ const CancleDialog: React.FC<CancleDialogProps> & {
 };
 
 CancleDialog.show = (title: string, onCancleOrder: (reason: string) => void) => {
-    const existingModal = document.getElementById("order-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "order-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("order-modal", (close) => (
         <CancleDialog
             title={title}
-            onClose={closeModal}
+            onClose={close}
             onCancleOrder={onCancleOrder}
         />
-    );
+    ));
 };
 
 export default CancleDialog;

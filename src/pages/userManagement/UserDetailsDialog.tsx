@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -10,6 +9,7 @@ import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../
 import AddEditUserDialog from "./AddEditUserDialog";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import { AppConstant } from "../../constant/AppConstant";
+import { openDialog } from "../../helper/DialogManager";
 
 type UserDetailsDialogProps = {
     userId: string;
@@ -117,27 +117,13 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
 };
 
 UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("user-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "user-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("user-details-modal", (close) => (
         <UserDetailsDialog
             userId={userId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default UserDetailsDialog;

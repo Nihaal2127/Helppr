@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -14,6 +13,7 @@ import { fetchStateDropDown } from "../../services/stateService";
 import { createOrUpdateCategory } from "../../services/categoryService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
+import { openDialog } from "../../helper/DialogManager";
 
 type AddEditCategoryDialogProps = {
     isEditable: boolean;
@@ -277,28 +277,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 };
 
 AddEditCategoryDialog.show = (isEditable: boolean, category: CategoryModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("details-modal", (close) => (
         <AddEditCategoryDialog
             isEditable={isEditable}
             category={category}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditCategoryDialog;

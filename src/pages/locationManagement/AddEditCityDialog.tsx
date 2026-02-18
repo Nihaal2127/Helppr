@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -11,6 +10,7 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchStateDropDown } from "../../services/stateService";
 import { createOrUpdateCity } from "../../services/cityService";
+import { openDialog } from "../../helper/DialogManager";
 
 type AddEditCityDialogProps = {
     isEditable: boolean;
@@ -172,28 +172,14 @@ const AddEditCityDialog: React.FC<AddEditCityDialogProps> & {
 };
 
 AddEditCityDialog.show = (isEditable: boolean, city: CityModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal"; 
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("details-modal", (close) => (
         <AddEditCityDialog
             isEditable={isEditable}
             city={city}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditCityDialog;

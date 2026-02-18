@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { TicketModel } from "../../models/TicketModel";
 import { fetchTicketById } from "../../services/ticketService";
 import editIcon from "../../assets/icons/edit_red.svg"
-import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsResolveStatusRow, FullDetailsRow } from "../../helper/utility";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
-import { AppConstant } from "../../constant/AppConstant";
+import { DetailsRow,formatDate, DetailsResolveStatusRow, FullDetailsRow } from "../../helper/utility";
 import EditTicketDialog from "./EditTicketDialog";
+import { openDialog } from "../../helper/DialogManager";
 
 type TicketDetailsDialogProps = {
     ticketId: string;
@@ -112,27 +109,13 @@ const TicketDetailsDialog: React.FC<TicketDetailsDialogProps> & {
 };
 
 TicketDetailsDialog.show = (ticketId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("ticket-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "ticket-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("ticket-details-modal", (close) => (
         <TicketDetailsDialog
             ticketId={ticketId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default TicketDetailsDialog;

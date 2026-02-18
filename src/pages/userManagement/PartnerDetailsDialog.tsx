@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -7,7 +6,7 @@ import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import deleteIcon from "../../assets/icons/delete_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument, showLog } from "../../helper/utility";
+import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
 import AddEditBankAccountDialog from "./AddEditBankAccountDialog";
 import { DocumentModel } from "../../models/DocumentModel";
@@ -19,6 +18,7 @@ import { showErrorAlert } from "../../helper/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
+import { openDialog } from "../../helper/DialogManager";
 
 type PartnerDetailsDialogProps = {
     userId: string;
@@ -214,27 +214,13 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
 };
 
 PartnerDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("partner-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "partner-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("partner-details-modal", (close) => (
         <PartnerDetailsDialog
             userId={userId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default PartnerDetailsDialog;

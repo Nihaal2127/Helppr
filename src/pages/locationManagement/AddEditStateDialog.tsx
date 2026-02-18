@@ -1,5 +1,4 @@
 import React, { useEffect, } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -9,6 +8,7 @@ import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateState } from "../../services/stateService";
+import { openDialog, } from "../../helper/DialogManager";
 
 type AddEditStateDialogProps = {
     isEditable: boolean;
@@ -126,28 +126,14 @@ AddEditStateDialog.show = (
     state: StateModel | null,
     onRefreshData: () => void
 ) => {
-    const existingModal = document.getElementById("details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "details-modal"; 
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+  openDialog("details-modal", (close) => (
         <AddEditStateDialog
             isEditable={isEditable}
             state={state}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditStateDialog;

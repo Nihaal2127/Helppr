@@ -1,5 +1,4 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
@@ -7,6 +6,7 @@ import { showErrorAlert } from "../../../helper/alertHelper";
 import CustomTextField from "../../../components/CustomTextField";
 import { UserHomeCountsModel } from "../../../models/UserHomeCountsModel";
 import { createOrUpdateUserHomeCounts } from "../../../services/userHomeCountsService"
+import { openDialog } from "../../../helper/DialogManager";
 
 type AddEditUserHomeCountsDialogProps = {
     isEditable: boolean;
@@ -82,7 +82,7 @@ const AddEditUserHomeCountsDialog: React.FC<AddEditUserHomeCountsDialogProps> & 
                                 error={errors.total_distance_travelled}
                                 validation={{ required: "Total distance travelled is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Served"
                                 controlId="served"
                                 placeholder="Enter served"
@@ -90,7 +90,7 @@ const AddEditUserHomeCountsDialog: React.FC<AddEditUserHomeCountsDialogProps> & 
                                 error={errors.served}
                                 validation={{ required: "Served is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Consulted"
                                 controlId="consulted"
                                 placeholder="Enter consulted"
@@ -98,7 +98,7 @@ const AddEditUserHomeCountsDialog: React.FC<AddEditUserHomeCountsDialogProps> & 
                                 error={errors.consulted}
                                 validation={{ required: "Consulted fee is required" }}
                             />
-                             <CustomTextField
+                            <CustomTextField
                                 label="Captured"
                                 controlId="captured"
                                 placeholder="Enter captured"
@@ -127,28 +127,14 @@ const AddEditUserHomeCountsDialog: React.FC<AddEditUserHomeCountsDialogProps> & 
 };
 
 AddEditUserHomeCountsDialog.show = (isEditable: boolean, userHomeCounts: UserHomeCountsModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("add-user-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "add-user-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("add-user-details-modal", (close) => (
         <AddEditUserHomeCountsDialog
             isEditable={isEditable}
             userHomeCounts={userHomeCounts}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AddEditUserHomeCountsDialog;

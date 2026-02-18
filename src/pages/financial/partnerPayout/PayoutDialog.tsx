@@ -1,8 +1,8 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
+import { openDialog} from "../../../helper/DialogManager";
 
 type PayoutDialogProps = {
     totalCommision: number,
@@ -58,27 +58,13 @@ const PayoutDialog: React.FC<PayoutDialogProps> & {
 };
 
 PayoutDialog.show = (totalCommision: number, onHandleOrderPayment: () => void) => {
-    const existingModal = document.getElementById("order-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "order-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+   openDialog("order-modal", (close) => (
         <PayoutDialog
             totalCommision={totalCommision}
-            onClose={closeModal}
+            onClose={close}
             onHandleOrderPayment={onHandleOrderPayment}
         />
-    );
+    ));
 };
 
 export default PayoutDialog;

@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus } from "../../helper/utility";
+import { DetailsRow, formatDate, DetailsRowStatus } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
-import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import { AppConstant } from "../../constant/AppConstant";
 import { RoleEnum } from "../../constant/RoleEnum";
 import PasswordChangeDialog from "./PasswordChangeDialog";
+import { openDialog } from "../../helper/DialogManager";
 
 type EmployeeDetailsDialogProps = {
     userId: string;
@@ -149,27 +148,13 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> & {
 };
 
 EmployeeDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("employee-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "employee-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("employee-details-modal", (close) => (
         <EmployeeDetailsDialog
             userId={userId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default EmployeeDetailsDialog;

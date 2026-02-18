@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { ShowDetailsRow, showLog } from "../../helper/utility";
+import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateOrder } from "../../services/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
@@ -20,6 +19,7 @@ import { AppConstant } from "../../constant/AppConstant";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
+import { openDialog} from "../../helper/DialogManager";
 
 type CreateUpdateOrderDialogProps = {
     isEditable: boolean;
@@ -277,15 +277,17 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
-                        <ServiceItemForm
-                            taxDetails={taxDetails!}
-                            categoryId={selectedCategory}
-                            onChange={setServiceItems}
-                            register={register}
-                            setValue={setValue}
-                            getValues={getValues}
-                            errors={errors}
-                        />
+                        {taxDetails && (
+                            <ServiceItemForm
+                                taxDetails={taxDetails}
+                                categoryId={selectedCategory}
+                                onChange={setServiceItems}
+                                register={register}
+                                setValue={setValue}
+                                getValues={getValues}
+                                errors={errors}
+                            />
+                        )}
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Comments</h3>
                             <CustomFormInput
@@ -348,28 +350,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 };
 
 CreateUpdateOrderDialog.show = (isEditable: boolean, order: OrderModel | null, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("order-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "order-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("order-modal", (close) => (
         <CreateUpdateOrderDialog
             isEditable={isEditable}
             order={order}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default CreateUpdateOrderDialog;

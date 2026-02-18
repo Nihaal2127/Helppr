@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { updateOrderService } from "../../services/orderService";
 import { fetchPartnerDropDown } from "../../services/userService";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
+import { openDialog,} from "../../helper/DialogManager";
 
 type AssignPartnerDialogProps = {
     serviceId: string;
@@ -104,28 +104,14 @@ const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
 };
 
 AssignPartnerDialog.show = (serviceId: string, selectedServiceId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("assign-partner-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "assign-partner-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("assign-partner-modal", (close) => (
         <AssignPartnerDialog
             serviceId={serviceId}
             selectedServiceId={selectedServiceId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default AssignPartnerDialog;

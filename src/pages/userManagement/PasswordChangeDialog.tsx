@@ -1,21 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getRoleLabel, getStatusOptions, showLog } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
-import { fetchCityDropDown } from "../../services/cityService";
-import { fetchStateDropDown } from "../../services/stateService";
 import { createOrUpdateUser } from "../../services/userService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomTextField from "../../components/CustomTextField";
-import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
+import { openDialog } from "../../helper/DialogManager";
 
 type PasswordChangeDialogProps = {
     user: UserModel;
@@ -71,7 +61,7 @@ const PasswordChangeDialog: React.FC<PasswordChangeDialogProps> & {
                                 register={register}
                                 error={errors.password}
                                 validation={{ required: "New password is required" }}
-                                inputType="password"                             
+                                inputType="password"
                                 asCol={false}
                             />
                             <CustomTextField
@@ -109,27 +99,13 @@ const PasswordChangeDialog: React.FC<PasswordChangeDialogProps> & {
 };
 
 PasswordChangeDialog.show = (user: UserModel, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("password-change-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "password-change-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("password-change-modal", (close) => (
         <PasswordChangeDialog
             user={user}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default PasswordChangeDialog;

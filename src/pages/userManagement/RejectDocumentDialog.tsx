@@ -1,11 +1,11 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { updateStatusDocument } from "../../services/partnerDocumentService";
 import CustomTextField from "../../components/CustomTextField";
 import { DocumentModel } from "../../models/DocumentModel";
+import { openDialog } from "../../helper/DialogManager";
 
 type RejectDocumentDialogProps = {
     documentReject: DocumentModel;
@@ -81,27 +81,13 @@ const RejectDocumentDialog: React.FC<RejectDocumentDialogProps> & {
 };
 
 RejectDocumentDialog.show = (documentReject: DocumentModel, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("reject-document-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "reject-document-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("reject-document-modal", (close) => (
         <RejectDocumentDialog
             documentReject={documentReject}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default RejectDocumentDialog;

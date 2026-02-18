@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom/client";
 import { Modal, Col, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -11,6 +10,7 @@ import { updateStatusDocument } from "../../services/partnerDocumentService";
 import { AppConstant } from "../../constant/AppConstant";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import RejectDocumentDialog from "./RejectDocumentDialog";
+import { openDialog } from "../../helper/DialogManager";
 
 type VerificationDetailsDialogProps = {
     userId: string;
@@ -136,27 +136,13 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
 };
 
 VerificationDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-    const existingModal = document.getElementById("user-details-modal");
-    if (existingModal) {
-        return;
-    }
-    const modalContainer = document.createElement("div");
-    modalContainer.id = "user-details-modal";
-    document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
-
-    const closeModal = () => {
-        root.unmount();
-        document.body.removeChild(modalContainer);
-    };
-
-    root.render(
+    openDialog("user-details-modal", (close) => (
         <VerificationDetailsDialog
             userId={userId}
-            onClose={closeModal}
+            onClose={close}
             onRefreshData={onRefreshData}
         />
-    );
+    ));
 };
 
 export default VerificationDetailsDialog;
