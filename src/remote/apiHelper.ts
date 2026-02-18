@@ -70,7 +70,7 @@ export const apiRequest = async (
     }
   } catch (error: any) {
     hideLoader();
-    showErrorAlert("An error occurred during the request.");
+    //showErrorAlert("An error occurred during the request.");
     showLog("API Error:", error);
     return { success: false, error: error.message || "Network error" };
   }
@@ -152,7 +152,7 @@ export const apiRequestBlob = async (
     }
   } catch (error: any) {
     hideLoader();
-    showErrorAlert("An error occurred during the request.");
+    //showErrorAlert("An error occurred during the request.");
     showLog("API Error:", error);
     return { success: false, error: error.message || "Network error" };
   }
