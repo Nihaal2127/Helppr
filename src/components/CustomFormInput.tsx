@@ -42,14 +42,14 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   useEffect(() => {
     const handler = setTimeout(() => {
       if (onChange) {
-        onChange(inputValue); 
+        onChange(inputValue);
       }
     }, 500);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [inputValue]); 
+  }, [inputValue]);
 
   return inputType === "password" ? (
     <Form.Group
@@ -57,7 +57,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label>{label}</Form.Label>}
+      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
       <InputGroup className="mb-0">
         <Form.Control
           className="custom-form-input"
@@ -77,7 +77,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
             fontSize: "14px",
             fontWeight: "normal",
             width: "80%",
-            height: as !== "textarea" ? "2.62rem" : "auto",
+            height: as !== "textarea" ? "35px" : "auto",
             lineHeight: "18px",
             backgroundColor: "var(--bg-color)",
             fontFamily: "'Inter'",
@@ -92,7 +92,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           data-password={showPassword ? "true" : "false"}
           style={{
             width: "40px",
-            height: as !== "textarea" ? "2.62rem" : "auto",
+            height: as !== "textarea" ? "35px" : "auto",
             borderColor: "var(--primary-color)",
             borderRadius: "0 8px 8px 0",
             display: "flex",
@@ -120,7 +120,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label>{label}</Form.Label>}
+      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
       <Form.Control
         className="custom-form-input"
         type={inputType}
@@ -140,7 +140,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           fontSize: "14px",
           fontWeight: "normal",
           width: "100%",
-          height: as !== "textarea" ? "2.62rem" : "auto",
+          height: as !== "textarea" ? "35px" : "auto",
           lineHeight: "18px",
           backgroundColor: "var(--bg-color)",
           fontFamily: "'Inter'",

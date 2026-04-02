@@ -19,6 +19,11 @@ export const mainMenuItems = [
         path: ROUTES.LOCATION_MANAGEMENT.path,
     },
     {
+        key: "franchise-management",
+        label: "Franchise Management",
+        path: ROUTES.FRANCHISE_MANAGEMENT.path,
+    },
+    {
         key: "service-management",
         label: "Service Management",
         path: ROUTES.SERVICE_MANAGEMENT.path,
@@ -29,6 +34,11 @@ export const mainMenuItems = [
         path: ROUTES.USER_MANAGEMENT.path,
     },
     {
+        key: "quote-management",
+        label: "Quote Management",
+        path: ROUTES.QUOTE_MANAGEMENT.path,
+      },
+    {
         key: "order-management",
         label: "Order Management",
         path: ROUTES.ORDER_MANAGEMENT.path,
@@ -38,7 +48,25 @@ export const mainMenuItems = [
         label: "Financials",
         path: ROUTES.FINANCIALS.path,
     },
-    { path: "/reports", label: "Reports & Analytics" },
+    {
+        key: "expenses-management",
+        label: "Expenses Management",
+        path: ROUTES.EXPENSES_MANAGEMENT.path,
+    },
+    { key: "reports", 
+        label: "Reports & Analytics",
+        path: ROUTES.REPORTS.path,
+    },
+    { 
+        key:"partner-management",
+        label: "Partner Management",
+        path: ROUTES.PartnerManagement.path,
+    },
+    {
+        key: "my-franchise",
+        label: "My Franchise",
+        path: ROUTES.MY_FRANCHISE.path,
+    },
     {
         key: "settings",
         label: "Settings",
@@ -49,9 +77,23 @@ export const mainMenuItems = [
         label: "Support Center",
         path: ROUTES.TICKET_MANAGEMENT.path,
     },
-    { path: "/marketing", label: "Marketing & Promotions" },
-    { path: "/notifications", label: "Notifications" },
-    { path: "/calendar", label: "Calendar" },
+    // { path: "/marketing", label: "Marketing & Promotions" },
+    {
+        key: "notifications",
+        label: "Notifications",
+        path: ROUTES.NOTIFICATIONS.path,
+    },
+    {
+        key:"content-management",
+        label: "Content Management",
+        path: ROUTES.CONTENT_MANAGEMENT.path,
+    },
+    {
+        key: "calendar",
+        label: "Calendar",
+        path: ROUTES.CALENDAR_PAGE.path,
+      },
+      
 
 ];
 

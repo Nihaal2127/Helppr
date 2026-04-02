@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
+import { FinancialSubPageBackButton } from "../../../components/FinancialSubPageNav";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import { formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
@@ -119,7 +120,8 @@ const PartnerPayments = () => {
         <>
             <div className="main-page-content">
                 <CustomHeader
-                    title="Financial - Partner Payments"
+                    title="Financial — Partner Payments"
+                    titlePrefix={<FinancialSubPageBackButton />}
                 />
 
                 <div className="d-flex gap-2" style={{ width: "100%" }}>

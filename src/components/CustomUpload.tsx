@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import ReactDOM from "react-dom/client";
+import ReactDOM from "react-dom";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import uploadIcon from '../assets/icons/upload.svg';
@@ -119,20 +119,20 @@ CustomUploadDialog.show = (onUploadSave: (files: File[], replaceUrls: string[]) 
     const modalContainer = document.createElement("div");
     modalContainer.id = "upload-document-modal";
     document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
 
     const closeModal = () => {
-        root.unmount();
+        ReactDOM.unmountComponentAtNode(modalContainer);
         document.body.removeChild(modalContainer);
     };
 
-    root.render(
+    ReactDOM.render(
         <CustomUploadDialog
            // onFileChange={onFileChange}
             onUploadSave={onUploadSave}
             existingImages={existingImages}
             onClose={closeModal}
-        />
+        />,
+        modalContainer
     );
 };
 

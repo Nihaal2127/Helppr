@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { formatDate, textUnderlineCell } from "../../helper/utility";
-import CustomTable from "../../components/CustomTable";
+import CustomTable from "../../components/CustomTable"; 
+import CustomSummaryBox from "../../components/CustomSummaryBox";
 import EditTicketDialog from "./EditTicketDialog";
 import { TicketModel } from "../../models/TicketModel";
 import { fetchTicket, deleteTicket } from "../../services/ticketService";
@@ -12,12 +14,20 @@ import TicketDetailsDialog from "./TicketDetailsDialog";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
+import { ROUTES } from "../../routes/Routes";
+import { normalChatConversations } from "./chatMockData";
+import { groupChatConversations, quoteChatConversations } from "./quoteChatMockData";
+
+type ChatCardType = "normal" | "dispute" | "quote" | "group";
 
 const TicketManagement = () => {
+    const navigate = useNavigate();
     const [ticketList, setTicketList] = useState<TicketModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
+    // Keep cards inactive by default; clicking opens their respective pages.
+    const [selectedChatCard, setSelectedChatCard] = useState<ChatCardType | "">("");
     const fetchRef = useRef(false);
 
     const fetchData = useCallback(async (filters: {
@@ -56,6 +66,23 @@ const TicketManagement = () => {
             await fetchData(filters);
         }
     };
+
+    const orderAllCount = normalChatConversations.length;
+    const orderUnreadThreads = normalChatConversations.filter((c) => c.unreadCount > 0).length;
+    const disputeUnreadCount = ticketList.filter(
+        (ticket: any) => Number(ticket?.status) === 1 && Number(ticket?.resolve_status) === 1
+    ).length;
+    const quoteAllCount = quoteChatConversations.length;
+    const quoteUnreadThreads = quoteChatConversations.filter((c) => c.unreadCount > 0).length;
+    const groupAllCount = groupChatConversations.length;
+    const groupUnreadThreads = groupChatConversations.filter((c) => c.unreadCount > 0).length;
+
+    const chatCards: { id: ChatCardType; title: string; data: Record<string, number> }[] = [
+        { id: "normal", title: "Order Chats", data: { All: orderAllCount, Unread: orderUnreadThreads } },
+        { id: "dispute", title: "Dispute Chats", data: { Open: disputeUnreadCount, Pending: 0, Closed: 0 } },
+        { id: "quote", title: "Quote Chats", data: { All: quoteAllCount, Unread: quoteUnreadThreads } },
+        { id: "group", title: "Group Chats", data: { All: groupAllCount, Unread: groupUnreadThreads } },
+    ];
 
     const columns = React.useMemo(() => [
         {
@@ -143,6 +170,11 @@ const TicketManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
+                    onChat={() => {
+                        navigate(
+                            `${ROUTES.TICKET_MANAGEMENT_DISPUTE_CHAT_VIEW.path}?ticketId=${row.original._id}`
+                        );
+                    }}
                     onEdit={
                         row.original.status === 1
                             ? () => {
@@ -152,9 +184,9 @@ const TicketManagement = () => {
                     }
                     onDelete={async () => {
                         openConfirmDialog(
-                            "Are you sure you want to delete? ",
-                            "Delete",
-                            "Cancle",
+                            "Are you sure you want to void this ticket? ",
+                            "Void",
+                            "Cancel",
                             async () => {
                                 let response = await deleteTicket(row.original._id);
                                 if (response) {
@@ -174,30 +206,116 @@ const TicketManagement = () => {
                     title="Ticket Management"
                 />
 
-                <CustomUtilityBox
-                    title=""
-                    searchHint="Search ticket name, ID, created name etc."
-                    onDownloadClick={async () => {
-                        await exportData(ApiPaths.EXPORT_TICKET)
-                    }}
-                    onSortClick={(value) => { handleFilterChange({ sort: value }) }}
-                    onMoreClick={() => { }}
-                    onSearch={(value) => handleFilterChange({ keyword: value })}
-                />
+                <div className="box-container mb-3">
+                    {chatCards.map((card) => (
+                        <CustomSummaryBox
+                            key={card.id}
+                            divId={card.id}
+                            title={card.title}
+                            data={card.data}
+                            onSelect={(divId) => {
+                                const cardId = divId as ChatCardType;
+                                if (cardId === "normal") {
+                                    setSelectedChatCard(cardId);
+                                    navigate(ROUTES.TICKET_MANAGEMENT_NORMAL_CHAT.path);
+                                    return;
+                                }
+                                if (cardId === "dispute") {
+                                    setSelectedChatCard(cardId);
+                                    navigate(ROUTES.TICKET_MANAGEMENT_DISPUTE_CHAT.path);
+                                    return;
+                                }
+                                if (cardId === "quote") {
+                                    setSelectedChatCard(cardId);
+                                    navigate(ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT.path);
+                                    return;
+                                }
+                                if (cardId === "group") {
+                                    setSelectedChatCard(cardId);
+                                    navigate(ROUTES.TICKET_MANAGEMENT_GROUP_CHAT.path);
+                                    return;
+                                }
+                                setSelectedChatCard(cardId);
+                            }}
+                            isSelected={selectedChatCard === card.id}
+                            onFilterChange={() => { }}
+                            onItemClick={(key) => {
+                                if (card.id === "normal") {
+                                    if (key === "Unread") {
+                                        navigate(`${ROUTES.TICKET_MANAGEMENT_NORMAL_CHAT.path}?filter=unread`);
+                                    } else {
+                                        navigate(ROUTES.TICKET_MANAGEMENT_NORMAL_CHAT.path);
+                                    }
+                                }
+                                if (card.id === "quote") {
+                                    if (key === "Unread") {
+                                        navigate(`${ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT.path}?filter=unread`);
+                                    } else {
+                                        navigate(ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT.path);
+                                    }
+                                }
+                                if (card.id === "group") {
+                                    if (key === "Unread") {
+                                        navigate(`${ROUTES.TICKET_MANAGEMENT_GROUP_CHAT.path}?filter=unread`);
+                                    } else {
+                                        navigate(ROUTES.TICKET_MANAGEMENT_GROUP_CHAT.path);
+                                    }
+                                }
+                                if (card.id === "dispute") {
+                                    navigate(ROUTES.TICKET_MANAGEMENT_DISPUTE_CHAT.path);
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
 
-                <CustomTable
-                    columns={columns}
-                    data={ticketList}
-                    pageSize={pageSize}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={(page: number) => setCurrentPage(page)}
-                    onLimitChange={(pageSize: number) => {
-                        setPageSize(pageSize);
-                        setCurrentPage(1);
-                    }}
-                    theadClass="table-light"
-                />
+                {false && (
+                    <>
+                        <CustomUtilityBox
+                            title=""
+                            searchHint="Search ticket name, ID, created name etc."
+                            onDownloadClick={async () => {
+                                await exportData(ApiPaths.EXPORT_TICKET)
+                            }}
+                            onSortClick={(value) => { handleFilterChange({ sort: value }) }}
+                            onMoreClick={() => { }}
+                            onSearch={(value) => handleFilterChange({ keyword: value })}
+                        />
+
+                        <CustomTable
+                            columns={columns}
+                            data={ticketList}
+                            pageSize={pageSize}
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={(page: number) => setCurrentPage(page)}
+                            onLimitChange={(pageSize: number) => {
+                                setPageSize(pageSize);
+                                setCurrentPage(1);
+                            }}
+                            theadClass="table-light"
+                        />
+                    </>
+                )}
+
+                {false && (
+                    <div className="custom-profile-box">
+                        <div
+                            style={{
+                                minHeight: 180,
+                                border: "1px dashed var(--lb1-border)",
+                                borderRadius: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "var(--txt-color)",
+                                fontSize: 14,
+                            }}
+                        >
+                            Quote chat section will be added here.
+                        </div>
+                    </div>
+                )}
 
             </div>
         </>

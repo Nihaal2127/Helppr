@@ -2,7 +2,6 @@ export interface CityModel {
     _id: string;
     name: string;
     city_id:string;
-    city_service_price: number;
     state_id: string;
     is_active: boolean;
     deleted_at: string | null;

@@ -255,13 +255,12 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
                             />
                         </Row>
                         <Row className="mt-4">
-                            <Col xs={6} className="text-center">
+                            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
                                 <Button type="submit" className="custom-btn-primary" >
                                     {isEditable ? "Update" : "Add"}
                                 </Button>
-                            </Col>
-                            <Col xs={6} className="text-center" onClick={onClose}>
-                                <Button className="custom-btn-secondary">
+                            
+                                <Button className="custom-btn-secondary" onClick={onClose}>
                                     Cancel
                                 </Button>
                             </Col>

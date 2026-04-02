@@ -79,7 +79,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
   return (
     <Col sm={12}>
       <div className="mb-3">
-        <label className="me-3 mb-3 mt-3">{label}</label>
+        <label className="me-3 mb-1 mt-3 fw-medium">{label}</label>
         {fileInputs.map((file, index) => (
           <div key={index} className="d-flex align-items-center mb-2">
             {isEditable && existingImages[index] && !file ? (

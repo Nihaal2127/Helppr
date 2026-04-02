@@ -36,6 +36,17 @@ export interface UserModel {
   updated_at: string | null;
   total_amount: number | 0;
 
+  /** Partner payout / wallet list (when API sends them). */
+  total_wallet_amount?: number | null;
+  last_withdraw_amount?: number | null;
+  last_withdraw_date?: string | null;
+  /** Text label for wallet type / rules (API may use other keys — map in UI if needed). */
+  wallet_definition?: string | null;
+
+  no_of_services?: number | null;
+  total_earnings?: number | null;
+  bal_payment?: number | null;
+
   total_payment: number | 0;
   paid_amount: number | 0;
   balance_amount: string | null;

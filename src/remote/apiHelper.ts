@@ -11,10 +11,11 @@ export const apiRequest = async (
   endpoint: string,
   method: "GET" | "POST" | "PUT" | "DELETE",
   payload?: any,
-  isMultipart: boolean = false
+  isMultipart: boolean = false,
+  skipLoader: boolean = false
 ) => {
   try {
-    showLoader();
+    if (!skipLoader) showLoader();
 
     const headers: HeadersInit = {
       Authorization: `Bearer ${localStorage.getItem("authToken")}`,
@@ -25,7 +26,8 @@ export const apiRequest = async (
     showLog("API Request URL:", requestUrl);
     showLog("API header :", headers);
     showLog("isMultipart :", isMultipart);
-    if (isMultipart) {
+
+    if (isMultipart && payload) {
       payload.forEach((value: FormDataEntryValue, key: string) => {
         showLog("API FormData :", `${key}: ${value}`);
       });
@@ -36,16 +38,28 @@ export const apiRequest = async (
     const response = await fetch(requestUrl, {
       method,
       headers,
-      body: isMultipart ? payload : JSON.stringify(payload),
+      ...(method !== "GET" && payload !== undefined
+        ? { body: isMultipart ? payload : JSON.stringify(payload) }
+        : {}),
     });
 
-    hideLoader();
+    if (!skipLoader) hideLoader();
 
-    const data = await response.json();
+    const responseText = await response.text();
+    let data: any = {};
+
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { message: responseText || "Invalid server response" };
+    }
+
     showLog("API Response:", data);
+
     if (response.ok) {
       if (method !== "GET") {
-        if (endpoint !== ApiPaths.LOGOUT() &&
+        if (
+          endpoint !== ApiPaths.LOGOUT() &&
           endpoint !== ApiPaths.DOCUMENT_UPLOAD &&
           endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
           endpoint !== ApiPaths.GET_COUNT
@@ -57,6 +71,7 @@ export const apiRequest = async (
       return { success: true, data };
     } else {
       const navigate = getNavigate();
+
       if (response.status === 500) {
         closeAllModals();
         navigate?.(ROUTES.ERROR500.path);
@@ -65,14 +80,21 @@ export const apiRequest = async (
         navigate?.(ROUTES.LOGIN.path);
       }
 
-      showErrorAlert(data.message);
-      return { success: false, status: data.status, message: data.message };
+      showErrorAlert(data.message || "Request failed");
+      return { success: false, status: response.status, message: data.message || "Request failed" };
     }
   } catch (error: any) {
-    hideLoader();
-    //showErrorAlert("An error occurred during the request.");
+    if (!skipLoader) hideLoader();
     showLog("API Error:", error);
-    return { success: false, error: error.message || "Network error" };
+
+    const errorMessage =
+      error?.message === "Failed to fetch"
+        ? "Request failed. Please check API access."
+        : error?.message || "Network error";
+
+    showErrorAlert(errorMessage);
+
+    return { success: false, error: errorMessage };
   }
 };
 

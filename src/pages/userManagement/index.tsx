@@ -5,7 +5,7 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import { fetchUser } from "../../services/userService";
+import { deleteUser, fetchUser } from "../../services/userService";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
@@ -13,6 +13,9 @@ import VerificationDetailsDialog from "./VerificationDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
+import CustomActionColumn from "../../components/CustomActionColumn";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { useForm } from "react-hook-form";
 
 const UserManagement = () => {
     const [selectedBox, setSelectedBox] = useState<string>("box-user");
@@ -25,7 +28,7 @@ const UserManagement = () => {
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
     const fetchRef = useRef(false);
-
+    const { register, setValue } = useForm();
     const fetchData = useCallback(async (selected: string, filters: {
         keyword?: string;
         status?: string;
@@ -35,8 +38,8 @@ const UserManagement = () => {
         fetchRef.current = true;
         const { responseCount, countModel } = await getCount(3);
         if (responseCount && countModel) {
-            setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user });
-            setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner });
+            setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user, Blocked: countModel.blocked_user });
+            setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner, Blocked: countModel.blocked_partner });
             setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
         }
         if (selected === "box-verification") {
@@ -89,6 +92,20 @@ const UserManagement = () => {
         VerificationDetailsDialog.show(userId, () => refreshData("box-verification"))
     }
 
+    const handleUserDelete = (id: string, selected: "box-user" | "box-partner") => {
+        openConfirmDialog(
+            "Are you sure you want to void this user? ",
+            "Void",
+            "Cancel",
+            async () => {
+                const response = await deleteUser(id);
+                if (response) {
+                    refreshData(selected);
+                }
+            }
+        );
+    };
+
     const userColumns = React.useMemo(() => [
         {
             Header: "SR No",
@@ -101,7 +118,6 @@ const UserManagement = () => {
         },
         {
             Header: "User Name", accessor: "name",
-            Cell: textUnderlineCell("name", (row) => userShow(row._id)),
         },
         { Header: "Service Taken", accessor: "total_service" },
         { Header: "Service Paid", accessor: "service_paid" },
@@ -118,6 +134,16 @@ const UserManagement = () => {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
         },
+        {
+            Header: "Action",
+            accessor: "action",
+            Cell: ({ row }: { row: any }) => (
+                <CustomActionColumn
+                    row={row}
+                    onDelete={() => handleUserDelete(row.original._id, "box-user")}
+                />
+            ),
+        },
     ], [currentPage, pageSize]);
 
     const partnerColumns = React.useMemo(() => [
@@ -132,7 +158,6 @@ const UserManagement = () => {
         },
         {
             Header: "Partner Name", accessor: "name",
-            Cell: textUnderlineCell("name", (row) => partnerShow(row._id)),
         },
         { Header: "No. of services", accessor: "no_of_services" },
         { Header: "Service Provided", accessor: "completed_service" },
@@ -148,6 +173,16 @@ const UserManagement = () => {
         {
             Header: "Status", accessor: "is_active",
             Cell: statusCell("is_active"),
+        },
+        {
+            Header: "Action",
+            accessor: "action",
+            Cell: ({ row }: { row: any }) => (
+                <CustomActionColumn
+                    row={row}
+                    onDelete={() => handleUserDelete(row.original._id, "box-partner")}
+                />
+            ),
         },
     ], [currentPage, pageSize]);
 
@@ -190,6 +225,8 @@ const UserManagement = () => {
             <div className="main-page-content">
                 <CustomHeader
                     title="User Management"
+                    register={register}
+                    setValue={setValue}
                 />
 
                 <div className="box-container">

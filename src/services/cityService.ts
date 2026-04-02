@@ -5,7 +5,7 @@ import { showLog } from "../helper/utility";
 
 export const fetchCityDropDown = async (
   stateIdList?: string[],
-): Promise<{ value: string; label: string }[]> => {
+): Promise<{ value: string; label: string; state_id?: string }[]> => {
   const params = stateIdList ? new URLSearchParams({ state_id: stateIdList.toString() }) : "";
 
   const response = await apiRequest(
@@ -17,6 +17,7 @@ export const fetchCityDropDown = async (
     return response.data.records.map((city: any) => ({
       value: city._id,
       label: city.name,
+      state_id: city.state_id,
     }));
   } else {
     showLog(response.message || "Failed to fetch city");
@@ -27,7 +28,7 @@ export const fetchCityDropDown = async (
 export const fetchCity = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string; sort?: string; }
+  filters: { name?: string; status?: string; sort?: string; state_id?: string; }
 ): Promise<{ response: boolean, cities: CityModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     page: String(page),
@@ -35,6 +36,7 @@ export const fetchCity = async (
     ...(filters.name && { name: filters.name }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
+    ...(filters.state_id && { state_id: filters.state_id }),
   });
 
   const response = await apiRequest(

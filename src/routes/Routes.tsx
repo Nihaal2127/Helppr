@@ -1,30 +1,69 @@
 import React from "react";
+import LocationManagementPage from "../pages/locationManagement";
 
-const Login = React.lazy(() => import("../pages/auth/Login"));
-const ForgotPassword = React.lazy(() => import("../pages/auth/ForgotPassword"));
-const Dashboard = React.lazy(() => import("../pages/dashboard"));
-const Profile = React.lazy(() => import("../pages/profile"));
-const LocationManagement = React.lazy(() => import("../pages/locationManagement"));
-const ServiceManagement = React.lazy(() => import("../pages/serviceManagement"));
-const UserManagement = React.lazy(() => import("../pages/userManagement"));
-const OrderManagement = React.lazy(() => import("../pages/orderManagement"));
-const Settings = React.lazy(() => import("../pages/settings"));
-const Role = React.lazy(() => import("../pages/settings/role"));
-const TaxOtherCharges = React.lazy(() => import("../pages/settings/taxOtherCharges"));
-const UserHomeCounts = React.lazy(() => import("../pages/settings/userHomeCounts"));
-const Financials = React.lazy(() => import("../pages/financial"));
-const OrderPayments = React.lazy(() => import("../pages/financial/orderPayments"));
-const PartnerPayments = React.lazy(() => import("../pages/financial/partnerPayments"));
-const PartnerPayout = React.lazy(() => import("../pages/financial/partnerPayout"));
-const PartnerPayoutShow = React.lazy(() => import("../pages/financial/partnerPayout/show"));
-const TicketManagement = React.lazy(() => import("../pages/ticketManagement"));
-const Error404 = React.lazy(() => import("../pages/Error404"));
-const Error500 = React.lazy(() => import("../pages/Error500"));
-const PrivacyPolicy = React.lazy(() => import("../pages/PrivacyPolicy"));
-const TermsConditions = React.lazy(() => import("../pages/TermsConditions"));
-const AboutUs = React.lazy(() => import("../pages/AboutUs"));
-const PartnerPrivacyPolicy = React.lazy(() => import("../pages/PartnerPrivacyPolicy"));
-const PartnerTermsConditions = React.lazy(() => import("../pages/PartnerTermsConditions"));
+const lazyPage = (importer: () => Promise<any>) =>
+  React.lazy(() =>
+    importer().then((module: any) => {
+      const m = module ?? {};
+      if (m.default != null) {
+        return { default: m.default };
+      }
+      const keys = Object.keys(m).filter((k) => k !== "__esModule");
+      for (const k of keys) {
+        const exp = m[k];
+        if (typeof exp === "function") {
+          return { default: exp };
+        }
+      }
+      return { default: m.default };
+    })
+  );
+
+const Login = lazyPage(() => import("../pages/auth/Login"));
+const ForgotPassword = lazyPage(() => import("../pages/auth/ForgotPassword"));
+const Dashboard = lazyPage(() => import("../pages/dashboard"));
+const Profile = lazyPage(() => import("../pages/profile"));
+const FranchiseManagement = lazyPage(() => import("../pages/franchiseManagement"));
+const ServiceManagement = lazyPage(() => import("../pages/serviceManagement"));
+const UserManagement = lazyPage(() => import("../pages/userManagement"));
+const OrderManagement = lazyPage(() => import("../pages/orderManagement"));
+const Settings = lazyPage(() => import("../pages/settings"));
+const Role = lazyPage(() => import("../pages/settings/role"));
+const TaxOtherCharges = lazyPage(() => import("../pages/settings/taxOtherCharges"));
+const UserHomeCounts = lazyPage(() => import("../pages/settings/userHomeCounts"));
+const OffersManagement = lazyPage(() => import("../pages/settings/offers"));
+const ExpenseCategoryManagement = lazyPage(() => import("../pages/settings/expenseCategory"));
+const Financials = lazyPage(() => import("../pages/financial"));
+const OrderPayments = lazyPage(() => import("../pages/financial/orderPayments"));
+const PartnerPayments = lazyPage(() => import("../pages/financial/partnerPayments"));
+const PartnerPayout = lazyPage(() => import("../pages/financial/partnerPayout"));
+const PartnerPayoutShow = lazyPage(() => import("../pages/financial/partnerPayout/show"));
+const FinancialRefunds = lazyPage(() => import("../pages/financial/refunds"));
+const TicketManagement = lazyPage(() => import("../pages/ticketManagement"));
+const Error404 = lazyPage(() => import("../pages/Error404"));
+const Error500 = lazyPage(() => import("../pages/Error500"));
+const PrivacyPolicy = lazyPage(() => import("../pages/PrivacyPolicy"));
+const TermsConditions = lazyPage(() => import("../pages/TermsConditions"));
+const AboutUs = lazyPage(() => import("../pages/AboutUs"));
+const PartnerPrivacyPolicy = lazyPage(() => import("../pages/PartnerPrivacyPolicy"));
+const PartnerTermsConditions = lazyPage(() => import("../pages/PartnerTermsConditions"));
+const CalendarPage = lazyPage(() => import("../pages/calendar"));
+const QuoteManagement = lazyPage(() => import("../pages/quoteManagement"));
+const Reports = lazyPage(() => import("../pages/reports/Index"));
+const NotificationsPage = lazyPage(() => import("../pages/notifications"));
+const ExpensesManagement = lazyPage(() => import("../pages/expenses"));
+const NormalChatListPage = React.lazy(() => import("../pages/ticketManagement/NormalChatListPage"));
+const NormalChatConversationPage = React.lazy(() => import("../pages/ticketManagement/NormalChatConversationPage"));
+const DisputeChatConversationPage = React.lazy(() => import("../pages/ticketManagement/DisputeChatConversationPage"));
+const DisputeChatListPage = React.lazy(() => import("../pages/ticketManagement/DisputeChatListPage"));
+const QuoteChatListPage = React.lazy(() => import("../pages/ticketManagement/QuoteChatListPage"));
+const QuoteChatConversationPage = React.lazy(() => import("../pages/ticketManagement/QuoteChatConversationPage"));
+const GroupChatConversationPage = React.lazy(() => import("../pages/ticketManagement/GroupChatConversationPage"));
+const PartnerManagement = React.lazy(() => import("../pages/partnerManagement"));
+const MyFranchise = lazyPage(() => import("../pages/myFranchise"));
+const ContentManagement = React.lazy(() => import("../pages/contentManagement"));
+const AddEditContent = React.lazy(() => import("../pages/contentManagement/AddEditContent"));
+const GeneralSettings = React.lazy(() => import("../pages/settings/generalSettings"));
 
 export const ROUTES = {
   LOGIN: {
@@ -49,7 +88,12 @@ export const ROUTES = {
   },
   LOCATION_MANAGEMENT: {
     path: "/location-management",
-    element: <LocationManagement />,
+    element: <LocationManagementPage />,
+    isProtected: true,
+  },
+  FRANCHISE_MANAGEMENT: {
+    path: "/franchise-management",
+    element: <FranchiseManagement />,
     isProtected: true,
   },
   SERVICE_MANAGEMENT: {
@@ -92,6 +136,11 @@ export const ROUTES = {
     element: <PartnerPayoutShow />,
     isProtected: true,
   },
+  FINANCIAL_REFUNDS: {
+    path: "/financial-refunds",
+    element: <FinancialRefunds />,
+    isProtected: true,
+  },
   SETTINGS: {
     path: "/settings",
     element: <Settings />,
@@ -110,6 +159,21 @@ export const ROUTES = {
   USER_HOME_COUNTS: {
     path: "/settings-user-home-counts",
     element: <UserHomeCounts />,
+    isProtected: true,
+  },
+  OFFERS_MANAGEMENT: {
+    path: "/settings-offers",
+    element: <OffersManagement />,
+    isProtected: true,
+  },
+  GENERAL_SETTINGS: {
+    path: "/settings-general",
+    element: <GeneralSettings />,
+    isProtected: true,
+  },
+  EXPENSE_CATEGORY_MANAGEMENT: {
+    path: "/settings-expense-categories",
+    element: <ExpenseCategoryManagement />,
     isProtected: true,
   },
   TICKET_MANAGEMENT: {
@@ -152,6 +216,91 @@ export const ROUTES = {
     element: <PartnerTermsConditions />,
     isProtected: false,
   },
+  PartnerManagement: {
+    path: "/partner-management",
+    element: <PartnerManagement />,
+    isProtected: true,
+  },
+  MY_FRANCHISE: {
+    path: "/my-franchise",
+    element: <MyFranchise />,
+    isProtected: true,
+  },
+   TICKET_MANAGEMENT_NORMAL_CHAT: {
+    path: "/ticket-management/normal-chats",
+    element: <NormalChatListPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_NORMAL_CHAT_VIEW: {
+    path: "/ticket-management/normal-chats/view",
+    element: <NormalChatConversationPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_DISPUTE_CHAT_VIEW: {
+    path: "/ticket-management/dispute-chats/view",
+    element: <DisputeChatConversationPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_DISPUTE_CHAT: {
+    path: "/ticket-management/dispute-chats",
+    element: <DisputeChatListPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_QUOTE_CHAT: {
+    path: "/ticket-management/quote-chats",
+    element: <QuoteChatListPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_GROUP_CHAT: {
+    path: "/ticket-management/group-chats",
+    element: <QuoteChatListPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_QUOTE_CHAT_VIEW: {
+    path: "/ticket-management/quote-chats/view",
+    element: <QuoteChatConversationPage />,
+    isProtected: true,
+  },
+  TICKET_MANAGEMENT_GROUP_CHAT_VIEW: {
+    path: "/ticket-management/quote-chats/group/view",
+    element: <GroupChatConversationPage />,
+    isProtected: true,
+  },
+  CALENDAR_PAGE: {
+    path: "/calendar",
+    element: <CalendarPage />,
+    isProtected: true,
+  },
+  QUOTE_MANAGEMENT: {
+    path: "/quote-management",
+    element: <QuoteManagement />,
+    isProtected: true,
+  },
+  REPORTS: {
+    path: "/reports",
+    element: <Reports />,
+    isProtected: true,
+  },
+  NOTIFICATIONS: {
+    path: "/notifications",
+    element: <NotificationsPage />,
+    isProtected: true,
+  },
+  CONTENT_MANAGEMENT: {
+    path: "/content-management",
+    element: < ContentManagement />,
+    isProtected: true,
+  },
+  ADD_EDIT_CONTENT: {
+    path: "/content-management/edit/:id",
+    element: <AddEditContent />,
+    isProtected: true,
+  },
+  EXPENSES_MANAGEMENT: {
+    path: "/expenses",
+    element: <ExpensesManagement />,
+    isProtected: true,
+  }
 }
 
 export const routes = Object.values(ROUTES);

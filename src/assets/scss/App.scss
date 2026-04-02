@@ -2,17 +2,21 @@
   --theme-color: #3A0505;
   --bg-color: #FAFAFA;
   --primary-color: #9B0C0C;
+  --primary-new-color: #EF4444;
   --sidebar-color: var(--theme-color);
+  --sidebar-new-color: var(--primary-new-color);
   --primary-btn: var(--primary-color);
   --secondary-btn: #CE2A29;
   --primary-btn-border: var(--theme-color);
   --secondary-btn-border-color: var(--primary-color);
   --primary-txt-color: #A21D1C;
+  --primary-new-txt-color: #DC2626;
   --secondary-txt: #F7F7F7;
   --btn-info: #1B6BAC;
   --btn-warning: #AC9A1B;
   --btn-success: #42AC1B;
-  --btn-danger: #AC1D1B;
+  // --btn-danger: #AC1D1B;
+  --btn-danger: var(--primary-new-txt-color);
   --btn-pending: #F14309;
   --txtfld-border: #a3a3a3;
   --txt-color: #484848;
@@ -157,6 +161,16 @@ body {
   border-color: var(--primary-color) !important;
 }
 
+/* Ensure custom date/time picker controls stretch full width */
+.react-datepicker-wrapper,
+.react-datepicker__input-container {
+  width: 100%;
+}
+
+.full-width-date-picker {
+  width: 100% !important;
+}
+
 .custom-app-layout {
   display: grid;
   width: 100vw;
@@ -188,13 +202,110 @@ body {
 }
 
 .custom-content {
-  padding: 0px;
+  padding: 20px 0px;
   overflow-y: auto;
   width: 100%;
   height: 100%;
-  background-color: var(--theme-color);
+  // background-color: var(--theme-color);
+  background-color: var(--bg-color);
   transition: all 0.3s ease-in-out;
 }
+
+/* Keep date/time picker popup above tables and sticky headers */
+.react-datepicker-popper {
+  z-index: 2500 !important;
+}
+
+.filters-container .react-select-container {
+  z-index: 99 !important;
+}
+.react-datepicker {
+  z-index: 2501 !important;
+}
+
+
+
+/* Pincode tag field — plain input, no dropdown (AddEditAreaDialog only) */
+.area-pincode-tag-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.62rem;
+  padding: 6px 10px;
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  margin-bottom: 10px;
+  cursor: text;
+  box-shadow: none;
+  width: 100%;
+
+  &:focus-within {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--primary-color);
+  }
+
+  &.is-invalid {
+    border-color: var(--bs-danger, #dc3545);
+
+    &:focus-within {
+      box-shadow: 0 0 0 1px var(--bs-danger, #dc3545);
+    }
+  }
+}
+
+.area-pincode-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 8px;
+  background: #e5e5e5;
+  border-radius: 4px;
+  color: var(--content-txt-color);
+  max-width: 100%;
+}
+
+.area-pincode-tag__text {
+  line-height: 1.25;
+  word-break: break-all;
+}
+
+.area-pincode-tag__remove {
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--content-txt-color);
+  opacity: 0.65;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.area-pincode-tag-field__input {
+  flex: 1 1 96px;
+  min-width: 96px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--content-txt-color);
+  padding: 4px 0;
+  line-height: 18px;
+
+  &::placeholder {
+    color: var(--placeholder-txt);
+    font-family: Inter, sans-serif;
+  }
+}
+
 
 @media (max-width: 991px) {
   .custom-app-layout {
@@ -219,19 +330,20 @@ body {
 .main-page-content {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 100vh;
+  // overflow-y: auto;
   padding: 20px;
   width: 100%;
   margin: 0px;
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
+  // border-top-left-radius: 8px;
+  // border-bottom-left-radius: 8px;
   background-color: var(--bg-color);
 }
 
 .main-page-content h4 {
   font-weight: bold;
-  color: var(--primary-txt-color);
+  // color: var(--primary-txt-color);
+  color: var(--primary-new-txt-color);
   padding: 0px 0px 24px 0px;
   font-family: "Inter";
   font-size: 24px;
@@ -298,7 +410,7 @@ body {
   box-sizing: border-box;
 }
 
-.custom-model-detail {
+.custom-model-detail, .custom-order-model-detail {
   background-color: var(--bg-color);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   border-radius: 16px;
@@ -317,6 +429,9 @@ body {
   justify-content: center;
   margin: 0;
   box-sizing: border-box;
+}
+.custom-order-model-detail {
+  min-width: 90vw;
 }
 
 .custom-model-detail-title {
@@ -348,6 +463,98 @@ body {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Global modal design system (applies across pages) */
+.modal .modal-content {
+  border: none !important;
+  border-radius: 16px !important;
+  background-color: var(--bg-color) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.modal .modal-header {
+  border-bottom: 0 !important;
+  padding: 14px 20px !important;
+  align-items: center;
+}
+
+.modal .modal-title {
+  color: var(--navi-color);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: "Inter", sans-serif;
+}
+
+.modal .modal-body {
+  padding: 0 20px 18px !important;
+}
+
+.modal .modal-footer {
+  border-top: 0 !important;
+  padding: 0 20px 18px !important;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal .btn {
+  height: 36px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-family: "Inter", sans-serif !important;
+  font-weight: 500 !important;
+  padding: 0 16px !important;
+  min-width: 110px;
+}
+
+/* Force consistent primary/secondary button look inside modals */
+.modal .btn-primary,
+.modal .custom-btn-primary {
+  background-color: var(--primary-color) !important;
+  color: var(--secondary-txt) !important;
+  border: 1px solid var(--primary-color) !important;
+  width: auto !important;
+}
+
+.modal .btn-secondary,
+.modal .custom-btn-secondary {
+  background-color: var(--secondary-txt) !important;
+  color: var(--primary-txt-color) !important;
+  border: 1px solid var(--primary-color) !important;
+  width: auto !important;
+}
+
+/* Enforce consistent footer actions across all modals */
+.modal .modal-footer .btn {
+  width: auto !important;
+}
+
+/* Keep only one visual primary style for all non-secondary variants */
+.modal .modal-footer .btn-primary,
+.modal .modal-footer .btn-danger,
+.modal .modal-footer .btn-success,
+.modal .modal-footer .btn-warning,
+.modal .modal-footer .btn-info,
+.modal .modal-footer .btn-light,
+.modal .modal-footer .btn-dark,
+.modal .modal-footer .custom-btn-primary {
+  background-color: var(--primary-color) !important;
+  color: var(--secondary-txt) !important;
+  border: 1px solid var(--primary-color) !important;
+  box-shadow: none !important;
+}
+
+.modal .modal-footer .btn-secondary,
+.modal .modal-footer .custom-btn-secondary {
+  background-color: var(--secondary-txt) !important;
+  color: var(--primary-txt-color) !important;
+  border: 1px solid var(--primary-color) !important;
+  box-shadow: none !important;
+}
+
+.modal .modal-footer .btn:focus,
+.modal .modal-footer .btn:active {
+  box-shadow: none !important;
+}
+
 .custom-modal-title {
   color: var(--navi-color);
   font-size: 20px;
@@ -377,6 +584,481 @@ body {
   font-family: "Inter", sans-serif !important;
   font-weight: normal !important;
   color: var(--primary-txt-color) !important;
+}
+
+/* Financials sub-pages: icon back beside header title (avoid .custom-btn-* width:100%). */
+.financial-subpage-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: rgba(155, 12, 12, 0.08);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+
+  img {
+    display: block;
+    pointer-events: none;
+  }
+}
+
+/* Partner payout detail: section toggles (avoid .custom-btn-* width:100%). */
+.partner-payout-detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+
+  .btn {
+    width: auto !important;
+    max-width: none;
+    height: auto !important;
+    min-height: 34px;
+    padding: 0.4rem 0.9rem !important;
+    border-radius: 8px !important;
+    font-size: 0.875rem !important;
+    font-family: "Inter", sans-serif !important;
+  }
+}
+
+/* Partner payout — wallet reads like a bank / wallet statement (not a generic data grid). */
+.wallet-ledger {
+  border: 1px solid var(--lb-border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.wallet-ledger__head {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  border-bottom: 1px solid var(--lb-border);
+}
+
+.wallet-ledger--solo {
+  margin-top: 0;
+}
+
+.wallet-ledger__head--compact {
+  padding: 0.75rem 1.25rem;
+}
+
+.wallet-ledger__foot--pagination {
+  border-top: 1px solid var(--lb-border);
+  padding: 0.75rem 1rem;
+  background: #fafafa;
+}
+
+.wallet-ledger__pagination-wrap {
+  flex-basis: 0;
+}
+
+.wallet-ledger__head-title {
+  font-family: "Inter", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--primary-txt-color);
+  margin: 0;
+}
+
+.wallet-ledger__head-sub {
+  font-size: 0.8125rem;
+  color: var(--lb-text-color);
+  margin: 0.25rem 0 0;
+}
+
+.wallet-ledger__columns {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr minmax(7rem, auto);
+  gap: 0.75rem 1rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--placeholder-txt);
+  background: #f3f4f6;
+  border-bottom: 1px solid var(--lb-border);
+}
+
+@media (max-width: 575.98px) {
+  .wallet-ledger__columns {
+    display: none;
+  }
+}
+
+.wallet-ledger__row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr minmax(7rem, auto);
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.12s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: #fafafa;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .wallet-ledger__row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}
+
+.wallet-ledger__row--credit {
+  border-left: 3px solid #15803d;
+}
+
+.wallet-ledger__row--debit {
+  border-left: 3px solid var(--primary-color);
+}
+
+.wallet-ledger__date {
+  font-size: 0.8125rem;
+  color: var(--lb-text-color);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wallet-ledger__badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+}
+
+.wallet-ledger__badge--credit {
+  background: rgba(21, 128, 61, 0.12);
+  color: #166534;
+}
+
+.wallet-ledger__badge--debit {
+  background: rgba(155, 12, 12, 0.1);
+  color: var(--primary-txt-color);
+}
+
+.wallet-ledger__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--content-txt-color);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.wallet-ledger__meta {
+  font-size: 0.8125rem;
+  color: var(--placeholder-txt);
+  margin: 0.2rem 0 0;
+  line-height: 1.4;
+}
+
+.wallet-ledger__order-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-txt-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.wallet-ledger__amount {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.wallet-ledger__amount--credit {
+  color: #15803d;
+}
+
+.wallet-ledger__amount--debit {
+  color: var(--primary-txt-color);
+}
+
+.wallet-ledger__empty {
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+  color: var(--placeholder-txt);
+  font-size: 0.9rem;
+}
+
+.wallet-ledger__foot {
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--lb-border);
+  background: #fafafa;
+}
+
+/* Partner payout — wallet transactions (CustomTable + credit/debit rows). */
+/* Partner payout detail — partner strip + wallet */
+.partner-payout-detail-card {
+  border-radius: 12px !important;
+  border: 1px solid var(--lb-border, #dee2e6) !important;
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 48%);
+}
+
+.partner-payout-detail-name {
+  font-family: "Inter", sans-serif;
+  font-weight: 600;
+  color: var(--primary-txt-color);
+}
+
+.partner-payout-detail-wallet {
+  padding: 0.75rem 1.1rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--lb-border, #e5e7eb);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-width: 10rem;
+}
+
+.partner-payout-detail-wallet-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--placeholder-txt);
+  margin-bottom: 0.2rem;
+}
+
+.partner-payout-detail-wallet-value {
+  font-family: "Inter", sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-txt-color);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.partner-payout-clear-btn {
+  min-width: auto;
+  white-space: nowrap;
+}
+
+/* Financial — Refunds */
+.financial-refunds-lead {
+  line-height: 1.5;
+}
+
+.financial-refunds-card {
+  border-radius: 12px !important;
+  border: 1px solid var(--lb-border, #dee2e6) !important;
+  background: #fff;
+}
+
+.financial-refunds-card--form {
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 40%);
+}
+
+.financial-refunds-section-title {
+  font-family: "Inter", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary-txt-color);
+}
+
+.financial-refunds-summary-grid {
+  .financial-refunds-stat {
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--lb-border, #e5e7eb);
+    background: #fafafa;
+    height: 100%;
+  }
+
+  .financial-refunds-stat-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--placeholder-txt);
+    margin-bottom: 0.35rem;
+  }
+
+  .financial-refunds-stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--content-txt-color);
+  }
+}
+
+.financial-refunds-source-tile {
+  border: 1px solid var(--lb-border, #dee2e6);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.financial-refunds-source-tile.is-active {
+  border-color: var(--theme-color, #6366f1);
+  background: rgba(99, 102, 241, 0.06);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18);
+}
+
+.financial-refunds-source-check .form-check-label {
+  font-weight: 600;
+  color: var(--primary-txt-color);
+}
+
+.financial-refunds-split-total {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.financial-refunds-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.financial-refunds-submit-btn.custom-btn-primary {
+  width: auto !important;
+  min-width: 7.25rem;
+  max-width: max-content;
+  padding-left: 1.1rem !important;
+  padding-right: 1.1rem !important;
+  height: 34px !important;
+  font-size: 14px !important;
+}
+
+.wallet-tx-react-table {
+  --wallet-tx-credit-bg: rgba(22, 163, 74, 0.14);
+  --wallet-tx-credit-bg-hover: rgba(22, 163, 74, 0.22);
+  --wallet-tx-debit-bg: rgba(220, 38, 38, 0.12);
+  --wallet-tx-debit-bg-hover: rgba(220, 38, 38, 0.2);
+
+  td.text-start {
+    text-align: left !important;
+  }
+
+  td.text-end {
+    text-align: right !important;
+  }
+}
+
+.wallet-tx-table__row--credit td {
+  background-color: var(--wallet-tx-credit-bg) !important;
+  color: #14532d !important;
+  border-color: rgba(22, 163, 74, 0.25) !important;
+}
+
+.wallet-tx-table__row--credit:hover td {
+  background-color: var(--wallet-tx-credit-bg-hover) !important;
+}
+
+.wallet-tx-table__row--debit td {
+  background-color: var(--wallet-tx-debit-bg) !important;
+  color: #7f1d1d !important;
+  border-color: rgba(220, 38, 38, 0.22) !important;
+}
+
+.wallet-tx-table__row--debit:hover td {
+  background-color: var(--wallet-tx-debit-bg-hover) !important;
+}
+
+.wallet-tx-table__cell-date {
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-tx-table__type-credit {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(21, 128, 61, 0.35);
+  color: #052e16;
+}
+
+.wallet-tx-table__type-debit {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(185, 28, 28, 0.35);
+  color: #450a0a;
+}
+
+.wallet-tx-table__desc {
+  max-width: 22rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.wallet-tx-table__desc-cell {
+  display: inline-block;
+  max-width: 22rem;
+  line-height: 1.45;
+  word-break: break-word;
+  text-align: left;
+}
+
+.wallet-tx-table__order-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.wallet-tx-table__row--credit .wallet-tx-table__order-link {
+  color: #166534;
+}
+
+.wallet-tx-table__row--debit .wallet-tx-table__order-link {
+  color: #991b1b;
+}
+
+.wallet-tx-table__amount--credit {
+  color: #15803d !important;
+  font-weight: 700 !important;
+}
+
+.wallet-tx-table__amount--debit {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
 }
 
 
@@ -444,9 +1126,31 @@ body {
   gap: 20px;
 }
 
+.my-franchise-box-container {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.my-franchise-box-container .box {
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .my-franchise-box-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .my-franchise-box-container {
+    grid-template-columns: 1fr;
+  }
+}
+
 .box {
   width: 320px;
-  height: 136px;
+  height: auto;
   border-style: solid;
   border-width: 1px;
   border-color: var(--lb-border);
@@ -482,6 +1186,7 @@ body {
 
 .box-left-column {
   text-align: left;
+  flex-grow: 2;
 }
 
 .box-right-column {
@@ -519,8 +1224,13 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 25px;
   margin-bottom: 12px;
+}
+
+.custom-utilty-box--title-only {
+  justify-content: flex-start;
+  margin-bottom: 4px;
 }
 
 .custom-utilty-box-title {
@@ -550,9 +1260,7 @@ body {
   outline: 1px solid var(--primary-txt-color);
 }
 
-.custom-utilty-box div {
-  display: flex;
-}
+
 
 .custom-utilty-box div img {
   margin-left: 10px;
@@ -573,6 +1281,108 @@ body {
   align-items: center;
 }
 
+.custom-utility-control-slot {
+  display: block !important;
+  margin-right: 10px;
+}
+
+.custom-utility-control-slot .form-label {
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+/* Expenses (and similar): filters + search + icons on one row */
+.custom-utilty-tools-inline {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.custom-utilty-tools-inline .custom-utility-control-slot {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-right: 0 !important;
+}
+
+/* Stack label + select inside each filter column (overrides .custom-utilty-box div { display:flex }) */
+.custom-utilty-tools-inline .custom-utility-control-slot > div {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.custom-utilty-tools-inline .custom-search-container {
+  width: 14rem;
+  min-width: 10rem;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+
+/* Full-width filter bar — avoids tools-inline flex-end + .custom-utilty-box div flex breaking Row/Col */
+.financial-toolbar-filters {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lb-border, #dee2e6);
+
+  .form-label {
+    display: block;
+    width: 100%;
+  }
+}
+
+.financial-toolbar-filters--below-search {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lb-border, #dee2e6);
+}
+
+/* Order Payments — one compact row, no horizontal scroll */
+.order-payments-filters-row {
+  flex-wrap: nowrap !important;
+  padding-bottom: 4px;
+}
+
+.order-payments-filters-row > [class*="col"].order-payments-filter-col:not(.order-payments-filter-col--date) {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  z-index: 20;
+}
+
+.order-payments-filters-row > [class*="col"].order-payments-filter-col--date {
+  flex: 0 1 7.25rem !important;
+  min-width: 6.75rem !important;
+  max-width: 8rem !important;
+}
+
+.order-payments-filters-row .custom-form-input,
+.order-payments-filters-row .form-select {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.8125rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  padding-left: 0.35rem;
+}
+
+.order-payments-filters-row .partner-payout-clear-btn {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.8125rem;
+}
+
 .custom-search-container {
   position: relative;
   display: inline-block;
@@ -585,6 +1395,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
+  background-color: #fff;
 }
 
 .custom-search-field {
@@ -610,6 +1421,126 @@ body {
 
 .custom-inactive {
   color: var(--btn-danger);
+}
+
+.custom-notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--primary-new-color);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+.custom-notification-dropdown {
+  position: absolute;
+  right: 0;
+  top: 30px;
+  width: 360px;
+  max-height: 420px;
+  background: var(--bg-color);
+  border: 1px solid var(--lb-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--lb-border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--content-txt-color);
+}
+
+.custom-notification-header .btn-link {
+  font-size: 12px;
+  color: var(--primary-new-color);
+  text-decoration: none;
+}
+
+.custom-notification-list {
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.custom-notification-item {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--lb-border);
+  background: transparent;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.custom-notification-item.is-unread {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.custom-notification-item-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-notification-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--content-txt-color);
+}
+
+.custom-notification-item-message {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--txt-color);
+  line-height: 1.3;
+}
+
+.custom-notification-item-time {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--placeholder-txt);
+}
+
+.custom-notification-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-new-color);
+  flex-shrink: 0;
+}
+
+.custom-notification-empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--placeholder-txt);
+  font-size: 12px;
+}
+
+.custom-notification-view-all {
+  border: none;
+  background: var(--bg-color);
+  color: var(--primary-new-color);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--lb-border);
+  cursor: pointer;
 }
 
 .custom-pagination {
@@ -899,7 +1830,8 @@ body {
   margin-bottom: 20px;
 }
 .custom-dashboard-title {
-  color: var(--primary-txt-color);
+  // color: var(--primary-txt-color);
+  color: var(--primary-new-txt-color);
   font-size: 16px;
   font-weight: bold;
   font-family: "Inter";
@@ -916,7 +1848,8 @@ body {
 }
 
 .custom-dashboard-sub-title {
-  color: var(--primary-txt-color);
+  // color: var(--primary-txt-color);
+  color: var(--primary-new-txt-color);
   font-size: 14px;
   font-weight: normal;
   font-family: "Inter";
@@ -928,6 +1861,256 @@ body {
   font-weight: 600;
   font-family: "Inter";
   margin-top: 10px;
+}
+
+// New css added here 
+/* Wrapper */
+.calendar-wrapper {
+  padding: 10px;
+  background-color: var(--bg-color);
+  border-radius: 8px;
+}
+
+/* Toolbar Title */
+.fc-toolbar-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--content-txt-color);
+}
+
+/* Buttons */
+.fc-button {
+  background-color: #fff !important;
+  border: 1px solid var(--txtfld-border) !important;
+  color: var(--txt-color) !important;
+  // border-radius: 6px !important;
+  padding: 5px 10px !important;
+  transition: 0.2s ease;
+}
+
+/* Hover */
+.fc-button:hover {
+  background-color: var(--bg-color) !important;
+  border-color: var(--primary-new-color) !important;
+  color: var(--primary-new-color) !important;
+}
+
+/* Active button (Month / Week / Day) */
+.fc-button-active {
+  background-color: var(--primary-new-color) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+/* Today highlight */
+.fc-day-today {
+  background-color: rgba(239, 68, 68, 0.08) !important; /* using primary-new-color */
+}
+
+/* Grid */
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border: 1px solid var(--lb-border) !important;
+}
+
+/* Day numbers */
+.fc-daygrid-day-number {
+  color: var(--content-txt-color);
+  font-weight: 500;
+}
+
+/* Events */
+.fc-event {
+  background-color: var(--primary-new-color) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #fff !important;
+}
+
+/* Event hover */
+.fc-event:hover {
+  opacity: 0.9;
+}
+
+/* Remove outer border */
+.fc-scrollgrid {
+  border: none !important;
+}
+
+/* Toolbar spacing */
+.fc-header-toolbar {
+  margin-bottom: 15px !important;
+}
+
+/* Header row (Sun Mon Tue...) */
+.fc-col-header-cell {
+  background-color: var(--bg-color);
+  color: var(--txt-color);
+  font-weight: 500;
+  border: none !important;
+}
+
+/* Card-like spacing */
+.fc-view-harness {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* Today date number highlight */
+.fc-day-today .fc-daygrid-day-number {
+  color: var(--primary-new-color);
+  font-weight: 600;
+}
+
+/* More events link (+3 more) */
+.fc-daygrid-more-link {
+  color: var(--primary-new-color);
+  font-size: 12px;
+}
+
+/* Scroll fix */
+.fc-scroller {
+  overflow: hidden !important;
+}
+.fc .fc-col-header-cell-cushion {
+  color: var(--primary-new-color);
+  text-decoration: none;
+}
+
+.calendar-event-action-icon {
+  color: #ffffff !important;
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+.calendar-event-delete-icon {
+  color: #ffffff !important;
+}
+
+.calendar-event-content {
+  width: 100%;
+  padding: 4px 4px 4px 2px;
+}
+
+.calendar-event-actions-row {
+  margin-bottom: 2px;
+}
+
+.calendar-event-left {
+  width: 100%;
+  min-width: 0;
+}
+
+.calendar-event-title {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  margin-bottom: 4px;
+  color: #fff;
+}
+
+.calendar-event-meta {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.calendar-event-meta-lines {
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 0;
+}
+
+.calendar-event-meta-lines small {
+  font-size: 9px;
+  line-height: 1.25;
+  color: #fff;
+  opacity: 0.95;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.calendar-event-actions {
+  display: flex;
+  opacity: 0.92;
+  gap: 6px !important;
+}
+
+.calendar-event-label {
+  opacity: 0.88;
+  font-weight: 500;
+  color: #fff;
+}
+
+.calendar-event-value {
+  opacity: 1;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Keep focus styling neutral even when field has validation error */
+.modal .form-control.is-invalid:focus {
+  border-color: var(--txtfld-border) !important;
+  box-shadow: none !important;
+}
+
+
+/* Optional: subtle shadow like dashboard */
+.calendar-wrapper {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+/* Pin code hover card (Location Management - Areas table) */
+.pin-code-hover-wrapper {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+}
+
+.pin-code-hover-trigger {
+  white-space: nowrap;
+}
+
+.pin-code-more-count {
+  color: var(--primary-new-txt-color);
+  font-weight: 600;
+}
+
+.pin-code-hover-card {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  z-index: 1000;
+  display: none;
+  background-color: var(--bg-color);
+  border: 1px solid var(--lb1-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+  padding: 8px 10px;
+  min-width: 130px;
+  text-align: left;
+}
+
+.pin-code-hover-wrapper:hover .pin-code-hover-card {
+  display: block;
+}
+
+.pin-code-hover-item {
+  font-family: "Inter";
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--content-txt-color);
+  padding: 2px 0;
+  word-break: break-word;
 }
 
 @media (max-width: 768px) {
@@ -950,4 +2133,320 @@ body {
   .custom-content::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Ticket management - normal chat list page */
+.normal-chat-page {
+  border: 1px solid var(--lb-border);
+  border-radius: 12px;
+  background-color: var(--bg-color);
+  overflow: hidden;
+}
+
+.normal-chat-filter-tag {
+  border: 1px solid var(--lb-border);
+  border-radius: 999px;
+  background-color: #fff;
+  color: var(--txt-color);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.normal-chat-filter-tag.active {
+  border-color: var(--primary-new-color);
+  color: var(--primary-new-txt-color);
+  background-color: #fff5f5;
+}
+
+.normal-chat-search-wrap {
+  padding: 16px;
+  border-bottom: 1px solid var(--lb-border);
+  background: linear-gradient(180deg, #fff, #fff6f6);
+}
+
+.normal-chat-search-input-wrap {
+  position: relative;
+}
+
+.normal-chat-search-input {
+  width: 100%;
+  height: 40px;
+  border-radius: 20px;
+  border: 1px solid var(--txtfld-border);
+  background-color: #fff;
+  color: var(--content-txt-color);
+  font-size: 14px;
+  padding: 0 40px 0 16px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-new-color);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+  }
+}
+
+.normal-chat-search-icon {
+  font-size: 14px;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.normal-chat-list-wrap {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.normal-chat-list-item {
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f1f1;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #fff7f7;
+  }
+}
+
+.normal-chat-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.normal-chat-online-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--btn-success);
+  border: 2px solid #fff;
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+}
+
+.normal-chat-user-name {
+  margin: 0;
+  color: var(--content-txt-color);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.normal-chat-user-pill {
+  border: 1px solid #f2cccc;
+  background-color: #fff2f2;
+  color: var(--primary-new-txt-color);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.normal-chat-time {
+  color: var(--txt-color);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.normal-chat-last-message {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--txt-color);
+  max-width: 85%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.normal-chat-unread-badge {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 12px;
+  background-color: var(--primary-new-color);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.normal-chat-empty-state {
+  min-height: 240px;
+  color: var(--txt-color);
+  font-size: 14px;
+}
+
+.normal-chat-message-area {
+  min-height: 420px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 14px;
+  background: linear-gradient(180deg, #fff, #fff7f7);
+}
+
+.normal-chat-bubble {
+  max-width: 78%;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.normal-chat-bubble p {
+  font-size: 13px;
+  color: var(--content-txt-color);
+}
+
+.normal-chat-bubble small {
+  font-size: 10px;
+  color: var(--txt-color);
+}
+
+.normal-chat-bubble.user {
+  background-color: #f4f4f4;
+}
+
+.normal-chat-bubble.employee {
+  background-color: #ffe5e5;
+}
+
+.normal-chat-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-new-txt-color);
+  margin-bottom: 10px;
+}
+
+.normal-chat-detail-key {
+  color: var(--txt-color);
+  font-size: 12px;
+}
+
+.normal-chat-detail-value {
+  color: var(--content-txt-color);
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.normal-chat-attachment-row {
+  border: 1px solid var(--lb-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.normal-chat-attachment-row span {
+  color: var(--content-txt-color);
+  font-size: 12px;
+}
+
+.normal-chat-attachment-row small {
+  color: var(--txt-color);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.normal-chat-attachment-card {
+  border: 1px solid var(--lb-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+.normal-chat-attachment-thumb {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+
+.normal-chat-attachment-name {
+  color: var(--content-txt-color);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.normal-chat-icon-btn {
+  width: 38px !important;
+  height: 38px !important;
+}
+
+.normal-chat-selected-file {
+  max-width: 240px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--lb-border);
+  border-radius: 999px;
+  background-color: #fff6f6;
+  color: var(--content-txt-color);
+  font-size: 11px;
+}
+
+.normal-chat-selected-file .bi-x-circle-fill {
+  color: var(--primary-new-txt-color);
+}
+
+
+/* New css 30/03/2026 */ 
+.box {
+  height: auto;
+}
+
+.react-select__value-container  {
+  padding: 0 8px !important;
+}
+
+.react-select__control {
+  min-height: 35px !important;
+}
+
+.custom-utilty-box {
+  align-items: center;
+}
+
+/* New css 30-03-2026 */
+.quill-editor .ql-container {
+  height: 280px !important;
+  overflow: auto;
+}
+
+/* New css 01-04-2026 */
+/* Settings icon button (same pattern as financial-subpage-back) */
+.settings-nav-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Icon styling */
+.settings-nav-btn i {
+  font-size: 18px;
+  color: #a30000; /* same red theme */
+}
+
+/* Hover effect */
+.settings-nav-btn:hover i {
+  opacity: 0.8;
+}
+
+/* Optional: active click effect */
+.settings-nav-btn:active {
+  transform: scale(0.95);
 }

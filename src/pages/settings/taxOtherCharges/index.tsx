@@ -4,6 +4,7 @@ import { fetchTaxOtherChargesById } from "../../../services/taxOtherChargesServi
 import { TaxOtherChargesModel } from "../../../models/TaxOtherChargesModel";
 import AddEditTaxOtherChargesDialog from "./AddEditTaxOtherChargesDialog";
 import CustomHeader from "../../../components/CustomHeader";
+import SettingsNav from "../../../components/SettingsNav";
 import { AppConstant } from "../../../constant/AppConstant";
 
 const TaxOtherCharges = () => {
@@ -32,7 +33,7 @@ const TaxOtherCharges = () => {
     return (
         <>
             <div className="main-page-content">
-                <CustomHeader title="Tax & Other Charges" />
+                <CustomHeader title="Tax & Other Charges" titlePrefix={<SettingsNav />} />
                 <div
                     className="d-flex justify-content-center align-items-center"
                     style={{ minHeight: "80vh" }}

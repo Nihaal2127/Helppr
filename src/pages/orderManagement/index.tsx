@@ -3,7 +3,7 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { textUnderlineCell, formatDate, priceCell, showLog, } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import { downloadInvoice, fetchOrder } from "../../services/orderService";
+import { deleteOrder, fetchOrder } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
 import { OrderModel } from "../../models/OrderModel";
 import OrderInfoDialog from "./OrderInfoDialog";
@@ -13,10 +13,17 @@ import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import UserDetailsDialog from "../userManagement/UserDetailsDialog";
 import { ApiPaths } from "../../remote/apiPaths";
-import downloadIcon from "../../assets/icons/download.svg";
+import CustomActionColumn from "../../components/CustomActionColumn";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { useForm } from "react-hook-form";
 
 const OrderManagement = () => {
-    const statuses = Array.from(OrderStatusEnum.entries());
+    // const statuses = Array.from(OrderStatusEnum.entries());
+    const statuses = Array.from(OrderStatusEnum.entries()).filter(
+        ([key]) => key !== 1 // remove "Pending"
+    );
+    const { register, setValue } = useForm<any>();
+
     const [selectedStatus, setSelectedStatus] = useState(statuses[0][0]);
     const [orderList, setOrderList] = useState<OrderModel[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -74,6 +81,20 @@ const OrderManagement = () => {
         UserDetailsDialog.show(userId, () => refreshData())
     }
 
+    const handleOrderVoid = (orderId: string) => {
+        openConfirmDialog(
+            "Are you sure you want to void this order?",
+            "Void",
+            "Cancel",
+            async () => {
+                const response = await deleteOrder(orderId);
+                if (response) {
+                    refreshData();
+                }
+            }
+        );
+    };
+
     const orderColumns = React.useMemo(() => [
         {
             Header: "SR No",
@@ -103,13 +124,9 @@ const OrderManagement = () => {
             Header: "Action",
             accessor: "action",
             Cell: ({ row }: { row: any }) => (
-                <img
-                    src={downloadIcon}
-                    alt="download"
-                    width={24}
-                    height={24}
-                    className="custom-table-action-view me-2"
-                    onClick={async () =>{await downloadInvoice(row.original._id);}}
+                <CustomActionColumn
+                    row={row}
+                    onDelete={() => handleOrderVoid(row.original._id)}
                 />
             ),
         },
@@ -120,6 +137,14 @@ const OrderManagement = () => {
             <div className="main-page-content">
                 <CustomHeader
                     title="Order Management"
+                    rightActions={
+                        <Button
+                        className="custom-btn-secondary w-auto"
+                        onClick={() => CreateUpdateOrderDialog.show(false, null, () => refreshData())}>
+                        Create Order</Button>
+                      }
+                      register={register}
+                      setValue={setValue}
                 />
 
                 <div className="d-flex gap-2">
@@ -132,14 +157,9 @@ const OrderManagement = () => {
                         </Button>
                     ))}
                 </div>
-
-                <div className="d-flex justify-content-between align-items-center">
-                    <Button
-                        className="custom-btn-secondary w-auto"
-                        onClick={() => CreateUpdateOrderDialog.show(false, null, () => refreshData())}>
-                        Create Order</Button>
+   
                     <CustomUtilityBox
-                        title=""
+                        title="Orders"
                         searchHint={"Search name, ID, Description etc."}
                         onDownloadClick={async () => {
                             await exportData(ApiPaths.EXPORT_ORDER, { order_status: selectedStatus })
@@ -153,7 +173,6 @@ const OrderManagement = () => {
                         onMoreClick={() => { }}
                         onSearch={(value) => handleFilterChange({ keyword: value })}
                     />
-                </div>
 
                 <CustomTable
                     columns={orderColumns}

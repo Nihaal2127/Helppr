@@ -4,6 +4,7 @@ import { fetchUserHomeCountsById } from "../../../services/userHomeCountsService
 import { UserHomeCountsModel } from "../../../models/UserHomeCountsModel";
 import AddEditUserHomeCountsDialog from "./AddEditUserHomeCountsDialog";
 import CustomHeader from "../../../components/CustomHeader";
+import SettingsNav from "../../../components/SettingsNav";
 import { AppConstant } from "../../../constant/AppConstant";
 
 const UserHomeCounts = () => {
@@ -32,7 +33,7 @@ const UserHomeCounts = () => {
     return (
         <>
             <div className="main-page-content">
-                <CustomHeader title="User Home Counts" />
+                <CustomHeader title="User Home Counts" titlePrefix={<SettingsNav />} />
                 <div
                     className="d-flex justify-content-center align-items-center"
                     style={{ minHeight: "80vh" }}
@@ -55,19 +56,19 @@ const UserHomeCounts = () => {
                             </Row>
                             <Row>
                                 <Col>
-                                    <label className="custom-title-lable">Served:</label>
+                                    <label className="custom-title-lable">Services Served:</label>
                                     <label className="custom-subtitle-lable">{`${userHomeCounts?.served ? userHomeCounts?.served : 0}`}</label>
                                 </Col>
                             </Row>
                             <Row>
                                 <Col>
-                                    <label className="custom-title-lable">Consulted:</label>
+                                    <label className="custom-title-lable">Consultations Done:</label>
                                     <label className="custom-subtitle-lable">{`${userHomeCounts?.consulted ? userHomeCounts?.consulted : 0}`}</label>
                                 </Col>
                             </Row>
                             <Row>
                                 <Col>
-                                    <label className="custom-title-lable">Captured:</label>
+                                    <label className="custom-title-lable">Leads Captured:</label>
                                     <label className="custom-subtitle-lable">{`${userHomeCounts?.captured ? userHomeCounts?.captured : 0}`}</label>
                                 </Col>
                             </Row>

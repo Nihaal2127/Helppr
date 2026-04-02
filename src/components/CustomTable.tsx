@@ -26,6 +26,10 @@ interface CustomTableProps {
   tableClass?: string;
   theadClass?: string;
   isPagination?: boolean;
+  /** When false, alternating row background is not applied (use row-level CSS e.g. credit/debit). Default true. */
+  dynamicRowBackground?: boolean;
+  /** Adds classes to each `<tr>` (e.g. wallet credit/debit styling). */
+  getRowClassName?: (row: any) => string | undefined;
 }
 
 const CustomTable = (props: CustomTableProps) => {
@@ -35,6 +39,7 @@ const CustomTable = (props: CustomTableProps) => {
   const onPageChange = props["onPageChange"];
   const onLimitChange = props.onLimitChange;
   const isPagination = props.isPagination ?? true;
+  const dynamicRowBackground = props.dynamicRowBackground !== false;
 
   const dataTable = useTable(
     {
@@ -52,93 +57,145 @@ const CustomTable = (props: CustomTableProps) => {
 
   let rows = (dataTable as unknown as { page: any[] }).page;
 
+  const needsHorizontalScroll = props.columns.length >= 10;
+
   return (
     <>
-      <div className="table-responsive" style={{ height: "80vh" }}>
-        <table
-          {...dataTable.getTableProps()}
-          className={classNames(
-            "table table-centered react-table table-hover table-bordered",
-            props["tableClass"]
-          )}
-          style={{
-            border: "1px solid var(--txtfld-border)",
-            borderCollapse: "collapse",
-          }}
-        >
-          <thead className={props.theadClass} style={{ textAlign: "center" }}>
-            {(dataTable.headerGroups || []).map((headerGroup: any) => {
-              const { key: groupKey, ...groupProps } = headerGroup.getHeaderGroupProps();
+     <div
+  style={{
+    border: "1px solid var(--txtfld-border)",
+    borderRadius: "8px",
+    ...(needsHorizontalScroll
+      ? {
+          // maxHeight: "500px",
+          // overflowY: "auto",
+          overflowX: "auto",
+        }
+      : {}),
+  }}
+>
+  <table
+    {...dataTable.getTableProps()}
+    className={classNames(
+      "table table-centered react-table table-hover table-bordered mb-0",
+      props["tableClass"]
+    )}
+    style={{
+      borderCollapse: "collapse",
+      width: "100%",
+      ...(needsHorizontalScroll
+        ? {
+            minWidth: "1600px",
+            tableLayout: "fixed" as const,
+          }
+        : { tableLayout: "auto" as const }),
+    }}
+  >
+    <thead className={props.theadClass}>
+      {(dataTable.headerGroups || []).map((headerGroup: any) => {
+        const { key: groupKey, ...groupProps } = headerGroup.getHeaderGroupProps();
+        return (
+          <tr key={groupKey} {...groupProps}>
+            {(headerGroup.headers || []).map((column: any) => {
+              const headerProps = column.getHeaderProps(
+                column.sort && column.getSortByToggleProps()
+              );
+              const { key: thKey, ...thProps } = headerProps;
+
               return (
-                <tr key={groupKey} {...groupProps}>
-                  {(headerGroup.headers || []).map((column: any) => {
-                    const headerProps = column.getHeaderProps(
-                      column.sort && column.getSortByToggleProps()
-                    );
-                    const { key: thKey, ...thProps } = headerProps;
-                    return (
-                      <th
-                        key={thKey}
-                        {...thProps}
-                        className={classNames({
-                          sorting_desc: column.isSortedDesc === true,
-                          sorting_asc: column.isSortedDesc === false,
-                          sortable: column.sort === true,
-                        })}
-                        style={{
-                          backgroundColor: "var(--th-color)",
-                          color: "var(--th-txt-color)",
-                          fontFamily: "Inter",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {column.render("Header")}
-                      </th>
-                    );
+                <th
+                  key={thKey}
+                  {...thProps}
+                  className={classNames({
+                    sorting_desc: column.isSortedDesc === true,
+                    sorting_asc: column.isSortedDesc === false,
+                    sortable: column.sort === true,
                   })}
-                </tr>
+                  style={{
+                    backgroundColor: "var(--th-color)",
+                    color: "var(--th-txt-color)",
+                    fontFamily: "Inter",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textAlign: "center",
+                    verticalAlign: "top",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                    lineHeight: "1.4",
+                    padding: "12px 10px",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 2,
+                    minWidth: "120px",
+                  }}
+                >
+                  {column.render("Header")}
+                </th>
               );
             })}
-          </thead>
-          <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
-            {rows && rows.length > 0 ? (
-              rows.map((row: any, i: number) => {
-                dataTable.prepareRow(row);
-                const { key, ...rowProps } = row.getRowProps();
+          </tr>
+        );
+      })}
+    </thead>
+
+    <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
+      {rows && rows.length > 0 ? (
+        rows.map((row: any, i: number) => {
+          dataTable.prepareRow(row);
+          const { key, ...rowProps } = row.getRowProps();
+          const rowExtraClass = props.getRowClassName?.(row);
+          const { className: trClass, ...trRest } = rowProps as { className?: string; [k: string]: unknown };
+
+          return (
+            <tr key={key} {...trRest} className={classNames(trClass, rowExtraClass)}>
+              {row.cells.map((cell: any) => {
+                const { key: cellKey, ...cellProps } = cell.getCellProps([
+                  { className: cell.column.className },
+                ]);
+
                 return (
-                  <tr key={key} {...rowProps}>
-                    {row.cells.map((cell: any) => {
-                      const { key: cellKey, ...cellProps } = cell.getCellProps([
-                        { className: cell.column.className },
-                      ]);
-                      return (
-                        <td key={cellKey} {...cellProps}
-                          style={{
-                            backgroundColor: i % 2 === 0 ? "var(--tr1-txt-color)" : "var(--tr2-txt-color)",
-                            color: "var(--content-txt-color)",
-                            fontFamily: "Inter",
-                            fontSize: "12px",
-                            fontWeight: "normal",
-                          }}
-                        >
-                          {cell.render("Cell")}
-                        </td>
-                      );
-                    })}
-                  </tr>
+                  <td
+                    key={cellKey}
+                    {...cellProps}
+                    style={{
+                      ...(dynamicRowBackground
+                        ? {
+                            backgroundColor:
+                              i % 2 === 0
+                                ? "var(--tr1-txt-color)"
+                                : "var(--tr2-txt-color)",
+                          }
+                        : {}),
+                      color: "var(--content-txt-color)",
+                      fontFamily: "Inter",
+                      fontSize: "12px",
+                      fontWeight: "normal",
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      lineHeight: "1.4",
+                      padding: "10px",
+                      minWidth: "120px",
+                    }}
+                  >
+                    {cell.render("Cell")}
+                  </td>
                 );
-              })
-            ) : (
-              <tr>
-                <td colSpan={props.columns.length} className="text-center">
-                  No records found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              })}
+            </tr>
+          );
+        })
+      ) : (
+        <tr>
+          <td colSpan={props.columns.length} className="text-center">
+            No records found
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
       {(isPagination) && (<div id="pagination_container" style={{
         height: "40px",
         justifyContent: "center",

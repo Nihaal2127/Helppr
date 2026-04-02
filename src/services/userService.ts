@@ -44,12 +44,22 @@ export const fetchPartnerDropDown = async (serviceId?: string
   }
 };
 
+export type UserListFilters = {
+  keyword?: string;
+  status?: string;
+  sort?: string;
+  /** e.g. pending | cleared — sent when backend supports partner wallet filtering */
+  wallet_status?: string;
+  from_date?: string;
+  to_date?: string;
+};
+
 export const fetchUser = async (
   isVerification: boolean,
   type: number,
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string; sort?: string; }
+  filters: UserListFilters
 ): Promise<{ response: boolean, users: UserModel[]; totalPages: number }> => {
   const params = new URLSearchParams({
     type: String(type),
@@ -58,6 +68,9 @@ export const fetchUser = async (
     ...(filters.keyword && { name: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
+    ...(filters.wallet_status && filters.wallet_status !== "all" && { wallet_status: filters.wallet_status }),
+    ...(filters.from_date && { from_date: filters.from_date }),
+    ...(filters.to_date && { to_date: filters.to_date }),
   });
 
   const response = await apiRequest(

@@ -1,17 +1,18 @@
-import React, { useEffect, } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { StateModel } from "../../models/StateModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { getStatusOptions } from "../../helper/utility";
+import { DetailsRow, formatDate, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateState } from "../../services/stateService";
-import { openDialog, } from "../../helper/DialogManager";
+import { openDialog } from "../../helper/DialogManager";
 
 type AddEditStateDialogProps = {
     isEditable: boolean;
+    isViewMode?: boolean;
     state: StateModel | null;
     onClose: () => void;
     onRefreshData: () => void;
@@ -21,9 +22,12 @@ const AddEditStateDialog: React.FC<AddEditStateDialogProps> & {
     show: (
         isEditable: boolean,
         state: StateModel | null,
-        onRefreshData: () => void
+        onRefreshData: () => void,
+        isViewMode?: boolean
     ) => void;
-} = ({ isEditable, state, onClose, onRefreshData }) => {
+} = ({ isEditable, isViewMode = false, state, onClose, onRefreshData }) => {
+    const [localViewMode, setLocalViewMode] = useState(isViewMode);
+
     const {
         register,
         handleSubmit,
@@ -37,11 +41,13 @@ const AddEditStateDialog: React.FC<AddEditStateDialogProps> & {
     });
 
     useEffect(() => {
-        if (isEditable && state?.is_active !== undefined) {
-            setValue("is_active", state.is_active);
+        if (isEditable && state) {
+            setValue("name", state.name || "");
+            if (state.is_active !== undefined) {
+                setValue("is_active", state.is_active);
+            }
         }
-    }, [isEditable, state?.is_active]);
-
+    }, [isEditable, state, setValue]);
 
     const onSubmitEvent = async (data: StateModel) => {
         const payload = {
@@ -71,51 +77,74 @@ const AddEditStateDialog: React.FC<AddEditStateDialogProps> & {
         <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
             <Modal.Header className="py-3 px-4 border-bottom-0">
                 <Modal.Title as="h5" className="custom-modal-title">
-                    {isEditable ? "Edit" : "Add"} State
+                    {localViewMode ? "State Details" : isEditable ? "Edit State" : "Add State"}
                 </Modal.Title>
                 <CustomCloseButton onClose={onClose} />
             </Modal.Header>
             <Modal.Body className="px-4 pb-4 pt-0">
-                <form
-                    noValidate
-                    name="profile-form"
-                    id="profile-form"
-                    onSubmit={handleSubmit(onSubmitEvent)}
-                >
-                    <Row>
+                {localViewMode && state ? (
+                    <section className="custom-other-details" style={{ padding: "10px" }}>
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                            <h3 className="mb-0">State Information</h3>
+                            <i
+                                className="bi bi-pencil-fill fs-6 text-danger"
+                                style={{ cursor: "pointer" }}
+                                role="button"
+                                aria-label="Edit state"
+                                onClick={() => setLocalViewMode(false)}
+                            />
+                        </div>
 
-                        <CustomFormInput
-                            label=""
-                            controlId="name"
-                            placeholder="Enter State Name"
-                            register={register}
-                            error={errors.name}
-                            asCol={false}
-                            validation={{ required: "State name is required" }}
-                        />
+                        <div className="row">
+                            <div className="col-md-12 custom-helper-column">
+                                <DetailsRow title="State Name" value={state.name ?? "-"} />
+                                <DetailsRow
+                                    title="Status"
+                                    value={state.is_active ? "Active" : "Inactive"}
+                                />
+                            </div>
+                        </div>
 
-                        <CustomRadioSelection
-                            label=""
-                            name="is_active"
-                            options={getStatusOptions()}
-                            defaultValue={isEditable ? state?.is_active?.toString() : "true"}
-                            isEditable={isEditable}
-                            setValue={setValue}
-                        />
-                    </Row>
-                    <Row className="mt-4">
-                        <Col xs={6} className="text-center">
-                            <Button type="submit" className="custom-btn-primary" >
-                                {isEditable ? "Update" : "Add"}
-                            </Button>
-                        </Col>
-                        <Col xs={6} className="text-center" onClick={onClose}>
-                            <Button className="custom-btn-secondary">
-                                Cancel
-                            </Button>
-                        </Col>
-                    </Row>
-                </form>
+                    </section>
+                ) : (
+                    <form
+                        noValidate
+                        name="profile-form"
+                        id="profile-form"
+                        onSubmit={handleSubmit(onSubmitEvent)}
+                    >
+                        <Row>
+                            <CustomFormInput
+                                label="State"
+                                controlId="name"
+                                placeholder="Enter State Name"
+                                register={register}
+                                error={errors.name}
+                                asCol={false}
+                                validation={{ required: "State name is required" }}
+                            />
+
+                            <CustomRadioSelection
+                                label="Status"
+                                name="is_active"
+                                options={getStatusOptions()}
+                                defaultValue={isEditable ? state?.is_active?.toString() : "true"}
+                                isEditable={isEditable}
+                                setValue={setValue}
+                            />
+                        </Row>
+                        <Row className="mt-4">
+                            <Col xs={12} className="text-center d-flex justify-content-end gap-3 ">
+                                <Button type="submit" className="custom-btn-primary">
+                                    {isEditable ? "Update" : "Add"}
+                                </Button>
+                                <Button className="custom-btn-secondary" onClick={onClose}>
+                                    Cancel
+                                </Button>
+                            </Col>
+                        </Row>
+                    </form>
+                )}
             </Modal.Body>
         </Modal>
     );
@@ -124,11 +153,13 @@ const AddEditStateDialog: React.FC<AddEditStateDialogProps> & {
 AddEditStateDialog.show = (
     isEditable: boolean,
     state: StateModel | null,
-    onRefreshData: () => void
+    onRefreshData: () => void,
+    isViewMode: boolean = false
 ) => {
-  openDialog("details-modal", (close) => (
+    openDialog("details-modal", (close) => (
         <AddEditStateDialog
             isEditable={isEditable}
+            isViewMode={isViewMode}
             state={state}
             onClose={close}
             onRefreshData={onRefreshData}

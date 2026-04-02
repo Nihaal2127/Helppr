@@ -40,6 +40,21 @@ export const formatDate = (isoString: string): string => {
     return `${day}-${month}-${year}`;
 };
 
+/** Localized date + time (e.g. for ledgers, activity rows). */
+export const formatDateTime = (isoString: string): string => {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) {
+        return "—";
+    }
+    return date.toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
+
 
 export const textUnderlineCell = (field: string, onClick: (row: any) => void) =>
     ({ row }: { row: any }) => (

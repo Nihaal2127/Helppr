@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openDialog} from "../../../helper/DialogManager";
+import { AppConstant } from "../../../constant/AppConstant";
 
 type PayoutDialogProps = {
     totalCommision: number,
@@ -37,7 +38,7 @@ const PayoutDialog: React.FC<PayoutDialogProps> & {
                         onSubmit={handleSubmit(onSubmit)}
                     >
                         <Row className="mt-4">
-                            <strong>Total Partner Payout is : ${totalCommision}</strong>
+                            <strong>Total partner payout: {AppConstant.currencySymbol}{totalCommision}</strong>
 
                             <Col xs={6} className="text-center mt-4" onClick={onClose}>
                                 <Button className="custom-btn-secondary">

@@ -29,16 +29,15 @@ export const openConfirmDialog = (
                 />
                 <label className="custom-dialog-title mt-6">{title}</label>
                 <Row className="mt-5">
-                    <Col xs={6} className="text-center">
+                    <Col xs={12} className="text-center d-flex justify-content-end gap-3 ">
                         <Button type="submit" className="custom-btn-primary" onClick={() => {
                             close();
                             onConfirm();
                         }}>
-                            {confirmButtonText}
-                        </Button>
-                    </Col>
-                    <Col xs={6} className="text-center" onClick={close}>
-                        <Button className="custom-btn-secondary">
+                            {confirmButtonText} 
+                        </Button> 
+
+                        <Button className="custom-btn-secondary" onClick={close}>
                             {cancleButtonText}
                         </Button>
                     </Col>

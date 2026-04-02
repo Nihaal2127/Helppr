@@ -46,7 +46,7 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
         openConfirmDialog(
             "Are you sure you want to verify this document?",
             "Verify",
-            "Cancle",
+            "Cancel",
             async () => {
                 const payload = {
                     status: status

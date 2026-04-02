@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { Form, Col } from "react-bootstrap";
-import Select from "react-select";
+import Select, { MultiValue, ActionMeta } from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
 
 interface CustomMultiSelectProps {
@@ -15,6 +15,8 @@ interface CustomMultiSelectProps {
   requiredMessage?: string;
   setValue?: (name: string, value: any) => void;
   asCol?: boolean;
+  /** Render menu in document.body with high z-index — use inside Bootstrap modals (with enforceFocus={false}). */
+  menuPortal?: boolean;
 }
 
 const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
@@ -29,9 +31,11 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   requiredMessage,
   setValue,
   asCol = true,
+  menuPortal = false,
 }) => {
 
-  const customStyles = {
+  const customStyles = useMemo(
+    () => ({
     control: (provided: any) => ({
       ...provided,
       borderColor: "var(--primary-color)",
@@ -70,13 +74,26 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       color: "var(--placeholder-txt)",
       fontFamily: "Inter",
     }),
-  };
+    ...(menuPortal
+      ? {
+          menuPortal: (provided: any) => ({ ...provided, zIndex: 9999 }),
+          menu: (provided: any) => ({ ...provided, zIndex: 9999 }),
+        }
+      : {}),
+  }),
+    [menuPortal]
+  );
 
-  const handleChange = (selectedOptions: { value: string; label: string }[]) => {
+  const handleChange = (
+    newValue: MultiValue<{ value: string; label: string }>,
+    _actionMeta: ActionMeta<{ value: string; label: string }>
+  ) => {
+    const selectedOptions = [...newValue] as { value: string; label: string }[];
+
     if (setValue && fieldName) {
       setValue(fieldName, selectedOptions);
     }
-    onChange([...selectedOptions]);
+    onChange(selectedOptions);
   };
 
   return (
@@ -85,16 +102,29 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label>{label}</Form.Label>}
+      {label?.trim() && <Form.Label className="fw-medium">{label}</Form.Label>}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"
         isMulti
-        {...(register && fieldName ? register(fieldName, { required: requiredMessage }) : {})}
+        {...(register && fieldName
+          ? register(
+              fieldName,
+              requiredMessage ? { required: requiredMessage } : {}
+            )
+          : {})}
         options={options}
         value={value}
         onChange={handleChange}
         styles={customStyles}
+        menuPortalTarget={
+          menuPortal && typeof document !== "undefined" ? document.body : null
+        }
+        menuPosition={menuPortal ? "fixed" : undefined}
+        maxMenuHeight={280}
+        menuShouldScrollIntoView={false}
+        closeMenuOnSelect={false}
+        blurInputOnSelect={false}
         placeholder={`Select ${controlId}`}
         onBlur={() => {
           if (setValue && fieldName) {

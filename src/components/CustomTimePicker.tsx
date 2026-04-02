@@ -5,17 +5,20 @@ import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 
 interface CustomTimePickerProps {
-  label: string;
+  label?: string;
   controlId: string;
   selectedTime: string | null;
   onChange: (date: Date | null) => void;
   placeholderText?: string;
   filterTime?: (date: Date) => boolean;
+  /** Minutes between selectable times (default 120). */
+  timeIntervals?: number;
   register: UseFormRegister<any>;
   validation?: any;
   error?: string | FieldError;
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
+  groupClassName?: string;
 }
 
 const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
@@ -25,11 +28,13 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   onChange,
   placeholderText = "Select a time",
   filterTime,
+  timeIntervals = 120,
   error,
   asCol = true,
   setValue,
   register,
   validation,
+  groupClassName,
 }) => {
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
@@ -49,8 +54,8 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={controlId} className="mb-3 w-100">
-        <Form.Label>{label}</Form.Label>
+      <Form.Group controlId={controlId} className={groupClassName ?? "mb-3 w-100"}>
+        {label?.trim() ? <Form.Label>{label}</Form.Label> : null}
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}
@@ -58,7 +63,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             onChange={handleDateChange}
             showTimeSelect
             showTimeSelectOnly
-            timeIntervals={120}
+            timeIntervals={timeIntervals}
             dateFormat="h:mm aa"
             placeholderText={placeholderText}
             className={`form-control ${error ? "is-invalid" : ""} full-width-date-picker`}

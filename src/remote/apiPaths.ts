@@ -34,6 +34,18 @@ export const ApiPaths = {
   UPDATE_CITY: (id: string) => `/city/update/${id}`,
   DELETE_CITY: (id: string) => `/city/delete/${id}`,
   EXPORT_CITY: `/export/city`,
+  GET_FRANCHISE_DROP_DOWN: () => "/franchise/dropdown",
+  GET_FRANCHISE: () => "/franchise",
+  CREATE_FRANCHISE: "/franchise",
+  UPDATE_FRANCHISE: (id: string) => `/franchise/${id}`,
+  DELETE_FRANCHISE: (id: string) => `/franchise/${id}`,
+  EXPORT_FRANCHISE: `/export/franchise`,
+  GET_AREA: () => `/area`,
+  CREATE_AREA: `/area`,
+  UPDATE_AREA: (id: string) => `/area/${id}`,
+  DELETE_AREA: (id: string) => `/area/${id}`,
+  GET_AREA_DROP_DOWN: () => `/area/dropdown`,
+  EXPORT_AREA: `/area/export`,
   GET_CATEGORY: () => `/category/getAll`,
   GET_CATEGORY_DROP_DOWN: () => `/category/getDropDown`,
   CREATE_CATEGORY: '/category/create',
@@ -62,6 +74,12 @@ export const ApiPaths = {
   ORDER_UPDATE_SERVICE: (id: string) => `/order/serviceUpdate/${id}`,
   GET_COMISSION_ORDER: () => `/order/getComissionOrder`,
   PAY_COMISSION: '/order_service/payComission',
+  /** Manual wallet payout (amount, payment method, description). Align path with backend. */
+  PARTNER_WALLET_PAYOUT: '/order_service/partnerWalletPayout',
+  /** GET ?partner_id=&page=&limit — admin Cash/Razorpay payout history for a partner. Align with backend. */
+  PARTNER_WALLET_PAYOUT_HISTORY: () => `/order_service/partnerWalletPayoutHistory`,
+  /** Record offline refund split (admin commission vs partner wallet). Align with backend. */
+  ORDER_REFUND: '/order/refund',
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
   CREATE_TAX_OTHER_CHARGES: '/tax/create',
   UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,
@@ -77,4 +95,9 @@ export const ApiPaths = {
   GET_USER_HOME_COUNTS_BY_ID: () => `/user_home_counts/get`,
   CREATE_USER_HOME_COUNTS: '/user_home_counts/create',
   UPDATE_USER_HOME_COUNTS: (id: string) => `/user_home_counts/update/${id}`,
+  // Expenses management
+  GET_EXPENSES: () => `/expense/getAll`,
+  CREATE_EXPENSE: `/expense/create`,
+  UPDATE_EXPENSE: (id: string) => `/expense/update/${id}`,
+  EXPORT_EXPENSES: `/export/expenses`,
 };

@@ -1,9 +1,14 @@
-import ReactDOM from "react-dom/client";
+import ReactDOM from "react-dom";
 
-const openModals: Set<ReactDOM.Root> = new Set();
+const openModals: Set<HTMLElement> = new Set();
 
 export const closeAllModals = () => {
-  openModals.forEach((modalRoot) => modalRoot.unmount());
+  openModals.forEach((modalContainer) => {
+    ReactDOM.unmountComponentAtNode(modalContainer);
+    if (modalContainer.parentNode) {
+      modalContainer.parentNode.removeChild(modalContainer);
+    }
+  });
   openModals.clear();
 };
 
@@ -18,17 +23,16 @@ export const openDialog = (
   modalContainer.id = modalId;
   document.body.appendChild(modalContainer);
 
-  const root = ReactDOM.createRoot(modalContainer);
-  openModals.add(root);
+  openModals.add(modalContainer);
 
   const closeModal = () => {
-    root.unmount();
-    openModals.delete(root);
+    ReactDOM.unmountComponentAtNode(modalContainer);
+    openModals.delete(modalContainer);
 
     if (modalContainer.parentNode) {
       modalContainer.parentNode.removeChild(modalContainer);
     }
   };
 
-  root.render(render(closeModal));
+  ReactDOM.render(render(closeModal), modalContainer);
 };

@@ -39,8 +39,17 @@ export const fetchOrder = async (
   }
 };
 
-export const fetchOrderById = async (id: string): Promise<{ response: boolean, order: OrderModel | null; }> => {
-  const response = await apiRequest(`${ApiPaths.GET_ORDER_BY_ID()}/${id}`, "GET");
+export const fetchOrderById = async (
+  id: string,
+  options?: { skipLoader?: boolean }
+): Promise<{ response: boolean, order: OrderModel | null; }> => {
+  const response = await apiRequest(
+    `${ApiPaths.GET_ORDER_BY_ID()}/${id}`,
+    "GET",
+    undefined,
+    false,
+    options?.skipLoader ?? false
+  );
   if (response.success) {
     return {
       response: true,
@@ -123,6 +132,31 @@ export const payComission = async (
     return false;
   } catch (error) {
     console.error("Error fetching creating order:", error);
+    return false;
+  }
+};
+
+export type OrderRefundPayload = {
+  order_id: string;
+  refund_amount: number;
+  from_admin_commission: boolean;
+  from_partner_wallet: boolean;
+  /** When both sources are selected, amounts per source (should sum to refund_amount). */
+  amount_from_admin_commission?: number;
+  amount_from_partner_wallet?: number;
+  description?: string;
+};
+
+export const submitOrderRefund = async (payload: OrderRefundPayload): Promise<boolean> => {
+  try {
+    const response = await apiRequest(ApiPaths.ORDER_REFUND, "POST", payload);
+    if (response.success) {
+      return true;
+    }
+    showLog(response.message || "Refund failed");
+    return false;
+  } catch (error) {
+    showLog(error);
     return false;
   }
 };

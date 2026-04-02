@@ -15,6 +15,7 @@ import "./assets/scss/loader.scss";
 import "./assets/scss/Sidebar.scss";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { routes } from "./routes/Routes";
+import "bootstrap-icons/font/bootstrap-icons.css";
 
 function App() {
   const { width } = useViewport();

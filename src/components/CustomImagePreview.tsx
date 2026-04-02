@@ -1,4 +1,4 @@
-import ReactDOM from "react-dom/client";
+import ReactDOM from "react-dom";
 import { Modal } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import { DocumentModel } from "../models/DocumentModel";
@@ -10,14 +10,13 @@ export const CustomImagePreviewDialog = (
 ) => {
     const modalContainer = document.createElement("div");
     document.body.appendChild(modalContainer);
-    const root = ReactDOM.createRoot(modalContainer);
 
     const closeModal = () => {
-        root.unmount();
+        ReactDOM.unmountComponentAtNode(modalContainer);
         document.body.removeChild(modalContainer);
     };
 
-    root.render(
+    ReactDOM.render(
         <Modal show={true}
             onHide={closeModal}
             centered
@@ -37,6 +36,7 @@ export const CustomImagePreviewDialog = (
                     style={{ maxWidth: "80%", maxHeight: "80%" }}
                 />
             </Modal.Body>
-        </Modal>
+        </Modal>,
+        modalContainer
     );
 };

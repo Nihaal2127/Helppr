@@ -86,7 +86,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
         openConfirmDialog(
             "Are you sure you want to delete document?",
             "Delete",
-            "Cancle",
+            "Cancel",
             async () => {
                 const response = await deletePartnerDocument(document._id);
                 if (response) {
@@ -109,8 +109,9 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                 show={true}
                 onHide={onClose}
                 centered
+                size="xl"
+                dialog ClassName="custom-big-modal"
             >
-                <div className="custom-model-detail">
                     <Modal.Header className="py-3 px-4 border-bottom-0">
                         <Modal.Title as="h5" className="custom-modal-title">
                             Partner Information
@@ -207,7 +208,6 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                             </Col>
                         </Row>
                     </Modal.Body>
-                </div>
             </Modal>
         </>
     );

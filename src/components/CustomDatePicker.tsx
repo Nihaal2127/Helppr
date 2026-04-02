@@ -5,7 +5,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 
 interface CustomDatePickerProps {
-  label: string;
+  label?: string;
   controlId: string;
   selectedDate: string | null;
   onChange: (date: Date | null) => void;
@@ -16,6 +16,7 @@ interface CustomDatePickerProps {
   error?: string | FieldError;
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
+  groupClassName?: string;
 }
 
 const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
@@ -30,6 +31,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   setValue,
   register,
   validation,
+  groupClassName,
 }) => {
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
@@ -49,8 +51,8 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={controlId} className="mb-3 w-100">
-        <Form.Label>{label}</Form.Label>
+      <Form.Group controlId={controlId} className={groupClassName ?? "mb-3 w-100"}>
+        {label && <Form.Label>{label}</Form.Label>}
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}

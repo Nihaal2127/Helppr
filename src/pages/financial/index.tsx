@@ -1,45 +1,50 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import { ROUTES } from "../../routes/Routes";
 
 const Financials = () => {
-    const [settingList] = useState<string[]>([
-        "Order\nPayments", "Partner\nPayments", "Partner\nPayout",
-    ]);
+  const navigate = useNavigate();
+  const [tiles] = useState<{ title: string; route: string }[]>([
+    { title: "Order\nPayments", route: ROUTES.ORDER_PAYMENTS.path },
+    { title: "Partner\nPayout", route: ROUTES.PARTNER_PAYOUT.path },
+    { title: "Refunds", route: ROUTES.FINANCIAL_REFUNDS.path },
+  ]);
 
-    const handleOnClick = (title: string) => {
-        if (title == "Order\nPayments") {
-            window.open(ROUTES.ORDER_PAYMENTS.path, "_blank");
-        }
-        else if (title == "Partner\nPayments") {
-            window.open(ROUTES.PARTNER_PAYMENTS.path, "_blank");
-        }
-        else if (title == "Partner\nPayout") {
-            window.open(ROUTES.PARTNER_PAYOUT.path, "_blank");
-        }
-    }
+  const { register, setValue } = useForm({
+    defaultValues: { franchise_id: "all" },
+  });
 
-    return (
-        <>
-            <div className="main-page-content">
-                <CustomHeader
-                    title="Financial"
-                />
+  return (
+    <div className="main-page-content">
+      <CustomHeader
+        title="Financials"
+        register={register as any}
+        setValue={setValue as any}
+      />
 
-                <div className="custom-grid-box-div">
-                    {settingList.map((setting, index) => (
-                        <div
-                            className="custom-grid-box"
-                            key={index}
-                            onClick={() => handleOnClick(setting)}
-                        >
-                            {setting}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </>
-    );
-}
+      <div className="custom-grid-box-div">
+        {tiles.map((tile) => (
+          <div
+            className="custom-grid-box"
+            key={tile.route}
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate(tile.route)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate(tile.route);
+              }
+            }}
+          >
+            {tile.title}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default Financials;
