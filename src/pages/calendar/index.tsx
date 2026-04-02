@@ -13,7 +13,7 @@ const CalendarPage: React.FC = () => {
       <CustomHeader title="Calendar" register={register} setValue={setValue} />
 
       <div className="custom-dashboard-card d-flex justify-content-between align-items-center">
-        <h3 className="custom-dashboard-title">Appointments</h3>
+        <h3 className="custom-dashboard-title">Appointment Calender</h3>
 
         <div className="d-flex gap-2">
         <Button
