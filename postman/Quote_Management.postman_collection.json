@@ -1,0 +1,55 @@
+{
+  "info": {
+    "_postman_id": "col-quote-mgmt-001",
+    "name": "Quote Management",
+    "description": "Endpoints aligned with `src/remote/apiPaths.ts` (`GET_QUOTES`) and `src/services/quoteService.ts`.\n\n**Auth:** `Authorization: Bearer <token>` (same as `apiRequest` in `src/remote/apiHelper.ts`).\n\n**Base URL:** Use collection variable `baseUrl` (default matches `AppConstant.BASE_URL` without path prefix).\n\n**List response parsing (frontend):** Accepts either `data.records` + `data.totalPages` OR nested `data.data.records` + `data.data.totalPages` (see `fetchQuotes`).\n\n**Tab values:** `new` | `pending` | `accepted` | `success` | `failed` (see `QuoteTabKey`).\n\n**Sort:** Optional `sort_by` (column id / accessor) and `sort_order` `asc` | `desc`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://csx88sd9ed.execute-api.ap-south-1.amazonaws.com/prod/api" },
+    { "key": "authToken", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Quotes",
+      "item": [
+        {
+          "name": "List quotes (paginated, tab, filters, sort)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/quote/getAll?page=1&limit=10&tab=new",
+              "query": [
+                { "key": "page", "value": "1", "description": "1-based page index" },
+                { "key": "limit", "value": "10", "description": "Page size" },
+                { "key": "tab", "value": "new", "description": "new | pending | accepted | success | failed" },
+                { "key": "keyword", "value": "", "description": "Optional; search across ids, names, services, etc.", "disabled": true },
+                { "key": "from_date", "value": "", "description": "Optional; YYYY-MM-DD", "disabled": true },
+                { "key": "to_date", "value": "", "description": "Optional; YYYY-MM-DD", "disabled": true },
+                { "key": "sort_by", "value": "", "description": "Optional; e.g. quote_id, user_name, service_price, scheduled_date, status", "disabled": true },
+                { "key": "sort_order", "value": "asc", "description": "asc | desc", "disabled": true }
+              ]
+            },
+            "description": "**Query params (from `quoteService`):** `page`, `limit`, `tab`, optional `keyword`, `from_date`, `to_date`, optional `sort_by`, `sort_order`.\n\n**Example success body (suggested contract):**\n```json\n{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"records\": [\n      {\n        \"_id\": \"...\",\n        \"quote_id\": \"Q-001\",\n        \"status\": \"new\",\n        \"requested_services\": \"Cleaning\",\n        \"requested_partner\": \"Partner A\",\n        \"user_name\": \"John\",\n        \"door_no\": \"12\",\n        \"street\": \"MG Road\",\n        \"city\": \"Hyderabad\",\n        \"requested_date\": \"2026-04-01\",\n        \"requested_time\": \"10:00\",\n        \"service_price\": 1500\n      }\n    ],\n    \"totalPages\": 5\n  }\n}\n```\n\n**Record shape:** See `QuoteRow` in `src/pages/quoteManagement/quoteTypes.ts` and mock `src/mockData/quoteMockData.ts`."
+          },
+          "response": [
+            {
+              "name": "200 - list example",
+              "originalRequest": { "method": "GET", "header": [], "url": "{{baseUrl}}/quote/getAll?page=1&limit=10&tab=new" },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"records\": [],\n    \"totalPages\": 0\n  }\n}\n"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,232 @@
+{
+  "info": {
+    "_postman_id": "col-partner-mgmt-001",
+    "name": "Partner Management",
+    "description": "Endpoints aligned with `src/remote/apiPaths.ts` (partner subscription plans, subscriptions, portfolios, posts) and `src/services/partnerManagementService.ts`.\n\n**Auth:** `Authorization: Bearer {{authToken}}` (see `apiRequest` in `src/remote/apiHelper.ts`).\n\n**Base URL:** Collection variable `baseUrl` — default matches `AppConstant.BASE_URL` in `src/constant/AppConstant.ts` (no trailing slash; paths start with `/`).\n\n**HTTP methods:** Create/update use `POST`/`PUT` with JSON body (same object shapes the UI sends via `saveSubscriptionPlan` / `savePartnerSubscription`). Void operations use `PUT` to the void URL (no body required).\n\n**List response (frontend):** Parses `records`, `totalPages`, and `stats` from either top-level `data` or `data.data` (see service).\n\n**Mock mode:** `USE_MOCK_PARTNER_MANAGEMENT_API` in the service skips these calls until backend is wired.\n\n**Types & mock seeds:** `SubscriptionPlanModel`, `PartnerSubscriptionModel`, `PostModel` under `src/pages/partnerManagement/...`; sample rows in `src/mockData/partnerManagementMockData.ts`. Portfolio rows match `PortfolioRow` in the service file.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://csx88sd9ed.execute-api.ap-south-1.amazonaws.com/prod/api" },
+    { "key": "authToken", "value": "" },
+    { "key": "subscriptionPlanId", "value": "PLN001" },
+    { "key": "partnerSubscriptionId", "value": "1" },
+    { "key": "portfolioId", "value": "1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Subscription plans",
+      "item": [
+        {
+          "name": "List subscription plans",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/partner/subscription/plans?page=1&limit=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "name", "value": "", "description": "Search / filter by name (also sent as keyword when set)", "disabled": true },
+                { "key": "keyword", "value": "", "description": "Duplicate of name for backends expecting keyword", "disabled": true },
+                { "key": "is_active", "value": "true", "description": "When status filter not 'all': active→true, expired→false, or raw status", "disabled": true },
+                { "key": "sort", "value": "", "description": "Legacy sort hint", "disabled": true },
+                { "key": "sort_by", "value": "plan_name", "description": "Column id from table sort", "disabled": true },
+                { "key": "sort_order", "value": "asc", "description": "asc | desc", "disabled": true }
+              ]
+            },
+            "description": "**Path:** `GET /partner/subscription/plans`\n\n**Suggested success JSON:**\n```json\n{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"records\": [\n      {\n        \"_id\": \"PLN001\",\n        \"plan_name\": \"basic\",\n        \"plan_description\": \"Basic subscription plan for starter users\",\n        \"price\": \"499\",\n        \"duration\": \"30\",\n        \"duration_type\": \"days\",\n        \"priority\": \"\",\n        \"is_active\": true\n      }\n    ],\n    \"totalPages\": 1,\n    \"stats\": { \"Total\": 4, \"Active\": 3, \"Inactive\": 1 }\n  }\n}\n```\n\n**Error (non-2xx):** e.g. `{ \"message\": \"Unauthorized\" }` — `apiRequest` returns `{ success: false, status, message }`."
+          },
+          "response": [
+            {
+              "name": "200 - list with stats",
+              "originalRequest": { "method": "GET", "header": [], "url": "{{baseUrl}}/partner/subscription/plans?page=1&limit=10" },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"records\": [],\n    \"totalPages\": 0,\n    \"stats\": { \"Total\": 0, \"Active\": 0, \"Inactive\": 0 }\n  }\n}\n"
+            }
+          ]
+        },
+        {
+          "name": "Create subscription plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_id\": \"\",\n  \"plan_name\": \"basic\",\n  \"plan_description\": \"Starter plan\",\n  \"price\": \"499\",\n  \"duration\": \"30\",\n  \"duration_type\": \"days\",\n  \"priority\": \"\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/partner/subscription/plans/create",
+            "description": "**Path:** `POST /partner/subscription/plans/create`\n\n**Body:** `SubscriptionPlanModel` (`_id` may be empty; server assigns id).\n\n**Success:** 2xx JSON with optional `message`; client checks `res.success`."
+          },
+          "response": []
+        },
+        {
+          "name": "Update subscription plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_id\": \"PLN001\",\n  \"plan_name\": \"basic\",\n  \"plan_description\": \"Updated description\",\n  \"price\": \"599\",\n  \"duration\": \"30\",\n  \"duration_type\": \"days\",\n  \"priority\": \"\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/partner/subscription/plans/update/{{subscriptionPlanId}}",
+            "description": "**Path:** `PUT /partner/subscription/plans/update/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Void (deactivate) subscription plan",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/partner/subscription/plans/void/{{subscriptionPlanId}}",
+            "description": "**Path:** `PUT /partner/subscription/plans/void/:id` — no body required; backend should set plan inactive (`is_active: false`)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Partner subscriptions",
+      "item": [
+        {
+          "name": "List partner subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/partner/subscriptions?page=1&limit=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "name", "value": "", "description": "Search keyword", "disabled": true },
+                { "key": "keyword", "value": "", "disabled": true },
+                { "key": "is_active", "value": "active", "description": "When status not 'All': active | expired | false | true (lowercased)", "disabled": true },
+                { "key": "plan_type", "value": "basic", "description": "When plan filter not 'all'", "disabled": true },
+                { "key": "location", "value": "", "description": "When location filter not 'all'", "disabled": true },
+                { "key": "from_date", "value": "", "description": "YYYY-MM-DD", "disabled": true },
+                { "key": "to_date", "value": "", "description": "YYYY-MM-DD", "disabled": true },
+                { "key": "sort", "value": "", "disabled": true },
+                { "key": "sort_by", "value": "partner_name", "disabled": true },
+                { "key": "sort_order", "value": "asc", "disabled": true }
+              ]
+            },
+            "description": "**Path:** `GET /partner/subscriptions`\n\n**Record shape (`PartnerSubscriptionModel`):** `_id`, `partner_id`, `partner_name`, `subscription_plan`, `subscription_start_date`, `subscription_end_date`, `rating`, `address` (UI label Address; optional `location`), `is_active`.\n\n**Suggested success JSON:** same pattern as plans — `data.records`, `data.totalPages`, `data.stats`."
+          },
+          "response": []
+        },
+        {
+          "name": "Create partner subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partner_id\": \"P001\",\n  \"partner_name\": \"Rahul\",\n  \"subscription_plan\": \"basic\",\n  \"subscription_start_date\": \"2026-04-01\",\n  \"subscription_end_date\": \"2026-04-30\",\n  \"rating\": \"4.2\",\n  \"address\": \"Flat 402, Example Street, Hyderabad\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/partner/subscriptions/create",
+            "description": "**Path:** `POST /partner/subscriptions/create`\n\n**Body:** full `PartnerSubscriptionModel` (`_id` optional for create)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update partner subscription",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_id\": \"1\",\n  \"partner_id\": \"P001\",\n  \"partner_name\": \"Rahul\",\n  \"subscription_plan\": \"silver\",\n  \"subscription_start_date\": \"2026-03-01\",\n  \"subscription_end_date\": \"2026-06-01\",\n  \"rating\": \"4.5\",\n  \"address\": \"Updated address line\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/partner/subscriptions/update/{{partnerSubscriptionId}}",
+            "description": "**Path:** `PUT /partner/subscriptions/update/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Void (deactivate) partner subscription",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/partner/subscriptions/void/{{partnerSubscriptionId}}",
+            "description": "**Path:** `PUT /partner/subscriptions/void/:id`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Portfolios",
+      "item": [
+        {
+          "name": "List partner portfolios",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/partner/portfolios?page=1&limit=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "name", "value": "", "description": "Search", "disabled": true },
+                { "key": "keyword", "value": "", "disabled": true },
+                { "key": "is_active", "value": "active", "description": "active | inactive | true | false when status not 'All'", "disabled": true },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "service", "value": "", "disabled": true },
+                { "key": "location", "value": "", "disabled": true },
+                { "key": "sort", "value": "", "disabled": true },
+                { "key": "sort_by", "value": "partner_name", "disabled": true },
+                { "key": "sort_order", "value": "asc", "disabled": true }
+              ]
+            },
+            "description": "**Path:** `GET /partner/portfolios`\n\n**Record shape (`PortfolioRow`):** `_id`, `partner_id`, `partner_name`, `category`, `service`, `total_posts`, `total_images`, `total_videos`, `likes_count`, `comments_count`, `saves_count`, `ratings`, `location`, `is_active` (all counts/ratings as strings in mock)."
+          },
+          "response": []
+        },
+        {
+          "name": "Void (deactivate) portfolio",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/partner/portfolios/void/{{portfolioId}}",
+            "description": "**Path:** `PUT /partner/portfolios/void/:id`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "List partner posts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/partner/posts",
+            "description": "**Path:** `GET /partner/posts` — UI loads all posts in one call (`fetchPosts`); no pagination query in service today.\n\n**Record shape (`PostModel`):** `id` (number, optional), `partner_id`, `partner_name`, `description`, `media_type` (`image` | `video`), `location`, `uploaded_date`, `status` (`pending` | `approved` | `rejected`).\n\n**Suggested success JSON:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"records\": [\n      {\n        \"id\": 1,\n        \"partner_id\": \"P001\",\n        \"partner_name\": \"Rahul\",\n        \"description\": \"Wedding shoot...\",\n        \"media_type\": \"image\",\n        \"location\": \"Hyderabad\",\n        \"uploaded_date\": \"2026-03-20\",\n        \"status\": \"pending\"\n      }\n    ]\n  }\n}\n```"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

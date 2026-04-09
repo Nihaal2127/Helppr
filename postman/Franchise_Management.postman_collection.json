@@ -1,0 +1,110 @@
+{
+  "info": {
+    "_postman_id": "col-franchise-mgmt-001",
+    "name": "Franchise Management",
+    "description": "Endpoints aligned with `src/remote/apiPaths.ts` and `src/services/franchiseService.ts`.\n\n**Auth:** Bearer token (`apiRequest`).\n\n**List GET query params:** `page`, `limit`, optional `name` (search), optional duplicate `keyword` (same value as name for backends that expect it), optional `is_active` when status filter is not `All` (`true`/`false` string), optional legacy `sort` (`1`/`-1` or `asc`/`desc`), optional `sort_by`, `sort_order`.\n\n**Model:** `FranchiseModel` in `src/models/FranchiseModels.ts`; mock seed `src/mockData/franchiseMockData.ts` (may use `area_id` / `area_name` arrays — align payload with your API).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://csx88sd9ed.execute-api.ap-south-1.amazonaws.com/prod/api" },
+    { "key": "authToken", "value": "" },
+    { "key": "franchiseId", "value": "1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Franchise",
+      "item": [
+        {
+          "name": "Dropdown (for selects)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/franchise/dropdown",
+            "description": "**Response (frontend expects):** `data.records` as array of `{ _id, name, ... }` mapped to value/label.\n\n**Example:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"records\": [\n      { \"_id\": \"1\", \"name\": \"Sunria Agro Agro\" }\n    ]\n  }\n}\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "List franchises (paginated, filters, sort)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/franchise?page=1&limit=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "name", "value": "", "description": "Search term", "disabled": true },
+                { "key": "keyword", "value": "", "description": "Optional; same as name for compatibility", "disabled": true },
+                { "key": "is_active", "value": "true", "description": "Omit or All = no filter; true|false", "disabled": true },
+                { "key": "sort", "value": "-1", "description": "Legacy: 1|-1 or asc|desc", "disabled": true },
+                { "key": "sort_by", "value": "name", "description": "Optional", "disabled": true },
+                { "key": "sort_order", "value": "asc", "description": "asc|desc", "disabled": true }
+              ]
+            },
+            "description": "**Success body (frontend):** `data.records`, `data.totalPages`."
+          },
+          "response": []
+        },
+        {
+          "name": "Create franchise",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Franchise\",\n  \"state_id\": \"telangana\",\n  \"city_id\": \"hyderabad\",\n  \"area_id\": \"madhapur\",\n  \"admin_id\": \"admin_1\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/franchise",
+            "description": "**Path:** `POST /franchise` (`CREATE_FRANCHISE`).\n\n**Body:** Matches `createOrUpdateFranchise` payload; extend with `state_name`, `city_name`, `area_name`, `description`, `contact`, etc. as your API requires (see mock seed fields)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update franchise",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Franchise Name\",\n  \"state_id\": \"telangana\",\n  \"city_id\": \"hyderabad\",\n  \"area_id\": \"kukatpally\",\n  \"admin_id\": \"admin_1\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/franchise/{{franchiseId}}",
+            "description": "**Path:** `PUT /franchise/:id` (`UPDATE_FRANCHISE`)."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete franchise",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/franchise/{{franchiseId}}",
+            "description": "**Path:** `DELETE /franchise/:id` (`DELETE_FRANCHISE`)."
+          },
+          "response": []
+        },
+        {
+          "name": "Export franchises (file)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "*/*" }],
+            "url": "{{baseUrl}}/export/franchise",
+            "description": "**Path:** `GET /export/franchise` — typically returns a file stream or download URL per backend implementation."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

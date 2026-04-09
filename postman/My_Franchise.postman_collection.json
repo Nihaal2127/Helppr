@@ -1,0 +1,120 @@
+{
+  "info": {
+    "_postman_id": "col-my-franchise-001",
+    "name": "My Franchise",
+    "description": "**Important:** The My Franchise screen is currently backed by mock data in `src/services/myFranchiseService.ts` (`USE_MOCK_MY_FRANCHISE_API`). These routes are **not** yet defined in `src/remote/apiPaths.ts`. This collection documents a **proposed REST contract** that matches the existing TypeScript types and UI behavior so the backend can align before `apiPaths` + service are updated.\n\n**Auth:** Bearer `{{authToken}}` (same as `apiRequest`).\n\n**Base URL:** `baseUrl` = `AppConstant.BASE_URL`.\n\n---\n\n### Proposed endpoints\n\n1. **`GET /my-franchise/box-data`** — Single call returning all four datasets the dashboard needs (equivalent to `fetchMyFranchiseBoxData()`).\n\n2. **Status toggles** — `PUT` per resource type with body `{ \"is_active\": boolean }` (equivalent to `setEmployeeActive`, `setAreaActive`, `setServiceActive`, `setCategoryActive`). **Note:** `apiRequest` in `src/remote/apiHelper.ts` currently allows only `GET` | `POST` | `PUT` | `DELETE`; use `PUT` from the app unless you extend the helper to support `PATCH`.\n\n---\n\n### Types (from service)\n\n- **EmployeeRow:** `_id`, `employee_id`, `name`, `role`, `phone`, `email`, `area_name`, `is_active`\n- **AreaRow:** `_id`, `area_name`, `city_name`, `state_name`, `pincode`, `is_active`\n- **ServiceRow:** `_id`, `service_id`, `name`, `category_name`, `is_active`\n- **CategoryRow:** `_id`, `category_id`, `name`, `is_active`\n\n**Mock seeds:** `src/mockData/myFranchiseMockData.ts`\n\n---\n\n### Backend implementation checklist\n\n- Add paths to `ApiPaths` and switch `myFranchiseService` off mock mode.\n- Return shapes compatible with the examples below (either `data` wrapper or nested `data.data` if you follow the same pattern as other list APIs).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://csx88sd9ed.execute-api.ap-south-1.amazonaws.com/prod/api" },
+    { "key": "authToken", "value": "" },
+    { "key": "employeeId", "value": "e1" },
+    { "key": "areaId", "value": "a1" },
+    { "key": "serviceId", "value": "s1" },
+    { "key": "categoryId", "value": "c1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Dashboard bundle (proposed)",
+      "item": [
+        {
+          "name": "Get box data (employees, areas, services, categories)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/my-franchise/box-data",
+            "description": "**Proposed path:** `GET /my-franchise/box-data`\n\n**Purpose:** Replace mock `fetchMyFranchiseBoxData()` with one response containing all four lists.\n\n**Suggested success JSON:**\n```json\n{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"employees\": [\n      {\n        \"_id\": \"e1\",\n        \"employee_id\": \"FE-1001\",\n        \"name\": \"Ananya Rao\",\n        \"role\": \"Operations Lead\",\n        \"phone\": \"+91 9876500101\",\n        \"email\": \"ananya@franchise.local\",\n        \"area_name\": \"Madhapur\",\n        \"is_active\": true\n      }\n    ],\n    \"areas\": [\n      {\n        \"_id\": \"a1\",\n        \"area_name\": \"Madhapur\",\n        \"city_name\": \"Hyderabad\",\n        \"state_name\": \"Telangana\",\n        \"pincode\": \"500081\",\n        \"is_active\": true\n      }\n    ],\n    \"services\": [\n      {\n        \"_id\": \"s1\",\n        \"service_id\": \"SVC-201\",\n        \"name\": \"Deep Home Cleaning\",\n        \"category_name\": \"Cleaning\",\n        \"is_active\": true\n      }\n    ],\n    \"categories\": [\n      {\n        \"_id\": \"c1\",\n        \"category_id\": \"CAT-01\",\n        \"name\": \"Cleaning\",\n        \"is_active\": true\n      }\n    ]\n  }\n}\n```\n\n**Note:** After backend exists, map `ApiPaths` e.g. `GET_MY_FRANCHISE_BOX_DATA: () => '/my-franchise/box-data'` and parse `res.data` in the service the same way other modules do."
+          },
+          "response": [
+            {
+              "name": "200 - example bundle",
+              "originalRequest": { "method": "GET", "header": [], "url": "{{baseUrl}}/my-franchise/box-data" },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"OK\",\n  \"data\": {\n    \"employees\": [],\n    \"areas\": [],\n    \"services\": [],\n    \"categories\": []\n  }\n}\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Status toggles (proposed)",
+      "item": [
+        {
+          "name": "Update employee active flag (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            },
+            "url": "{{baseUrl}}/my-franchise/employees/{{employeeId}}",
+            "description": "**Proposed:** `PUT /my-franchise/employees/:id` (or `PATCH` if you extend `apiRequest`).\n\n**Body:** `{ \"is_active\": boolean }`\n\n**Success:** 2xx with optional `message`; client expects boolean success like `setEmployeeActive`."
+          },
+          "response": []
+        },
+        {
+          "name": "Update area active flag (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/my-franchise/areas/{{areaId}}",
+            "description": "**Proposed:** `PUT /my-franchise/areas/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Update service active flag (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/my-franchise/services/{{serviceId}}",
+            "description": "**Proposed:** `PUT /my-franchise/services/:id`"
+          },
+          "response": []
+        },
+        {
+          "name": "Update category active flag (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            },
+            "url": "{{baseUrl}}/my-franchise/categories/{{categoryId}}",
+            "description": "**Proposed:** `PUT /my-franchise/categories/:id`"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
