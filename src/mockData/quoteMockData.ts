@@ -779,7 +779,7 @@ export const quoteListMockData: { records: QuoteRow[] } = {
       partner_name: "Suresh Home Care",
       user_name: "Nandini Reddy",
       door_no: "17-17",
-      street: "Nacharam",
+      street: "test",
       city: "Hyderabad",
       requested_date: "2026-04-06T00:00:00.000Z",
       requested_time: "-",
