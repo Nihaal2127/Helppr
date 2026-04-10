@@ -24,27 +24,61 @@ const CustomPagination = ({
   const renderPageNumbers = () => {
     const pages = [];
     if (startPage > 1) {
-      pages.push(<li key={1} onClick={() => onPageChange(1)}><a>1</a></li>);
-      if (startPage > 2) pages.push(<li key="startEllipsis" className="disabled"><a>...</a></li>);
+      pages.push(
+        <li key={1}>
+          <a
+            href="#page-1"
+            onClick={(e) => {
+              e.preventDefault();
+              onPageChange(1);
+            }}
+          >
+            1
+          </a>
+        </li>
+      );
+      if (startPage > 2)
+        pages.push(
+          <li key="startEllipsis" className="disabled">
+            <span>...</span>
+          </li>
+        );
     }
 
     for (let i = startPage; i <= endPage; i++) {
       pages.push(
-        <li
-          key={i}
-          className={classNames({ active: i === currentPage })}
-          onClick={() => onPageChange(i)}
-        >
-          <a>{i}</a>
+        <li key={i} className={classNames({ active: i === currentPage })}>
+          <a
+            href={`#page-${i}`}
+            onClick={(e) => {
+              e.preventDefault();
+              onPageChange(i);
+            }}
+          >
+            {i}
+          </a>
         </li>
       );
     }
 
     if (endPage < totalPages) {
-      if (endPage < totalPages - 1) pages.push(<li key="endEllipsis" className="disabled">...</li>);
+      if (endPage < totalPages - 1)
+        pages.push(
+          <li key="endEllipsis" className="disabled">
+            <span>...</span>
+          </li>
+        );
       pages.push(
-        <li key={totalPages} onClick={() => onPageChange(totalPages)}>
-          <a>{totalPages}</a>
+        <li key={totalPages}>
+          <a
+            href={`#page-${totalPages}`}
+            onClick={(e) => {
+              e.preventDefault();
+              onPageChange(totalPages);
+            }}
+          >
+            {totalPages}
+          </a>
         </li>
       );
     }

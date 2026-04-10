@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, textUnderlineCell, statusCell, showLog, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
+import { capitalizeString, textUnderlineCell, statusCell, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import { deleteUser, fetchUser } from "../../services/userService";
@@ -79,40 +79,58 @@ const UserManagement = () => {
         void fetchData();
     }, [fetchData]);
 
-    const refreshData = async (_selected: string) => {
+    const refreshData = useCallback(async (_selected: string) => {
         await fetchData();
-    };
+    }, [fetchData]);
 
     const handleSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
         setSortBy(next);
         setCurrentPage(1);
     }, []);
 
-    const partnerShow = (userId: string) => {
-        PartnerDetailsDialog.show(userId, () => refreshData("box-partner"))
-    }
+    const partnerShow = useCallback(
+        (userId: string) => {
+            PartnerDetailsDialog.show(userId, () => {
+                void refreshData("box-partner");
+            });
+        },
+        [refreshData]
+    );
 
-    const userShow = (userId: string) => {
-        UserDetailsDialog.show(userId, () => refreshData("box-user"))
-    }
+    const userShow = useCallback(
+        (userId: string) => {
+            UserDetailsDialog.show(userId, () => {
+                void refreshData("box-user");
+            });
+        },
+        [refreshData]
+    );
 
-    const verificationShow = (userId: string) => {
-        VerificationDetailsDialog.show(userId, () => refreshData("box-verification"))
-    }
+    const verificationShow = useCallback(
+        (userId: string) => {
+            VerificationDetailsDialog.show(userId, () => {
+                void refreshData("box-verification");
+            });
+        },
+        [refreshData]
+    );
 
-    const handleUserDelete = (id: string, selected: "box-user" | "box-partner") => {
-        openConfirmDialog(
-            "Are you sure you want to void this user? ",
-            "Void",
-            "Cancel",
-            async () => {
-                const response = await deleteUser(id);
-                if (response) {
-                    refreshData(selected);
+    const handleUserDelete = useCallback(
+        (id: string, selected: "box-user" | "box-partner") => {
+            openConfirmDialog(
+                "Are you sure you want to void this user? ",
+                "Void",
+                "Cancel",
+                async () => {
+                    const response = await deleteUser(id);
+                    if (response) {
+                        void refreshData(selected);
+                    }
                 }
-            }
-        );
-    };
+            );
+        },
+        [refreshData]
+    );
 
     const userColumns = React.useMemo(() => [
         {
@@ -154,7 +172,7 @@ const UserManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, handleUserDelete, userShow]);
 
     const partnerColumns = React.useMemo(() => [
         {
@@ -196,7 +214,7 @@ const UserManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, handleUserDelete, partnerShow]);
 
     const verificationColumns = React.useMemo(() => [
         {
@@ -230,7 +248,7 @@ const UserManagement = () => {
             Header: "Status", accessor: "verification_status",
             Cell: verificationStatusCell("verification_status"),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, verificationShow]);
 
     return (
         <>

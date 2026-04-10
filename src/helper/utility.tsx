@@ -271,10 +271,13 @@ export const DetailsRowLink = ({ title, value, onClick }: { title: string; value
         <Row className="row custom-personal-row">
             <label className="col custom-personal-row-title">{title}</label>
             <label className="col custom-personal-row-value">
-                <a href="#" onClick={(e) => {
-                    e.preventDefault();
-                    onClick();
-                }}>{(value === undefined || value === null) ? "0" : value}</a>
+                <button
+                    type="button"
+                    className="btn btn-link p-0 align-baseline text-decoration-underline"
+                    onClick={onClick}
+                >
+                    {(value === undefined || value === null) ? "0" : value}
+                </button>
             </label>
         </Row>
     );

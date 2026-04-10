@@ -11,7 +11,6 @@ import { ApiPaths } from "../remote/apiPaths";
 import { CustomFormInput } from "./CustomFormInput";
 import CustomFormSelect from "./CustomFormSelect";
 import CustomDatePicker from "./CustomDatePicker";
-import CustomTextFieldSelect from "./CustomTextFieldSelect";
 import CustomUtilityBox from "./CustomUtilityBox";
 
 interface CalendarEvent {

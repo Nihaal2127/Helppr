@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { textUnderlineCell, formatDate, priceCell, showLog, } from "../../helper/utility";
+import { textUnderlineCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import { deleteOrder, fetchOrder } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
@@ -46,13 +46,13 @@ const OrderManagement = () => {
         fetchRef.current = false;
     }, [currentPage, pageSize]);
 
-    useEffect(() => {
-        refreshData();
-    }, [selectedStatus, currentPage]);
-
-    const refreshData = async () => {
+    const refreshData = useCallback(async () => {
         await fetchData({ status: selectedStatus.toString() });
-    };
+    }, [fetchData, selectedStatus]);
+
+    useEffect(() => {
+        void refreshData();
+    }, [refreshData, currentPage, selectedStatus]);
 
     const handleFilterChange = async (filters: {
         keyword?: string;
@@ -73,27 +73,40 @@ const OrderManagement = () => {
         await handleFilterChange({ status: statusKey.toString() });
     };
 
-    const orderShow = (orderId: string) => {
-        OrderInfoDialog.show(orderId, () => refreshData())
-    }
+    const orderShow = useCallback(
+        (orderId: string) => {
+            OrderInfoDialog.show(orderId, () => {
+                void refreshData();
+            });
+        },
+        [refreshData]
+    );
 
-    const userShow = (userId: string) => {
-        UserDetailsDialog.show(userId, () => refreshData())
-    }
+    const userShow = useCallback(
+        (userId: string) => {
+            UserDetailsDialog.show(userId, () => {
+                void refreshData();
+            });
+        },
+        [refreshData]
+    );
 
-    const handleOrderVoid = (orderId: string) => {
-        openConfirmDialog(
-            "Are you sure you want to void this order?",
-            "Void",
-            "Cancel",
-            async () => {
-                const response = await deleteOrder(orderId);
-                if (response) {
-                    refreshData();
+    const handleOrderVoid = useCallback(
+        (orderId: string) => {
+            openConfirmDialog(
+                "Are you sure you want to void this order?",
+                "Void",
+                "Cancel",
+                async () => {
+                    const response = await deleteOrder(orderId);
+                    if (response) {
+                        void refreshData();
+                    }
                 }
-            }
-        );
-    };
+            );
+        },
+        [refreshData]
+    );
 
     const orderColumns = React.useMemo(() => [
         {
@@ -130,7 +143,7 @@ const OrderManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, handleOrderVoid, orderShow, userShow]);
 
     return (
         <>

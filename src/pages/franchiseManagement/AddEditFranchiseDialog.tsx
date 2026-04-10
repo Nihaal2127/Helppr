@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -210,19 +210,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         setValue("area_id", []);
     }, [selectedCity, isEditable, setValue]);
 
-    useEffect(() => {
-        if (selectedAdmin === "add_new_admin") {
-            handleAddAdmin();
-        }
-    }, [selectedAdmin]);
-
     const handleAreaSelection = (selectedOptions: OptionType[]) => {
         const selectedIds = selectedOptions.map((option) => option.value);
         setAreaIds(selectedIds);
         setValue("area_id", selectedIds, { shouldValidate: true });
     };
 
-    const handleAddAdmin = () => {
+    const handleAddAdmin = useCallback(() => {
         const adminName = window.prompt("Enter new admin name");
         if (!adminName || !adminName.trim()) {
             setValue("admin_id", "", { shouldValidate: true });
@@ -255,7 +249,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         });
 
         setValue("admin_id", newAdmin.value, { shouldValidate: true });
-    };
+    }, [adminOptions, setValue]);
+
+    useEffect(() => {
+        if (selectedAdmin === "add_new_admin") {
+            handleAddAdmin();
+        }
+    }, [selectedAdmin, handleAddAdmin]);
 
     const onSubmitEvent = async (data: FranchiseFormValues) => {
         if (areaIds.length === 0) {

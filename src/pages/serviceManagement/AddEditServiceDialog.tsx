@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -98,7 +98,19 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   : "")
             : "-";
 
-    const fetchDataFromApi = async () => {
+    const fetchCityFromApi = useCallback(async (stateIdList: string[]) => {
+        if (fetchCityRef.current) return;
+        fetchCityRef.current = true;
+
+        try {
+            const cityOptions = await fetchCityDropDown(stateIdList);
+            setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
+        } finally {
+            fetchCityRef.current = false;
+        }
+    }, []);
+
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
 
@@ -120,23 +132,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [isEditable, service, fetchCityFromApi]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, []);
-
-    const fetchCityFromApi = async (stateIdList: string[]) => {
-        if (fetchCityRef.current) return;
-        fetchCityRef.current = true;
-
-        try {
-            const cityOptions = await fetchCityDropDown(stateIdList);
-            setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
-        } finally {
-            fetchCityRef.current = false;
-        }
-    };
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const handleStateSelection = async (
         selectedOptions: { value: string; label: string }[]

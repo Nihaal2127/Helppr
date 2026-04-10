@@ -6,8 +6,6 @@ import { UserHomeCountsModel } from "../../../models/UserHomeCountsModel";
 import AddEditUserHomeCountsDialog from "./AddEditUserHomeCountsDialog";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
-import { AppConstant } from "../../../constant/AppConstant";
-
 const UserHomeCounts = () => {
     const { register, setValue } = useForm<any>();
 

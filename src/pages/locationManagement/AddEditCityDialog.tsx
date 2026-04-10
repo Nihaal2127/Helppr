@@ -5,7 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CityModel } from "../../models/CityModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { DetailsRow, formatDate, getStatusOptions } from "../../helper/utility";
+import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchStateDropDown } from "../../services/stateService";

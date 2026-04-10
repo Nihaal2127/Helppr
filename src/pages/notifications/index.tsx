@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
@@ -47,18 +47,17 @@ const NotificationsPage: React.FC = () => {
   const [filters, setFilters] = useState<NotificationFilters>(defaultNotificationFilters);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setItems(fetchNotifications(filters));
-  };
+  }, [filters]);
 
   useEffect(() => {
     seedNotificationData();
-    refresh();
   }, []);
 
   useEffect(() => {
     refresh();
-  }, [filters.keyword, filters.module, filters.status]);
+  }, [refresh]);
 
   const unreadCount = useMemo(
     () => items.filter((item) => item.status === "unread").length,
@@ -131,7 +130,7 @@ const NotificationsPage: React.FC = () => {
           ),
       },
     ],
-    [items]
+    [refresh]
   );
 
   const clearFiltersDisabled =

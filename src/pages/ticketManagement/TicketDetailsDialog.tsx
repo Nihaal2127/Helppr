@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { TicketModel } from "../../models/TicketModel";
@@ -21,7 +21,7 @@ const TicketDetailsDialog: React.FC<TicketDetailsDialogProps> & {
     const [ticketDetails, setTicketDetails] = useState<TicketModel>();
     const fetchRef = useRef(false);
 
-    const fetchDataFromApi = async () => {
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -32,11 +32,11 @@ const TicketDetailsDialog: React.FC<TicketDetailsDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [ticketId]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, []);
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const onRefreshTicket = async () => {
         await fetchDataFromApi();

@@ -85,9 +85,9 @@ const FranchiseManagement = () => {
         void fetchData();
     }, [fetchData]);
 
-    const refreshData = () => {
+    const refreshData = useCallback(() => {
         void fetchData();
-    };
+    }, [fetchData]);
 
     const handleFilterChange = (nextFilters: {
         name?: string;
@@ -147,7 +147,7 @@ const FranchiseManagement = () => {
                 ),
             },
         ],
-        [currentPage, pageSize]
+        [currentPage, pageSize, refreshData]
     );
 
     return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Col, Form, Modal, Row } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -67,12 +67,12 @@ const OffersManagement = () => {
     setShowForm(true);
   };
 
-  const refresh = () => setAllOffers(getOffers());
+  const refresh = useCallback(() => setAllOffers(getOffers()), []);
 
   useEffect(() => {
     ensureSettingsSeedData();
     refresh();
-  }, []);
+  }, [refresh]);
 
   const filtered = useMemo(() => {
     const filteredData = allOffers.filter((item) => {
@@ -192,7 +192,7 @@ const OffersManagement = () => {
         ),
       },
     ],
-    [allOffers]
+    [refresh]
   );
 
   const filterControls = (

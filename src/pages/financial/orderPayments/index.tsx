@@ -171,29 +171,32 @@ const OrderPayments = () => {
     void runFetch(currentPage, pageSize);
   }, [currentPage, pageSize, filterEpoch, runFetch]);
 
-  const bumpFilters = () => {
+  const bumpFilters = useCallback(() => {
     setCurrentPage(1);
     setFilterEpoch((e) => e + 1);
-  };
+  }, []);
 
-  const handleVoidOrder = async (order: FinancialModel) => {
-    const orderId = order.order_id ?? order._id;
-    const display = order.order_unique_id ?? order.order_id ?? order._id ?? "-";
+  const handleVoidOrder = useCallback(
+    async (order: FinancialModel) => {
+      const orderId = order.order_id ?? order._id;
+      const display = order.order_unique_id ?? order.order_id ?? order._id ?? "-";
 
-    openConfirmDialog(
-      `Are you sure you want to void this order (${display})?`,
-      "Void",
-      "Cancel",
-      async () => {
-        // Avoid blocking future fetches due to any in-flight guard.
-        fetchRef.current = false;
-        const ok = await deleteOrder(String(orderId));
-        if (ok) {
-          bumpFilters();
+      openConfirmDialog(
+        `Are you sure you want to void this order (${display})?`,
+        "Void",
+        "Cancel",
+        async () => {
+          // Avoid blocking future fetches due to any in-flight guard.
+          fetchRef.current = false;
+          const ok = await deleteOrder(String(orderId));
+          if (ok) {
+            bumpFilters();
+          }
         }
-      }
-    );
-  };
+      );
+    },
+    [bumpFilters]
+  );
 
   const handleSearch = (value: string) => {
     listParamsRef.current.keyword = value;
@@ -448,7 +451,7 @@ const OrderPayments = () => {
         ),
       },
     ],
-    [currentPage, pageSize, navigate]
+    [currentPage, pageSize, navigate, handleVoidOrder]
   );
 
   return (

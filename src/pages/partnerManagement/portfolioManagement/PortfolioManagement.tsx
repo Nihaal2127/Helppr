@@ -59,9 +59,9 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
         void fetchData();
     }, [fetchData]);
 
-    const refreshData = () => {
+    const refreshData = useCallback(() => {
         void fetchData();
-    };
+    }, [fetchData]);
 
     const handleFilterChange = (nextFilters: {
         name?: string;
@@ -236,7 +236,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
                 ),
             },
         ],
-        [currentPage, pageSize]
+        [currentPage, pageSize, refreshData]
     );
 
     return (

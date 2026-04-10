@@ -6,7 +6,7 @@ import { AreaModel } from "../../models/AreaModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { DetailsRow, formatDate, getStatusOptions } from "../../helper/utility";
+import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateArea } from "../../services/areaService";
 import { fetchStateDropDown } from "../../services/stateService";

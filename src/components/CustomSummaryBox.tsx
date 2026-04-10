@@ -46,7 +46,7 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
               onAddClick && onAddClick();
             }}
           >
-            <img src={addIcon} width="15px" />
+            <img src={addIcon} width="15px" alt="" />
             <span
               style={{
                 textDecoration: "underline",

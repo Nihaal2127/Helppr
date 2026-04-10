@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Col, Form} from "react-bootstrap";
+import { Button, Col } from "react-bootstrap";
 import { AppConstant } from "../constant/AppConstant";
 
 interface CustomImageUploaderProps {
@@ -27,8 +27,8 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     }else{
       setFileInputs([null]);
     }
-  }, [isEditable]);
-  
+  }, [isEditable, existingImages]);
+
   const handleFileChange = (index: number, file: File | null) => {
     const updatedFiles = [...fileInputs];
     const updatedReplaceUrls = [...replaceUrls];
@@ -52,24 +52,6 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     onFileChange(updatedFiles.filter((f) => f !== null) as File[], updatedReplaceUrls);
   };
 
-  const removeFileInput = (index: number) => {
-    const updatedFiles = [...fileInputs];
-    const updatedReplaceUrls = [...replaceUrls];
-
-    if (existingImages[index]) {
-      const urlIndex = updatedReplaceUrls.indexOf(existingImages[index]);
-      if (urlIndex !== -1) {
-        updatedReplaceUrls.splice(urlIndex, 1);
-      }
-    }
-
-    updatedFiles.splice(index, 1);
-    setFileInputs(updatedFiles);
-    setReplaceUrls(updatedReplaceUrls);
-
-    onFileChange(updatedFiles.filter((f) => f !== null) as File[], updatedReplaceUrls);
-  };
-
   const addFileInput = () => {
     if (fileInputs.length < maxFiles) {
       setFileInputs((prev) => [...prev, null]);
@@ -85,7 +67,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
             {isEditable && existingImages[index] && !file ? (
               <div className="me-2">
                 <img
-                  //alt={`Existing ${index}`}
+                  alt=""
                   src={`${AppConstant.IMAGE_BASE_URL}${existingImages[index]}?t=${Date.now()}`}
                   style={{ width: "50px", height: "50px", objectFit: "cover" }}
                 />

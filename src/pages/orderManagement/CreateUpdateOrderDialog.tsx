@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from 'react-hook-form';
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -93,7 +93,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         fetchDataFromApi();
     }, []);
 
-    const calculatePrices = () => {
+    const calculatePrices = useCallback(() => {
         let subTotal = 0;
         let tax = 0;
         let userPlatformFee = 0;
@@ -119,11 +119,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             partnerCommissionPlatformFee: Math.round(partnerCommissionPlatformFee),
             adminEarning: Math.round(adminEarning),
         });
-    };
+    }, [serviceItems]);
 
     useEffect(() => {
         calculatePrices();
-    }, [serviceItems]);
+    }, [calculatePrices]);
 
     const onSubmitEvent = async (data: any) => {
         const updatedServiceItems = serviceItems.map(item => ({

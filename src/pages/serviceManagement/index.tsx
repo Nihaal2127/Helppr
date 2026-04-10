@@ -186,17 +186,17 @@ const ServiceManagement = () => {
         } finally {
             fetchRef.current = false;
         }
-    }, [currentPage, pageSize, sortBy]);
+    }, [currentPage, pageSize]);
+
+    const refreshData = useCallback(async (selected: string) => {
+        await fetchData(selected, {});
+    }, [fetchData]);
 
     useEffect(() => {
         if (!showRequestedCategory && !showRequestedService) {
-            refreshData(selectedBox);
+            void refreshData(selectedBox);
         }
-    }, [selectedBox, pageSize, currentPage, showRequestedCategory, showRequestedService]);
-
-    const refreshData = async (selected: string) => {
-        await fetchData(selected, {});
-    };
+    }, [selectedBox, pageSize, currentPage, showRequestedCategory, showRequestedService, refreshData]);
 
     const handleFilterChange = async (filters: {
         keyword?: string;
@@ -234,7 +234,7 @@ const ServiceManagement = () => {
         setRequestedServiceList(staticRequestedServiceList);
     };
 
-    const partnerCountCell = ({ row }: { row: any }) => {
+    const partnerCountCell = useCallback(({ row }: { row: any }) => {
         const cat = row.original;
         const countVal = cat.helpers ?? cat.partners;
         const countDisplay = countVal !== undefined && countVal !== null ? String(countVal) : "-";
@@ -264,7 +264,7 @@ const ServiceManagement = () => {
                 </div>
             </div>
         );
-    };
+    }, [serviceIdToName]);
 
     const categoryColumns = React.useMemo(() => [
         {
@@ -381,7 +381,7 @@ const ServiceManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize, serviceIdToName, serviceNameList]);
+    ], [currentPage, pageSize, serviceIdToName, serviceNameList, partnerCountCell, refreshData]);
 
     const serviceColumns = React.useMemo(() => [
         {
@@ -453,7 +453,7 @@ const ServiceManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, refreshData]);
 
     /* ADDED: requested category columns */
     const requestedCategoryColumns = React.useMemo(() => [

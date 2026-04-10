@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
 import { Modal } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { ServiceStatusEnum } from "../../constant/ServiceStatusEnum";
@@ -23,7 +22,6 @@ type ServiceDetailsDialogProps = {
 const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     show: (user_id: string, is_partner: boolean, status: number | null, onRefreshData: () => void) => void;
 } = ({ user_id, is_partner, status, onClose }) => {
-    const { register } = useForm();
     const statusLabel = status ? `${ServiceStatusEnum.get(status)?.label} Services` : "Total Services";
 
     const [serviceList, setServiceList] = useState<FinancialModel[]>([]);
@@ -58,11 +56,11 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             setTotalPages(totalPages);
         }
         fetchRef.current = false;
-    }, [currentPage, pageSize]);
+    }, [currentPage, pageSize, is_partner, status, user_id]);
 
     useEffect(() => {
-        fetchData({});
-    }, [pageSize, currentPage]);
+        void fetchData({});
+    }, [fetchData]);
 
     const handleFilterChange = async (filters: {
         keyword?: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -33,7 +33,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
     const [userDetails, setUserDetails] = useState<UserModel>();
     const fetchRef = useRef(false);
 
-    const fetchDataFromApi = async () => {
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -44,11 +44,11 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, []);
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const openServices = (status: number | null) => {
         ServiceDetailsDialog.show(userId, true, status, onRefreshuser);
@@ -124,7 +124,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                                 <p>Personal</p>
                                 <img src={userDetails?.profile_url
                                     ? `${AppConstant.IMAGE_BASE_URL}${userDetails?.profile_url}?t=${Date.now()}`
-                                    : profileIcon} alt=" Profile Picture" width="160px" height="160px" />
+                                    : profileIcon} alt="User profile" width="160px" height="160px" />
                             </div>
 
                             <div className="custom-personal-details">

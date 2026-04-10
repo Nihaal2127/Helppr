@@ -45,13 +45,13 @@ const TicketManagement = () => {
         fetchRef.current = false;
     }, [currentPage, pageSize]);
 
-    useEffect(() => {
-        refreshData();
-    }, [pageSize, currentPage]);
-
-    const refreshData = async () => {
+    const refreshData = useCallback(async () => {
         await fetchData({});
-    };
+    }, [fetchData]);
+
+    useEffect(() => {
+        void refreshData();
+    }, [pageSize, currentPage, refreshData]);
 
     const handleFilterChange = async (filters: {
         keyword?: string;
@@ -197,7 +197,7 @@ const TicketManagement = () => {
                 />
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, navigate, refreshData]);
 
     return (
         <>

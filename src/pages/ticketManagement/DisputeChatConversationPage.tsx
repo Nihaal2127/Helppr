@@ -267,24 +267,6 @@ const DisputeChatConversationPage = () => {
           ? "Open"
           : "-";
 
-    // Normalize any backend id (Mongo/uuid/etc) into `EMP-xxxx` like normal chats.
-    const formatEmployeeIdForBadge = (rawId: string | null | undefined) => {
-        const id = (rawId || "").toString().trim();
-        if (!id) return "EMP-0000";
-        if (id.toUpperCase().startsWith("EMP-")) return id;
-
-        // Create a stable 0..9999 value from the string.
-        let hash = 0;
-        for (let i = 0; i < id.length; i++) {
-            hash = (hash * 31 + id.charCodeAt(i)) % 10000;
-        }
-        return `EMP-${String(hash).padStart(4, "0")}`;
-    };
-
-    const employeeId = formatEmployeeIdForBadge(
-        ticketDetails?.employee_unique_id || ticketDetails?.resolve_by_id
-    );
-
     const transferAssigneeOptions = useMemo(
         () => [
             { value: "admin", label: "Admin" },

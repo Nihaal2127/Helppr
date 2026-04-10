@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Row, Col, Button } from "react-bootstrap";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
@@ -42,16 +41,14 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
         },
     ]);
     const fetchRef = useRef(false);
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     useEffect(() => {
-        onChange(serviceItems);
+        onChangeRef.current(serviceItems);
     }, [serviceItems]);
 
-    useEffect(() => {
-        fetchServiceFromApi();
-    }, [categoryId]);
-
-    const fetchServiceFromApi = async () => {
+    const fetchServiceFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -60,7 +57,11 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [categoryId]);
+
+    useEffect(() => {
+        void fetchServiceFromApi();
+    }, [fetchServiceFromApi]);
 
     const fetchPartnerFromApi = async (serviceId: string) => {
         if (fetchRef.current) return;
@@ -121,7 +122,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
             } else if (field === "service_from_time" || field === "service_to_time" || field === "per_hour_price") {
                 const updated = { ...updatedServices[index], [field]: value };
-                const { service_from_time, service_to_time, service_price } = updated;
+                const { service_from_time, service_to_time } = updated;
 
                 const perHourPrice = updated.per_hour_price ?? 0;
                 const { hours, price } = calculateHoursAndUpdatePrice(service_from_time, service_to_time, perHourPrice);

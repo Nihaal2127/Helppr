@@ -22,7 +22,6 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
     const {
         register,
         handleSubmit,
-        setValue,
         formState: { errors },
     } = useForm<BankAccountModel>({
         defaultValues: {

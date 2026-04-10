@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -53,7 +53,18 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
     const fetchRef = useRef(false);
     const fetchCityRef = useRef(false);
 
-    const fetchStateFromApi = async () => {
+    const fetchCityFromApi = useCallback(async (stateId: string) => {
+        if (fetchCityRef.current) return;
+        fetchCityRef.current = true;
+        try {
+            const cityOptions = await fetchCityDropDown([stateId]);
+            setCity(cityOptions);
+        } finally {
+            fetchCityRef.current = false;
+        }
+    }, []);
+
+    const fetchStateFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -66,18 +77,7 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
-
-    const fetchCityFromApi = async (stateId: string) => {
-        if (fetchCityRef.current) return;
-        fetchCityRef.current = true;
-        try {
-            const cityOptions = await fetchCityDropDown([stateId]);
-            setCity(cityOptions);
-        } finally {
-            fetchCityRef.current = false;
-        }
-    };
+    }, [isEditable, user, fetchCityFromApi]);
 
     const onSubmitEvent = async (data: UserModel) => {
 
@@ -138,14 +138,14 @@ const AddEditUserDialog: React.FC<AddEditUserDialogProps> & {
     };
 
     useEffect(() => {
-        fetchStateFromApi();
-    }, []);
+        void fetchStateFromApi();
+    }, [fetchStateFromApi]);
 
     useEffect(() => {
         if (isEditable && user?.is_active !== undefined) {
             setValue("is_active", user.is_active);
         }
-    }, [isEditable, user?.is_active]);
+    }, [isEditable, user?.is_active, setValue]);
 
     return (
         <>

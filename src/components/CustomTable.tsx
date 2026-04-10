@@ -54,11 +54,9 @@ interface CustomTableProps {
 }
 
 const CustomTable = (props: CustomTableProps) => {
-  const pageSize = props["pageSize"] || 0;
   const currentPage = props["currentPage"] || 0;
   const totalPages = props["totalPages"] || 0;
   const onPageChange = props["onPageChange"];
-  const onLimitChange = props.onLimitChange;
   const isPagination = props.isPagination ?? true;
   const dynamicRowBackground = props.dynamicRowBackground !== false;
   const manualSortBy = props.manualSortBy === true;

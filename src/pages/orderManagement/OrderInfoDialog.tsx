@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
@@ -13,7 +13,6 @@ import EditOrderDialog from "./EditOrderDialog";
 import CancleDialog from "./CancleDialog";
 import { OrderPaymentModeEnum } from "../../constant/PaymentEnum";
 import { openDialog } from "../../helper/DialogManager";
-import EditOrderPaymentDialog from "../orderManagement/EditOrderPaymentDialog";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { useForm, UseFormRegister } from "react-hook-form";
@@ -45,7 +44,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     const fetchRef = useRef(false);
     const { register, setValue } = useForm<any>();
 
-    const fetchDataFromApi = async () => {
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -56,11 +55,11 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [orderId]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, []);
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const cancleService = async (serviceId: string, reason: string) => {
         const payload = {
@@ -394,7 +393,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             <p>User</p>
                             <img src={orderDetails?.user_info.profile_url
                                 ? `${AppConstant.IMAGE_BASE_URL}${orderDetails?.user_info.profile_url}?t=${Date.now()}`
-                                : profileIcon} alt=" Profile Picture" width="80px" height="80px" />
+                                : profileIcon} alt="User profile" width="80px" height="80px" />
                         </div>
 
                         <div className="custom-personal-details">

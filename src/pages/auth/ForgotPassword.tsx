@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm, } from "react-hook-form";
 import loginBGLogo from "../../assets/icons/login_bg_logo.svg";
 import loginLogo from "../../assets/icons/login_logo.svg";
-import { Card, Col, Button, Row } from 'react-bootstrap';
+import { Card, Col, Button } from 'react-bootstrap';
 import { CustomFormInput } from '../../components/CustomFormInput';
 import { forgotPassword } from "../../services/adminService";
 import { ROUTES } from "../../routes/Routes";

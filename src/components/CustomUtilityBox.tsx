@@ -2,10 +2,6 @@ import React, { useState } from "react";
 import classNames from "classnames";
 import { Form } from "react-bootstrap";
 import searchIcon from "../assets/icons/search.svg";
-import downloadIcon from "../assets/icons/download.svg";
-import sortIcon from "../assets/icons/sort.svg";
-import actionIcon from "../assets/icons/3_dots.svg";
-
 
 type CustomUtilityBoxProps = {
     /** Shown when `titleSlot` is not provided. */
@@ -33,19 +29,13 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
     title,
     titleSlot,
     searchHint = "",
-    onDownloadClick = () => {},
-    onSortClick = () => {},
-    onMoreClick = () => {},
     onSearch = () => {},
-    hideMoreIcon = false,
     controlSlot,
     afterSearchSlot,
     toolsInlineRow = false,
     hideToolbar = false,
-    searchOnlyToolbar = false,
 }) => {
     const [searchValue, setSearchValue] = useState("");
-    const [sortDirection, setSortDirection] = useState<"-1" | "1">("-1");
 
     const handleEnterKey = (e: any) => {
         if (e.key === "Enter") {
@@ -53,12 +43,6 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
             onSearch(searchValue);
         }
     }
-
-    const handleSortClick = () => {
-        const newDirection = sortDirection === "-1" ? "1" : "-1";
-        setSortDirection(newDirection);
-        onSortClick(newDirection);
-    };
 
     if (hideToolbar) {
         return (

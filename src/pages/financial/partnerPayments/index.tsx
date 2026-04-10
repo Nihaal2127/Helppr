@@ -51,8 +51,8 @@ const PartnerPayments = () => {
     }, [currentPage, pageSize]);
 
     useEffect(() => {
-        fetchData({ partner_paid_status: selectedStatus.toString() });
-    }, [currentPage, pageSize]);
+        void fetchData({ partner_paid_status: selectedStatus.toString() });
+    }, [currentPage, pageSize, fetchData, selectedStatus]);
 
     const handleStatusClick = async (statusKey: number) => {
         setSelectedStatus(statusKey);
@@ -114,7 +114,7 @@ const PartnerPayments = () => {
         //     Header: "Paid Amount", accessor: "paid_amount",
         //     Cell: priceCell("paid_amount"),
         // },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, navigate]);
 
     return (
         <>

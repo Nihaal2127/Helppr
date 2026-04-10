@@ -81,12 +81,6 @@ const inputStyle: React.CSSProperties = {
     color: "var(--content-txt-color)",
 };
 
-const textareaStyle: React.CSSProperties = {
-    ...inputStyle,
-    height: "110px",
-    resize: "none",
-};
-
 const PartnerInfoDialog: React.FC<PartnerInfoDialogProps> & {
     show: (partner: PartnerInfoModel) => void;
 } = ({ partner, onClose }) => {
@@ -236,10 +230,6 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
         onClose();
         onRefreshData();
     };
-
-    const statusClass = viewData.is_active
-        ? "text-success fw-semibold text-capitalize"
-        : "text-warning fw-semibold text-capitalize";
 
     return (
         <Modal show={true} onHide={onClose} centered size="lg">

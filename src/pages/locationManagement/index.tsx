@@ -133,9 +133,12 @@ const LocationManagement = () => {
         fetchData(selectedBox, activeFilters);
     }, [selectedBox, pageSize, currentPage, activeFilters, fetchData]);
 
-    const refreshData = async (selected: string, filters: LocationFilters = activeFilters) => {
-        await fetchData(selected, sanitizeFilters(filters));
-    };
+    const refreshData = useCallback(
+        async (selected: string, filters: LocationFilters = activeFilters) => {
+            await fetchData(selected, sanitizeFilters(filters));
+        },
+        [fetchData, activeFilters]
+    );
 
     const handleFilterChange = async (filters: LocationFilters, reset = false) => {
         const mergedFilters = reset ? {} : sanitizeFilters({ ...activeFilters, ...filters });
@@ -272,7 +275,7 @@ const LocationManagement = () => {
                 )
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, ActionColumnComponent, refreshData]);
 
     const cityColumns = React.useMemo(() => [
         {
@@ -314,7 +317,7 @@ const LocationManagement = () => {
                 )
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, ActionColumnComponent, refreshData]);
 
     const pinCodesCell = ({ row }: any) => {
         const rawPinCodes =
@@ -405,7 +408,7 @@ const LocationManagement = () => {
                 )
             ),
         },
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, ActionColumnComponent, refreshData]);
 
     const utilityColumnLayout =
         selectedBox === "box-city" || selectedBox === "box-area";

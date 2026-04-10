@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import { Eye, EyeOff } from "react-feather";
 import classNames from "classnames";
@@ -38,12 +38,12 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState<string>(String(value));
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      if (onChange) {
-        onChange(inputValue);
-      }
+      onChangeRef.current?.(inputValue);
     }, 500);
 
     return () => {

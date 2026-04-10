@@ -87,12 +87,6 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
     setSelectedStatus("all");
   };
 
-  const handleView = (post: PostModel): void => {
-    AddEditPostManagementDialog.show(false, post, () => {
-      console.log("refresh");
-    });
-  };
-
   const handleEdit = (post: PostModel): void => {
     AddEditPostManagementDialog.show(true, post, () => {
       console.log("edit refresh");

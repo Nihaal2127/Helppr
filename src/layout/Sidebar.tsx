@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
@@ -13,8 +13,6 @@ import clsx from "clsx";
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarActive, setIsSidebarActive] = useState(false);
-
   const isActive = (menuPath: string) => {
     return location.pathname.startsWith(menuPath);
   };
@@ -54,10 +52,6 @@ const Sidebar: React.FC = () => {
     return true;
   });
 
-  const toggleSidebar = () => {
-    setIsSidebarActive(!isSidebarActive);
-  };
-
   const handleLogoutClick = async (event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
     if (key === "logout") {
       event.preventDefault();
@@ -83,7 +77,7 @@ const Sidebar: React.FC = () => {
   return (
     <>
 
-      <nav id="sidebar" className={`sidebar ${isSidebarActive ? 'active' : ''}`}>
+      <nav id="sidebar" className="sidebar">
         <h1>helper!</h1>
 
         {/* <div className="custom-menu">

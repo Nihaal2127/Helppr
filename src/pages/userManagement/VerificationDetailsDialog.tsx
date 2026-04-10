@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -25,7 +25,7 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
     const [userDetails, setUserDetails] = useState<UserModel>();
     const fetchRef = useRef(false);
 
-    const fetchDataFromApi = async () => {
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -36,11 +36,11 @@ const VerificationDetailsDialog: React.FC<VerificationDetailsDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, []);
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const verificationStatusChange = async (status: number, document: DocumentModel) => {
         openConfirmDialog(

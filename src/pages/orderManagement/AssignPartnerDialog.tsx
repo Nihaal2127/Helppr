@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -27,7 +27,7 @@ const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
     const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
     const fetchRef = useRef(false);
 
-    const fetchPartnerFromApi = async () => {
+    const fetchPartnerFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -36,11 +36,11 @@ const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [serviceId]);
 
     useEffect(() => {
-        fetchPartnerFromApi();
-    }, [serviceId]);
+        void fetchPartnerFromApi();
+    }, [fetchPartnerFromApi]);
 
     const onSubmitEvent = async (data: any) => {
 

@@ -29,11 +29,9 @@ interface CustomServiceTableProps {
 }
 
 const CustomServiceTable = (props: CustomServiceTableProps) => {
-  const pageSize = props["pageSize"] || 0;
   const currentPage = props["currentPage"] || 0;
   const totalPages = props["totalPages"] || 0;
   const onPageChange = props["onPageChange"];
-  const onLimitChange = props.onLimitChange;
   const isPagination = props.isPagination ?? true;
 
   const dataTable = useTable(

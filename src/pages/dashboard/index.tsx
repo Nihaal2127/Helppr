@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Row, Col } from "react-bootstrap";
 import {
@@ -57,7 +57,7 @@ const Dashboard = () => {
     const [dashboardDetails, setDashboardDetails] = useState<DashboardModel>(DEFAULT_DASHBOARD);
     const fetchRef = useRef(false);
 
-    const fetchDataFromApi = async () => {
+    const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
@@ -68,11 +68,11 @@ const Dashboard = () => {
         } finally {
             fetchRef.current = false;
         }
-    };
+    }, [selectedDate]);
 
     useEffect(() => {
-        fetchDataFromApi();
-    }, [selectedDate]);
+        void fetchDataFromApi();
+    }, [fetchDataFromApi]);
 
     const handleDateRangeTypeChange = (value: DateRangeType) => {
         setDateRangeType(value);

@@ -1,7 +1,5 @@
 import React from "react";
 import eyeIcon from "../assets/icons/eye.svg";
-import editIcon from "../assets/icons/Edit.svg";
-import deleteIcon from "../assets/icons/delete_action.svg";
 
 const CustomActionColumn = ({
   row,

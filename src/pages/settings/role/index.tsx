@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -9,7 +9,7 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
-import { DetailsRow, formatDate, textUnderlineCell } from "../../../helper/utility";
+import { DetailsRow, textUnderlineCell } from "../../../helper/utility";
 import { RoleSettingsModel } from "../../../models/SettingsModel";
 import { ensureSettingsSeedData, getRoles, saveRole, voidRole } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
@@ -56,12 +56,12 @@ const RoleManagement = () => {
     setShowForm(true);
   };
 
-  const refresh = () => setItems(getRoles());
+  const refresh = useCallback(() => setItems(getRoles()), []);
 
   useEffect(() => {
     ensureSettingsSeedData();
     refresh();
-  }, []);
+  }, [refresh]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -179,7 +179,7 @@ const RoleManagement = () => {
         ),
       },
     ],
-    [items]
+    [refresh]
   );
 
   const clearFiltersDisabled =

@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { showLog } from './helper/utility';
-import { AppConstant } from './constant/AppConstant';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDbvu_VONThJcXYYp_ikMY4_qyXPUVScbE',

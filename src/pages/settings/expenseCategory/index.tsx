@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Col, Modal, Row } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -57,12 +57,12 @@ const ExpenseCategoryManagement = () => {
     setShowForm(true);
   };
 
-  const refresh = () => setItems(getExpenseCategories());
+  const refresh = useCallback(() => setItems(getExpenseCategories()), []);
 
   useEffect(() => {
     ensureSettingsSeedData();
     refresh();
-  }, []);
+  }, [refresh]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -122,7 +122,7 @@ const ExpenseCategoryManagement = () => {
         ),
       },
     ],
-    [items]
+    [refresh]
   );
 
   const filterControls = (

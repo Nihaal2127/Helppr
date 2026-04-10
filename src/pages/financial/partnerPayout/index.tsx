@@ -94,17 +94,20 @@ const PartnerPayout = () => {
     setCurrentPage(1);
   };
 
-  const handleVoidPartnerPayout = (partner: UserModel) => {
-    openConfirmDialog(
-      `Are you sure you want to void this payout for ${partner.user_id ?? partner.name ?? "this partner"}?`,
-      "Void",
-      "Cancel",
-      async () => {
-        fetchRef.current = false;
-        await fetchData({});
-      }
-    );
-  };
+  const handleVoidPartnerPayout = useCallback(
+    (partner: UserModel) => {
+      openConfirmDialog(
+        `Are you sure you want to void this payout for ${partner.user_id ?? partner.name ?? "this partner"}?`,
+        "Void",
+        "Cancel",
+        async () => {
+          fetchRef.current = false;
+          await fetchData({});
+        }
+      );
+    },
+    [fetchData]
+  );
 
   const filterControls = (
     <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mt-2 mb-3 align-items-end">
@@ -243,7 +246,7 @@ const PartnerPayout = () => {
         ),
       },
     ],
-    [currentPage, pageSize, navigate]
+    [currentPage, pageSize, navigate, handleVoidPartnerPayout]
   );
 
   return (

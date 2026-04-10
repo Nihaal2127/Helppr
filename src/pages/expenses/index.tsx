@@ -105,7 +105,7 @@ const ExpensesPage = () => {
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const [franchiseId, setFranchiseId] = useState("");
-  const [franchiseOptions, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
+  const [, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
     { value: "", label: "All Franchises" },
   ]);
 
@@ -195,7 +195,7 @@ const ExpensesPage = () => {
     fetchData();
   }, [fetchData, filterEpoch]);
 
-  const prefillFormFromExpense = (expense: ExpenseModel): ExpenseFormState => {
+  const prefillFormFromExpense = useCallback((expense: ExpenseModel): ExpenseFormState => {
     const categoryName = expense.category_name ?? expense.categoryName ?? "";
     const subCategoryName = expense.sub_category_name ?? expense.subCategoryName ?? "";
 
@@ -218,7 +218,7 @@ const ExpensesPage = () => {
             ? String(expense.paymentModeId)
             : "1",
     };
-  };
+  }, []);
 
   const handleOpenEdit = (expense?: ExpenseModel | null) => {
     setIsViewMode(false);
@@ -234,12 +234,15 @@ const ExpensesPage = () => {
     setShowForm(true);
   };
 
-  const handleOpenView = (expense: ExpenseModel) => {
-    setIsViewMode(true);
-    setEditingExpense(expense);
-    setForm(prefillFormFromExpense(expense));
-    setShowForm(true);
-  };
+  const handleOpenView = useCallback(
+    (expense: ExpenseModel) => {
+      setIsViewMode(true);
+      setEditingExpense(expense);
+      setForm(prefillFormFromExpense(expense));
+      setShowForm(true);
+    },
+    [prefillFormFromExpense]
+  );
 
   const selectedModalSubCategories = useMemo(() => {
     return subCategoryOptionsFor(form.categoryName);
@@ -352,7 +355,7 @@ const ExpensesPage = () => {
         ),
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, handleOpenView]
   );
 
   const handleSaveExpense = async () => {

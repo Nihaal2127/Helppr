@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import ReactDOM from "react-dom";
-import { Modal, Button, Row, Col } from "react-bootstrap";
+import { Modal, Button, Row } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import uploadIcon from '../assets/icons/upload.svg';
 import {showErrorAlert} from "../helper/alertHelper";

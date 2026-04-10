@@ -42,7 +42,6 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const statusColor = statusColorMap[statusKey] ?? "var(--primary-txt-color)";
   const isSuccess = statusKey === "success";
   const isNew = statusKey === "new";
-  const isPending = statusKey === "pending";
   const isAccepted = statusKey === "accepted";
 
   // Keep the modal UI consistent across tabs; only show edits status-specific.

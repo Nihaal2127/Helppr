@@ -103,9 +103,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     void fetchData();
   }, [fetchData]);
 
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     void fetchData();
-  };
+  }, [fetchData]);
 
   const handlePlanFilterChange = (filters: {
     name?: string;
@@ -265,7 +265,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         ),
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, refreshData]
   );
 
   const partnerSubscriptionColumns = useMemo(
@@ -313,7 +313,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         ),
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, refreshData]
   );
 
   return (
