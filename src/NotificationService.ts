@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { showLog } from './helper/utility';
 
 const firebaseConfig = {
@@ -10,11 +10,54 @@ const firebaseConfig = {
   appId: '1:944474510158:web:14d411b2c94fc9c8d7041f',
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
-const messaging = getMessaging(firebaseApp);
+const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+type MessagingInstance = ReturnType<typeof getMessaging>;
+
+let messagingInstance: MessagingInstance | null = null;
+let messagingInitPromise: Promise<MessagingInstance | null> | null = null;
+
+/**
+ * Firebase Messaging must not be initialized at module load: unsupported browsers
+ * throw (e.g. messaging/unsupported-browser) and break the whole app (React #311).
+ */
+async function getMessagingWhenSupported(): Promise<MessagingInstance | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  if (messagingInstance) {
+    return messagingInstance;
+  }
+  if (!messagingInitPromise) {
+    messagingInitPromise = (async () => {
+      try {
+        if (!(await isSupported())) {
+          showLog('Firebase Messaging: unsupported in this browser/environment.');
+          return null;
+        }
+        messagingInstance = getMessaging(firebaseApp);
+        return messagingInstance;
+      } catch (err) {
+        showLog('Firebase Messaging init failed:', err);
+        return null;
+      }
+    })();
+  }
+  return messagingInitPromise;
+}
 
 export const requestPermission = async () => {
   try {
+    const messaging = await getMessagingWhenSupported();
+    if (!messaging) {
+      return;
+    }
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      showLog('Notifications or Service Worker API not available.');
+      return;
+    }
+
     const permission = await Notification.requestPermission();
 
     if (permission === 'granted') {
@@ -26,7 +69,7 @@ export const requestPermission = async () => {
       });
 
       showLog('FCM Token:', token);
-      onMessageListener();
+      void onMessageListener(messaging);
       return token;
     } else {
       showLog('Notification permission not granted.');
@@ -36,7 +79,7 @@ export const requestPermission = async () => {
   }
 };
 
-export const onMessageListener = () =>
+export const onMessageListener = (messaging: MessagingInstance) =>
   new Promise((resolve) => {
     onMessage(messaging, (payload) => {
       resolve(payload);
