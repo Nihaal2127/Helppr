@@ -25,7 +25,21 @@ export interface RoleSettingsModel {
   assignedFranchise?: string;
   status: ActiveStatus;
   createdDate: string;
-  permissions?: string;
+  /** Menu keys from `mainMenuItems` granted to franchise employees */
+  screenPermissions?: string[];
+}
+
+export interface StaffSettingsModel {
+  id: string;
+  staffId: string;
+  name: string;
+  status: ActiveStatus;
+  createdDate: string;
+  screenPermissions: string[];
+  /** When true, staff may access all franchises; `franchisePermissions` is ignored */
+  allFranchises: boolean;
+  /** Franchise display names when `allFranchises` is false */
+  franchisePermissions: string[];
 }
 
 export interface ExpenseCategoryModel {

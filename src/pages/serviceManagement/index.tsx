@@ -304,7 +304,7 @@ const ServiceManagement = () => {
                             true
                         )
                     }
-                >
+                >  
                     {row.original.category_id ?? "-"}
                 </span>
             ),

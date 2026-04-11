@@ -504,19 +504,9 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                         </div>
                         <Row className="mt-2">
                             <Col xs={6} className="mb-3 border-end border-secondary">
-                                <h3 className="text-black" style={{ fontSize: "16px" }}>User</h3>
-                                <div>
-                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold" style={{ fontSize: "14px" }}>
-                                        <div style={{ minWidth: "14px" }}></div>
-                                        <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 16%" }}>Amount</div>
-                                        <div style={{ flex: "0 0 25%" }}>Type</div>
-                                        <div style={{ flex: "1 1 auto" }}>Description</div>
-                                        <div style={{ minWidth: "42px" }}></div>
-                                    </div>
-                                    <div className="px-1 py-1">{renderPaymentRows(userPaymentRows, setUserPaymentRows, "user", true)}</div>
-                                    <div className="row mt-2 px-1">
-                                        <div className="col-4">
+                                 <div className="d-flex justify-content-between align-items-center">
+                                 <h3 className="text-black" style={{ fontSize: "16px" }}>User</h3>
+                                 <div className="col-4">
                                             <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Total Amount</div>
                                             <div className="d-flex align-items-center gap-2">
                                                 <Form.Control
@@ -546,15 +536,29 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                                 )}
                                             </div>
                                         </div>
+                                 </div>
+                                
+                                <div>
+                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
+                                        <div style={{ minWidth: "14px" }}></div>
+                                        <div style={{ flex: "0 0 25%" }}>Date</div>
+                                        <div style={{ flex: "0 0 16%" }}>Total Amount</div>
+                                        <div className="px-2"style={{ flex: "0 0 25%" }}>Type</div>
+                                        <div style={{ flex: "1 1 auto" }}>Description</div>
+                                        <div style={{ minWidth: "42px" }}></div>
+                                    </div>
+                                    <div className="px-1 py-1">{renderPaymentRows(userPaymentRows, setUserPaymentRows, "user", true)}</div>
+                                    <div className="row mt-2 px-4 d-flex justify-content-end">
+                                       
                                         <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Paid</div>
-                                            <div className="custom-personal-row-value" style={{ minHeight: "2.62rem", display: "flex", alignItems: "center" }}>
+                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Total Paid</div>
+                                            <div className="text-end" style={{ minHeight: "2.62rem" }}>
                                                 {`${AppConstant.currencySymbol}${userPaymentRows[1]?.amount || "0.00"}`}
                                             </div>
                                         </div>
                                         <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Balance</div>
-                                            <div className="custom-personal-row-value" style={{ minHeight: "2.62rem", display: "flex", alignItems: "center" }}>
+                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Balance</div>
+                                            <div className="text-end" style={{ minHeight: "2.62rem"}}>
                                                 {`${AppConstant.currencySymbol}${toAmountString(parseAmount(userTotalAmount) - parseAmount(userPaymentRows[1]?.amount || "0"))}`}
                                             </div>
                                         </div>
@@ -562,18 +566,9 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 </div>
                             </Col>
                             <Col xs={6}>
-                                <h3 className="text-black" style={{ fontSize: "16px" }}>Partner</h3>
-                                <div>
-                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold" style={{ fontSize: "14px" }}>
-                                        <div style={{ minWidth: "14px" }}></div>
-                                        <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 18%" }}>Amount</div>
-                                        <div style={{ flex: "1 1 35%" }}>Description</div>
-                                        <div style={{ minWidth: "42px" }}></div>
-                                    </div>
-                                    <div className="px-1 py-1">{renderPaymentRows(partnerPaymentRows, setPartnerPaymentRows, "partner", false)}</div>
-                                    <div className="row mt-2 px-1">
-                                        <div className="col-4">
+                            <div className="d-flex justify-content-between align-items-center">
+                            <h3 className="text-black" style={{ fontSize: "16px" }}>Partner</h3>
+                                <div className="col-4">
                                             <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Total Service amount</div>
                                             <div className="d-flex align-items-center gap-2">
                                                 <Form.Control
@@ -603,19 +598,33 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Paid</div>
-                                            <div className="custom-personal-row-value" style={{ minHeight: "2.62rem", display: "flex", alignItems: "center" }}>
+                            </div>
+                               
+                                <div>
+                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
+                                        <div style={{ minWidth: "14px" }}></div>
+                                        <div style={{ flex: "0 0 25%" }}>Date</div>
+                                        <div style={{ flex: "0 0 18%" }}>Total Amount</div>
+                                        <div style={{ flex: "1 1 35%" }}>Description</div>
+                                        <div style={{ minWidth: "42px" }}></div>
+                                    </div>
+                                    <div className="px-1 py-1">{renderPaymentRows(partnerPaymentRows, setPartnerPaymentRows, "partner", false)}</div>
+
+                                    <div className="row mt-2 px-4 d-flex justify-content-end">
+                                        <div className="col-4 ">
+                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Total Paid</div>
+                                            <div className="text-end" style={{ minHeight: "2.62rem" }}>
                                                 {`${AppConstant.currencySymbol}${partnerPaymentRows[1]?.amount || "0.00"}`}
                                             </div>
                                         </div>
                                         <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Balance</div>
-                                            <div className="custom-personal-row-value" style={{ minHeight: "2.62rem", display: "flex", alignItems: "center" }}>
+                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Balance</div>
+                                            <div className="text-end" style={{ minHeight: "2.62rem"}}>
                                                 {`${AppConstant.currencySymbol}${toAmountString(parseAmount(partnerTotalAmount) - parseAmount(partnerPaymentRows[1]?.amount || "0"))}`}
                                             </div>
                                         </div>
                                     </div>
+
                                 </div>
                             </Col>
                         </Row>

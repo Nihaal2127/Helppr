@@ -15,6 +15,7 @@ export const rolesMockSeed: Array<
     roleName: "Service Executive",
     roleType: "employee",
     status: "active",
+    screenPermissions: ["dashboards", "user-management", "quote-management"],
   },
 ];
 

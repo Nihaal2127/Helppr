@@ -14,6 +14,8 @@ type CustomSummaryBoxProps = {
   addButtonLable?: string;
   onAddClick?: () => void;
   onItemClick?: (key: string) => void;
+  /** Merged onto the root `.box` element (e.g. variant styling) */
+  className?: string;
 };
 
 const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
@@ -27,10 +29,11 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
   addButtonLable = "Add",
   onAddClick,
   onItemClick,
+  className,
 }) => {
   return (
     <div
-      className={`box ${isSelected ? "selected-box" : ""}`}
+      className={`box ${isSelected ? "selected-box" : ""} ${className ?? ""}`.trim()}
       id={divId}
       onClick={() => onSelect(divId)}
     >
@@ -39,7 +42,7 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
 
         {isAddShow && (
           <div
-            className="box-column box-right-column"
+            className="box-column d-inline box-right-column"
             style={{ cursor: "pointer" }}
             onClick={(e) => {
               e.stopPropagation();
@@ -60,47 +63,49 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
       </div>
 
       {Object.entries(data).map(([key, value], index) => (
-        <div
-          className="box-row"
-          key={key}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(divId);
+        <div className="box-row" key={key}>
+          <div
+            className={`box-column box-left-column box-rw-clr${index + 1}`}
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(divId);
 
-            if (key === "requested_category" || key === "requested_service") {
-              onItemClick && onItemClick(key);
-              return;
-            }
+              if (key === "requested_category" || key === "requested_service") {
+                onItemClick && onItemClick(key);
+                return;
+              }
 
-            let status;
-            if (key === "Total") {
-              status = undefined;
-            } else if (key === "Active") {
-              status = "true";
-            } else if (key === "Inactive") {
-              status = "false";
-            }
+              let status: string | undefined;
+              if (key === "Total") {
+                status = undefined;
+              } else if (key === "Active") {
+                status = "true";
+              } else if (key === "Inactive") {
+                status = "false";
+              }
 
-            if (status === undefined && onItemClick) {
-              onItemClick(key);
-              return;
-            }
+              if (status === undefined && onItemClick) {
+                onItemClick(key);
+                return;
+              }
 
-            onFilterChange({ status });
-          }}
-          style={{
-            cursor:
-              key === "requested_category" || key === "requested_service"
-                ? "pointer"
-                : "default",
-          }}
-        >
-          <div className={`box-column box-left-column box-rw-clr${index + 1}`}>
+              onFilterChange({ status });
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              e.stopPropagation();
+              (e.currentTarget as HTMLDivElement).click();
+            }}
+            style={{ cursor: "pointer" }}
+          >
             {key === "requested_category"
               ? "Requested Categories"
               : key === "requested_service"
-              ? "Requested Services"
-              : key}
+                ? "Requested Services"
+                : key}
           </div>
           <div className="box-column box-right-column">{value}</div>
         </div>

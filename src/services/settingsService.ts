@@ -2,9 +2,11 @@ import {
   ExpenseCategoryModel,
   OfferModel,
   RoleSettingsModel,
+  StaffSettingsModel,
 } from "../models/SettingsModel";
 import { offersMockSeed } from "../mockData/settingsOffersMockData";
 import { rolesMockSeed } from "../mockData/settingsRolesMockData";
+import { staffMockSeed } from "../mockData/settingsStaffMockData";
 import { expenseCategoriesMockSeed } from "../mockData/settingsExpenseCategoryMockData";
 
 const generateId = () =>
@@ -44,6 +46,15 @@ let mockExpenseCategories: ExpenseCategoryModel[] = expenseCategoriesMockSeed.ma
     };
   }
 );
+
+let mockStaff: StaffSettingsModel[] = staffMockSeed.map((item, index) => {
+  const now = new Date().toISOString();
+  return {
+    ...item,
+    id: `${Date.now()}-staff-${index}`,
+    createdDate: now,
+  };
+});
 
 // Kept for backward compatibility with existing page calls.
 export const ensureSettingsSeedData = () => {};
@@ -108,6 +119,29 @@ export const voidRole = (id: string) => {
   mockRoles = mockRoles.map((item) =>
     item.id === id ? { ...item, status: "inactive" as const } : item
   );
+};
+
+export const getStaff = (): StaffSettingsModel[] => [...mockStaff];
+
+export const saveStaff = (
+  payload: Omit<StaffSettingsModel, "id" | "createdDate">,
+  id?: string
+) => {
+  if (id) {
+    mockStaff = mockStaff.map((item) =>
+      item.id === id ? { ...item, ...payload } : item
+    );
+    return;
+  }
+
+  mockStaff = [
+    {
+      ...payload,
+      id: generateId(),
+      createdDate: new Date().toISOString(),
+    },
+    ...mockStaff,
+  ];
 };
 
 export const getExpenseCategories = (): ExpenseCategoryModel[] => [
