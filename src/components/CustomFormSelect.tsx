@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Col } from "react-bootstrap";
 import Select from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
@@ -46,19 +46,37 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
 
   const [selectedOption, setSelectedOption] = useState<{ value: string; label: string } | null>(null);
 
+  // Parents often pass inline `setValue` / `options` — new references each render would re-run the
+  // sync effect and reset the controlled value (e.g. clear selection when defaultValue is "").
+  const setValueRef = useRef(setValue);
+  setValueRef.current = setValue;
+
+  const optionsSyncKey = useMemo(
+    () =>
+      JSON.stringify(
+        [...options].sort((a, b) => a.value.localeCompare(b.value)).map((o) => [o.value, o.label])
+      ),
+    [options]
+  );
+
   useEffect(() => {
-    const defaultOption = options.find((option) =>
-      isValue ? option.label === defaultValue : option.value === defaultValue) || null;
+    const defaultOption =
+      options.find((option) =>
+        isValue ? option.label === defaultValue : option.value === defaultValue
+      ) || null;
     setSelectedOption(defaultOption);
-    if (setValue && defaultOption) {
+    const sync = setValueRef.current;
+    if (sync && defaultOption) {
       if (isValue) {
-        setValue(`${fieldName}_label`, defaultOption.label, { shouldValidate: false });
-        setValue(fieldName, defaultOption.label, { shouldValidate: false });
+        sync(`${fieldName}_label`, defaultOption.label, { shouldValidate: false });
+        sync(fieldName, defaultOption.label, { shouldValidate: false });
       } else {
-        setValue(fieldName, defaultOption.value, { shouldValidate: false });
+        sync(fieldName, defaultOption.value, { shouldValidate: false });
       }
     }
-  }, [defaultValue, options, setValue, fieldName, isValue]);
+    // Intentionally omit `options` / `setValue` — keyed by content and ref above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultValue, optionsSyncKey, fieldName, isValue]);
 
   const handleChange = (option: { value: string; label: string } | null) => {
     setSelectedOption(option);

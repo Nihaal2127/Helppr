@@ -18,6 +18,10 @@ interface CustomFormInputProps {
   maxLength?: number;
   as?: string;
   rows?: number;
+  /** Merged into Form.Control inline style (e.g. border overrides for read-only fields). */
+  inputStyle?: React.CSSProperties;
+  /** Extra classes on Form.Control (e.g. focus/border overrides that need CSS). */
+  inputClassName?: string;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -35,6 +39,8 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   maxLength,
   as,
   rows,
+  inputStyle,
+  inputClassName,
 }) => {
   const [inputValue, setInputValue] = useState<string>(String(value));
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -122,7 +128,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
     >
       {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
       <Form.Control
-        className="custom-form-input"
+        className={classNames("custom-form-input", inputClassName)}
         type={inputType}
         placeholder={placeholder}
         {...register(controlId, validation)}
@@ -145,7 +151,8 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           backgroundColor: "var(--bg-color)",
           fontFamily: "'Inter'",
           color: "var(--content-txt-color)",
-          marginBottom: "10px"
+          marginBottom: "10px",
+          ...inputStyle,
         }}
       />
       {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}

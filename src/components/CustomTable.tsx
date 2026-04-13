@@ -45,6 +45,11 @@ interface CustomTableProps {
   /** Adds classes to each `<tr>` (e.g. wallet credit/debit styling). */
   getRowClassName?: (row: any) => string | undefined;
   /**
+   * When true, wrapper scrolls horizontally and table gets a sensible min-width.
+   * When omitted, horizontal scroll activates automatically for many columns (>= 8).
+   */
+  horizontalScroll?: boolean;
+  /**
    * Server-side sorting: parent owns `sortBy`, refetches data, passes new rows.
    * Requires `onSortChange`. Column `accessor` string becomes the sort field id sent to the API.
    */
@@ -112,25 +117,30 @@ const CustomTable = (props: CustomTableProps) => {
 
   let rows = (dataTable as unknown as { page: any[] }).page;
 
-  const needsHorizontalScroll = props.columns.length >= 10;
+  const needsHorizontalScroll =
+    props.horizontalScroll !== undefined
+      ? props.horizontalScroll
+      : props.columns.length >= 8;
+  const tableMinWidthPx = Math.max(720, props.columns.length * 104);
   const serverSortEnabled = manualSortBy && typeof onSortChange === "function";
 
   return (
     <>
-     <div
-  style={{
-    border: "1px solid var(--txtfld-border)",
-    borderRadius: "8px",
-    ...(needsHorizontalScroll
-      ? {
-          // maxHeight: "500px",
-          // overflowY: "auto",
-          overflowX: "auto",
-        }
-      : {}),
-  }}
->
-  <table
+      <div
+        style={{
+          border: "1px solid var(--txtfld-border)",
+          borderRadius: "8px",
+          width: "100%",
+          maxWidth: "100%",
+          ...(needsHorizontalScroll
+            ? {
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch",
+              }
+            : {}),
+        }}
+      >
+        <table
     {...dataTable.getTableProps()}
     className={classNames(
       "table table-centered react-table table-hover table-bordered mb-0",
@@ -141,7 +151,7 @@ const CustomTable = (props: CustomTableProps) => {
       width: "100%",
       ...(needsHorizontalScroll
         ? {
-            minWidth: "1600px",
+            minWidth: `${tableMinWidthPx}px`,
             tableLayout: "fixed" as const,
           }
         : { tableLayout: "auto" as const }),
@@ -178,14 +188,17 @@ const CustomTable = (props: CustomTableProps) => {
                       title: "Toggle SortBy",
                     }
                   : column.getSortByToggleProps());
-              const headerProps = column.getHeaderProps(sortToggleProps);
-              const { key: thKey, ...thProps } = headerProps;
+              const headerProps = column.getHeaderProps([
+                sortToggleProps || {},
+                { className: column.className },
+              ]);
+              const { key: thKey, className: thClassName, ...thRest } = headerProps;
 
               return (
                 <th
                   key={thKey}
-                  {...thProps}
-                  className={classNames({
+                  {...thRest}
+                  className={classNames(thClassName, {
                     sorting_desc: column.isSortedDesc === true,
                     sorting_asc: column.isSortedDesc === false,
                     sortable: column.sort === true,

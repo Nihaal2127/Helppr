@@ -8,6 +8,7 @@ export const myFranchiseEmployeesSeed = [
     email: "ananya@franchise.local",
     area_name: "Madhapur",
     is_active: true,
+    chat_enabled: true,
   },
   {
     _id: "e2",
@@ -18,6 +19,7 @@ export const myFranchiseEmployeesSeed = [
     email: "vikram@franchise.local",
     area_name: "Kukatpally",
     is_active: true,
+    chat_enabled: false,
   },
   {
     _id: "e3",
@@ -28,6 +30,7 @@ export const myFranchiseEmployeesSeed = [
     email: "meera@franchise.local",
     area_name: "Banjara Hills",
     is_active: false,
+    chat_enabled: false,
   },
 ];
 

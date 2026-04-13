@@ -250,6 +250,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                             : `${sym}${walletAmount.toFixed(2)}`
                         }
                         isEditable={false}
+                        inputClassName="custom-form-input--read-only"
                       />
                     </Col>
                     <Col xs={12} md={4}>
@@ -277,6 +278,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                             : `${sym}${pendingAfterPayout.toFixed(2)}`
                         }
                         isEditable={false}
+                        inputClassName="custom-form-input--read-only"
                       />
                       {/* <Form.Text className="text-muted">Wallet amount − enter amount</Form.Text> */}
                     </Col>

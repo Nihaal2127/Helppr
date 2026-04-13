@@ -446,30 +446,13 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                 </Col>
               )}
 
-              {/* <Col xs={12} md={6}>
-                <CustomDatePicker
-                  label="Date"
-                  controlId="created_at"
-                  selectedDate={date || null}
-                  onChange={(selected) => {
-                    const value = selected ? selected.toISOString().slice(0, 10) : "";
-                    setDate(value);
-                  }}
-                  register={register as unknown as UseFormRegister<any>}
-                  setValue={setValue as (name: string, value: any) => void}
-                  asCol={false}
-                  groupClassName="mb-0 w-100 fw-medium"
-                  placeholderText="Select Date"
-                  filterDate={() => true}
-                />
-              </Col> */}
             </>
           )}
         </Row>
         </div>
       </Modal.Body>
 
-      {refundType === "partial" && (
+      {showRefundBreakdown && computedAmounts && refundType != null && (
         <Modal.Footer className="border-top-0 px-4 pb-4 pt-0">
           <Button variant="secondary" type="button" onClick={handleClose}>
             Cancel
@@ -481,7 +464,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
             onClick={() => void handleSubmit()}
             disabled={isSubmitting || !selectedOrder}
           >
-            {isSubmitting ? "Saving..." : "Save"}
+            {isSubmitting ? "Processing..." : "Refund"}
           </Button>
         </Modal.Footer>
       )}

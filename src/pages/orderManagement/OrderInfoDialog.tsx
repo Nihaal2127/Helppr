@@ -542,7 +542,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                     <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
                                         <div style={{ minWidth: "14px" }}></div>
                                         <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 16%" }}>Total Amount</div>
+                                        <div style={{ flex: "0 0 16%" }}>Paid Amount</div>
                                         <div className="px-2"style={{ flex: "0 0 25%" }}>Type</div>
                                         <div style={{ flex: "1 1 auto" }}>Description</div>
                                         <div style={{ minWidth: "42px" }}></div>
@@ -604,7 +604,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                     <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
                                         <div style={{ minWidth: "14px" }}></div>
                                         <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 18%" }}>Total Amount</div>
+                                        <div style={{ flex: "0 0 18%" }}>Paid Amount</div>
                                         <div style={{ flex: "1 1 35%" }}>Description</div>
                                         <div style={{ minWidth: "42px" }}></div>
                                     </div>

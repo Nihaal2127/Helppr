@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
+import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -145,9 +146,19 @@ const QuoteManagement = () => {
 
   const [quoteRows, setQuoteRows] = useState<QuoteRow[]>([]);
   const [totalPages, setTotalPages] = useState(0);
+  const [quoteCountsByTab, setQuoteCountsByTab] = useState<Partial<Record<QuoteTabKey, number>>>({});
   const [sortBy, setSortBy] = useState<QuoteListSort>([]);
 
   const fetchRef = useRef(false);
+
+  const quoteListFilters = useMemo(
+    () => ({
+      keyword: searchKeyword,
+      from_date: fromDate,
+      to_date: toDate,
+    }),
+    [searchKeyword, fromDate, toDate]
+  );
 
   const fetchData = useCallback(async () => {
     if (fetchRef.current) return;
@@ -157,24 +168,22 @@ const QuoteManagement = () => {
         selectedTab,
         currentPage,
         pageSize,
-        {
-          keyword: searchKeyword,
-          from_date: fromDate,
-          to_date: toDate,
-        },
+        quoteListFilters,
         sortBy
       );
       if (res.response) {
         setQuoteRows(res.quotes);
         setTotalPages(res.totalPages);
+        setQuoteCountsByTab((prev) => ({ ...prev, [selectedTab]: res.totalCount }));
       } else {
         setQuoteRows([]);
         setTotalPages(0);
+        setQuoteCountsByTab((prev) => ({ ...prev, [selectedTab]: 0 }));
       }
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, fromDate, pageSize, searchKeyword, selectedTab, sortBy, toDate]);
+  }, [currentPage, pageSize, quoteListFilters, selectedTab, sortBy]);
 
   const handleServerSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
     setSortBy(next);
@@ -199,6 +208,25 @@ const QuoteManagement = () => {
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        quoteTabs.map(({ key }) => fetchQuotes(key, 1, 1, quoteListFilters, []))
+      );
+      if (cancelled) return;
+      const next: Partial<Record<QuoteTabKey, number>> = {};
+      quoteTabs.forEach(({ key }, i) => {
+        const res = results[i];
+        next[key] = res.response ? res.totalCount : 0;
+      });
+      setQuoteCountsByTab(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteListFilters]);
 
   const handleTabClick = (tabKey: QuoteTabKey) => {
     setSelectedTab(tabKey);
@@ -478,13 +506,16 @@ const QuoteManagement = () => {
 
       <div className="d-flex mt-4 gap-2">
         {quoteTabs.map((tab) => (
-          <Button
+          <CustomSummaryBox
             key={tab.key}
-            className={selectedTab === tab.key ? "custom-btn-primary" : "custom-btn-secondary"}
-            onClick={() => handleTabClick(tab.key)}
-          >
-            {tab.label}
-          </Button>
+            divId={`quote-tab-${tab.key}`}
+            title={tab.label}
+            data={{ Total: quoteCountsByTab[tab.key] ?? 0 }}
+            onSelect={() => handleTabClick(tab.key)}
+            isSelected={selectedTab === tab.key}
+            onFilterChange={() => {}}
+            isAddShow={false}
+          />
         ))}
       </div>
 

@@ -35,6 +35,7 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
     <div
       className={`box ${isSelected ? "selected-box" : ""} ${className ?? ""}`.trim()}
       id={divId}
+      style={{ cursor: "pointer" }}
       onClick={() => onSelect(divId)}
     >
       <div className="box-row">

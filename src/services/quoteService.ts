@@ -145,17 +145,20 @@ export async function fetchQuotes(
   response: boolean;
   quotes: QuoteRow[];
   totalPages: number;
+  /** Total rows for this tab + filters (before pagination). */
+  totalCount: number;
 }> {
   if (USE_MOCK_QUOTE_API) {
     const allRows = filterQuotesByStatusTab(quoteListMockData.records, tab);
     const filtered = filterQuotesForTab(allRows, tab, filters);
     const sorted = sortQuotesInMemory(filtered, sort);
 
-    const totalPages = sorted.length ? Math.ceil(sorted.length / pageSize) : 0;
+    const totalCount = sorted.length;
+    const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
     const start = Math.max(0, (page - 1) * pageSize);
     const records = sorted.slice(start, start + pageSize);
 
-    return { response: true, quotes: records, totalPages };
+    return { response: true, quotes: records, totalPages, totalCount };
   }
 
   // GET `ApiPaths.GET_QUOTES()` — query params documented for backend alignment.
@@ -183,14 +186,30 @@ export async function fetchQuotes(
     true
   );
 
-  if (!res.success) return { response: false, quotes: [], totalPages: 0 };
+  if (!res.success) return { response: false, quotes: [], totalPages: 0, totalCount: 0 };
 
   const d = res.data ?? {};
   const inner = d.data ?? {};
   const records = Array.isArray(inner.records) ? inner.records : [];
   const totalPages = Number(inner.totalPages ?? 0) || 0;
 
-  return { response: true, quotes: records, totalPages };
+  const rawTotal =
+    inner.total_count ??
+    inner.totalCount ??
+    inner.total ??
+    inner.count ??
+    d.total_count ??
+    d.totalCount ??
+    d.total;
+  let totalCount = Number(rawTotal);
+  if (!Number.isFinite(totalCount) || totalCount < 0) {
+    totalCount =
+      totalPages > 0 && page === totalPages
+        ? (totalPages - 1) * pageSize + records.length
+        : 0;
+  }
+
+  return { response: true, quotes: records, totalPages, totalCount };
 }
 
 export async function fetchQuoteCreateOptions(): Promise<{

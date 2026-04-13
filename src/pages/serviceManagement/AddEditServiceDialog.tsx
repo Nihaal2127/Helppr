@@ -45,7 +45,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         register,
         handleSubmit,
         setValue,
-        watch,
+        
         formState: { errors },
     } = useForm<ServiceModel>({
         defaultValues: {
@@ -72,7 +72,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     const fetchRef = useRef(false);
     const fetchCityRef = useRef(false);
 
-    const depositType = watch("min_deposit_type");
+    // const depositType = watch("min_deposit_type");
     const categoryLabelForView =
         service?.category_id &&
         categories.find((c) => c.value === service.category_id)?.label;
@@ -288,7 +288,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     };
 
     return (
-        <Modal show={true} size="lg" onHide={onClose} centered dialog ClassName="custom-big-modal">
+        <Modal show={true} size="lg" onHide={onClose} centered dialogClassName="custom-big-modal">
             <Modal.Header className="py-3 px-4 border-bottom-0">
                 <Modal.Title as="h5" className="custom-modal-title">
                     {localViewMode ? "Service Details" : isEditable ? "Edit Service" : "Add Service"}
@@ -455,10 +455,18 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                     <div className="input-group">
                                         <input
                                             type="number"
+                                            min={0}
+                                            max={100}
+                                            step="any"
                                             className={`form-control ${(errors as any).tax ? "is-invalid" : ""}`}
                                             placeholder="Enter Tax"
                                             {...register("tax" as any, {
                                                 required: "Tax is required",
+                                                valueAsNumber: true,
+                                                min: { value: 0, message: "Tax must be between 0 and 100" },
+                                                max: { value: 100, message: "Tax must be between 0 and 100" },
+                                                validate: (v: number) =>
+                                                    Number.isNaN(v) ? "Enter a valid number" : true,
                                             })}
                                         />
                                         <span className="input-group-text">%</span>
@@ -471,16 +479,24 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 </div>
                             </Col>
 
-                            <Col md={6} className="mb-3">
+                            <Col md={6}>
                                 <label className="fw-medium mb-1">Commission</label>
                                 <div className="custom-form-group">
                                     <div className="input-group">
                                         <input
                                             type="number"
+                                            min={0}
+                                            max={100}
+                                            step="any"
                                             className={`form-control ${(errors as any).commission ? "is-invalid" : ""}`}
                                             placeholder="Enter Commission"
                                             {...register("commission" as any, {
                                                 required: "Commission is required",
+                                                valueAsNumber: true,
+                                                min: { value: 0, message: "Commission must be between 0 and 100" },
+                                                max: { value: 100, message: "Commission must be between 0 and 100" },
+                                                validate: (v: number) =>
+                                                    Number.isNaN(v) ? "Enter a valid number" : true,
                                             })}
                                         />
                                         <span className="input-group-text">%</span>
@@ -495,11 +511,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
                             <Col md={6}>
                                 <CustomFormSelect
-                                    label="Minimum Deposit Type"
+                                    label="Payment Type"
                                     controlId="min_deposit_type"
                                     options={[
                                         { value: "per_hour", label: "Per Hour" },
                                         { value: "per_day", label: "Per Day" },
+                                        { value: "per_month", label: "Per Month" },
                                         { value: "per_consultancy", label: "Per Consultancy" },
                                     ]}
                                     register={register as unknown as UseFormRegister<any>}
@@ -526,20 +543,45 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 />
                             </Col>
 
-                            {depositType === "per_consultancy" && (
-                                <Col md={6}>
-                                    <CustomFormInput
-                                        label="Consultancy Amount"
-                                        controlId="min_deposit_value"
-                                        placeholder="Enter Consultancy Amount"
-                                        register={register}
-                                        error={(errors as any).min_deposit_value}
-                                        asCol={false}
-                                        inputType="number"
-                                        validation={{ required: "Consultancy amount is required" }}
-                                    />
-                                </Col>
-                            )}
+                
+                            <Col md={6} className="mt-3">
+                                <label className="fw-medium mb-1">Minimum Deposit</label>
+                                <div className="custom-form-group">
+                                    <div className="input-group">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step="any"
+                                            className={`form-control ${(errors as any).min_deposit_value ? "is-invalid" : ""}`}
+                                            placeholder="Enter Minimum Deposit"
+                                            {...register("min_deposit_value" as any, {
+                                                valueAsNumber: true,
+                                                validate: (v: number, formValues: any) => {
+                                                    const isEmpty =
+                                                        v === undefined || v === null || Number.isNaN(v);
+                                                    if (formValues.min_deposit_type === "per_consultancy") {
+                                                        if (isEmpty) return "Minimum deposit is required";
+                                                    } else if (isEmpty) {
+                                                        return true;
+                                                    }
+                                                    const n = Number(v);
+                                                    if (n < 0 || n > 100) {
+                                                        return "Minimum deposit must be between 0 and 100";
+                                                    }
+                                                    return true;
+                                                },
+                                            })}
+                                        />
+                                        <span className="input-group-text">%</span>
+                                    </div>
+                                    {(errors as any).min_deposit_value && (
+                                        <div className="invalid-feedback d-block">
+                                            {(errors as any).min_deposit_value?.message}
+                                        </div>
+                                    )}
+                                </div>
+                            </Col> 
 
                             <Col md={6}>
                                 <CustomImageUploader
@@ -558,7 +600,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 </label>
                             </Col>
 
-                            <Col md={6}>
+                         
+
+                            <Col md={6} className="mb-3">
                                 <CustomRadioSelection
                                     label="Status"
                                     name="is_active"

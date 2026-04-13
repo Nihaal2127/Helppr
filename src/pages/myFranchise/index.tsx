@@ -10,6 +10,7 @@ import {
   fetchMyFranchiseBoxData,
   setCategoryActive as apiSetCategoryActive,
   setEmployeeActive as apiSetEmployeeActive,
+  setEmployeeChatEnabled as apiSetEmployeeChatEnabled,
   setServiceActive as apiSetServiceActive,
 } from "../../services/myFranchiseService";
 
@@ -24,6 +25,7 @@ type EmployeeRow = {
   email: string;
   area_name: string;
   is_active: boolean;
+  chat_enabled?: boolean;
 };
 
 type AreaRow = {
@@ -70,7 +72,12 @@ const MyFranchise = () => {
     (async () => {
       const data = await fetchMyFranchiseBoxData();
       if (cancelled) return;
-      setEmployees(data.employees as unknown as EmployeeRow[]);
+      setEmployees(
+        (data.employees as unknown as EmployeeRow[]).map((e) => ({
+          ...e,
+          chat_enabled: e.is_active ? (e.chat_enabled ?? true) : false,
+        }))
+      );
       setAreas(data.areas as unknown as AreaRow[]);
       setServices(data.services as unknown as ServiceRow[]);
       setCategories(data.categories as unknown as CategoryRow[]);
@@ -204,11 +211,25 @@ const MyFranchise = () => {
     return activeFilteredList.slice(start, start + pageSize);
   }, [activeFilteredList, currentPage, pageSize]);
 
-  const setEmployeeActive = (id: string, is_active: boolean) => {
+  const setEmployeeActive = useCallback((id: string, is_active: boolean) => {
     void apiSetEmployeeActive(id, is_active);
-    setEmployees((prev) => prev.map((e) => (e._id === id ? { ...e, is_active } : e)));
+    setEmployees((prev) =>
+      prev.map((e) => {
+        if (e._id !== id) return e;
+        if (!is_active) return { ...e, is_active: false, chat_enabled: false };
+        return { ...e, is_active: true, chat_enabled: e.chat_enabled ?? true };
+      })
+    );
     showSuccessAlert("Employee status updated");
-  };
+  }, []);
+
+  const setEmployeeChatEnabled = useCallback((id: string, enabled: boolean) => {
+    void apiSetEmployeeChatEnabled(id, enabled);
+    setEmployees((prev) =>
+      prev.map((e) => (e._id === id && e.is_active ? { ...e, chat_enabled: enabled } : e))
+    );
+    showSuccessAlert("Chat status updated");
+  }, []);
 
   const setServiceActive = (id: string, is_active: boolean) => {
     void apiSetServiceActive(id, is_active);
@@ -242,17 +263,44 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
+        className: "my-franchise-col-sr",
         Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Employee ID", accessor: "employee_id" },
-      { Header: "Name", accessor: "name" },
-      { Header: "Role", accessor: "role" },
-      { Header: "Phone", accessor: "phone" },
-      { Header: "Email", accessor: "email" },
-      { Header: "Area", accessor: "area_name" },
+      { Header: "Employee ID", accessor: "employee_id", className: "my-franchise-col-id" },
+      { Header: "Name", accessor: "name", className: "my-franchise-col-name" },
+      { Header: "Role", accessor: "role", className: "my-franchise-col-role" },
+      { Header: "Phone", accessor: "phone", className: "my-franchise-col-phone" },
+      { Header: "Email", accessor: "email", className: "my-franchise-col-email" },
+      { Header: "Area", accessor: "area_name", className: "my-franchise-col-area" },
+      {
+        Header: "Chat",
+        accessor: "chat_enabled",
+        className: "my-franchise-col-chat",
+        Cell: ({ row }: { row: any }) => {
+          const emp = row.original as EmployeeRow;
+          const chatOn = Boolean(emp.is_active && emp.chat_enabled);
+          return (
+            <Form.Check
+              type="switch"
+              id={`franchise-chat-${emp._id}`}
+              className="franchise-chat-switch"
+              checked={chatOn}
+              disabled={!emp.is_active}
+              title={emp.is_active ? "Chat on / off" : "Inactive employees cannot use chat"}
+              onChange={(e) => {
+                e.stopPropagation();
+                if (!emp.is_active) return;
+                setEmployeeChatEnabled(emp._id, e.target.checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        },
+      },
       {
         Header: "Status",
         accessor: "is_active",
+        className: "my-franchise-col-status",
         Cell: ({ row }: { row: any }) => {
           const emp = row.original as EmployeeRow;
           return (
@@ -263,7 +311,7 @@ const MyFranchise = () => {
                 e.stopPropagation();
                 setEmployeeActive(emp._id, e.target.value === "active");
               }}
-              style={{ minWidth: "130px" }}
+              className="my-franchise-status-select"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -272,7 +320,7 @@ const MyFranchise = () => {
         },
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, setEmployeeActive, setEmployeeChatEnabled]
   );
 
   const areaColumns = useMemo(
@@ -352,7 +400,7 @@ const MyFranchise = () => {
                 e.stopPropagation();
                 setCategoryActive(cat._id, e.target.value === "active");
               }}
-              style={{ minWidth: "130px" }}
+           
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -418,7 +466,7 @@ const MyFranchise = () => {
   ];
 
   return (
-    <div className="main-page-content">
+    <div className="main-page-content my-franchise-page">
       <CustomHeader title="My Franchise" register={register} setValue={setValue} />
 
       <div className="box-container my-franchise-box-container">
@@ -455,19 +503,22 @@ const MyFranchise = () => {
         }}
       />
 
-      <CustomTable
-        columns={tableColumns}
-        data={pagedData}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={(page: number) => setCurrentPage(page)}
-        onLimitChange={(limit: number) => {
-          setPageSize(limit);
-          setCurrentPage(1);
-        }}
-        theadClass="table-light"
-      />
+      <div className="my-franchise-table-wrap">
+        <CustomTable
+          columns={tableColumns}
+          data={pagedData}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          horizontalScroll
+          onPageChange={(page: number) => setCurrentPage(page)}
+          onLimitChange={(limit: number) => {
+            setPageSize(limit);
+            setCurrentPage(1);
+          }}
+          theadClass="table-light"
+        />
+      </div>
     </div>
   );
 };

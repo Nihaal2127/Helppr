@@ -141,6 +141,13 @@ body {
   box-shadow: 0px 0px 10px var(--primary-color-rgba) !important;
 }
 
+/* Read-only style: standard gray border, no primary focus ring */
+.form-control.custom-form-input--read-only,
+.form-control.custom-form-input--read-only:focus {
+  border-color: var(--txtfld-border) !important;
+  box-shadow: none !important;
+}
+
 .custom-form-input .form-control {
   margin-bottom: 0px !important;
   padding: 8px !important;
@@ -1326,6 +1333,122 @@ body {
   .my-franchise-box-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* My Franchise only — layout between utility bar, table, and pagination */
+.main-page-content.my-franchise-page .custom-utilty-box:not(.custom-utilty-box--title-only) {
+  margin-bottom: 8px;
+}
+
+.my-franchise-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  box-sizing: border-box;
+
+  /* CustomTable root: bordered scroll area — flush to this wrapper */
+  > div:first-of-type {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  #pagination_container {
+    margin-top: 0;
+    padding-top: 12px;
+    padding-bottom: 10px;
+    flex-shrink: 0;
+  }
+
+  .table th,
+  .table td {
+    &.my-franchise-col-sr {
+      min-width: 52px !important;
+      max-width: 72px;
+    }
+    &.my-franchise-col-id {
+      min-width: 100px !important;
+      max-width: 120px;
+    }
+    &.my-franchise-col-name,
+    &.my-franchise-col-role {
+      min-width: 96px !important;
+      max-width: 140px;
+    }
+    &.my-franchise-col-phone {
+      min-width: 108px !important;
+      max-width: 128px;
+    }
+    &.my-franchise-col-email {
+      min-width: 140px !important;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    &.my-franchise-col-area {
+      min-width: 100px !important;
+      max-width: 140px;
+    }
+    &.my-franchise-col-chat {
+      min-width: 88px !important;
+      max-width: 112px;
+      vertical-align: middle !important;
+    }
+    &.my-franchise-col-status {
+      min-width: 122px !important;
+      max-width: 150px;
+    }
+  }
+
+  .franchise-chat-switch {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto;
+    padding-left: 0;
+    min-height: 1.5em;
+
+    .form-check-input {
+      width: 2.5em;
+      height: 1.28em;
+      margin-left: 0;
+      cursor: pointer;
+      background-color: #e9ecef;
+      border-color: #ced4da;
+
+      &:checked {
+        background-color: #dc3545;
+        border-color: #b02a37;
+      }
+
+      &:focus {
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.28);
+        border-color: #dc3545;
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
+      &:checked:disabled {
+        background-color: #adb5bd;
+        border-color: #6c757d;
+      }
+    }
+  }
+
+  // .my-franchise-status-select {
+  //   min-width: 118px;
+  //   max-width: 100%;
+  // }
 }
 
 .box {

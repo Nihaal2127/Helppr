@@ -15,6 +15,8 @@ export type EmployeeRow = {
   email: string;
   area_name: string;
   is_active: boolean;
+  /** Chat can be toggled only when `is_active`; inactive employees force this off. */
+  chat_enabled?: boolean;
 };
 
 export type AreaRow = {
@@ -77,7 +79,23 @@ export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
 export async function setEmployeeActive(id: string, is_active: boolean): Promise<boolean> {
   if (USE_MOCK_MY_FRANCHISE_API) {
     mockEmployees = mockEmployees.map((e) =>
-      e._id === id ? { ...e, is_active } : e
+      e._id === id
+        ? {
+            ...e,
+            is_active,
+            ...(!is_active ? { chat_enabled: false } : {}),
+          }
+        : e
+    );
+    return true;
+  }
+  return false;
+}
+
+export async function setEmployeeChatEnabled(id: string, chat_enabled: boolean): Promise<boolean> {
+  if (USE_MOCK_MY_FRANCHISE_API) {
+    mockEmployees = mockEmployees.map((e) =>
+      e._id === id && e.is_active ? { ...e, chat_enabled } : e
     );
     return true;
   }
