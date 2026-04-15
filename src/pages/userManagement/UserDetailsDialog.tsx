@@ -5,7 +5,7 @@ import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate } from "../../helper/utility";
+import { DetailsRow, formatDate, FullDetailsRow } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import { AppConstant } from "../../constant/AppConstant";
@@ -52,7 +52,8 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     return (
         <>
             <Modal
-            dialog ClassName="custom-big-modal" size="lg"
+                dialogClassName="custom-big-modal"
+                size="lg"
                 show={true}
                 onHide={onClose}
                 centered
@@ -75,16 +76,23 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                         <div className="custom-personal-details">
 
                             <Col className="custom-helper-column">
-                                <DetailsRow title="User ID" value={userDetails?.user_id} />
-                                <DetailsRow title="User Name" value={userDetails?.name} />
-                                <DetailsRow title="Email ID" value={userDetails?.email} />
-                                <DetailsRow title="Phone No" value={userDetails?.phone_number} />
-                            </Col>
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="Address" value={userDetails?.address} />
-                                <DetailsRow title="State" value={userDetails?.state_name} />
-                                <DetailsRow title="City" value={userDetails?.city_name} />
-                                <DetailsRow title="Postal Code" value={userDetails?.pincode} />
+                                <FullDetailsRow title="User Name" value={userDetails?.name} />
+                                <FullDetailsRow title="Phone Number" value={userDetails?.phone_number} />
+                                <FullDetailsRow title="Email ID" value={userDetails?.email} />
+                                <FullDetailsRow title="City" value={userDetails?.city_name} />
+                                <FullDetailsRow title="State" value={userDetails?.state_name} />
+                                <FullDetailsRow title="Postal Code" value={userDetails?.pincode} />
+                                <FullDetailsRow title="Address" value={userDetails?.address} />
+                                <FullDetailsRow
+                                    title="Status"
+                                    value={
+                                        userDetails?.is_active === undefined
+                                            ? "-"
+                                            : userDetails.is_active
+                                              ? "Active"
+                                              : "Inactive"
+                                    }
+                                />
                             </Col>
                         </div>
                         <img src={editIcon} alt="edit" onClick={() => {
@@ -93,23 +101,84 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                     </div>
                     <Row className="custom-helper-row">
                         <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
-                            <h3>Services</h3>
-                            <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={() => openServices(null)} />
-                            <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={() => openServices(3)} />
-                            <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={() => openServices(2)} />
-                            <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={() => openServices(4)} />
-                            <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
-                            <DetailsRow title="Last Service Date" value={formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")} />
-                            <DetailsRow
-                                title="Status"
-                                value={
-                                    userDetails?.is_active === undefined
-                                        ? "-"
-                                        : userDetails?.is_active
-                                        ? "Active"
-                                        : "Inactive"
-                                }
-                            />
+                            <h3 className="mb-3">Services</h3>
+                            <div className="user-details-service-stats">
+                                {(
+                                    [
+                                        {
+                                            label: "Total Services",
+                                            node: (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-link p-0 m-0 align-baseline text-decoration-underline"
+                                                    style={{
+                                                        fontFamily: "Inter",
+                                                        fontSize: "16px",
+                                                        color: "var(--primary-color)",
+                                                    }}
+                                                    onClick={() => openServices(null)}
+                                                >
+                                                    {userDetails?.total_service == null ? "0" : userDetails.total_service}
+                                                </button>
+                                            ),
+                                        },
+                                        {
+                                            label: "Completed",
+                                            node: <span>{userDetails?.completed_service ?? "-"}</span>,
+                                        },
+                                        {
+                                            label: "In Progress",
+                                            node: <span>{userDetails?.in_progress_service ?? "-"}</span>,
+                                        },
+                                        {
+                                            label: "Cancelled",
+                                            node: <span>{userDetails?.cancelled_service ?? "-"}</span>,
+                                        },
+                                        {
+                                            label: "Registered Date",
+                                            node: <span>{formatDate(userDetails?.created_at ? userDetails?.created_at : "")}</span>,
+                                        },
+                                        {
+                                            label: "Last Service Date",
+                                            node: (
+                                                <span>
+                                                    {formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")}
+                                                </span>
+                                            ),
+                                        },
+                                    ] as const
+                                ).map(({ label, node }) => (
+                                    <div
+                                        key={label}
+                                        className="d-flex align-items-baseline justify-content-between gap-3"
+                                        style={{ minHeight: "36px" }}
+                                    >
+                                        <span
+                                            className="custom-personal-row-title"
+                                            style={{
+                                                flex: "1 1 auto",
+                                                minWidth: 0,
+                                                fontSize: "16px",
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            {label}
+                                        </span>
+                                        <span
+                                            className="custom-personal-row-value text-center"
+                                            style={{
+                                                flex: "0 0 8.5rem",
+                                                fontFamily: "Inter",
+                                                fontSize: "16px",
+                                                fontWeight: "normal",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {node}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </section>
                         <section className="custom-other-details">
                             <h3>Payment</h3>

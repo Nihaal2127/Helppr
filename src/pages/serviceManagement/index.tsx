@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, priceCell, statusCell, formatDate } from "../../helper/utility";
+import { capitalizeString, priceCell, statusCell, formatDate, textUnderlineCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
@@ -102,6 +102,7 @@ const ServiceManagement = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(0);
+    const [isTableLoading, setIsTableLoading] = useState(false);
     const fetchRef = useRef(false);
     const [serviceIdToName, setServiceIdToName] = useState<Record<string, string>>({});
     const [serviceNameList, setServiceNameList] = useState<string[]>([]);
@@ -134,6 +135,7 @@ const ServiceManagement = () => {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
+        setIsTableLoading(true);
 
         try {
             const { responseCount, countModel } = await getCount(2);
@@ -185,6 +187,7 @@ const ServiceManagement = () => {
             }
         } finally {
             fetchRef.current = false;
+            setIsTableLoading(false);
         }
     }, [currentPage, pageSize]);
 
@@ -198,11 +201,15 @@ const ServiceManagement = () => {
         }
     }, [selectedBox, pageSize, currentPage, showRequestedCategory, showRequestedService, refreshData]);
 
-    const handleFilterChange = async (filters: {
-        keyword?: string;
-        status?: string;
-        sort?: string;
-    }) => {
+    const handleFilterChange = async (
+        filters: {
+            keyword?: string;
+            status?: string;
+            sort?: string;
+        },
+        targetBox?: string
+    ) => {
+        const selectedTarget = targetBox ?? selectedBox;
         setCurrentPage(1);
         setTotalPages(0);
         setSortBy([]);
@@ -214,25 +221,25 @@ const ServiceManagement = () => {
         fetchRef.current = false;
 
         if (Object.keys(filters).length === 0) {
-            await fetchData(selectedBox, {});
+            await fetchData(selectedTarget, {});
         } else {
-            await fetchData(selectedBox, filters);
+            await fetchData(selectedTarget, filters);
         }
     };
 
     /* ADDED: open requested category table */
-    const openRequestedCategory = () => {
+    const openRequestedCategory = useCallback(() => {
         setShowRequestedCategory(true);
         setShowRequestedService(false);
         setRequestedCategoryList(staticRequestedCategoryList);
-    };
+    }, []);
 
     /* ADDED: open requested service table */
-    const openRequestedService = () => {
+    const openRequestedService = useCallback(() => {
         setShowRequestedService(true);
         setShowRequestedCategory(false);
         setRequestedServiceList(staticRequestedServiceList);
-    };
+    }, []);
 
     const partnerCountCell = useCallback(({ row }: { row: any }) => {
         const cat = row.original;
@@ -272,45 +279,9 @@ const ServiceManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        {
-            Header: "Category ID",
-            accessor: "category_id",
-            Cell: ({ row }: { row: any }) => (
-                <span
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            AddEditCategoryDialog.show(
-                                true,
-                                row.original,
-                                () => refreshData("box-category"),
-                                true
-                            );
-                        }
-                    }}
-                    style={{
-                        cursor: "pointer",
-                        color: "#000",
-                        textDecoration: "underline",
-                        fontWeight: 500,
-                    }}
-                    onClick={() =>
-                        AddEditCategoryDialog.show(
-                            true,
-                            row.original,
-                            () => refreshData("box-category"),
-                            true
-                        )
-                    }
-                >  
-                    {row.original.category_id ?? "-"}
-                </span>
-            ),
-        },
+    
         { Header: "Category Name", accessor: "name", sort: true },
-        { Header: "Description", accessor: "desc" },
+      
         {
             Header: "Services",
             accessor: "services",
@@ -335,14 +306,25 @@ const ServiceManagement = () => {
                 }
 
                 if (!names || names.length === 0) return countDisplay;
+                const hasMoreServices = names.length > 1;
+                const additionalCount = names.length - 1;
 
                 return (
                     <div className="pin-code-hover-wrapper">
-                        <span className="pin-code-hover-trigger">{countDisplay}</span>
+                        <span className="pin-code-hover-trigger">
+                            {hasMoreServices ? (
+                                <>
+                                    {`${names[0]}...`}
+                                    <span style={{ color: "red" }}>{`+${additionalCount}`}</span>
+                                </>
+                            ) : (
+                                names[0]
+                            )}
+                        </span>
                         <div className="pin-code-hover-card">
                             {names.map((n, idx) => (
                                 <div key={`${n}-${idx}`} className="pin-code-hover-item">
-                                    {n}
+                                    {`• ${n}`}
                                 </div>
                             ))}
                         </div>
@@ -350,7 +332,7 @@ const ServiceManagement = () => {
                 );
             },
         },
-        { Header: "Partners", accessor: "helpers", Cell: partnerCountCell },
+        // { Header: "Partners", accessor: "helpers", Cell: partnerCountCell },
         {
             Header: "Status",
             accessor: "is_active",
@@ -362,6 +344,14 @@ const ServiceManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
+                    onView={() => {
+                        AddEditCategoryDialog.show(
+                            true,
+                            row.original,
+                            () => refreshData("box-category"),
+                            true
+                        );
+                    }}
                     // onEdit={() => {
                     //     AddEditCategoryDialog.show(true, row.original, () => refreshData("box-category"), false);
                     // }}
@@ -389,40 +379,9 @@ const ServiceManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        {
-            Header: "Service ID",
-            accessor: "service_id",
-            Cell: ({ row }: { row: any }) => (
-                <span
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"), true);
-                        }
-                    }}
-                    style={{
-                        cursor: "pointer",
-                        color: "#000",
-                        textDecoration: "underline",
-                        fontWeight: 500,
-                    }}
-                    onClick={() => AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"), true)}
-                >
-                    {row.original.service_id ?? "-"}
-                </span>
-            ),
-        },
+       
         { Header: "Service Name", accessor: "name", sort: true },
-        { Header: "Description", accessor: "desc" },
         { Header: "Category", accessor: "category_name" },
-        {
-            Header: "Price",
-            accessor: "price",
-            Cell: priceCell("price"),
-        },
-        { Header: "Helpers", accessor: "helpers" },
         {
             Header: "Status",
             accessor: "is_active",
@@ -434,6 +393,14 @@ const ServiceManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
+                    onView={() => {
+                        AddEditServiceDialog.show(
+                            true,
+                            row.original,
+                            () => refreshData("box-service"),
+                            true
+                        );
+                    }}
                     // onEdit={() => {
                     //     AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"));
                     // }}
@@ -462,9 +429,9 @@ const ServiceManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => row.index + 1,
         },
-        { Header: "Requested ID", accessor: "request_id" },
+    
         { Header: "Category Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
+        // { Header: "Description", accessor: "desc" },
         {
             Header: "Date",
             accessor: "createdAt",
@@ -481,9 +448,12 @@ const ServiceManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
-                    onEdit={() => {
-                        AddEditCategoryDialog.show(true, row.original, openRequestedCategory);
-                    }}
+                    onView={() =>
+                        AddEditCategoryDialog.show(true, row.original, openRequestedCategory, true)
+                    }
+                    // onEdit={() => {
+                    //     AddEditCategoryDialog.show(true, row.original, openRequestedCategory);
+                    // }}
                     onDelete={async () => {
                         openConfirmDialog(
                             "Are you sure you want to void this category? ",
@@ -499,7 +469,7 @@ const ServiceManagement = () => {
                 />
             ),
         },
-    ], []);
+    ], [openRequestedCategory]);
 
     /* ADDED: requested service columns */
     const requestedServiceColumns = React.useMemo(() => [
@@ -508,9 +478,9 @@ const ServiceManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => row.index + 1,
         },
-        { Header: "Requested ID", accessor: "request_id" },
+       
         { Header: "Service Name", accessor: "name" },
-        { Header: "Description", accessor: "desc" },
+        // { Header: "Description", accessor: "desc" },
         { Header: "Category", accessor: "category_name" },
         {
             Header: "Date",
@@ -528,9 +498,10 @@ const ServiceManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
-                    onEdit={() => {
-                        AddEditServiceDialog.show(true, row.original, openRequestedService);
-                    }}
+                    onView={() =>
+                        AddEditServiceDialog.show(true, row.original, openRequestedService, true)
+                    }
+                  
                     onDelete={async () => {
                         openConfirmDialog(
                             "Are you sure you want to void this service? ",
@@ -546,7 +517,7 @@ const ServiceManagement = () => {
                 />
             ),
         },
-    ], []);
+    ], [openRequestedService]);
 
     return (
         <>
@@ -564,7 +535,7 @@ const ServiceManagement = () => {
                                 setSelectedBox(divId);
                                 setShowRequestedCategory(false);
                                 setShowRequestedService(false);
-                                handleFilterChange({});
+                                handleFilterChange({}, divId);
                             }}
                             isSelected={selectedBox === id}
                             onFilterChange={(filter) => {
@@ -600,12 +571,12 @@ const ServiceManagement = () => {
                             : "Services"
                     }
                     searchHint={`${showRequestedCategory
-                        ? "Search Requested ID, Category name, Description etc."
+                        ? "Search Category name, Description etc."
                         : showRequestedService
-                        ? "Search Requested ID, Service name, Description etc."
+                        ? "Search Service name, Description etc."
                         : selectedBox === "box-category"
-                        ? "Search Category name, ID, Description etc."
-                        : "Search Service name, ID, Description etc."
+                        ? "Search Category name, Services"
+                        : "Search Service name, Category"
                     }`}
                     onDownloadClick={async () => {
                         if (showRequestedCategory) {
@@ -681,6 +652,7 @@ const ServiceManagement = () => {
                         setSortBy(next);
                         setCurrentPage(1);
                     }}
+                    isLoading={!showRequestedCategory && !showRequestedService && isTableLoading}
                     theadClass="table-light"
                 />
             </div>

@@ -231,10 +231,10 @@ const LocationManagement = () => {
         !activeFilters.franchise_id &&
         !String(activeFilters.name ?? "").trim();
 
-    const cityStateFilterOptions = [{ value: "", label: "All States" }, ...cityStateOptions];
-    const stateFilterOptions = [{ value: "", label: "All States" }, ...areaStateOptions];
-    const cityFilterOptions = [{ value: "", label: "All Cities" }, ...areaCityOptions];
-    const franchiseFilterOptions = [{ value: "", label: "All Franchises" }, ...areaFranchiseOptions];
+    const cityStateFilterOptions = [{ value: "", label: "All" }, ...cityStateOptions];
+    const stateFilterOptions = [{ value: "", label: "All" }, ...areaStateOptions];
+    const cityFilterOptions = [{ value: "", label: "All" }, ...areaCityOptions];
+    const franchiseFilterOptions = [{ value: "", label: "All" }, ...areaFranchiseOptions];
 
     const stateColumns = React.useMemo(() => [
         {
@@ -429,7 +429,7 @@ const LocationManagement = () => {
                 selectedBox === "box-city" ? (
                     <>
                         {/* Plain div siblings — matches Financial Refunds; Row breaks under .custom-utility-control-slot > div CSS */}
-                        <div style={{ minWidth: "220px" }}>
+                        <div style={{ minWidth: "200px" }}>
                             {FormSelectComponent ? (
                                 <FormSelectComponent
                                     label="State"
@@ -439,7 +439,7 @@ const LocationManagement = () => {
                                     fieldName="city_state_id"
                                     asCol={false}
                                     noBottomMargin
-                                    selectWidth="220px"
+                                    selectWidth="200px"
                                     defaultValue={selectedCityStateId}
                                     setValue={setCityFilterValue as (name: string, value: any) => void}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -451,7 +451,7 @@ const LocationManagement = () => {
                     </>
                 ) : selectedBox === "box-area" ? (
                     <>
-                        <div style={{ minWidth: "220px" }}>
+                        <div style={{ minWidth: "200px" }}>
                             {FormSelectComponent ? (
                                 <FormSelectComponent
                                     label="State"
@@ -461,7 +461,7 @@ const LocationManagement = () => {
                                     fieldName="area_state_id"
                                     asCol={false}
                                     noBottomMargin
-                                    selectWidth="220px"
+                                    selectWidth="200px"
                                     defaultValue={selectedAreaStateId}
                                     setValue={setAreaFilterValue as (name: string, value: any) => void}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -470,7 +470,7 @@ const LocationManagement = () => {
                                 />
                             ) : null}
                         </div>
-                        <div style={{ minWidth: "220px" }}>
+                        <div style={{ minWidth: "200px" }}>
                             {FormSelectComponent ? (
                                 <FormSelectComponent
                                     label="City"
@@ -480,7 +480,7 @@ const LocationManagement = () => {
                                     fieldName="area_city_id"
                                     asCol={false}
                                     noBottomMargin
-                                    selectWidth="220px"
+                                    selectWidth="200px"
                                     defaultValue={selectedAreaCityId}
                                     setValue={setAreaFilterValue as (name: string, value: any) => void}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -490,7 +490,7 @@ const LocationManagement = () => {
                                 />
                             ) : null}
                         </div>
-                        <div style={{ minWidth: "220px" }}>
+                        <div style={{ minWidth: "200px" }}>
                             {FormSelectComponent ? (
                                 <FormSelectComponent
                                     label="Franchise"
@@ -500,7 +500,7 @@ const LocationManagement = () => {
                                     fieldName="area_franchise_id"
                                     asCol={false}
                                     noBottomMargin
-                                    selectWidth="220px"
+                                    selectWidth="200px"
                                     defaultValue={selectedAreaFranchiseId}
                                     setValue={setAreaFilterValue as (name: string, value: any) => void}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -558,15 +558,15 @@ const LocationManagement = () => {
                 <style>
                     {`
                     .location-management-utility-column .custom-utilty-box {
-                        flex-direction: column;
-                        align-items: stretch;
-                        justify-content: flex-start;
+                        // flex-direction: column;
+                        // align-items: stretch;
+                        // justify-content: flex-start;
                     }
                     .location-management-utility-column .custom-utilty-box-title {
-                        width: 100%;
+                        // width: 100%;
                     }
                     .location-management-utility-column .custom-utilty-tools-inline {
-                        width: 100%;
+                        // width: 100%;
                         flex: none;
                         justify-content: flex-start;
                         align-items: flex-end;
@@ -575,7 +575,7 @@ const LocationManagement = () => {
                     .location-management-utility-column
                         .custom-utilty-tools-inline
                         > div.d-flex.align-items-end {
-                        margin-left: auto;
+                        // margin-left: auto;
                     }
                 `}
                 </style>

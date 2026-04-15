@@ -115,7 +115,7 @@ const FranchiseManagement = () => {
                 Cell: areaNamesCell,
             },
             { Header: "Admin Name", accessor: "admin_name" },
-            { Header: "Description", accessor: "description" },
+            // { Header: "Description", accessor: "description" },
             {
                 Header: "Status",
                 accessor: "is_active",

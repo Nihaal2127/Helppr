@@ -11,12 +11,9 @@ import CustomImageUploader from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateService } from "../../services/servicesService";
-import { fetchCityDropDown } from "../../services/cityService";
-import { fetchStateDropDown } from "../../services/stateService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { openDialog } from "../../helper/DialogManager";
-import { DetailsRow, FullDetailsRow } from "../../helper/utility";
+import { FullDetailsRow } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 
 type AddEditServiceDialogProps = {
@@ -51,8 +48,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         defaultValues: {
             name: service?.name || "",
             desc: service?.desc || "",
-            // Keep numeric inputs empty in add mode so placeholders stay visible.
-            price: (service?.price ?? "") as any,
             tax: ((service as any)?.tax ?? "") as any,
             commission: ((service as any)?.commission ?? "") as any,
             min_deposit_type: (service as any)?.min_deposit_type || "",
@@ -65,25 +60,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     const [categories, setCategory] = useState<{ value: string; label: string }[]>([]);
     const [fileInputs, setFileInputs] = useState<File[]>([]);
     const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
-    const [states, setState] = useState<{ value: string; label: string }[]>([]);
-    const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
-    const [stateIds, setStateIds] = useState<string[]>([]);
-    const [cityIds, setCityIds] = useState<string[]>([]);
     const fetchRef = useRef(false);
-    const fetchCityRef = useRef(false);
 
     // const depositType = watch("min_deposit_type");
     const categoryLabelForView =
         service?.category_id &&
         categories.find((c) => c.value === service.category_id)?.label;
-
-    const stateLabelsForView = stateIds
-        .map((id) => states.find((s) => s.value === id)?.label)
-        .filter(Boolean) as string[];
-
-    const cityLabelsForView = cityIds
-        .map((id) => cities.find((c) => c.value === id)?.label)
-        .filter(Boolean) as string[];
 
     const minDepositValueForView =
         service?.min_deposit_type === "per_consultancy" && service.min_deposit_value !== undefined
@@ -98,17 +80,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   : "")
             : "-";
 
-    const fetchCityFromApi = useCallback(async (stateIdList: string[]) => {
-        if (fetchCityRef.current) return;
-        fetchCityRef.current = true;
-
-        try {
-            const cityOptions = await fetchCityDropDown(stateIdList);
-            setCity([{ value: "select-all", label: "Select All" }, ...cityOptions]);
-        } finally {
-            fetchCityRef.current = false;
-        }
-    }, []);
+    const sanitizeNumericText = (raw: string) => raw.replace(/\D/g, "").slice(0, 3);
 
     const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
@@ -117,82 +89,14 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         try {
             const categoryOptions = await fetchCategoryDropDown();
             setCategory(categoryOptions);
-
-            const stateOptions = await fetchStateDropDown();
-            setState([{ value: "select-all", label: "Select All" }, ...stateOptions]);
-
-            if (isEditable && service) {
-                setStateIds(service.state_ids || []);
-                setCityIds(service.city_ids || []);
-
-                if ((service.state_ids || []).length > 0) {
-                    await fetchCityFromApi(service.state_ids || []);
-                }
-            }
         } finally {
             fetchRef.current = false;
         }
-    }, [isEditable, service, fetchCityFromApi]);
+    }, []);
 
     useEffect(() => {
         void fetchDataFromApi();
     }, [fetchDataFromApi]);
-
-    const handleStateSelection = async (
-        selectedOptions: { value: string; label: string }[]
-    ) => {
-        const isSelectAllSelected = selectedOptions.some(
-            (option) => option.value === "select-all"
-        );
-
-        let selectedIds: string[] = [];
-
-        if (isSelectAllSelected) {
-            const allStates = states.filter((state) => state.value !== "select-all");
-            const isAllSelected =
-                selectedOptions.length - 1 === allStates.length &&
-                allStates.every((state) =>
-                    selectedOptions.some((selected) => selected.value === state.value)
-                );
-
-            selectedIds = isAllSelected ? [] : allStates.map((state) => state.value);
-        } else {
-            selectedIds = selectedOptions.map((option) => option.value);
-        }
-
-        setStateIds(selectedIds);
-        setCity([]);
-        setCityIds([]);
-
-        if (selectedIds.length > 0) {
-            await fetchCityFromApi(selectedIds);
-        }
-    };
-
-    const handleCitySelection = (
-        selectedOptions: { value: string; label: string }[]
-    ) => {
-        const isSelectAllSelected = selectedOptions.some(
-            (option) => option.value === "select-all"
-        );
-
-        let selectedIds: string[] = [];
-
-        if (isSelectAllSelected) {
-            const allCities = cities.filter((city) => city.value !== "select-all");
-            const isAllSelected =
-                selectedOptions.length - 1 === allCities.length &&
-                allCities.every((city) =>
-                    selectedOptions.some((selected) => selected.value === city.value)
-                );
-
-            selectedIds = isAllSelected ? [] : allCities.map((city) => city.value);
-        } else {
-            selectedIds = selectedOptions.map((option) => option.value);
-        }
-
-        setCityIds(selectedIds);
-    };
 
     useEffect(() => {
         if (isEditable && service?.is_active !== undefined) {
@@ -218,7 +122,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
     useEffect(() => {
         if (isEditable && service?.min_deposit_type) {
-            setValue("min_deposit_type" as any, (service as any).min_deposit_type, {
+            setValue("min deposit type" as any, (service as any).min_deposit_type, {
                 shouldValidate: true,
                 shouldDirty: true,
                 shouldTouch: true,
@@ -253,7 +157,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         const payload = {
             name: data.name,
             desc: data.desc,
-            price: Number(data.price),
             tax: Number((data as any).tax),
             commission: Number((data as any).commission),
             min_deposit_type: (data as any).min_deposit_type,
@@ -263,8 +166,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     : 0,
             is_active: data.is_active,
             category_id: data.category_id,
-            city_ids: cityIds,
-            state_ids: stateIds,
             ...(image_url !== "" && { image_url }),
         };
 
@@ -313,25 +214,20 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                         </div>
                         <div className="row">
                             <div className="col-md-6 custom-helper-column">
-                                <FullDetailsRow title="Service ID" value={service.service_id ?? "-"} />
-                                <FullDetailsRow title="Category" value={categoryLabelForView ?? service.category_id ?? "-"} />
-                                <DetailsRow
-                                    title="Price"
-                                    value={
-                                        service.price !== undefined && service.price !== null
-                                            ? `${AppConstant.currencySymbol}${service.price}`
-                                            : "-"
-                                    }
+                                {/* <FullDetailsRow title="Service ID" value={service.service_id ?? "-"} /> */}
+                                <FullDetailsRow
+                                    title="Category"
+                                    value={(service as any).category_name ?? categoryLabelForView ?? service.category_id ?? "-"}
                                 />
                                 <FullDetailsRow title="Tax" value={service.tax !== undefined && service.tax !== null ? `${service.tax}${AppConstant.percentageSymbol}` : "-"} />
                                 <FullDetailsRow title="Min Deposit" value={minDepositLabelForView} />
                             </div>
                             <div className="col-md-6 custom-helper-column">
                                 <FullDetailsRow title="Service Name" value={service.name ?? "-"} />
-                                <FullDetailsRow
+                                {/* <FullDetailsRow
                                     title="States"
                                     value={stateLabelsForView.length > 0 ? stateLabelsForView.join(", ") : "-"}
-                                />
+                                /> */}
                                  <FullDetailsRow title="Commission" value={service.commission !== undefined && service.commission !== null ? `${service.commission}${AppConstant.percentageSymbol}` : "-"} />
 
                                 <FullDetailsRow
@@ -342,16 +238,26 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                             <div className="col-md-12 custom-helper-column">
                                 <Row className="row custom-personal-row">
                                     <label className="col-3 custom-personal-row-title">Description</label>
-                                    <label className="col-9 custom-personal-row-value text-wrap">
+                                    <div
+                                        className="col-9 custom-personal-row-value text-wrap"
+                                        style={{
+                                            whiteSpace: "normal",
+                                            wordBreak: "break-word",
+                                            width: "auto",
+                                            maxWidth: "100%",
+                                            overflow: "visible",
+                                            textOverflow: "clip",
+                                        }}
+                                    >
                                         {service.desc ?? "-"}
-                                    </label>
+                                    </div>
                                 </Row>
-                                <Row className="row custom-personal-row">
+                                {/* <Row className="row custom-personal-row">
                                     <label className="col-3 custom-personal-row-title">Cities</label>
                                     <label className="col-9 custom-personal-row-value text-wrap">
                                         {cityLabelsForView.length > 0 ? cityLabelsForView.join(", ") : "-"}
                                     </label>
-                                </Row>
+                                </Row> */}
                             </div>
                             <div className="col-md-12">
                             {service.image_url ? (
@@ -410,63 +316,29 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 />
                             </Col>
 
-                            <Col md={12}>
-                                <CustomMultiSelect
-                                    label="State"
-                                    controlId="State"
-                                    options={states}
-                                    value={states.filter((state) => stateIds.includes(state.value))}
-                                    onChange={(selectedOptions) => {
-                                        handleStateSelection(selectedOptions);
-                                    }}
-                                    asCol={false}
-                                />
-                            </Col>
-
-                            <Col md={12}>
-                                <CustomMultiSelect
-                                    label="City"
-                                    controlId="City"
-                                    options={cities}
-                                    value={cities.filter((city) => cityIds.includes(city.value))}
-                                    onChange={(selectedOptions) => {
-                                        handleCitySelection(selectedOptions);
-                                    }}
-                                    asCol={false}
-                                />
-                            </Col>
-
-                            <Col md={6}>
-                                <CustomFormInput
-                                    label="Price"
-                                    controlId="price"
-                                    placeholder="Enter Service Price"
-                                    register={register}
-                                    error={errors.price}
-                                    asCol={false}
-                                    inputType="number"
-                                    validation={{ required: "Service price is required" }}
-                                />
-                            </Col>
-
                             <Col md={6} className="mb-3">
                                 <label className="fw-medium mb-1">Tax</label>
                                 <div className="custom-form-group">
                                     <div className="input-group">
                                         <input
-                                            type="number"
-                                            min={0}
-                                            max={100}
-                                            step="any"
+                                            type="text"
+                                            inputMode="numeric"
                                             className={`form-control ${(errors as any).tax ? "is-invalid" : ""}`}
                                             placeholder="Enter Tax"
+                                            onInput={(e) => {
+                                                const target = e.currentTarget;
+                                                target.value = sanitizeNumericText(target.value);
+                                            }}
                                             {...register("tax" as any, {
                                                 required: "Tax is required",
-                                                valueAsNumber: true,
-                                                min: { value: 0, message: "Tax must be between 0 and 100" },
-                                                max: { value: 100, message: "Tax must be between 0 and 100" },
-                                                validate: (v: number) =>
-                                                    Number.isNaN(v) ? "Enter a valid number" : true,
+                                                validate: (v: string) => {
+                                                    if (!/^\d+$/.test(v ?? "")) return "Enter a valid number";
+                                                    const n = Number(v);
+                                                    if (Number.isNaN(n) || n < 1 || n > 100) {
+                                                        return "Tax must be between 1 and 100";
+                                                    }
+                                                    return true;
+                                                },
                                             })}
                                         />
                                         <span className="input-group-text">%</span>
@@ -484,19 +356,24 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 <div className="custom-form-group">
                                     <div className="input-group">
                                         <input
-                                            type="number"
-                                            min={0}
-                                            max={100}
-                                            step="any"
+                                            type="text"
+                                            inputMode="numeric"
                                             className={`form-control ${(errors as any).commission ? "is-invalid" : ""}`}
                                             placeholder="Enter Commission"
+                                            onInput={(e) => {
+                                                const target = e.currentTarget;
+                                                target.value = sanitizeNumericText(target.value);
+                                            }}
                                             {...register("commission" as any, {
                                                 required: "Commission is required",
-                                                valueAsNumber: true,
-                                                min: { value: 0, message: "Commission must be between 0 and 100" },
-                                                max: { value: 100, message: "Commission must be between 0 and 100" },
-                                                validate: (v: number) =>
-                                                    Number.isNaN(v) ? "Enter a valid number" : true,
+                                                validate: (v: string) => {
+                                                    if (!/^\d+$/.test(v ?? "")) return "Enter a valid number";
+                                                    const n = Number(v);
+                                                    if (Number.isNaN(n) || n < 1 || n > 100) {
+                                                        return "Commission must be between 1 and 100";
+                                                    }
+                                                    return true;
+                                                },
                                             })}
                                         />
                                         <span className="input-group-text">%</span>
@@ -509,10 +386,10 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 </div>
                             </Col>
 
-                            <Col md={6}>
+                            <Col md={6} className="mt-3">
                                 <CustomFormSelect
                                     label="Payment Type"
-                                    controlId="min_deposit_type"
+                                    controlId="Payment Type"
                                     options={[
                                         { value: "per_hour", label: "Per Hour" },
                                         { value: "per_day", label: "Per Day" },
@@ -523,7 +400,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                     fieldName="min_deposit_type"
                                     error={(errors as any).min_deposit_type}
                                     asCol={false}
-                                    requiredMessage="Please select minimum deposit type"
+                                    requiredMessage="Please select payment type"
                                     defaultValue={(service as any)?.min_deposit_type || ""}
                                     setValue={(name: string, value: any) => {
                                         setValue(name as any, value, {
@@ -549,25 +426,26 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                 <div className="custom-form-group">
                                     <div className="input-group">
                                         <input
-                                            type="number"
-                                            min={0}
-                                            max={100}
-                                            step="any"
+                                            type="text"
+                                            inputMode="numeric"
                                             className={`form-control ${(errors as any).min_deposit_value ? "is-invalid" : ""}`}
                                             placeholder="Enter Minimum Deposit"
+                                            onInput={(e) => {
+                                                const target = e.currentTarget;
+                                                target.value = sanitizeNumericText(target.value);
+                                            }}
                                             {...register("min_deposit_value" as any, {
-                                                valueAsNumber: true,
-                                                validate: (v: number, formValues: any) => {
-                                                    const isEmpty =
-                                                        v === undefined || v === null || Number.isNaN(v);
+                                                validate: (v: string, formValues: any) => {
+                                                    const isEmpty = v === undefined || v === null || String(v).trim() === "";
                                                     if (formValues.min_deposit_type === "per_consultancy") {
                                                         if (isEmpty) return "Minimum deposit is required";
                                                     } else if (isEmpty) {
                                                         return true;
                                                     }
+                                                    if (!/^\d+$/.test(v ?? "")) return "Enter a valid number";
                                                     const n = Number(v);
-                                                    if (n < 0 || n > 100) {
-                                                        return "Minimum deposit must be between 0 and 100";
+                                                    if (n < 1 || n > 100) {
+                                                        return "Minimum deposit must be between 1 and 100";
                                                     }
                                                     return true;
                                                 },

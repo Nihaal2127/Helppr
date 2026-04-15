@@ -27,93 +27,86 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
     onChange,
     onBlur,
     error,
-    placeholder = "Type pincode and press Enter",
+    placeholder = "Enter pincode",
     label = "Pin codes",
 }) => {
-    const [draft, setDraft] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
+    const [rows, setRows] = useState<string[]>(value.length ? [...value] : [""]);
 
-    const mergeNewTokens = (tokens: string[]) => {
-        const trimmed = tokens.map((t) => t.trim()).filter(Boolean);
-        if (!trimmed.length) return;
-        const seen = new Set(value);
-        const next = [...value];
-        for (const t of trimmed) {
-            if (seen.has(t)) continue;
-            seen.add(t);
-            next.push(t);
-        }
-        if (next.length !== value.length) {
-            onChange(next);
-        }
-        setDraft("");
+    useEffect(() => {
+        setRows(value.length ? [...value] : [""]);
+    }, [value]);
+
+    const emitUniqueCodes = (nextRows: string[]) => {
+        const seen = new Set<string>();
+        const unique = nextRows
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .filter((p) => {
+                if (seen.has(p)) return false;
+                seen.add(p);
+                return true;
+            });
+        onChange(unique);
     };
 
-    const addDraftAsTag = () => {
-        if (!draft.trim()) return;
-        mergeNewTokens([draft]);
+    const updateRow = (index: number, nextValue: string) => {
+        const numericOnly = nextValue.replace(/\D/g, "");
+        const nextRows = rows.map((row, i) => (i === index ? numericOnly : row));
+        setRows(nextRows);
+        emitUniqueCodes(nextRows);
     };
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            addDraftAsTag();
-        } else if (e.key === "Backspace" && !draft && value.length > 0) {
-            e.preventDefault();
-            onChange(value.slice(0, -1));
-        }
+    const addRow = () => {
+        setRows((prev) => [...prev, ""]);
     };
 
-    const removeAt = (index: number) => {
-        onChange(value.filter((_, i) => i !== index));
+    const removeRow = (index: number) => {
+        const nextRows = rows.filter((_, i) => i !== index);
+        const normalizedRows = nextRows.length ? nextRows : [""];
+        setRows(normalizedRows);
+        emitUniqueCodes(normalizedRows);
     };
 
     return (
         <Form.Group as="div" controlId="pincode">
             {label?.trim() && <Form.Label className="fw-medium">{label}</Form.Label>}
-            <div
-                className={`area-pincode-tag-field${error ? " is-invalid" : ""}`}
-                onClick={() => inputRef.current?.focus()}
-            >
-                {value.map((tag, i) => (
-                    <span key={`${tag}-${i}`} className="area-pincode-tag">
-                        <span className="area-pincode-tag__text">{tag}</span>
-                        <button
-                            type="button"
-                            className="area-pincode-tag__remove"
-                            onMouseDown={(ev) => ev.preventDefault()}
-                            onClick={(ev) => {
-                                ev.stopPropagation();
-                                removeAt(i);
-                            }}
-                            aria-label={`Remove ${tag}`}
-                        >
-                            ×
-                        </button>
-                    </span>
-                ))}
-                <input
-                    ref={inputRef}
-                    type="text"
-                    className="area-pincode-tag-field__input"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={onKeyDown}
-                    onBlur={() => {
-                        if (draft.trim()) {
-                            addDraftAsTag();
-                        }
-                        onBlur();
-                    }}
-                    onPaste={(e) => {
-                        const text = e.clipboardData.getData("text");
-                        if (text.includes(",") || text.includes("\n")) {
-                            e.preventDefault();
-                            mergeNewTokens(text.split(/[,\n]+/));
-                        }
-                    }}
-                    placeholder={value.length === 0 ? placeholder : ""}
-                />
+            <div className={error ? "is-invalid" : ""}>
+                <div style={{ maxHeight: "180px", overflowY: "auto", paddingRight: "4px" }}>
+                    {rows.map((pin, index) => {
+                        const isLast = index === rows.length - 1;
+                        return (
+                            <div className="d-flex align-items-end gap-2 mb-2" key={`pincode-row-${index}`}>
+                                <Form.Control
+                                    type="text"
+                                    value={pin}
+                                    onChange={(e) => updateRow(index, e.target.value)}
+                                    onBlur={onBlur}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength={6}
+                                    placeholder={placeholder}
+                                />
+                                <button
+                                    type="button"
+                                    className={`px-2 btn ${
+                                        isLast ? "btn-outline-success" : "btn-outline-danger"
+                                    }`}
+                                    onClick={() => (isLast ? addRow() : removeRow(index))}
+                                    aria-label={isLast ? "Add pincode field" : "Remove pincode field"}
+                                    style={{
+                                        width: "auto",
+                                        minWidth: "unset",
+                                        borderWidth: "1px",
+                                        borderStyle: "solid",
+                                        borderRadius: "0.375rem",
+                                    }}
+                                >
+                                    <i className={`bi ${isLast ? "bi-plus-lg" : "bi-trash"}`} />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
             {error && (
                 <Form.Control.Feedback type="invalid" style={{ display: "block" }}>
@@ -400,7 +393,7 @@ const AddEditAreaDialog: React.FC<Props> & {
                                         onChange={field.onChange}
                                         onBlur={field.onBlur}
                                         error={fieldState.error}
-                                        placeholder="Type pincode and press Enter"
+                                        placeholder="Enter pincode"
                                     />
                                 )}
                             />

@@ -5,14 +5,13 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CategoryModel } from "../../models/CategoryModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { DetailsRow, getStatusOptions } from "../../helper/utility";
+import { DetailsRow, FullDetailsRow, getStatusOptions } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateCategory } from "../../services/categoryService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
-import CustomFormSelect from "../../components/CustomFormSelect";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { openDialog } from "../../helper/DialogManager";
@@ -141,19 +140,12 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         [serviceOptions, serviceIds]
     );
 
-    const franchiseLabelForView =
-        category?.franchise_name ||
-        franchiseOptions.find((f) => f.value === category?.franchise_id)?.label ||
-        category?.franchise_id ||
-        "-";
-
     const linkedServiceNamesForView = useMemo(() => {
         if (!category) return [];
         if (Array.isArray(category.service_names) && category.service_names.length > 0) {
             return category.service_names.map(String).filter(Boolean);
         }
-        // API sometimes returns only the count; in that case, use our fallback `serviceIds`
-        // (derived from `category.services` and `serviceOptions`).
+       
         const idsFromApi = (category.service_ids ?? []).map(String);
         const ids = idsFromApi.length > 0 ? idsFromApi : serviceIds;
         return ids
@@ -253,10 +245,10 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                         </div>
                         <div className="row">
                             <div className="col-md-6 custom-helper-column">
-                                <DetailsRow title="Category ID" value={category.category_id ?? "-"} />
+                                {/* <DetailsRow title="Category ID1" value={category.category_id ?? "-"} /> */}
                                 <DetailsRow title="Category Name" value={category.name ?? "-"} />
-                                <DetailsRow title="Description" value={category.desc ?? "-"} />
-                                <DetailsRow
+                                <FullDetailsRow title="Description" value={category.desc ?? "-"} />
+                                <FullDetailsRow
                                     title="Services"
                                     value={
                                         linkedServiceNamesForView.length > 0
@@ -264,8 +256,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                                             : category.services ?? "-"
                                     }
                                 />
-                                <DetailsRow title="Partners" value={category.helpers ?? "-"} />
-                                <DetailsRow title="Franchise" value={franchiseLabelForView} />
+                               
                             </div>
                             <div className="col-md-6 custom-helper-column">
                                 <DetailsRow
@@ -320,34 +311,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                                 menuPortal
                             />
                         </Col>
-                        <Col md={6}>
-                            <CustomFormSelect
-                                label="Franchise"
-                                controlId="Franchise"
-                                options={franchiseOptions}
-                                register={register as unknown as UseFormRegister<any>}
-                                fieldName="franchise_id"
-                                asCol={false}
-                                defaultValue={isEditable ? category?.franchise_id || "" : ""}
-                                setValue={(name: string, value: any) => {
-                                    setValue(name as keyof CategoryModel, value, {
-                                        shouldValidate: false,
-                                        shouldDirty: true,
-                                        shouldTouch: true,
-                                    });
-                                }}
-                            />
-                        </Col>
-                        <Col md={6}>
-                            <CustomRadioSelection
-                                label="Status"
-                                name="is_active"
-                                options={getStatusOptions()}
-                                defaultValue={isEditable ? category?.is_active?.toString() : "true"}
-                                isEditable={isEditable}
-                                setValue={setValue}
-                            />
-                        </Col>
+                       
                         <Col md={6}>
                             <CustomImageUploader
                                 label="Upload Category Image"
@@ -360,6 +324,16 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                                 }}
                             />
                             <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
+                        </Col>
+                        <Col md={6}>
+                            <CustomRadioSelection
+                                label="Status"
+                                name="is_active"
+                                options={getStatusOptions()}
+                                defaultValue={isEditable ? category?.is_active?.toString() : "true"}
+                                isEditable={isEditable}
+                                setValue={setValue}
+                            />
                         </Col>
                         <Col md={12}>
                             <CustomFormInput

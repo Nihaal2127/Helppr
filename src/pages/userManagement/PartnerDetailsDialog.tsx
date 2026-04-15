@@ -6,7 +6,7 @@ import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import deleteIcon from "../../assets/icons/delete_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, DetailsRowLink, formatDate, DetailsRowStatus, DetailsRowLinkDocument } from "../../helper/utility";
+import { DetailsRow, DetailsRowLink, formatDate, DetailsRowLinkDocument } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
 import AddEditBankAccountDialog from "./AddEditBankAccountDialog";
 import { DocumentModel } from "../../models/DocumentModel";
@@ -51,6 +51,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
     }, [fetchDataFromApi]);
 
     const openServices = (status: number | null) => {
+        // `order_service/getAll?partner_id=` expects the partner document `_id` (ObjectId). Passing display id (e.g. P1029) can trigger a 500 from the API.
         ServiceDetailsDialog.show(userId, true, status, onRefreshuser);
     };
 
@@ -110,7 +111,7 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                 onHide={onClose}
                 centered
                 size="xl"
-                dialog ClassName="custom-big-modal"
+                dialogClassName="custom-big-modal"
             >
                     <Modal.Header className="py-3 px-4 border-bottom-0">
                         <Modal.Title as="h5" className="custom-modal-title">
@@ -149,13 +150,13 @@ const PartnerDetailsDialog: React.FC<PartnerDetailsDialogProps> & {
                         <Row className="custom-helper-row">
                             <section className="custom-other-details">
                                 <h3>Serviced</h3>
-                                <DetailsRowLink title="Total Services" value={userDetails?.total_service} onClick={() => openServices(null)} />
+                                <DetailsRowLink title="No of Services" value={userDetails?.no_of_services ?? userDetails?.total_service} onClick={() => openServices(null)} />
                                 <DetailsRowLink title="Completed" value={userDetails?.completed_service} onClick={() => openServices(3)} />
                                 <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} onClick={() => openServices(2)} />
                                 <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} onClick={() => openServices(4)} />
                                 <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
                                 <DetailsRow title="Last Service Date" value={formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")} />
-                                <DetailsRowStatus title="Status" isActive={userDetails?.is_active ? userDetails?.is_active : false} />
+                                {/* <DetailsRowStatus title="Status" isActive={userDetails?.is_active ? userDetails?.is_active : false} /> */}
                             </section>
                             <Col>
                                 <section className="custom-other-details" style={{ marginLeft: "0px", marginRight: "0px" }}>

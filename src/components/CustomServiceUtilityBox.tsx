@@ -7,10 +7,12 @@ import actionIcon from "../assets/icons/3_dots.svg";
 
 type CustomServiceUtilityBoxProps = {
     searchHint: string;
-    onDownloadClick: () => void;
-    onSortClick: (sortValue: "-1" | "1") => void;
-    onMoreClick: () => void;
+    onDownloadClick?: () => void;
+    onSortClick?: (sortValue: "-1" | "1") => void;
+    onMoreClick?: () => void;
     onSearch: (value: string) => void;
+    /** When false, download / sort / more icons are not shown. Default true. */
+    showExtraActions?: boolean;
 };
 
 const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
@@ -19,6 +21,7 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
     onSortClick,
     onMoreClick,
     onSearch,
+    showExtraActions = true,
 }) => {
     const [searchValue, setSearchValue] = useState("");
     const [sortDirection, setSortDirection] = useState<"-1" | "1">("-1");
@@ -31,6 +34,7 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
     }
 
     const handleSortClick = () => {
+        if (!onSortClick) return;
         const newDirection = sortDirection === "-1" ? "1" : "-1";
         setSortDirection(newDirection);
         onSortClick(newDirection);
@@ -56,11 +60,13 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
                         }} />
                 </div>
             </div>
-       <div className="custom-icon-container">
-                <img src={downloadIcon} alt="download" onClick={onDownloadClick} />
-                <img src={sortIcon} alt="sort" onClick={handleSortClick} />
-                <img src={actionIcon} alt="more options" onClick={onMoreClick} />
-            </div> 
+            {showExtraActions ? (
+                <div className="custom-icon-container">
+                    <img src={downloadIcon} alt="download" onClick={() => onDownloadClick?.()} />
+                    <img src={sortIcon} alt="sort" onClick={handleSortClick} />
+                    <img src={actionIcon} alt="more options" onClick={() => onMoreClick?.()} />
+                </div>
+            ) : null}
         </div>
     );
 };

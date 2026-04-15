@@ -18,6 +18,15 @@ export type { ServerTableSortBy };
 
 const EMPTY_SERVER_SORT: ServerTableSortBy = [];
 
+/** Narrow column for serial / index columns used across tables. */
+const isSrNoColumn = (column: { id?: string; Header?: unknown }) => {
+  if (column.id === "serial_no") return true;
+  const h = column.Header;
+  if (typeof h !== "string") return false;
+  const t = h.trim();
+  return t === "SR No" || t === "S.No";
+};
+
 /** Core + usePagination + useSortBy — @types/react-table expects merging on `TableOptions` for full plugin props. */
 type CustomTableOptions = UseTableOptions<object> &
   UsePaginationOptions<object> &
@@ -56,6 +65,8 @@ interface CustomTableProps {
   manualSortBy?: boolean;
   sortBy?: ServerTableSortBy;
   onSortChange?: (next: { id: string; desc: boolean }[]) => void;
+  isLoading?: boolean;
+  loadingText?: string;
 }
 
 const CustomTable = (props: CustomTableProps) => {
@@ -123,6 +134,8 @@ const CustomTable = (props: CustomTableProps) => {
       : props.columns.length >= 8;
   const tableMinWidthPx = Math.max(720, props.columns.length * 104);
   const serverSortEnabled = manualSortBy && typeof onSortChange === "function";
+  const isLoading = props.isLoading === true;
+  const loadingText = props.loadingText ?? "Loading...";
 
   return (
     <>
@@ -163,6 +176,7 @@ const CustomTable = (props: CustomTableProps) => {
         return (
           <tr key={groupKey} {...groupProps}>
             {(headerGroup.headers || []).map((column: any) => {
+              const srNo = isSrNoColumn(column);
               const sortToggleProps =
                 column.sort &&
                 (serverSortEnabled
@@ -211,18 +225,25 @@ const CustomTable = (props: CustomTableProps) => {
                     fontWeight: 600,
                     textAlign: "center",
                     verticalAlign: "top",
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
+                    whiteSpace: srNo ? "nowrap" : "normal",
+                    wordBreak: srNo ? "normal" : "break-word",
                     lineHeight: "1.4",
-                    padding: "12px 10px",
+                    padding: srNo ? "12px 6px" : "12px 10px",
                     position: "sticky",
                     top: 0,
                     zIndex: 2,
-                    minWidth: "120px",
+                    width: srNo ? "64px" : undefined,
+                    minWidth: srNo ? "56px" : "120px",
+                    maxWidth: srNo ? "80px" : undefined,
                     cursor: column.sort ? "pointer" : "default",
                   }}
                 >
-                <span className="d-flex flex-row align-items-center justify-content-between">
+                <span
+                  className={classNames("d-flex flex-row align-items-center", {
+                    "justify-content-center": srNo,
+                    "justify-content-between": !srNo,
+                  })}
+                >
                  
                     <span>{column.render("Header")}</span>
 
@@ -276,7 +297,13 @@ const CustomTable = (props: CustomTableProps) => {
     </thead>
 
     <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
-      {rows && rows.length > 0 ? (
+      {isLoading ? (
+        <tr>
+          <td colSpan={props.columns.length} className="text-center">
+            {loadingText}
+          </td>
+        </tr>
+      ) : rows && rows.length > 0 ? (
         rows.map((row: any, i: number) => {
           dataTable.prepareRow(row);
           const { key, ...rowProps } = row.getRowProps();
@@ -289,6 +316,7 @@ const CustomTable = (props: CustomTableProps) => {
                 const { key: cellKey, ...cellProps } = cell.getCellProps([
                   { className: cell.column.className },
                 ]);
+                const srNoCell = isSrNoColumn(cell.column);
 
                 return (
                   <td
@@ -309,11 +337,13 @@ const CustomTable = (props: CustomTableProps) => {
                       fontWeight: "normal",
                       textAlign: "center",
                       verticalAlign: "middle",
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
+                      whiteSpace: srNoCell ? "nowrap" : "normal",
+                      wordBreak: srNoCell ? "normal" : "break-word",
                       lineHeight: "1.4",
-                      padding: "10px",
-                      minWidth: "120px",
+                      padding: srNoCell ? "10px 6px" : "10px",
+                      width: srNoCell ? "64px" : undefined,
+                      minWidth: srNoCell ? "56px" : "120px",
+                      maxWidth: srNoCell ? "80px" : undefined,
                     }}
                   >
                     {cell.render("Cell")}

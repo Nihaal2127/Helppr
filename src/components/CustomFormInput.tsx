@@ -42,20 +42,17 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   inputStyle,
   inputClassName,
 }) => {
-  const [inputValue, setInputValue] = useState<string>(String(value));
+  const isControlled = value !== undefined;
+  const [inputValue, setInputValue] = useState<string>(String(value ?? ""));
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      onChangeRef.current?.(inputValue);
-    }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue]);
+    if (isControlled) {
+      setInputValue(String(value ?? ""));
+    }
+  }, [isControlled, value]);
 
   return inputType === "password" ? (
     <Form.Group
@@ -71,8 +68,14 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           placeholder={placeholder}
           {...register(controlId, validation)}
           isInvalid={!!error}
-          value={value}
-          onChange={(e) => setInputValue(e.target.value)}
+          value={isControlled ? value : inputValue}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (!isControlled) {
+              setInputValue(next);
+            }
+            onChangeRef.current?.(next);
+          }}
           readOnly={!isEditable}
           maxLength={maxLength}
           style={{
@@ -133,8 +136,14 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         placeholder={placeholder}
         {...register(controlId, validation)}
         isInvalid={!!error}
-        value={value}
-        onChange={(e) => setInputValue(e.target.value)}
+        value={isControlled ? value : inputValue}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (!isControlled) {
+            setInputValue(next);
+          }
+          onChangeRef.current?.(next);
+        }}
         readOnly={!isEditable}
         maxLength={maxLength}
         as={as}

@@ -42,7 +42,10 @@ const UserManagement = () => {
             if (responseCount && countModel) {
                 setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user, Blocked: countModel.blocked_user });
                 setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner, Blocked: countModel.blocked_partner });
-                setVerificationData({ Total: countModel.total_document, Pending: countModel.pending_document, Verified: countModel.verified_document, Rejected: countModel.reject_document });
+                setVerificationData({
+                    Total: countModel.total_document,
+                    Pending: countModel.pending_document,
+                });
             }
 
             const filters = {
@@ -96,7 +99,7 @@ const UserManagement = () => {
         },
         [refreshData]
     );
-
+                                                                           
     const userShow = useCallback(
         (userId: string) => {
             UserDetailsDialog.show(userId, () => {
@@ -138,21 +141,25 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        {
-            Header: "User ID", accessor: "user_id",
-            sort: true,
-            Cell: textUnderlineCell("user_id", (row) => userShow(row._id)),
-        },
+        // {
+        //     Header: "User ID", accessor: "user_id",
+        //     sort: true,
+        //     Cell: textUnderlineCell("user_id", (row) => userShow(row._id)),
+        // },
         {
             Header: "User Name", accessor: "name",
             sort: true,
         },
         { Header: "Service Taken", accessor: "total_service" },
-        { Header: "Service Paid", accessor: "service_paid" },
-        { Header: "Service Unpaid", accessor: "service_unpaid" },
+        // { Header: "Service Paid", accessor: "service_paid" },
+        // { Header: "Service Unpaid", accessor: "service_unpaid" },
         {
             Header: "Total Amount", accessor: "total_amount",
             Cell: priceCell("total_amount"),
+        },
+        {
+            Header: "Paid Amount", accessor: "paid_amount",
+            Cell: priceCell("paid_amount"),
         },
         {
             Header: "Balance Amount", accessor: "balance_amount",
@@ -168,6 +175,7 @@ const UserManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
+                    onView={() => userShow(row.original._id)}
                     onDelete={() => handleUserDelete(row.original._id, "box-user")}
                 />
             ),
@@ -180,17 +188,17 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
-        {
-            Header: "Partner ID", accessor: "user_id",
-            sort: true,
-            Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)),
-        },
+        // {
+        //     Header: "Partner ID", accessor: "user_id",
+        //     sort: true,
+        //     Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)),
+        // },
         {
             Header: "Partner Name", accessor: "name",
             sort: true,
         },
         { Header: "No. of services", accessor: "no_of_services" },
-        { Header: "Service Provided", accessor: "completed_service" },
+        // { Header: "Service Provided", accessor: "completed_service" },
         {
             Header: "Total Earnings", accessor: "total_earnings",
             Cell: priceCell("total_earnings"),
@@ -210,6 +218,7 @@ const UserManagement = () => {
             Cell: ({ row }: { row: any }) => (
                 <CustomActionColumn
                     row={row}
+                    onView={() => partnerShow(row.original._id)}
                     onDelete={() => handleUserDelete(row.original._id, "box-partner")}
                 />
             ),

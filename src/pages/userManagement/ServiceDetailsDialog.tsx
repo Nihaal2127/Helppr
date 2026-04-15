@@ -7,9 +7,6 @@ import CustomServiceTable from "../../components/CustomServiceTable";
 import { FinancialModel } from "../../models/FinancialModel";
 import { fetchFinancial } from "../../services/financialService";
 import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
-import { OrderPaymentModeEnum } from "../../constant/PaymentEnum";
-import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
 import { openDialog } from "../../helper/DialogManager";
 
 type ServiceDetailsDialogProps = {
@@ -41,7 +38,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     }) => {
         if (fetchRef.current) return;
         fetchRef.current = true;
-        if (status !== null) {
+        if (status !== null && status !== undefined) {
             filters.service_status = String(status);
         }
         if (is_partner !== undefined && is_partner === true) {
@@ -82,7 +79,6 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
         { Header: "Order ID", accessor: "order_unique_id" },
-        { Header: "Service ID", accessor: "service_unique_id" },
         { Header: "Service Name", accessor: "service_name" },
         { Header: "Category", accessor: "category_name" },
         {
@@ -96,15 +92,52 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             Cell: paymentStatusCell("is_paid"),
         },
         {
-            Header: "Pay Mode",
-            accessor: "payment_mode_id",
-            Cell: ({ row }) => OrderPaymentModeEnum.get(Number(row.original.payment_mode_id))?.label || "-",
+            Header: "Status",
+            accessor: "service_status",
+            Cell: ({ row }: { row: any }) => {
+                const raw = row.original?.service_status;
+                const code = typeof raw === "string" ? Number.parseInt(raw, 10) : raw;
+                const label =
+                    typeof code === "number" && !Number.isNaN(code)
+                        ? ServiceStatusEnum.get(code)?.label
+                        : undefined;
+                if (label) return label;
+                if (raw !== undefined && raw !== null && raw !== "") return String(raw);
+                return "-";
+            },
         },
         {
-            Header: "Transaction ID",
-            accessor: "transaction_id",
-            Cell: ({ row }) => row.original.transaction_id || "---"
-        },
+            Header: "Refund",
+            accessor: "refund",
+            Cell: ({ row }: { row: any }) => {
+                const record = row.original ?? {};
+                const refunded =
+                    record.refund === true ||
+                    record.refund === 1 ||
+                    String(record.refund).toLowerCase() === "yes";
+                const refundedAmount =
+                    record.refunded_amount ??
+                    record.refund_amount ??
+                    record.refund_price ??
+                    0;
+
+                if (!refunded) {
+                    return <span className="custom-inactive">No</span>;
+                }
+
+                return (
+                    <div className="pin-code-hover-wrapper">
+                        <span className="custom-active">Yes</span>
+                        <div className="pin-code-hover-card">
+                            <div className="pin-code-hover-item">
+                                Refunded amount: {refundedAmount}
+                            </div>
+                        </div>
+                    </div>
+                );
+            },
+        }
+       
     ], [currentPage, pageSize]);
 
     return (
@@ -123,12 +156,8 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                     </Modal.Header>
                     <Modal.Body className="px-4 pb-4 pt-0">
                         <CustomServiceUtilityBox
-                            searchHint={"Search name, ID, Description etc."}
-                            onDownloadClick={async () => {
-                                await exportData(ApiPaths.EXPORT_USER_SERVICE, { service_status: status === null ? 0 : status, user_id: user_id })
-                            }}
-                            onSortClick={(value) => { handleFilterChange({ sort: value }) }}
-                            onMoreClick={() => { }}
+                            searchHint={"Search ID, Service Name"}
+                            showExtraActions={false}
                             onSearch={(value) => handleFilterChange({ keyword: value })}
                         />
                         <CustomServiceTable

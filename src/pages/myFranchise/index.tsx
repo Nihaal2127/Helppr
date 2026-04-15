@@ -511,7 +511,7 @@ const MyFranchise = () => {
           currentPage={currentPage}
           totalPages={totalPages}
           horizontalScroll
-          onPageChange={(page: number) => setCurrentPage(page)}
+          onPageChange={(page: number) => setCurrentPage(page)} 
           onLimitChange={(limit: number) => {
             setPageSize(limit);
             setCurrentPage(1);

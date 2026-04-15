@@ -92,6 +92,13 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
 
   const sym = AppConstant.currencySymbol;
 
+  const sanitizeAmountInput = useCallback((raw: string) => {
+    const cleaned = raw.replace(/[^0-9.]/g, "");
+    const [whole = "", ...rest] = cleaned.split(".");
+    const fractional = rest.join("").slice(0, 2);
+    return rest.length > 0 ? `${whole}.${fractional}` : whole;
+  }, []);
+
   const seedPartialFromOrder = useCallback((order: RefundOrderOption) => {
     setPartialDraft({
       refund_amount: String(order.total_amount),
@@ -385,10 +392,13 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                             placeholder="0.00"
                             register={register}
                             asCol={false}
-                            inputType="number"
+                            inputType="text"
                             value={partialDraft.refund_amount}
                             onChange={(v) =>
-                              setPartialDraft((d) => ({ ...d, refund_amount: v }))
+                              setPartialDraft((d) => ({
+                                ...d,
+                                refund_amount: sanitizeAmountInput(v),
+                              }))
                             }
                           />
                         )}
@@ -409,10 +419,13 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                             placeholder="0.00"
                             register={register}
                             asCol={false}
-                            inputType="number"
+                            inputType="text"
                             value={partialDraft.from_admin_commission}
                             onChange={(v) =>
-                              setPartialDraft((d) => ({ ...d, from_admin_commission: v }))
+                              setPartialDraft((d) => ({
+                                ...d,
+                                from_admin_commission: sanitizeAmountInput(v),
+                              }))
                             }
                           />
                         )}
@@ -433,10 +446,13 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                             placeholder="0.00"
                             register={register}
                             asCol={false}
-                            inputType="number"
+                            inputType="text"
                             value={partialDraft.from_partner_wallet}
                             onChange={(v) =>
-                              setPartialDraft((d) => ({ ...d, from_partner_wallet: v }))
+                              setPartialDraft((d) => ({
+                                ...d,
+                                from_partner_wallet: sanitizeAmountInput(v),
+                              }))
                             }
                           />
                         )}

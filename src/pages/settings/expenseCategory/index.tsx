@@ -95,7 +95,7 @@ const ExpenseCategoryManagement = () => {
         Cell: textUnderlineCell("categoryName", (row) => openFormWithData(row, true)),
       },
       { Header: "Sub Category Name", accessor: "subCategoryName" },
-      { Header: "Description", accessor: "description" },
+      // { Header: "Description", accessor: "description" },
       {
         Header: "Created Date",
         accessor: "createdDate",

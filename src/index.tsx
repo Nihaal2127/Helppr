@@ -4,6 +4,20 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 
+
+// if (typeof window !== "undefined" && window.ResizeObserver) {
+//   const OriginalResizeObserver = window.ResizeObserver;
+//   window.ResizeObserver = class extends OriginalResizeObserver {
+//     constructor(callback: ResizeObserverCallback) {
+//       super((entries, observer) => {
+//         window.requestAnimationFrame(() => {
+//           callback(entries, observer);
+//         });
+//       });
+//     }
+//   };
+// }
+
 ReactDOM.render(
   <React.StrictMode>
     <BrowserRouter>
