@@ -1,21 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Modal, Row, Col, Form } from "react-bootstrap";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Modal, Row, Col, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { DetailsRow, DetailsPaymentStatusRow, formatDate, formatUtcToLocalTime, DetailsOrderStatusRow } from "../../helper/utility";
-import { fetchOrderById, cancelOrderService, cancelOrder } from "../../services/orderService";
+import { DetailsRow, formatDate, DetailsOrderStatusRow } from "../../helper/utility";
+import { fetchOrderById } from "../../services/orderService";
 import { AppConstant } from "../../constant/AppConstant";
-// import editIcon from "../../assets/icons/edit_red.svg"
-import profileIcon from "../../assets/icons/profile.svg"
+import profileIcon from "../../assets/icons/profile.svg";
 import AssignPartnerDialog from "./AssignPartnerDialog";
-import EditOrderServiceDialog from "./EditOrderServiceDialog";
 import EditOrderDialog from "./EditOrderDialog";
-import CancleDialog from "./CancleDialog";
-import { OrderPaymentModeEnum } from "../../constant/PaymentEnum";
+import EditOrderEmployeeDialog from "./EditOrderEmployeeDialog";
+import EditOrderUserDialog from "./EditOrderUserDialog";
+import OrderPaymentEditModal from "./OrderPaymentEditModal";
 import { openDialog } from "../../helper/DialogManager";
-import CustomFormSelect from "../../components/CustomFormSelect";
-import CustomDatePicker from "../../components/CustomDatePicker";
-import { useForm, UseFormRegister } from "react-hook-form";
+import {
+    formatServiceScheduleLine,
+    getCustomerPaymentStatusLabel,
+    getOrderPartnerDisplayName,
+    getOrderServiceAddress,
+    getPartnerPaymentStatusLabel,
+    getPrimaryServiceItem,
+    orderRefundAmount,
+    orderRefundBreakdown,
+    resolveOrderOfferBreakdown,
+    serviceNamesJoined,
+} from "../../helper/orderDisplayHelpers";
+import {
+    computeTaxCommissionAmounts,
+    customerPaidBalanceHeadline,
+    getServiceTaxCommissionPercents,
+    otherChargesTotal,
+    partnerPaidBalanceHeadline,
+    resolvePaymentExtension,
+} from "../../helper/orderPaymentStorage";
+import { applyOrderPaymentPreviewDummy } from "../../helper/orderPaymentPreviewDummy";
 
 type OrderInfoDialogProps = {
     orderId: string;
@@ -23,34 +40,92 @@ type OrderInfoDialogProps = {
     onRefreshData: () => void;
 };
 
-type PaymentRow = {
-    date: string;
-    amount: string;
-    type: string;
-    description: string;
-    isEditing: boolean;
+const sectionShell: React.CSSProperties = {
+    padding: "14px 16px",
+    borderRadius: "10px",
+    border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08))",
+    backgroundColor: "var(--bg-color)",
+};
+
+const paymentSubcard: React.CSSProperties = {
+    borderRadius: "8px",
+    border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1))",
+    backgroundColor: "var(--bg-color)",
+};
+
+const paymentSummaryRow: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    gap: "12px",
+    padding: "10px 0",
+    borderBottom: "1px solid var(--txtfld-border, rgba(0,0,0,0.08))",
+};
+
+const paymentSummaryLabel: React.CSSProperties = {
+    fontSize: "1.15rem",
+    fontWeight: 600,
+    color: "var(--primary-txt-color, #1a1a1a)",
+};
+
+const paymentSummaryValue: React.CSSProperties = {
+    fontSize: "1.15rem",
+    fontWeight: 600,
+    color: "var(--primary-txt-color, #1a1a1a)",
+    textAlign: "right",
+    whiteSpace: "nowrap",
+};
+
+const paymentSummaryTotalWrap: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    paddingTop: "14px",
+    marginTop: "8px",
+    borderTop: "2px solid var(--txtfld-border, rgba(0,0,0,0.14))",
+};
+
+const paymentSummaryTotalLabel: React.CSSProperties = {
+    fontSize: "1.35rem",
+    fontWeight: 700,
+    color: "var(--primary-color, #0d6efd)",
+};
+
+const paymentSummaryTotalValue: React.CSSProperties = {
+    fontSize: "1.35rem",
+    fontWeight: 700,
+    color: "var(--primary-color, #0d6efd)",
+    textAlign: "right",
+    whiteSpace: "nowrap",
+};
+
+/** Parenthetical breakdown on the same row as Service / Tax lines */
+const paymentInlineBreakdown: React.CSSProperties = {
+    fontSize: "0.88rem",
+    fontWeight: 500,
+    color: "var(--content-txt-color, #6c757d)",
+};
+
+/** Space before offer / discount / refund (no extra top border — avoids double line with row borderBottom) */
+const adjustmentBlockTop: React.CSSProperties = {
+    marginTop: "8px",
+    paddingTop: "4px",
 };
 
 const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     show: (orderId: string, onRefreshData: () => void) => void;
 } = ({ orderId, onClose, onRefreshData }) => {
     const [orderDetails, setOrderDetails] = useState<OrderModel>();
-    const [userPaymentRows, setUserPaymentRows] = useState<PaymentRow[]>([]);
-    const [partnerPaymentRows, setPartnerPaymentRows] = useState<PaymentRow[]>([]);
-    const [isUserTotalEditing, setIsUserTotalEditing] = useState(false);
-    const [isPartnerTotalEditing, setIsPartnerTotalEditing] = useState(false);
-    const [userTotalAmount, setUserTotalAmount] = useState("0.00");
-    const [partnerTotalAmount, setPartnerTotalAmount] = useState("0.00");
     const fetchRef = useRef(false);
-    const { register, setValue } = useForm<any>();
 
     const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
         fetchRef.current = true;
         try {
             const { response, order } = await fetchOrderById(orderId);
-            if (response) {
-                setOrderDetails(order!!);
+            if (response && order) {
+                setOrderDetails(applyOrderPaymentPreviewDummy(order));
             }
         } finally {
             fetchRef.current = false;
@@ -61,269 +136,123 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
         void fetchDataFromApi();
     }, [fetchDataFromApi]);
 
-    const cancleService = async (serviceId: string, reason: string) => {
-        const payload = {
-            cancellation_reasone: reason,
-            service_items_id: serviceId,
-        };
-        const response = await cancelOrderService(orderId, payload);
-        if (response) {
-            refreshInfoData();
-        }
-    };
-
-    const cancleOrder = async (reason: string) => {
-        const payload = {
-            cancellation_reasone: reason,
-        };
-        const response = await cancelOrder(orderId, payload);
-        if (response) {
-            refreshInfoData();
-        }
-    };
-
     const refreshInfoData = async () => {
         await fetchDataFromApi();
         onRefreshData();
     };
 
-    const paymentTypeOptions = ["COD", "Razor pay", "UPI"];
-    const amountInputStyle: React.CSSProperties = {
-        boxShadow: "none",
-        borderRadius: "8px",
-        borderColor: "var(--primary-color)",
-        fontSize: "14px",
-        fontWeight: "normal",
-        width: "100%",
-        height: "2.62rem",
-        lineHeight: "18px",
-        backgroundColor: "var(--bg-color)",
-        fontFamily: "'Inter'",
-        color: "var(--content-txt-color)",
-        marginBottom: "10px",
-    };
-
-    const parseAmount = (value: string) => {
-        const parsed = parseFloat((value || "").replace(/,/g, "").trim());
-        return Number.isFinite(parsed) ? parsed : 0;
-    };
-
-    const toAmountString = (value: number) => value.toFixed(2);
-
-    const resolvePaymentType = (value?: string | null) => {
-        const normalized = (value || "").toLowerCase();
-        if (normalized.includes("upi")) return "UPI";
-        if (normalized.includes("razor")) return "Razor pay";
-        if (normalized.includes("cod") || normalized.includes("cash")) return "COD";
-        return "";
-    };
-
-    useEffect(() => {
-        if (!orderDetails) return;
-
-        const rawType =
-            OrderPaymentModeEnum.get(Number(orderDetails.payment_mode_id))?.label ??
-            orderDetails.payment_mode ??
-            "";
-        const userType = resolvePaymentType(rawType) || rawType || "";
-        const paymentDate = orderDetails.order_date ? new Date(orderDetails.order_date).toISOString().slice(0, 10) : "";
-        const paymentComment = orderDetails.comment || "";
-
-        const userTotal = orderDetails.total_price ? orderDetails.total_price.toFixed(2) : "0.00";
-        const userPaid = orderDetails.is_paid ? userTotal : "0.00";
-        const userBalance = orderDetails.is_paid ? "0.00" : userTotal;
-
-        const partnerTotal = orderDetails.sub_total ? orderDetails.sub_total.toFixed(2) : "0.00";
-        const partnerPaid = orderDetails.is_paid ? partnerTotal : "0.00";
-        const partnerBalance = orderDetails.is_paid ? "0.00" : partnerTotal;
-
-        setUserPaymentRows([
-            { date: paymentDate, amount: userTotal, type: userType, description: paymentComment, isEditing: false },
-            { date: paymentDate, amount: userPaid, type: userType, description: "Paid amount", isEditing: false },
-            { date: paymentDate, amount: userBalance, type: userType, description: "Balance amount", isEditing: false },
-        ]);
-
-        setPartnerPaymentRows([
-            { date: paymentDate, amount: partnerTotal, type: "", description: paymentComment, isEditing: false },
-            { date: paymentDate, amount: partnerPaid, type: "", description: "Paid amount", isEditing: false },
-            { date: paymentDate, amount: partnerBalance, type: "", description: "Balance amount", isEditing: false },
-        ]);
-        setUserTotalAmount(userTotal);
-        setPartnerTotalAmount(partnerTotal);
-    }, [orderDetails]);
-
-    const commitUserTotal = () => {
-        const normalizedTotal = toAmountString(parseAmount(userTotalAmount));
-        setUserTotalAmount(normalizedTotal);
-        setUserPaymentRows((prev) =>
-            prev.map((row, i) => {
-                if (i === 0) return { ...row, amount: normalizedTotal };
-                if (i === 2) {
-                    const paid = parseAmount(prev[1]?.amount || "0");
-                    return { ...row, amount: toAmountString(parseAmount(normalizedTotal) - paid) };
-                }
-                return row;
-            })
-        );
-        setIsUserTotalEditing(false);
-    };
-
-    const commitPartnerTotal = () => {
-        const normalizedTotal = toAmountString(parseAmount(partnerTotalAmount));
-        setPartnerTotalAmount(normalizedTotal);
-        setPartnerPaymentRows((prev) =>
-            prev.map((row, i) => {
-                if (i === 0) return { ...row, amount: normalizedTotal };
-                if (i === 2) {
-                    const paid = parseAmount(prev[1]?.amount || "0");
-                    return { ...row, amount: toAmountString(parseAmount(normalizedTotal) - paid) };
-                }
-                return row;
-            })
-        );
-        setIsPartnerTotalEditing(false);
-    };
-
-    const updatePaymentRow = (
-        setter: React.Dispatch<React.SetStateAction<PaymentRow[]>>,
-        index: number,
-        key: keyof PaymentRow,
-        value: string | boolean
-    ) => {
-        setter((prev) => prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
-    };
-
-    const addPaymentRow = (setter: React.Dispatch<React.SetStateAction<PaymentRow[]>>) => {
-        setter((prev) => [...prev, { date: "", amount: "", type: "", description: "", isEditing: true }]);
-    };
-
-    const removePaymentRow = (setter: React.Dispatch<React.SetStateAction<PaymentRow[]>>, index: number) => {
-        setter((prev) => prev.filter((_, i) => i !== index));
-    };
-
-    const rowHasValue = (row: PaymentRow) =>
-        !!(row.date.trim() || row.amount.trim() || row.type.trim() || row.description.trim());
-
-    const toIsoDate = (date: Date | null) => {
-        if (!date) return "";
-        const year = date.getFullYear();
-        const month = `${date.getMonth() + 1}`.padStart(2, "0");
-        const day = `${date.getDate()}`.padStart(2, "0");
-        return `${year}-${month}-${day}`;
-    };
-
-    const renderPaymentRows = (
-        rows: PaymentRow[],
-        setter: React.Dispatch<React.SetStateAction<PaymentRow[]>>,
-        section: "user" | "partner",
-        showType: boolean
-    ) => (
-        <>
-            {rows.map((row, index) => {
-                const isLast = index === rows.length - 1;
-                const isFilled = rowHasValue(row);
-                const isDisabled = isFilled && !row.isEditing;
-                return (
-                    <div key={`payment-row-${index}`} className="d-flex align-items-baseline gap-1 mb-2">
-                        <div style={{ minWidth: "14px", fontSize: "12px" }}>{index + 1}</div>
-                        <div style={{ flex: "0 0 25%", pointerEvents: isDisabled ? "none" : "auto" }}>
-                            <CustomDatePicker
-                                label=""
-                                controlId={`${section}_payment_date_${index}`}
-                                selectedDate={row.date || null}
-                                onChange={(date) => updatePaymentRow(setter, index, "date", toIsoDate(date))}
-                                register={register}
-                                setValue={setValue}
-                                asCol={false}
-                                groupClassName="mb-0 w-100"
-                                filterDate={() => true}
-                            />
-                        </div>
-                        <div style={{ flex: showType ? "0 0 16%" : "0 0 18%" }}>
-                            <Form.Control
-                                className="custom-form-input"
-                                type="text"
-                                placeholder="Enter amount"
-                                value={row.amount}
-                                onChange={(e) => updatePaymentRow(setter, index, "amount", e.target.value)}
-                                readOnly={isDisabled}
-                                style={amountInputStyle}
-                            />
-                        </div>
-                        {showType && (
-                            <div style={{ flex: "0 0 25%", pointerEvents: isDisabled ? "none" : "auto" }}>
-                                <CustomFormSelect
-                                    label=""
-                                    controlId="type"
-                                    options={paymentTypeOptions.map((type) => ({ value: type, label: type }))}
-                                    register={register as unknown as UseFormRegister<any>}
-                                    fieldName={`${section}_payment_type_${index}`}
-                                    asCol={false}
-                                    noBottomMargin={true}
-                                    defaultValue={row.type}
-                                    setValue={setValue as (name: string, value: any) => void}
-                                    onChange={(e) => updatePaymentRow(setter, index, "type", e.target.value)}
-                                />
-                            </div>
-                        )}
-                        <div style={{ flex: showType ? "1 1 auto" : "1 1 35%" }}>
-                            <Form.Control
-                                className="custom-form-input"
-                                type="text"
-                                placeholder="Enter description"
-                                value={row.description}
-                                onChange={(e) => updatePaymentRow(setter, index, "description", e.target.value)}
-                                readOnly={isDisabled}
-                                style={amountInputStyle}
-                            />
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                            {(isLast || isFilled) &&
-                                (row.isEditing ? (
-                                    <i
-                                        className="bi bi-check-circle-fill text-success"
-                                        style={{ fontSize: "14px" }}
-                                        role="button"
-                                        title="Save"
-                                        onClick={() => updatePaymentRow(setter, index, "isEditing", false)}
-                                    />
-                                ) : (
-                                    <i
-                                        className="bi bi-pencil-fill text-danger"
-                                        style={{ fontSize: "13px" }}
-                                        role="button"
-                                        title="Edit"
-                                        onClick={() => updatePaymentRow(setter, index, "isEditing", true)}
-                                    />
-                                ))}
-                            {isLast && (
-                                <i
-                                    className="bi bi-plus-circle"
-                                    role="button"
-                                    style={{ fontSize: "16px", color: "var(--primary-color)" }}
-                                    onClick={() => addPaymentRow(setter)}
-                                />
-                            )}
-                            {!isLast && !isFilled && (
-                                <i
-                                    className="bi bi-trash text-danger"
-                                    style={{ fontSize: "13px" }}
-                                    role="button"
-                                    onClick={() => removePaymentRow(setter, index)}
-                                />
-                            )}
-                        </div>
-                    </div>
-                );
-            })}
-        </>
+    const editIcon = (onClick: () => void, ariaLabel = "Edit") => (
+        <i
+            className="bi bi-pencil-fill fs-6 text-danger"
+            role="button"
+            tabIndex={0}
+            aria-label={ariaLabel}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") onClick();
+            }}
+            style={{ cursor: "pointer" }}
+        />
     );
 
-    function editIcon(onClick: () => void) {
-        return <i className="bi bi-pencil-fill fs-6 text-danger" onClick={onClick}></i>;
-    }
+    const primary = getPrimaryServiceItem(orderDetails);
+
+    const paymentExt = useMemo(() => {
+        if (!orderDetails) return null;
+        return resolvePaymentExtension(orderDetails, primary);
+    }, [orderDetails, primary]);
+
+    const taxCommFromService = useMemo(() => {
+        if (!orderDetails) return { taxPct: 0, commissionPct: 0 };
+        return getServiceTaxCommissionPercents(getPrimaryServiceItem(orderDetails));
+    }, [orderDetails]);
+
+    const { viewTax, viewComm } = useMemo(() => {
+        if (!paymentExt) return { viewTax: 0, viewComm: 0 };
+        const other = otherChargesTotal(paymentExt.otherCharges);
+        const taxableBase = Math.max(0, paymentExt.serviceAmount + other);
+        const { taxAmount, commissionAmount } = computeTaxCommissionAmounts(
+            taxableBase,
+            taxCommFromService.taxPct,
+            taxCommFromService.commissionPct
+        );
+        return { viewTax: taxAmount, viewComm: commissionAmount };
+    }, [paymentExt, taxCommFromService]);
+
+    const viewOtherSum = paymentExt ? otherChargesTotal(paymentExt.otherCharges) : 0;
+    const refundN = orderRefundAmount(orderDetails);
+    const offerBreakdown = useMemo(() => resolveOrderOfferBreakdown(orderDetails), [orderDetails]);
+    const refundBreakdown = useMemo(() => orderRefundBreakdown(orderDetails), [orderDetails]);
+
+    const showOfferTemplate = useMemo(() => {
+        const b = offerBreakdown;
+        return b.totalOfferValue > 0 || b.adminContribution > 0 || b.partnerContribution > 0;
+    }, [offerBreakdown]);
+
+    /** Real offer amounts or applied discount only (no empty “Offer” block). */
+    const showOfferSummary = useMemo(() => {
+        return offerBreakdown.appliedDiscount > 0 || showOfferTemplate;
+    }, [offerBreakdown, showOfferTemplate]);
+
+    const showRefundSummary = useMemo(() => {
+        const r = refundBreakdown;
+        return r.refundAmount > 0 || r.adminCommission > 0 || r.partnerWallet > 0;
+    }, [refundBreakdown]);
+    const orderDiscountView = Math.max(0, Number(orderDetails?.discount_amount ?? 0));
+    const viewFinalTotal = paymentExt
+        ? Math.max(
+              0,
+              paymentExt.serviceAmount +
+                  viewOtherSum +
+                  viewTax +
+                  viewComm -
+                  refundN -
+                  offerBreakdown.appliedDiscount -
+                  orderDiscountView
+          )
+        : 0;
+
+    const paymentHeadlines = useMemo(() => {
+        if (!paymentExt || !orderDetails) return null;
+        const invoiceTotal = Number(orderDetails.total_price ?? 0) || viewFinalTotal;
+        const serviceAmt = Number(orderDetails.sub_total ?? paymentExt.serviceAmount ?? 0);
+        const isPaid = !!orderDetails.is_paid;
+        return {
+            user: customerPaidBalanceHeadline(paymentExt, invoiceTotal, isPaid),
+            partner: partnerPaidBalanceHeadline(paymentExt, invoiceTotal, serviceAmt, isPaid),
+            serviceAmt,
+            taxAmt: Number(orderDetails.tax ?? viewTax),
+            commAmt: Number(orderDetails.partner_commison_platform_fee ?? viewComm),
+            totalPriceDisp: Number(orderDetails.total_price ?? 0) || viewFinalTotal,
+        };
+    }, [paymentExt, orderDetails, viewFinalTotal, viewTax, viewComm]);
+
+    /** When service line omits %, infer from stored amounts (tax/commission apply to service + other charges). */
+    const taxPctForLabel = useMemo(() => {
+        if (taxCommFromService.taxPct > 0) return taxCommFromService.taxPct;
+        const s = (paymentHeadlines?.serviceAmt ?? 0) + viewOtherSum;
+        const t = paymentHeadlines?.taxAmt ?? 0;
+        if (s > 0 && t >= 0) return Math.round((t / s) * 10000) / 100;
+        return 0;
+    }, [taxCommFromService.taxPct, paymentHeadlines, viewOtherSum]);
+
+    const commissionPctForLabel = useMemo(() => {
+        if (taxCommFromService.commissionPct > 0) return taxCommFromService.commissionPct;
+        const s = (paymentHeadlines?.serviceAmt ?? 0) + viewOtherSum;
+        const c = paymentHeadlines?.commAmt ?? 0;
+        if (s > 0 && c >= 0) return Math.round((c / s) * 10000) / 100;
+        return 0;
+    }, [taxCommFromService.commissionPct, paymentHeadlines, viewOtherSum]);
+
+    const canEditOrderHeader = orderDetails?.order_status === 1 || orderDetails?.order_status === 2;
+    const createdBy = orderDetails?.created_by_info;
+
+    const sym = AppConstant.currencySymbol;
+
+    const payLineDate = (d: string) => (d ? formatDate(d) : "—");
+
     return (
-        <Modal show={true} onHide={onClose} centered>
+        <Modal show onHide={onClose} centered size="lg" dialogClassName="custom-big-modal">
             <div className="custom-order-model-detail">
                 <Modal.Header className="py-3 px-4 border-bottom-0">
                     <Modal.Title as="h5" className="custom-modal-title">
@@ -331,331 +260,448 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                     </Modal.Title>
                     <CustomCloseButton onClose={onClose} />
                 </Modal.Header>
-                <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
-                    <section className="custom-other-details" style={{ padding: "10px" }}>
-
-                        <Row className="d-flex justify-content-between align-items-center mb-2">
+                <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "75vh", overflowY: "auto" }}>
+                    {/* Order */}
+                    <section className="custom-other-details mt-2" style={sectionShell}>
+                        <Row className="align-items-center mb-3 pb-2 border-bottom">
                             <Col>
                                 <h3 className="mb-0">Order</h3>
                             </Col>
-                            {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
-                                <Col className="text-end">
-                                    <label onClick={(e) => {
-                                        e.preventDefault();
-                                        CancleDialog.show("order", (reason) => {
-                                            cancleOrder(reason);
-                                        });
-                                    }} className="custom-document-add me-4">Cancel</label>
+                            {canEditOrderHeader && (
+                                <Col xs="auto" className="text-end d-flex align-items-center justify-content-end">
                                     {editIcon(() => {
-                                        EditOrderDialog.show(orderDetails!, refreshInfoData)
-                                    })}
+                                        if (orderDetails) EditOrderDialog.show(orderDetails, refreshInfoData);
+                                    }, "Edit partner / customer payment status and order status")}
                                 </Col>
                             )}
                         </Row>
-                        <Row>
-                            <Col className="custom-helper-column">
+                        <Row className="g-2">
+                            <Col md={6} className="custom-helper-column">
                                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
-                                <DetailsRow title="Payment Mode" value={OrderPaymentModeEnum.get(Number(orderDetails?.payment_mode_id))?.label} />
-                                <DetailsPaymentStatusRow title="Payment Status" value={orderDetails?.is_paid === true ? "Paid" : "Unpaid"} />
+                                <DetailsRow title="Order Date" value={formatDate(orderDetails?.order_date ?? "")} />
+                                <DetailsRow title="Category Name" value={orderDetails?.category_info?.name} />
+                                <DetailsRow title="Service Name" value={serviceNamesJoined(orderDetails)} />
+                                <DetailsRow title="Service Address" value={getOrderServiceAddress(orderDetails)} />
                             </Col>
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="Order Date" value={formatDate(orderDetails?.order_date ? orderDetails?.order_date : "")} />
-                                <DetailsRow title="Categoty ID" value={orderDetails?.category_info.category_id} />
-                                <DetailsRow title="Categoty Name" value={orderDetails?.category_info.name} />
-                            </Col>
-                            <Col className="custom-helper-column">
+                            <Col md={6} className="custom-helper-column">
+                                <DetailsRow title="Schedule Date/time" value={formatServiceScheduleLine(primary)} />
+                                <DetailsRow
+                                    title="Partner Payment Status"
+                                    value={getPartnerPaymentStatusLabel(orderDetails)}
+                                />
+                                <DetailsRow
+                                    title="Customer Payment Status"
+                                    value={getCustomerPaymentStatusLabel(orderDetails)}
+                                />
                                 <DetailsOrderStatusRow title="Order Status" value={orderDetails?.order_status!} />
-                                <DetailsRow title="City Name" value={orderDetails?.city_info.name} />
-
                             </Col>
-                        </Row>
-
-                    </section>
-
-                    <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                        <Row className="d-flex justify-content-between align-items-center mb-2">
-                            <h3 className="mb-0">Service Address</h3>
-                            <label
-                                className="col custom-personal-row-value mt-2"
-                                style={{
-                                    whiteSpace: 'normal',
-                                    wordBreak: 'break-word',
-                                    overflowWrap: 'break-word',
-                                }}
-                            >
-                                {orderDetails?.address}
-                            </label>
                         </Row>
                     </section>
 
-                    <div className="custom-info mt-3">
-                        <div>
-                            <p>User</p>
-                            <img src={orderDetails?.user_info.profile_url
-                                ? `${AppConstant.IMAGE_BASE_URL}${orderDetails?.user_info.profile_url}?t=${Date.now()}`
-                                : profileIcon} alt="User profile" width="80px" height="80px" />
-                        </div>
-
-                        <div className="custom-personal-details">
-
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="User ID" value={orderDetails?.user_info.user_id} />
-                                <DetailsRow title="Location" value={orderDetails?.user_info.city_name} />
-                            </Col>
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="User Name" value={orderDetails?.user_info.name} />
-                                <DetailsRow title="Phone Number" value={orderDetails?.user_info.phone_number} />
-                            </Col>
-                        </div>
-
-                    </div>
-
-                    {orderDetails?.service_items.map((service, serviceIndex) => (
-                        <section
-                            key={service._id ?? `${service.service_id}-${service.service_date}-${serviceIndex}`}
-                            className="custom-other-details mt-3"
-                            style={{ padding: "10px" }}
-                        >
-
-                            <Row className="d-flex justify-content-between align-items-center">
-                                <Col>
-                                    <h3 className="mb-0">Service</h3>
-                                </Col>
-                                {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
-                                    <Col className="text-end">
-                                        <label onClick={(e) => {
-                                            e.preventDefault();
-                                            CancleDialog.show("service", (reason) => {
-                                                cancleService(service._id!, reason);
-                                            });
-                                        }} className="custom-document-add me-4">Cancel</label>
-                                        {editIcon(() => {
-                                            EditOrderServiceDialog.show(service, refreshInfoData)
-                                        })}
-                                    </Col>
-                                )}
-                            </Row>
-                            <Row className="mt-3">
-                                <Col className="custom-helper-column">
-                                    <DetailsRow title="Service ID" value={service.service_info?.service_id} />
-                                    <DetailsRow title="Service Price" value={`${AppConstant.currencySymbol}${service.service_price ? service.service_price : 0}`} />
-                                    <DetailsRow title="Total Price" value={`${AppConstant.currencySymbol}${service.total_price ? service.total_price : 0}`} />
-                                </Col>
-                                <Col className="custom-helper-column">
-                                    <DetailsRow title="Service Name" value={service.service_info?.name} />
-                                    <DetailsRow title="From Time" value={formatUtcToLocalTime(service.service_from_time)} />
-                                    <DetailsRow title="To Time" value={formatUtcToLocalTime(service.service_to_time)} />
-                                </Col>
-                                <Col className="custom-helper-column">
-                                    <DetailsRow title="Service Date" value={formatDate(service.service_date ? service.service_date : "")} />
-                                    <DetailsOrderStatusRow title="Service Status" value={service.service_status} />
-                                    <DetailsPaymentStatusRow title="Payment Status" value={service.is_paid === true ? "Paid" : "Unpaid"} />
-                                </Col>
-                            </Row>
-
-                            <Row className="d-flex justify-content-between align-items-center mt-3">
-                                <Col>
-                                    <h3 className="mb-0">Partner</h3>
-                                </Col>
-                                {(orderDetails?.order_status === 1 || orderDetails?.order_status === 2) && (
-                                    <Col className="text-end">
-                                        {editIcon(() => {
-                                            AssignPartnerDialog.show(service.service_info?._id!!, service._id!!, refreshInfoData)
-                                        })}
-                                    </Col>
-                                )}
-                            </Row>
-
-                            <Row className="mt-3">
-                                <Col className="custom-helper-column">
-                                    <DetailsRow title="Partner ID" value={service.partner_info?.user_id} />
-                                    <DetailsRow title="Location" value={service.partner_info?.city_name} />
-                                </Col>
-                                <Col className="custom-helper-column">
-                                    <DetailsRow title="Partner Name" value={service.partner_info?.name} />
-                                    <DetailsRow title="Phone Number" value={service.partner_info?.phone_number} />
-                                </Col>
-                            </Row>
-                        </section>
-                    ))}
-
-                    <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-
-                        <h3>Employee</h3>
-                        <Row>
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="Employee ID" value={orderDetails?.created_by_info.user_id} />
-                            </Col>
-                            <Col className="custom-helper-column">
-                                <DetailsRow title="Employee Name" value={orderDetails?.created_by_info.name} />
-                            </Col>
-                        </Row>
-
-                    </section>
-
-                    <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                        <div className="d-flex justify-content-between">
-                            <h3>Payment</h3>
-                            {/* {editIcon(() => {
-                                if (orderDetails) {
-                                    EditOrderPaymentDialog.show(orderDetails, refreshInfoData);
-                                }
-                            })} */}
-                        </div>
-                        <Row className="mt-2">
-                            <Col xs={6} className="mb-3 border-end border-secondary">
-                                 <div className="d-flex justify-content-between align-items-center">
-                                 <h3 className="text-black" style={{ fontSize: "16px" }}>User</h3>
-                                 <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Total Amount</div>
-                                            <div className="d-flex align-items-center gap-2">
-                                                <Form.Control
-                                                    className="custom-form-input"
-                                                    type="text"
-                                                    value={userTotalAmount}
-                                                    readOnly={!isUserTotalEditing}
-                                                    onChange={(e) => setUserTotalAmount(e.target.value)}
-                                                    style={{ ...amountInputStyle, marginBottom: 0 }}
-                                                />
-                                                {isUserTotalEditing ? (
-                                                    <i
-                                                        className="bi bi-check-circle-fill text-success"
-                                                        style={{ fontSize: "14px" }}
-                                                        role="button"
-                                                        title="Save"
-                                                        onClick={commitUserTotal}
-                                                    />
-                                                ) : (
-                                                    <i
-                                                        className="bi bi-pencil-fill text-danger"
-                                                        style={{ fontSize: "13px" }}
-                                                        role="button"
-                                                        title="Edit"
-                                                        onClick={() => setIsUserTotalEditing(true)}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                 </div>
-                                
-                                <div>
-                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
-                                        <div style={{ minWidth: "14px" }}></div>
-                                        <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 16%" }}>Paid Amount</div>
-                                        <div className="px-2"style={{ flex: "0 0 25%" }}>Type</div>
-                                        <div style={{ flex: "1 1 auto" }}>Description</div>
-                                        <div style={{ minWidth: "42px" }}></div>
-                                    </div>
-                                    <div className="px-1 py-1">{renderPaymentRows(userPaymentRows, setUserPaymentRows, "user", true)}</div>
-                                    <div className="row mt-2 px-4 d-flex justify-content-end">
-                                       
-                                        <div className="col-4">
-                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Total Paid</div>
-                                            <div className="text-end" style={{ minHeight: "2.62rem" }}>
-                                                {`${AppConstant.currencySymbol}${userPaymentRows[1]?.amount || "0.00"}`}
-                                            </div>
-                                        </div>
-                                        <div className="col-4">
-                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Balance</div>
-                                            <div className="text-end" style={{ minHeight: "2.62rem"}}>
-                                                {`${AppConstant.currencySymbol}${toAmountString(parseAmount(userTotalAmount) - parseAmount(userPaymentRows[1]?.amount || "0"))}`}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Col>
-                            <Col xs={6}>
-                            <div className="d-flex justify-content-between align-items-center">
-                            <h3 className="text-black" style={{ fontSize: "16px" }}>Partner</h3>
-                                <div className="col-4">
-                                            <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Total Service amount</div>
-                                            <div className="d-flex align-items-center gap-2">
-                                                <Form.Control
-                                                    className="custom-form-input"
-                                                    type="text"
-                                                    value={partnerTotalAmount}
-                                                    readOnly={!isPartnerTotalEditing}
-                                                    onChange={(e) => setPartnerTotalAmount(e.target.value)}
-                                                    style={{ ...amountInputStyle, marginBottom: 0 }}
-                                                />
-                                                {isPartnerTotalEditing ? (
-                                                    <i
-                                                        className="bi bi-check-circle-fill text-success"
-                                                        style={{ fontSize: "14px" }}
-                                                        role="button"
-                                                        title="Save"
-                                                        onClick={commitPartnerTotal}
-                                                    />
-                                                ) : (
-                                                    <i
-                                                        className="bi bi-pencil-fill text-danger"
-                                                        style={{ fontSize: "13px" }}
-                                                        role="button"
-                                                        title="Edit"
-                                                        onClick={() => setIsPartnerTotalEditing(true)}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
+                    {/* User */}
+                    <section className="custom-other-details mt-3" style={sectionShell}>
+                        <div className="d-flex justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom w-100">
+                            <h3 className="mb-0">User</h3>
+                            <div className="d-flex align-items-center flex-shrink-0">
+                                {editIcon(() => {
+                                    if (orderDetails) EditOrderUserDialog.show(orderDetails, refreshInfoData);
+                                }, "Change order user")}
                             </div>
-                               
-                                <div>
-                                    <div className="d-flex px-2 py-1 gap-1 fw-semibold mt-3" style={{ fontSize: "14px" }}>
-                                        <div style={{ minWidth: "14px" }}></div>
-                                        <div style={{ flex: "0 0 25%" }}>Date</div>
-                                        <div style={{ flex: "0 0 18%" }}>Paid Amount</div>
-                                        <div style={{ flex: "1 1 35%" }}>Description</div>
-                                        <div style={{ minWidth: "42px" }}></div>
-                                    </div>
-                                    <div className="px-1 py-1">{renderPaymentRows(partnerPaymentRows, setPartnerPaymentRows, "partner", false)}</div>
+                        </div>
+                        <Row className="g-3 align-items-start">
+                            <Col xs="auto" className="flex-shrink-0">
+                                <img
+                                    src={
+                                        orderDetails?.user_info?.profile_url
+                                            ? `${AppConstant.IMAGE_BASE_URL}${orderDetails.user_info.profile_url}?t=${Date.now()}`
+                                            : profileIcon
+                                    }
+                                    alt=""
+                                    width={72}
+                                    height={72}
+                                    className="rounded-circle object-fit-cover"
+                                    style={{ border: "1px solid var(--txtfld-border, #dee2e6)" }}
+                                />
+                            </Col>
+                            <Col className="min-w-0">
+                                <Row className="g-2">
+                                    <Col sm={6}>
+                                        <DetailsRow title="User Name" value={orderDetails?.user_info?.name} />
+                                        <DetailsRow title="User Email" value={orderDetails?.user_info?.email} />
+                                    </Col>
+                                    <Col sm={6}>
+                                        <DetailsRow title="Phone number" value={orderDetails?.user_info?.phone_number} />
+                                        <DetailsRow title="Address" value={orderDetails?.user_info?.address} />
+                                    </Col>
+                                </Row>
+                            </Col>
+                        </Row>
+                    </section>
 
-                                    <div className="row mt-2 px-4 d-flex justify-content-end">
-                                        <div className="col-4 ">
-                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Total Paid</div>
-                                            <div className="text-end" style={{ minHeight: "2.62rem" }}>
-                                                {`${AppConstant.currencySymbol}${partnerPaymentRows[1]?.amount || "0.00"}`}
+                    {/* Partner */}
+                    <section className="custom-other-details mt-3" style={sectionShell}>
+                        <Row className="align-items-center mb-3 pb-2 border-bottom">
+                            <Col>
+                                <h3 className="mb-0">Partner</h3>
+                            </Col>
+                            <Col xs="auto" className="text-end">
+                                {canEditOrderHeader &&
+                                    editIcon(() => {
+                                        if (primary?._id && primary.service_info?._id) {
+                                            AssignPartnerDialog.show(
+                                                primary.service_info._id,
+                                                primary._id,
+                                                refreshInfoData
+                                            );
+                                        }
+                                    }, "Edit / assign partner")}
+                            </Col>
+                        </Row>
+                        <Row className="g-2">
+                            <Col md={6} className="custom-helper-column">
+                                <DetailsRow title="Name" value={getOrderPartnerDisplayName(orderDetails)} />
+                                <DetailsRow title="Phone number" value={primary?.partner_info?.phone_number ?? "-"} />
+                            </Col>
+                            <Col md={6} className="custom-helper-column">
+                                <DetailsRow title="Email" value={primary?.partner_info?.email ?? "-"} />
+                                <DetailsRow title="Address" value={primary?.partner_info?.address ?? "-"} />
+                            </Col>
+                        </Row>
+                    </section>
+
+                    {/* Employee */}
+                    <section className="custom-other-details mt-3" style={sectionShell}>
+                        <Row className="align-items-center mb-3 pb-2 border-bottom">
+                            <Col>
+                                <h3 className="mb-0">Employee</h3>
+                            </Col>
+                            <Col xs="auto" className="text-end">
+                                {editIcon(() => {
+                                    if (orderDetails) EditOrderEmployeeDialog.show(orderDetails, refreshInfoData);
+                                }, "Edit employee")}
+                            </Col>
+                        </Row>
+                        <Row className="g-2">
+                            <Col md={6} className="custom-helper-column">
+                                <DetailsRow title="Name" value={createdBy?.name ?? orderDetails?.created_by_name} />
+                                <DetailsRow title="Phone number" value={createdBy?.phone_number ?? "-"} />
+                            </Col>
+                            <Col md={6} className="custom-helper-column">
+                                <DetailsRow title="Email" value={createdBy?.email ?? "-"} />
+                            </Col>
+                        </Row>
+                    </section>
+
+                    {/* Payment */}
+                    <section className="custom-other-details mt-3" style={sectionShell}>
+                        <Row className="align-items-center mb-3 pb-2 border-bottom">
+                            <Col>
+                                <h3 className="mb-0">Payment</h3>
+                            </Col>
+                            <Col xs="auto" className="text-end d-flex align-items-center gap-2">
+                                {canEditOrderHeader &&
+                                    editIcon(() => {
+                                        if (orderDetails) {
+                                            OrderPaymentEditModal.show(orderDetails, refreshInfoData);
+                                        }
+                                    }, "Edit payments, charges, and totals")}
+                            </Col>
+                        </Row>
+
+                        <Row className="g-3 mb-3">
+                            <Col lg={6}>
+                                <div className="p-3 h-100" style={paymentSubcard}>
+                                    <div className="fw-semibold mb-2">Customer payments</div>
+                                    <Table responsive bordered size="sm" className="mb-0 align-middle">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th style={{ width: "26%" }}>Date</th>
+                                                <th style={{ width: "22%" }}>Paid amount</th>
+                                                <th style={{ width: "22%" }}>Type</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(paymentExt?.customerPayments ?? []).map((r) => (
+                                                <tr key={r.id}>
+                                                    <td>{payLineDate(r.date)}</td>
+                                                    <td>
+                                                        {sym}
+                                                        {Number(r.amount || 0).toFixed(2)}
+                                                    </td>
+                                                    <td>{r.type?.trim() || "—"}</td>
+                                                    <td>{r.description?.trim() || "—"}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                    {paymentHeadlines && (
+                                        <div className="mt-3 pt-3 border-top">
+                                            <div className="d-flex justify-content-between align-items-center py-1">
+                                                <span className="text-secondary">Total Paid</span>
+                                                <span className="fw-semibold">
+                                                    {sym}
+                                                    {paymentHeadlines.user.totalPaid.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex justify-content-between align-items-center py-1">
+                                                <span className="text-secondary">Balance</span>
+                                                <span className="fw-semibold">
+                                                    {sym}
+                                                    {paymentHeadlines.user.balance.toFixed(2)}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className="col-4">
-                                            <div className="fw-semibold mb-1 text-end" style={{ fontSize: "14px" }}>Balance</div>
-                                            <div className="text-end" style={{ minHeight: "2.62rem"}}>
-                                                {`${AppConstant.currencySymbol}${toAmountString(parseAmount(partnerTotalAmount) - parseAmount(partnerPaymentRows[1]?.amount || "0"))}`}
+                                    )}
+                                </div>
+                            </Col>
+                            <Col lg={6}>
+                                <div className="p-3 h-100" style={paymentSubcard}>
+                                    <div className="fw-semibold mb-2">Partner payments</div>
+                                    <Table responsive bordered size="sm" className="mb-0 align-middle">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th style={{ width: "30%" }}>Date</th>
+                                                <th style={{ width: "28%" }}>Paid amount</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(paymentExt?.partnerPayments ?? []).map((r) => (
+                                                <tr key={r.id}>
+                                                    <td>{payLineDate(r.date)}</td>
+                                                    <td>
+                                                        {sym}
+                                                        {Number(r.amount || 0).toFixed(2)}
+                                                    </td>
+                                                    <td>{r.description?.trim() || "—"}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                    {paymentHeadlines && (
+                                        <div className="mt-3 pt-3 border-top">
+                                            <div className="d-flex justify-content-between align-items-center py-1">
+                                                <span className="text-secondary">Total Paid</span>
+                                                <span className="fw-semibold">
+                                                    {sym}
+                                                    {paymentHeadlines.partner.totalPaid.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex justify-content-between align-items-center py-1">
+                                                <span className="text-secondary">Balance</span>
+                                                <span className="fw-semibold">
+                                                    {sym}
+                                                    {paymentHeadlines.partner.balance.toFixed(2)}
+                                                </span>
                                             </div>
                                         </div>
-                                    </div>
-
+                                    )}
                                 </div>
                             </Col>
                         </Row>
-                        <hr className="border border-dark opacity-50 my-3" />
-                        <Col>
-                            <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Service Amount: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.sub_total ? orderDetails?.sub_total.toFixed(2) : 0}`}</label>
-                            </Col>
-                            <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Tax: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.tax ? orderDetails?.tax.toFixed(2) : 0}`}</label>
-                            </Col>
-                            <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Commission: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.partner_commison_platform_fee ? orderDetails?.partner_commison_platform_fee.toFixed(2) : 0}`}</label>
-                            </Col>
-                            {/* <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Partner Commission Platform Fee: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.partner_commison_platform_fee ? orderDetails?.partner_commison_platform_fee.toFixed(2) : 0}`}</label>
-                            </Col>
-                            <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 18 }}>Admin Earning: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 18 }}>{`${AppConstant.currencySymbol}${orderDetails?.admin_earning ? orderDetails?.admin_earning.toFixed(2) : 0}`}</label>
-                            </Col> */}
-                            <Col xs={12} className="text-end">
-                                <label className="col custom-personal-row-title" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>Total Price: </label>
-                                <label className="col custom-personal-row-value" style={{ fontSize: 25, color: ("var(--primary-txt-color)") }}>{`${AppConstant.currencySymbol}${orderDetails?.total_price ? orderDetails?.total_price.toFixed(2) : 0}`}</label>
-                            </Col>
-                        </Col>
-                         
+
+                        {paymentExt && paymentHeadlines && orderDetails && (
+                            <div
+                                className="p-3 mt-1 rounded-3"
+                                style={{ ...paymentSubcard, backgroundColor: "rgba(0,0,0,0.03)" }}
+                            >
+                                <div
+                                    className="fw-semibold text-uppercase small text-muted mb-3"
+                                    style={{ letterSpacing: "0.05em" }}
+                                >
+                                    Amount summary
+                                </div>
+
+                                <div style={paymentSummaryRow}>
+                                    <span style={paymentSummaryLabel}>Service Amount</span>
+                                    <span style={paymentSummaryValue}>
+                                        {sym}
+                                        {paymentHeadlines.serviceAmt.toFixed(2)}
+                                    </span>
+                                </div>
+
+                                <div style={paymentSummaryRow}>
+                                    <span style={paymentSummaryLabel}>Tax ({taxPctForLabel}%)</span>
+                                    <span style={paymentSummaryValue}>
+                                        {sym}
+                                        {paymentHeadlines.taxAmt.toFixed(2)}
+                                    </span>
+                                </div>
+
+                                <div style={paymentSummaryRow}>
+                                    <span style={paymentSummaryLabel}>Commission ({commissionPctForLabel}%)</span>
+                                    <span style={paymentSummaryValue}>
+                                        {sym}
+                                        {paymentHeadlines.commAmt.toFixed(2)}
+                                    </span>
+                                </div>
+
+                                {paymentExt.otherCharges.map((c) => (
+                                    <div key={c.id} style={paymentSummaryRow}>
+                                        <div style={{ minWidth: 0, flex: "1 1 auto", paddingRight: "8px" }}>
+                                            <div
+                                                style={{
+                                                    ...paymentSummaryLabel,
+                                                    fontSize: "1.05rem",
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                {c.serviceName?.trim() ||
+                                                    c.description?.trim() ||
+                                                    "Other service charge"}
+                                            </div>
+                                            {c.serviceName?.trim() && c.description?.trim() ? (
+                                                <div className="text-muted small mt-1">{c.description.trim()}</div>
+                                            ) : null}
+                                        </div>
+                                        <span style={paymentSummaryValue}>
+                                            {sym}
+                                            {Number(c.amount || 0).toFixed(2)}
+                                        </span>
+                                    </div>
+                                ))}
+                                {paymentExt.otherCharges.length > 1 && (
+                                    <div style={paymentSummaryRow}>
+                                        <span style={{ ...paymentSummaryLabel, fontSize: "1.05rem" }}>
+                                            Other service charges (total)
+                                        </span>
+                                        <span style={paymentSummaryValue}>
+                                            {sym}
+                                            {viewOtherSum.toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {showOfferSummary && (
+                                    <div style={{ ...paymentSummaryRow, ...adjustmentBlockTop }}>
+                                        <div
+                                            style={{
+                                                minWidth: 0,
+                                                flex: "1 1 auto",
+                                                display: "flex",
+                                                flexWrap: "wrap",
+                                                alignItems: "baseline",
+                                                gap: "8px",
+                                            }}
+                                        >
+                                            <span style={paymentSummaryLabel}>Offer</span>
+                                            {offerBreakdown.offerCode ? (
+                                                <span
+                                                    className="rounded-pill border px-2 py-0"
+                                                    style={{
+                                                        fontSize: "0.75rem",
+                                                        fontWeight: 700,
+                                                        letterSpacing: "0.02em",
+                                                        backgroundColor: "rgba(0,0,0,0.04)",
+                                                    }}
+                                                >
+                                                    {offerBreakdown.offerCode}
+                                                </span>
+                                            ) : null}
+                                            <span style={paymentInlineBreakdown}>
+                                                {showOfferTemplate ? (
+                                                    <>
+                                                        (
+                                                        Total offer value {sym}
+                                                        {offerBreakdown.totalOfferValue.toFixed(2)}
+                                                        <span className="text-secondary"> · </span>
+                                                        Admin {sym}
+                                                        {offerBreakdown.adminContribution.toFixed(2)}
+                                                        <span className="text-secondary"> · </span>
+                                                        Partner {sym}
+                                                        {offerBreakdown.partnerContribution.toFixed(2)}
+                                                        )
+                                                    </>
+                                                ) : offerBreakdown.offerName?.trim() ? (
+                                                    <> ({offerBreakdown.offerName.trim()})</>
+                                                ) : null}
+                                            </span>
+                                        </div>
+                                        <span
+                                            style={{
+                                                ...paymentSummaryValue,
+                                                flexShrink: 0,
+                                                color:
+                                                    offerBreakdown.appliedDiscount > 0
+                                                        ? "#198754"
+                                                        : "var(--content-txt-color, #6c757d)",
+                                            }}
+                                        >
+                                            {offerBreakdown.appliedDiscount > 0 ? "−" : ""}
+                                            {sym}
+                                            {offerBreakdown.appliedDiscount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {Number(orderDetails.discount_amount ?? 0) > 0 && (
+                                    <div
+                                        style={{
+                                            ...paymentSummaryRow,
+                                            ...(!showOfferSummary ? adjustmentBlockTop : {}),
+                                        }}
+                                    >
+                                        <span style={{ ...paymentSummaryLabel, fontSize: "1.05rem" }}>Discount</span>
+                                        <span style={{ ...paymentSummaryValue, color: "#198754" }}>
+                                            −{sym}
+                                            {Number(orderDetails.discount_amount).toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {showRefundSummary && (
+                                    <div
+                                        style={{
+                                            ...paymentSummaryRow,
+                                            ...(!showOfferSummary && Number(orderDetails.discount_amount ?? 0) <= 0
+                                                ? adjustmentBlockTop
+                                                : {}),
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                minWidth: 0,
+                                                flex: "1 1 auto",
+                                                display: "flex",
+                                                flexWrap: "wrap",
+                                                alignItems: "baseline",
+                                                gap: "8px",
+                                            }}
+                                        >
+                                            <span style={paymentSummaryLabel}>Refund Amount</span>
+                                            <span style={paymentInlineBreakdown}>
+                                                (
+                                                Admin Commission {sym}
+                                                {refundBreakdown.adminCommission.toFixed(2)}
+                                                <span className="text-secondary"> · </span>
+                                                Partner Wallet {sym}
+                                                {refundBreakdown.partnerWallet.toFixed(2)}
+                                                )
+                                            </span>
+                                        </div>
+                                        <span
+                                            style={{
+                                                ...paymentSummaryValue,
+                                                color: "#dc3545",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            −{sym}
+                                            {refundBreakdown.refundAmount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div style={paymentSummaryTotalWrap}>
+                                    <span style={paymentSummaryTotalLabel}>Total Price</span>
+                                    <span style={paymentSummaryTotalValue}>
+                                        {sym}
+                                        {paymentHeadlines.totalPriceDisp.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
                     </section>
                 </Modal.Body>
             </div>
@@ -663,14 +709,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     );
 };
 
-OrderInfoDialog.show = (orderId: string, onRefreshData: () => void) => {
+/** Prefer this over `OrderInfoDialog.show` — stable under HMR and avoids undefined `.show` on default import. */
+export function showOrderInfoDialog(orderId: string, onRefreshData: () => void) {
     openDialog("order-details-modal", (close) => (
-        <OrderInfoDialog
-            orderId={orderId}
-            onClose={close}
-            onRefreshData={onRefreshData}
-        />
+        <OrderInfoDialog orderId={orderId} onClose={close} onRefreshData={onRefreshData} />
     ));
-};
+}
+
+OrderInfoDialog.show = showOrderInfoDialog;
 
 export default OrderInfoDialog;

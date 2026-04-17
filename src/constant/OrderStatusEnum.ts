@@ -1,7 +1,7 @@
-export const OrderStatusEnum = new Map<number, 
-{ label: string; }>([
-  [1, { label: "Pending"}],
-  [2, { label: "In Progress"}],
-  [3, { label: "Completed"}],
-  [4, { label: "Cancelled"}],
+export const OrderStatusEnum = new Map<number, { label: string }>([
+  [1, { label: "Pending" }],
+  [2, { label: "In Progress" }],
+  [3, { label: "Completed" }],
+  [4, { label: "Cancelled" }],
+  [5, { label: "Refunded" }],
 ]);

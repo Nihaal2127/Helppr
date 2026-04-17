@@ -17,6 +17,8 @@ interface CustomTextFieldProps {
     onChange?: (value: string) => void;
     as?: string;
     rows?: number;
+    maxLength?: number;
+    isIndianPincodeField?: boolean;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -33,7 +35,9 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     onChange,
     value,
     as,
-    rows
+    rows,
+    maxLength,
+    isIndianPincodeField,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -55,6 +59,8 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
                     value={value}
                     as={as}
                     rows={rows}
+                    maxLength={maxLength}
+                    isIndianPincodeField={isIndianPincodeField}
                 />
             </Col>
         </Row>

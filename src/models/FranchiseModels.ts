@@ -10,4 +10,10 @@ export interface FranchiseModel {
   admin_id: string;
   admin_name?: string;
   is_active: boolean;
+  /** Explicit category picks (multi-select). */
+  category_ids?: string[];
+  category_names?: string[];
+  /** Service picks; may include all services from selected categories. */
+  service_ids?: string[];
+  service_names?: string[];
 }

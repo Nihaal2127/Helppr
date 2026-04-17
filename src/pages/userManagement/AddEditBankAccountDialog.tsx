@@ -5,8 +5,10 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateBankAccount } from "../../services/bankAccountService";
 import CustomTextField from "../../components/CustomTextField";
+import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { BankAccountModel } from "../../models/BankAccountModel";
 import { openDialog } from "../../helper/DialogManager";
+import { getStatusOptions } from "../../helper/utility";
 
 type AddEditBankAccountDialogProps = {
     partnerId: string;
@@ -22,6 +24,7 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
     const {
         register,
         handleSubmit,
+        setValue,
         formState: { errors },
     } = useForm<BankAccountModel>({
         defaultValues: {
@@ -29,11 +32,17 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
             account_number: bankAccount?.account_number || "",
             ifsc_code: bankAccount?.ifsc_code || "",
             branch_name: bankAccount?.branch_name || "",
-            bank_name: bankAccount?.account_holder_name || ""
+            bank_name: bankAccount?.bank_name || "",
+            is_active: bankAccount?.is_active ?? true,
         },
     });
 
     const onSubmitEvent = async (data: BankAccountModel) => {
+
+        const isActive =
+            typeof data.is_active === "string"
+                ? data.is_active === "true"
+                : Boolean(data.is_active);
 
         const payload = {
             partner_id: partnerId,
@@ -42,7 +51,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
             ifsc_code: data.ifsc_code,
             bank_name: data.bank_name,
             branch_name: data.branch_name,
-            is_primary: true
+            is_primary: true,
+            is_active: isActive,
         };
 
         let responseUser;
@@ -111,13 +121,21 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                                 error={errors.bank_name}
                                 validation={{ required: "Bank name is required" }}
                             />
-                            <CustomTextField
+                            {/* <CustomTextField
                                 label="Branch Name"
                                 controlId="branch_name"
                                 placeholder="Enter Branch Name"
                                 register={register}
                                 error={errors.branch_name}
                                 validation={{ required: "Branch name is required" }}
+                            /> */}
+                             <CustomTextFieldRadio
+                                label="Account Status"
+                                name="is_active"
+                                options={getStatusOptions()}
+                                defaultValue={String(bankAccount?.is_active ?? true)}
+                                isEditable={true}
+                                setValue={setValue}
                             />
                         </Row>
                         <Row className="mt-4">

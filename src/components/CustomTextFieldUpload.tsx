@@ -26,15 +26,18 @@ const CustomTextFieldUpload: React.FC<CustomTextFieldUploadProps> = ({
                 </Col>
                 <Col>
                     <span
-                        style={{
-                            fontFamily: "Inter",
-                            fontSize: "14px",
-                            fontWeight: "normal",
-                            color: "var(--primary-txt-color)",
-                            textDecoration: "underline",
-                            cursor: "pointer",
+                            style={{
+                                fontFamily: "Inter",
+                                fontSize: "14px",
+                                fontWeight: "normal",
+                                color: "var(--secondary-txt)",
+                                cursor: "pointer",
+                                border: "1px solid var(--primary-btn)",
+                                background: "var(--primary-btn)",
+                                padding: "5px 10px",
+                                borderRadius: "8px",
+                            }}
 
-                        }}
                         onClick={(e) => {
                             e.preventDefault();
                             CustomUploadDialog.show((files, replaceUrls) => {

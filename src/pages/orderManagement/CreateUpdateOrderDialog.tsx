@@ -13,6 +13,7 @@ import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import ServiceItemForm from "./ServiceItemForm";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { fetchUserDropDown } from "../../services/userService";
+import { getOffers } from "../../services/settingsService";
 import { UserModel } from "../../models/UserModel";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
@@ -49,6 +50,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     });
     const payments = orderPaymentModeSelectOptions;
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
+    const [offerOptions, setOfferOptions] = useState<{ value: string; label: string }[]>([{ value: "", label: "None" }]);
+    const [employeeOptions, setEmployeeOptions] = useState<{ value: string; label: string }[]>([]);
 
     const fetchRef = useRef(false);
 
@@ -93,6 +96,58 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         fetchDataFromApi();
     }, []);
 
+    useEffect(() => {
+        const offers = getOffers().filter(
+            (o) => o.status === "active" && (o.applicableOn === "orders" || o.applicableOn === "quotes")
+        );
+        setOfferOptions([
+            { value: "", label: "None" },
+            ...offers.map((o) => ({
+                value: o.id,
+                label: `${o.offerName} (${o.offerId})`,
+            })),
+        ]);
+        const loadEmployees = async () => {
+            const { users } = await fetchUserDropDown(2);
+            setEmployeeOptions(
+                users.map((u) => ({
+                    value: u._id,
+                    label: [u.name, u.phone_number].filter(Boolean).join(" · ") || u.user_id || u._id,
+                }))
+            );
+        };
+        void loadEmployees();
+    }, []);
+
+    useEffect(() => {
+        if (!isEditable || !order) return;
+        const init = async () => {
+            setValue("user_phone_number", order.user_phone_number ?? "");
+            setValue("city_id", order.city_id ?? "");
+            setValue("category_id", order.category_id ?? "");
+            setValue(
+                "payment_mode_id",
+                order.payment_mode_id != null ? String(order.payment_mode_id) : "2"
+            );
+            setValue("comments", order.comment ?? "");
+            setValue("offer_id", order.offer_id ?? "");
+            const defaultEmployee = order.created_by_id ?? getLocalStorage(AppConstant.createdById) ?? "";
+            setValue("created_by_id", defaultEmployee);
+            setSelectedCategory(order.category_id ?? "");
+            if (order.city_id) {
+                const categoryOptions = await fetchCategoryDropDown(order.city_id);
+                setCategory(categoryOptions);
+            }
+            if (order.user_info) {
+                setSelectedUser(order.user_info);
+            } else if (order.user_phone_number) {
+                await fetchUserFromApi(order.user_phone_number);
+            }
+            setServiceItems(order.service_items?.length ? order.service_items.map((s) => ({ ...s })) : []);
+        };
+        void init();
+    }, [isEditable, order?._id]);
+
     const calculatePrices = useCallback(() => {
         let subTotal = 0;
         let tax = 0;
@@ -132,6 +187,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             category_id: data.category_id
         }));
 
+        const firstAddr = updatedServiceItems.find((s) => s.service_address?.trim())?.service_address?.trim();
         const payload = {
             user_id: selectedUser?._id,
             user_unique_id: selectedUser?.user_id,
@@ -140,11 +196,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             is_paid: false,
             payment_mode_id: data.payment_mode_id,
             transaction_id: "",
-            created_by_id: getLocalStorage(AppConstant.createdById),
-            order_status: 2,
+            created_by_id: data.created_by_id || getLocalStorage(AppConstant.createdById),
+            ...(data.offer_id ? { offer_id: data.offer_id } : {}),
+            order_status: isEditable && order ? order.order_status : 2,
             type: 1,
             order_date: new Date().toISOString(),
-            address: selectedUser?.address,
+            address: firstAddr || selectedUser?.address,
             sub_total: paymentDetails.subTotal,
             tax: paymentDetails.tax,
             discount_amount: 0,
@@ -213,8 +270,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 <ShowDetailsRow title="User Name" value={selectedUser?.name} />
                             </Row>
                             <Row>
-                                <ShowDetailsRow title="Location" value={selectedUser?.city_name} />
-                                <ShowDetailsRow title="Address" value={selectedUser?.address} />
+                                <ShowDetailsRow
+                                    title="Address"
+                                    value={selectedUser?.address ?? selectedUser?.city_name ?? "-"}
+                                />
                             </Row>
                         </section>
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
@@ -273,6 +332,39 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                                 ? order?.payment_mode_id
                                                 : getValues("payment_mode_id")
                                             : getValues("payment_mode_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                    />
+                                </Col>
+                                <Col xs={4} className="mt-2">
+                                    <CustomTextFieldSelect
+                                        label="Offer (optional)"
+                                        controlId="offer_id"
+                                        options={offerOptions}
+                                        register={register}
+                                        fieldName="offer_id"
+                                        error={errors.offer_id}
+                                        defaultValue={isEditable ? order?.offer_id ?? "" : getValues("offer_id")}
+                                        setValue={setValue as (name: string, value: any) => void}
+                                    />
+                                </Col>
+                                <Col xs={4} className="mt-2">
+                                    <CustomTextFieldSelect
+                                        label="Employee"
+                                        controlId="created_by_id"
+                                        options={employeeOptions}
+                                        register={register}
+                                        fieldName="created_by_id"
+                                        error={errors.created_by_id}
+                                        requiredMessage={
+                                            employeeOptions.length > 0 ? "Please select employee" : undefined
+                                        }
+                                        defaultValue={
+                                            isEditable
+                                                ? order?.created_by_id ??
+                                                  getLocalStorage(AppConstant.createdById) ??
+                                                  ""
+                                                : getLocalStorage(AppConstant.createdById) ?? ""
+                                        }
                                         setValue={setValue as (name: string, value: any) => void}
                                     />
                                 </Col>

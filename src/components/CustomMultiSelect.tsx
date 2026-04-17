@@ -17,6 +17,8 @@ interface CustomMultiSelectProps {
   asCol?: boolean;
   /** Render menu in document.body with high z-index — use inside Bootstrap modals (with enforceFocus={false}). */
   menuPortal?: boolean;
+  /** Cap height of the selected chips area and scroll (e.g. `"180px"` ≈ five chip rows). */
+  selectedChipsMaxHeight?: string;
 }
 
 const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
@@ -32,6 +34,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   setValue,
   asCol = true,
   menuPortal = false,
+  selectedChipsMaxHeight,
 }) => {
 
   const customStyles = useMemo(
@@ -48,12 +51,36 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       fontWeight: "normal",
       width: "100%",
       height: "auto",
+      minHeight: selectedChipsMaxHeight ? "38px" : provided.minHeight,
       lineHeight: "18px",
       backgroundColor: "var(--bg-color)",
       fontFamily: "'Inter'",
       color: "var(--content-txt-color)",
-      marginBottom: "10px"
+      marginBottom: "10px",
+      alignItems: selectedChipsMaxHeight ? "center" : provided.alignItems,
     }),
+    valueContainer: (provided: any) => ({
+      ...provided,
+      ...(selectedChipsMaxHeight
+        ? {
+            maxHeight: selectedChipsMaxHeight,
+            overflowY: "auto",
+            overflowX: "hidden",
+            flexWrap: "wrap",
+            paddingTop: 4,
+            paddingBottom: 4,
+          }
+        : {}),
+    }),
+    // indicatorsContainer: (provided: any) => ({
+    //   ...provided,
+    //   ...(selectedChipsMaxHeight
+    //     ? {
+    //         alignSelf: "flex-start",
+    //         paddingTop: 6,
+    //       }
+    //     : {}),
+    // }),
     option: (provided: any, state: any) => ({
       ...provided,
       backgroundColor: state.isSelected ? "var(--txtfld-border)" : state.isFocused ? "var(--primary-color)" : "",
@@ -81,7 +108,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
         }
       : {}),
   }),
-    [menuPortal]
+    [menuPortal, selectedChipsMaxHeight]
   );
 
   const handleChange = (

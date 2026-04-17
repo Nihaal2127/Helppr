@@ -3,6 +3,13 @@ import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
+import {
+    shouldUseRealVerificationApi as shouldUseRealVerificationApiFromMock,
+    getMockVerificationListPage,
+} from "../mockData/verificationTableMock";
+
+/** `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
+export const shouldUseRealVerificationApi: () => boolean = shouldUseRealVerificationApiFromMock;
 
 export const fetchUserDropDown = async (type: number, serviceId?: string
 ): Promise<{ users: UserModel[]; }> => {
@@ -63,6 +70,10 @@ export const fetchUser = async (
   filters: UserListFilters,
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean, users: UserModel[]; totalPages: number }> => {
+  if (isVerification && !shouldUseRealVerificationApi()) {
+    return getMockVerificationListPage(page, pageSize, filters);
+  }
+
   const primarySort = sortBy[0];
   const mappedSortField = (() => {
     if (!primarySort?.id) return undefined;

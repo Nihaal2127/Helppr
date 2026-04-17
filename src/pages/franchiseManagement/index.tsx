@@ -10,7 +10,46 @@ import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";
 import { deleteFranchise, fetchFranchise } from "../../services/franchiseService";
 
+function normalizeLabelList(raw: unknown): string[] {
+    if (Array.isArray(raw)) {
+        return raw.map((a: unknown) => String(a).trim()).filter(Boolean);
+    }
+    if (typeof raw === "string") {
+        return raw.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function multiNamesHoverCell(primaryKey: string, fallbackKey?: string) {
+    return function MultiNamesHoverCell({ row }: { row: any }) {
+        const orig = row?.original ?? {};
+        const raw =
+            fallbackKey !== undefined ? orig[primaryKey] ?? orig[fallbackKey] : orig[primaryKey];
+        const items = normalizeLabelList(raw);
+
+        if (items.length === 0) return <>-</>;
+        if (items.length === 1) return <>{items[0]}</>;
+
+        return (
+            <div className="pin-code-hover-wrapper">
+                <span className="pin-code-hover-trigger">
+                    {items[0]}...
+                    <span className="pin-code-more-count"> +{items.length - 1}</span>
+                </span>
+                <div className="pin-code-hover-card">
+                    {items.map((label: string, idx: number) => (
+                        <div key={`${label}-${idx}`} className="pin-code-hover-item">
+                            {label}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+}
+
 const FranchiseManagement = () => {
+    const TableComponent: any = CustomTable;
     const { register, setValue } = useForm<any>();
     const [franchiseData] = useState({
         Total: 3,
@@ -31,34 +70,6 @@ const FranchiseManagement = () => {
     }>({});
 
     const fetchRef = useRef(false);
-
-    const areaNamesCell = ({ row }: { row: any }) => {
-        const raw = row?.original?.area_name ?? row?.original?.areas ?? [];
-        const areas: string[] = Array.isArray(raw)
-            ? raw.map((a: any) => String(a).trim()).filter(Boolean)
-            : typeof raw === "string"
-                ? raw.split(",").map((a) => a.trim()).filter(Boolean)
-                : [];
-
-        if (areas.length === 0) return "-";
-        if (areas.length === 1) return areas[0];
-
-        return (
-            <div className="pin-code-hover-wrapper">
-                <span className="pin-code-hover-trigger">
-                    {areas[0]}...
-                    <span className="pin-code-more-count"> +{areas.length - 1}</span>
-                </span>
-                <div className="pin-code-hover-card">
-                    {areas.map((a: string) => (
-                        <div key={a} className="pin-code-hover-item">
-                            {a}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    };
 
     const fetchData = useCallback(async () => {
         if (fetchRef.current) return;
@@ -103,27 +114,43 @@ const FranchiseManagement = () => {
             {
                 Header: "SR No",
                 accessor: "serial_no",
+                width: "5%",
                 Cell: ({ row }: { row: any }) =>
                     (currentPage - 1) * pageSize + row.index + 1,
             },
-            { Header: "Franchise Name", accessor: "name" },
-            { Header: "State Name", accessor: "state_name" },
-            { Header: "City Name", accessor: "city_name" },
+            { Header: "Franchise Name", accessor: "name", width: "15%" },
+            { Header: "Admin Name", accessor: "admin_name", width: "10%" },
+            { Header: "State Name", accessor: "state_name", width: "11%" },
+            { Header: "City Name", accessor: "city_name", width: "9%" },
             {
                 Header: "Area Name",
                 accessor: "area_name",
-                Cell: areaNamesCell,
+                width: "10%",
+                Cell: multiNamesHoverCell("area_name", "areas"),
             },
-            { Header: "Admin Name", accessor: "admin_name" },
+            {
+                Header: "Categories",
+                accessor: "category_names",
+                width: "10%",
+                Cell: multiNamesHoverCell("category_names"),
+            },
+            {
+                Header: "Services",
+                accessor: "service_names",
+                width: "12%",
+                Cell: multiNamesHoverCell("service_names"),
+            },
             // { Header: "Description", accessor: "description" },
             {
                 Header: "Status",
                 accessor: "is_active",
+                width: "9%",
                 Cell: statusCell("is_active"),
             },
             {
                 Header: "Action",
                 accessor: "action",
+                width: "9%",
                 Cell: ({ row }: { row: any }) => (
                     <CustomActionColumn
                         row={row}
@@ -186,19 +213,22 @@ const FranchiseManagement = () => {
                     onSearch={(value) => handleFilterChange({ name: value })}
                 />
 
-                <CustomTable
-                    columns={franchiseColumns}
-                    data={franchiseList}
-                    pageSize={pageSize}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={(page: number) => setCurrentPage(page)}
-                    onLimitChange={(limit: number) => {
-                        setCurrentPage(1);
-                        setPageSize(limit);
-                    }}
-                    theadClass="table-light"
-                />
+                {TableComponent ? (
+                    <TableComponent
+                        columns={franchiseColumns}
+                        data={franchiseList}
+                        pageSize={pageSize}
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        horizontalScroll={false}
+                        onPageChange={(page: number) => setCurrentPage(page)}
+                        onLimitChange={(pageSize: number) => {
+                            setPageSize(pageSize);
+                            setCurrentPage(1);
+                        }}
+                        theadClass="table-light"
+                    />
+                ) : null}
             </div>
         </>
     );

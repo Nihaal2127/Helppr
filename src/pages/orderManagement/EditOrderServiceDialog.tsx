@@ -36,7 +36,7 @@ const EditOrderServiceDialog: React.FC<EditOrderServiceDialogProps> & {
     });
 
     const statuses: { value: string; label: string }[] = Array.from(OrderStatusEnum.entries())
-        .filter(([_, value]) => value.label !== "Cancelled")
+        .filter(([_, value]) => value.label !== "Cancelled" && value.label !== "Refunded")
         .map(([key, value]) => ({
             value: key.toString(),
             label: value.label,

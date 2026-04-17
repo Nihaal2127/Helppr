@@ -9,9 +9,15 @@ import type { ServerTableSortBy } from "../helper/serverTableSort";
 export const fetchOrder = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string; sort?: string; },
+  filters: {
+    keyword?: string;
+    status?: string;
+    sort?: string;
+    from_date?: string | null;
+    to_date?: string | null;
+  },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, orders: OrderModel[]; totalPages: number }> => {
+): Promise<{ response: boolean; orders: OrderModel[]; totalPages: number; totalCount: number }> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
@@ -19,6 +25,8 @@ export const fetchOrder = async (
     ...(filters.keyword && { keyword: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { order_status: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
+    ...(filters.from_date && { from_date: filters.from_date }),
+    ...(filters.to_date && { to_date: filters.to_date }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
   });
@@ -29,10 +37,23 @@ export const fetchOrder = async (
   );
 
   if (response.success) {
+    const d = response.data ?? {};
+    const records = (d.records ?? []) as OrderModel[];
+    const totalPages = Number(d.totalPages) || 0;
+    const rawTotal =
+      d.totalCount ?? d.total ?? d.recordsTotal ?? d.count ?? d.total_records;
+    let totalCount = Number(rawTotal);
+    if (!Number.isFinite(totalCount) || totalCount < 0) {
+      totalCount =
+        totalPages > 0
+          ? Math.max(0, (totalPages - 1) * pageSize + records.length)
+          : records.length;
+    }
     return {
       response: true,
-      orders: response.data.records,
-      totalPages: response.data.totalPages,
+      orders: records,
+      totalPages,
+      totalCount,
     };
   } else {
     showLog(response.message || "Failed to fetch orders");
@@ -40,6 +61,7 @@ export const fetchOrder = async (
       response: false,
       orders: [],
       totalPages: 0,
+      totalCount: 0,
     };
   }
 };

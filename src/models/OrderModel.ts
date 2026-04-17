@@ -43,6 +43,26 @@ export interface OrderModel {
     city_info: CityModel;
     category_info: CategoryModel;
     order_status_info: OrderStatusInfoModel[] | [];
+    /** Display / API: Paid | Unpaid | Partial — falls back to `is_paid` when absent */
+    customer_payment_status?: string | null;
+    partner_payment_status?: string | null;
+    refund_amount?: number | null;
+    /** Some APIs use this alias for refund total */
+    return_amount?: number | string | null;
+    offer_id?: string | null;
+    offer_name?: string | null;
+    offer_discount_amount?: number | null;
+    /** Optional breakdown from API (snake_case) */
+    total_offer_value?: number | string | null;
+    admin_contribution?: number | string | null;
+    partner_contribution?: number | string | null;
+    /** How the refunded amount was funded (see `OrderRefundPayload` when refund was processed) */
+    amount_from_admin_commission?: number | string | null;
+    amount_from_partner_wallet?: number | string | null;
+    from_admin_commission?: number | string | null;
+    from_partner_wallet?: number | string | null;
+    /** Set by client preview merge only — not from API */
+    __previewPaymentDummy?: boolean;
 }
 
 export interface OrderStatusInfoModel {

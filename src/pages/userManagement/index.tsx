@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, textUnderlineCell, statusCell, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
+import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import { deleteUser, fetchUser } from "../../services/userService";
+import { deleteUser, fetchUser, shouldUseRealVerificationApi } from "../../services/userService";
+import { MOCK_VERIFICATION_SUMMARY } from "../../mockData/verificationTableMock";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
-import VerificationDetailsDialog from "./VerificationDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
@@ -40,12 +40,22 @@ const UserManagement = () => {
         try {
             const { responseCount, countModel } = await getCount(3);
             if (responseCount && countModel) {
-                setUserData({ Total: countModel.total_user, Active: countModel.active_user, Inactive: countModel.inactive_user, Blocked: countModel.blocked_user });
-                setParnterData({ Total: countModel.total_partner, Active: countModel.active_partner, Inactive: countModel.inactive_partner, Blocked: countModel.blocked_partner });
-                setVerificationData({
-                    Total: countModel.total_document,
-                    Pending: countModel.pending_document,
+                setUserData({ Total: countModel.total_user });
+                setParnterData({
+                    Total: countModel.total_partner,
+                    Active: countModel.active_partner,
+                    Inactive: countModel.inactive_partner,
+                    Blocked: countModel.blocked_partner,
                 });
+                if (shouldUseRealVerificationApi()) {
+                    setVerificationData({
+                        Total: countModel.total_document,
+                        Pending: countModel.pending_document,
+                    });
+                }
+            }
+            if (!shouldUseRealVerificationApi()) {
+                setVerificationData({ ...MOCK_VERIFICATION_SUMMARY });
             }
 
             const filters = {
@@ -109,9 +119,9 @@ const UserManagement = () => {
         [refreshData]
     );
 
-    const verificationShow = useCallback(
+    const verificationPartnerPreviewShow = useCallback(
         (userId: string) => {
-            VerificationDetailsDialog.show(userId, () => {
+            PartnerDetailsDialog.showVerificationPreview(userId, () => {
                 void refreshData("box-verification");
             });
         },
@@ -165,10 +175,7 @@ const UserManagement = () => {
             Header: "Balance Amount", accessor: "balance_amount",
             Cell: priceCell("balance_amount"),
         },
-        {
-            Header: "Status", accessor: "is_active",
-            Cell: statusCell("is_active"),
-        },
+       
         {
             Header: "Action",
             accessor: "action",
@@ -231,33 +238,34 @@ const UserManagement = () => {
             accessor: "serial_no",
             Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
         },
+       
+        { Header: "Name", accessor: "name" },
         {
-            Header: "Registration ID", accessor: "registration_id",
-            Cell: textUnderlineCell("registration_id", (row) => verificationShow(row._id)),
+            Header: "Email",
+            accessor: "email",
+            Cell: ({ row }) => row.original.email || "-----",
         },
         {
-            Header: "Verification ID",
-            accessor: "verification_id",
-            Cell: ({ row }) => row.original.verification_id || "-----"
-        },
-        { Header: "Submitted Name", accessor: "name" },
-        {
-            Header: "Submitted Date",
-            accessor: "submitted_at",
-            Cell: ({ row }) => formatDate(row.original.submitted_at ? row.original.submitted_at : "")
-        },
-        { Header: "Documents Uploaded", accessor: "document_uploaded_count" },
-        { Header: "Location", accessor: "city_name" },
-        {
-            Header: "Verified Date",
-            accessor: "verified_at",
-            Cell: ({ row }) => formatDate(row.original.verified_at ? row.original.verified_at : "")
+            Header: "Phone",
+            accessor: "phone_number",
+            Cell: ({ row }) => row.original.phone_number || "-----",
         },
         {
-            Header: "Status", accessor: "verification_status",
-            Cell: verificationStatusCell("verification_status"),
+            Header: "Address",
+            accessor: "address",
+            Cell: ({ row }) => row.original.address || "-----",
         },
-    ], [currentPage, pageSize, verificationShow]);
+        {
+            Header: "Action",
+            accessor: "action",
+            Cell: ({ row }: { row: any }) => (
+                <CustomActionColumn
+                    row={row}
+                    onView={() => verificationPartnerPreviewShow(row.original._id)}
+                />
+            ),
+        },
+    ], [currentPage, pageSize, verificationPartnerPreviewShow]);
 
     return (
         <>
@@ -304,12 +312,7 @@ const UserManagement = () => {
                     title={
                         selectedBox === "box-user" ? "Users" : selectedBox === "box-partner" ? "Partners" : "Verifications"
                     }
-                    searchHint={"Search name, ID, Description etc."}
-                    onDownloadClick={async () => {
-                        selectedBox === "box-user" ? await exportData(ApiPaths.EXPORT_USER)
-                            : selectedBox === "box-partner" ? await exportData(ApiPaths.EXPORT_PARTNER)
-                                : await exportData(ApiPaths.EXPORT_VERIFICATION_USER)
-                    }}
+                    searchHint={"Search name "}
                     onSortClick={() => { }}
                     onMoreClick={() => { }}
                     onSearch={(value) => {

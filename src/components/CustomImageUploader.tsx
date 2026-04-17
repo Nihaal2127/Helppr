@@ -22,9 +22,10 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
 
   useEffect(() => {
     if (isEditable) {
-      const initialFileInputs = existingImages.map(() => null);
+      const initialFileInputs =
+        existingImages.length > 0 ? existingImages.map(() => null) : [null];
       setFileInputs(initialFileInputs);
-    }else{
+    } else {
       setFileInputs([null]);
     }
   }, [isEditable, existingImages]);
@@ -90,8 +91,16 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
             </Button> */}
           </div>
         ))}
-        {fileInputs.length < maxFiles && (
-          <Button variant="primary" style={{backgroundColor:"var(--primary-color)" , border:"none", marginTop:"10px"}}onClick={addFileInput}>
+        {maxFiles > 1 && fileInputs.length < maxFiles && (
+          <Button
+            variant="primary"
+            style={{
+              backgroundColor: "var(--primary-color)",
+              border: "none",
+              marginTop: "10px",
+            }}
+            onClick={addFileInput}
+          >
             + Add
           </Button>
         )}

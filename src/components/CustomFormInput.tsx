@@ -22,6 +22,8 @@ interface CustomFormInputProps {
   inputStyle?: React.CSSProperties;
   /** Extra classes on Form.Control (e.g. focus/border overrides that need CSS). */
   inputClassName?: string;
+  /** Strip non-digits, max 6 chars; use with `indianPincodeRequiredRules()` from `helper/pincodeValidation`. */
+  isIndianPincodeField?: boolean;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -41,6 +43,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   rows,
   inputStyle,
   inputClassName,
+  isIndianPincodeField = false,
 }) => {
   const isControlled = value !== undefined;
   const [inputValue, setInputValue] = useState<string>(String(value ?? ""));
@@ -134,18 +137,31 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         className={classNames("custom-form-input", inputClassName)}
         type={inputType}
         placeholder={placeholder}
-        {...register(controlId, validation)}
+        {...(() => {
+          const reg = register(controlId, validation);
+          const { onChange: regOnChange, ...regRest } = reg;
+          return {
+            ...regRest,
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+              let next = e.target.value;
+              if (isIndianPincodeField) {
+                next = next.replace(/\D/g, "").slice(0, 6);
+                e.target.value = next;
+              }
+              if (!isControlled) {
+                setInputValue(next);
+              }
+              onChangeRef.current?.(next);
+              regOnChange(e);
+            },
+          };
+        })()}
         isInvalid={!!error}
         value={isControlled ? value : inputValue}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (!isControlled) {
-            setInputValue(next);
-          }
-          onChangeRef.current?.(next);
-        }}
         readOnly={!isEditable}
-        maxLength={maxLength}
+        maxLength={isIndianPincodeField ? 6 : maxLength}
+        inputMode={isIndianPincodeField ? "numeric" : undefined}
+        autoComplete={isIndianPincodeField ? "postal-code" : undefined}
         as={as}
         rows={as === "textarea" ? rows : undefined}
         style={{

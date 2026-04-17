@@ -110,7 +110,9 @@ const TicketManagement = () => {
         },
         {
             Header: "User ID", accessor: "user_unique_id",
-            Cell: textUnderlineCell("user_unique_id", (row) => { UserDetailsDialog.show(row.created_by_id, () => refreshData()) }),
+            Cell: textUnderlineCell("user_unique_id", (row) => {
+                UserDetailsDialog.show(row.created_by_id, () => refreshData());
+            }),
         },
         { Header: "Created Name", accessor: "created_by_name" },
         { Header: "Resolved Name", accessor: "resolved_by_name", Cell: ({ row }) => (row.original.resolved_by_name ? row.original.resolved_by_name : "-"), },

@@ -8,7 +8,7 @@ import CustomTable from "../../../components/CustomTable";
 import { fetchFinancial } from "../../../services/financialService";
 import { getCount } from "../../../services/getCountService";
 import { FinancialModel } from "../../../models/FinancialModel";
-import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
+import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
 import { ROUTES } from "../../../routes/Routes";
 import { exportData } from "../../../services/exportService";
 import { ApiPaths } from "../../../remote/apiPaths";
@@ -82,7 +82,9 @@ const PartnerPayments = () => {
         },
         {
             Header: "Order ID", accessor: "order_unique_id",
-            Cell: textUnderlineCell("order_unique_id", (row) => { OrderInfoDialog.show(row.order_id, () => { }) }),
+            Cell: textUnderlineCell("order_unique_id", (row) => {
+                showOrderInfoDialog(row.order_id, () => {});
+            }),
         },
         {
             Header: "Partner ID", accessor: "partner_unique_id",

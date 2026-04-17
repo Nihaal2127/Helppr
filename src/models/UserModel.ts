@@ -66,7 +66,20 @@ export interface UserModel {
   my_services: string[] | [];
 
   bank_account: BankAccountModel | null;
-  documents: DocumentModel[] | []
+  documents: DocumentModel[] | [];
+
+  /** Partner catalog (when API returns them). */
+  category_ids?: string[] | null;
+  service_ids?: string[] | null;
+  category_names?: string[] | null;
+  service_names?: string[] | null;
+
+  /** Partner verification list (`/user/getVerificationAll`) when API returns these fields. */
+  verification_id?: string | null;
+  verification_status?: number;
+  submitted_at?: string | null;
+  verified_at?: string | null;
+  document_uploaded_count?: number;
 }
 
 

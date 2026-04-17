@@ -21,6 +21,12 @@ export const AppConstant = {
     helplineNumber: "+61434380737",
     supportEmail: "info@sostyres.com.au",
     companyLocation: " 8/41 Lensworth St, Coopers plains,4108, Australia",
+
+    /**
+     * Verification tab (`/user/getVerificationAll`): when `true`, use the real API.
+     * Set to `false` to use in-app mock rows and summary counts for UI design when the endpoint errors.
+     */
+    USE_REAL_VERIFICATION_API: false,
 };
 
 /** Values stored under AppConstant.userRole */

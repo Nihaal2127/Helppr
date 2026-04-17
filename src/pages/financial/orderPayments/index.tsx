@@ -19,7 +19,7 @@ import {
 } from "../../../services/financialService";
 import { FinancialModel } from "../../../models/FinancialModel";
 import { deleteOrder } from "../../../services/orderService";
-import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
+import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
 import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
 import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
@@ -322,7 +322,7 @@ const OrderPayments = () => {
         accessor: "order_unique_id",
         sort: true,
         Cell: textUnderlineCell("order_unique_id", (row) => {
-          OrderInfoDialog.show(row.order_id, () => {});
+          showOrderInfoDialog(row.order_id, () => {});
         }),
       },
       {

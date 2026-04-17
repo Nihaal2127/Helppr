@@ -5,8 +5,7 @@ import { UserModel } from "../../models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
-import { DetailsRow, formatDate, FullDetailsRow } from "../../helper/utility";
-import AddEditUserDialog from "./AddEditUserDialog";
+import { DetailsRow, formatDate } from "../../helper/utility";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
@@ -53,7 +52,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         <>
             <Modal
                 dialogClassName="custom-big-modal"
-                size="lg"
+                size="xl"
                 show={true}
                 onHide={onClose}
                 centered
@@ -73,40 +72,130 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                 : profileIcon} alt="User profile" width="160px" height="160px" />
                         </div>
 
-                        <div className="custom-personal-details">
-
-                            <Col className="custom-helper-column">
-                                <FullDetailsRow title="User Name" value={userDetails?.name} />
-                                <FullDetailsRow title="Phone Number" value={userDetails?.phone_number} />
-                                <FullDetailsRow title="Email ID" value={userDetails?.email} />
-                                <FullDetailsRow title="City" value={userDetails?.city_name} />
-                                <FullDetailsRow title="State" value={userDetails?.state_name} />
-                                <FullDetailsRow title="Postal Code" value={userDetails?.pincode} />
-                                <FullDetailsRow title="Address" value={userDetails?.address} />
-                                <FullDetailsRow
-                                    title="Status"
-                                    value={
-                                        userDetails?.is_active === undefined
-                                            ? "-"
-                                            : userDetails.is_active
-                                              ? "Active"
-                                              : "Inactive"
-                                    }
-                                />
-                            </Col>
-                        </div>
+                        <div className="custom-personal-details" style={{ flexWrap: "wrap" }}>
+                                <Col className="custom-helper-column">
+                                    <DetailsRow title="Name" value={userDetails?.name} />
+                                    <DetailsRow title="Phone No" value={userDetails?.phone_number} />
+                                    <DetailsRow title="State" value={userDetails?.state_name} />
+                                    <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
+                                </Col>
+                                <Col className="custom-helper-column">
+                                    <div>
+                                        <Row className="row custom-personal-row gx-0 align-items-start">
+                                            <div className="col-md-4 custom-personal-row-title">Email ID</div>
+                                            <div
+                                                className="col-md-8"
+                                                style={{
+                                                    fontSize: "16px",
+                                                    fontWeight: "normal",
+                                                    fontFamily: "Inter",
+                                                    color: "var(--txt-color)",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {userDetails?.email === undefined ||
+                                                userDetails?.email === "" ||
+                                                userDetails?.email === null
+                                                    ? "-"
+                                                    : userDetails.email}
+                                            </div>
+                                        </Row>
+                                        <Row className="row custom-personal-row gx-0 align-items-start">
+                                            <div className="col-md-4 custom-personal-row-title">City</div>
+                                            <div
+                                                className="col-md-8"
+                                                style={{
+                                                    fontSize: "16px",
+                                                    fontWeight: "normal",
+                                                    fontFamily: "Inter",
+                                                    color: "var(--txt-color)",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {userDetails?.city_name === undefined ||
+                                                userDetails?.city_name === "" ||
+                                                userDetails?.city_name === null
+                                                    ? "-"
+                                                    : userDetails.city_name}
+                                            </div>
+                                        </Row>
+                                        <Row className="row custom-personal-row gx-0 align-items-start">
+                                            <div className="col-md-4 custom-personal-row-title">Postal Code</div>
+                                            <div
+                                                className="col-md-8"
+                                                style={{
+                                                    fontSize: "16px",
+                                                    fontWeight: "normal",
+                                                    fontFamily: "Inter",
+                                                    color: "var(--txt-color)",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {userDetails?.pincode === undefined ||
+                                                userDetails?.pincode === "" ||
+                                                userDetails?.pincode === null
+                                                    ? "-"
+                                                    : userDetails.pincode}
+                                            </div>
+                                        </Row>
+                                        <Row className="row custom-personal-row gx-0 align-items-start">
+                                            <div className="col-md-4 custom-personal-row-title">Last Service Date</div>
+                                            <div
+                                                className="col-md-8"
+                                                style={{
+                                                    fontSize: "16px",
+                                                    fontWeight: "normal",
+                                                    fontFamily: "Inter",
+                                                    color: "var(--txt-color)",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {formatDate(
+                                                    userDetails?.last_service_date
+                                                        ? userDetails.last_service_date
+                                                        : ""
+                                                )}
+                                            </div>
+                                        </Row>
+                                    </div>
+                                </Col>
+                                <div className="w-100" style={{ flex: "1 1 100%", minWidth: "100%" }}>
+                                    <Row className="row custom-personal-row gx-0 align-items-start" style={{ gap: "9rem"}}>
+                                        <Col xs={12} sm="auto" className="custom-personal-row-title pe-sm-3 mb-1 mb-sm-0">
+                                            Address
+                                        </Col>
+                                        <Col xs={12} sm style={{ minWidth: 0 }}>
+                                            <div
+                                                className="text-wrap"
+                                                style={{
+                                                    fontSize: "16px",
+                                                    fontWeight: "normal",
+                                                    fontFamily: "Inter",
+                                                    color: "var(--txt-color)",
+                                                    whiteSpace: "normal",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {userDetails?.address?.trim() ? userDetails.address : "-"}
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                </div>
+                            </div>
                         <img src={editIcon} alt="edit" onClick={() => {
-                            AddEditUserDialog.show(4, true, userDetails!!, onRefreshuser)
+                            void import("./AddEditUserDialog").then(({ default: AddEditUserDialog }) => {
+                                AddEditUserDialog.show(4, true, userDetails!!, onRefreshuser);
+                            });
                         }} />
                     </div>
                     <Row className="custom-helper-row">
                         <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
-                            <h3 className="mb-3">Services</h3>
+                            <h3>Services</h3>
                             <div className="user-details-service-stats">
                                 {(
                                     [
                                         {
-                                            label: "Total Services",
+                                            label: "Services Taken",
                                             node: (
                                                 <button
                                                     type="button"
@@ -134,18 +223,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                             label: "Cancelled",
                                             node: <span>{userDetails?.cancelled_service ?? "-"}</span>,
                                         },
-                                        {
-                                            label: "Registered Date",
-                                            node: <span>{formatDate(userDetails?.created_at ? userDetails?.created_at : "")}</span>,
-                                        },
-                                        {
-                                            label: "Last Service Date",
-                                            node: (
-                                                <span>
-                                                    {formatDate(userDetails?.last_service_date ? userDetails?.last_service_date : "")}
-                                                </span>
-                                            ),
-                                        },
+                                      
                                     ] as const
                                 ).map(({ label, node }) => (
                                     <div

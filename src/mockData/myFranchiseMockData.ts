@@ -40,7 +40,7 @@ export const myFranchiseAreasSeed = [
     area_name: "Madhapur",
     city_name: "Hyderabad",
     state_name: "Telangana",
-    pincode: "500081",
+    pincodes: ["500081", "500082", "500084"],
     is_active: true,
   },
   {
@@ -56,7 +56,7 @@ export const myFranchiseAreasSeed = [
     area_name: "Banjara Hills",
     city_name: "Hyderabad",
     state_name: "Telangana",
-    pincode: "500034",
+    pincode: "500034,500035",
     is_active: true,
   },
 ];

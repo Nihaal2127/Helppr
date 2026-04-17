@@ -28,6 +28,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
             service_id: "",
             service_price: 0,
             partner_id: "",
+            service_address: "",
             service_date: "",
             service_from_time: "",
             service_to_time: "",
@@ -81,6 +82,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                 service_id: "",
                 service_price: 0,
                 partner_id: "",
+                service_address: "",
                 service_date: "",
                 service_from_time: "",
                 service_to_time: "",
@@ -217,6 +219,21 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 Add
                             </Button>
 
+                        </Col>
+                    </Row>
+                    <Row>
+                        <Col xs={12} className="mt-3">
+                            <CustomTextField
+                                label="Service address"
+                                controlId={`serviceItems.${index}.service_address`}
+                                placeholder="Enter service address"
+                                register={register}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_address}
+                                validation={{ required: "Service address is required" }}
+                                onChange={(value) => handleInputChange(index, "service_address", value)}
+                                as="textarea"
+                                rows={4}
+                            />
                         </Col>
                     </Row>
                     <Row>

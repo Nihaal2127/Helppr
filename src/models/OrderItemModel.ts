@@ -27,4 +27,5 @@ export interface OrderItemModel {
     partner_info?: UserModel | null;
     per_hour_price?: number;
     hours?: number;
+    service_address?: string | null;
 }

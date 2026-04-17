@@ -13,7 +13,7 @@ import { formatDate } from "../../../helper/utility";
 import { fetchAllFinancialRowsMatching } from "../../../services/financialService";
 import { fetchUserById } from "../../../services/userService";
 import { UserModel } from "../../../models/UserModel";
-import OrderInfoDialog from "../../orderManagement/OrderInfoDialog";
+import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
 import { AppConstant } from "../../../constant/AppConstant";
 import {
   fetchAllPartnerWalletPayoutHistory,
@@ -345,7 +345,7 @@ function ShowPartnerPayout() {
               <button
                 type="button"
                 className="wallet-tx-table__order-link"
-                onClick={() => OrderInfoDialog.show(tx.orderId!, () => {})}
+                onClick={() => showOrderInfoDialog(tx.orderId!, () => {})}
               >
                 {tx.orderIdDisplay}
               </button>

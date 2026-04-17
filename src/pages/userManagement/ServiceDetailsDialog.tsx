@@ -7,6 +7,7 @@ import CustomServiceTable from "../../components/CustomServiceTable";
 import { FinancialModel } from "../../models/FinancialModel";
 import { fetchFinancial } from "../../services/financialService";
 import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
+import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
 
 type ServiceDetailsDialogProps = {
@@ -86,7 +87,37 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             accessor: "service_date",
             Cell: ({ row }) => formatDate(row.original.service_date ? row.original.service_date : "")
         },
-        { Header: "Amount", accessor: "total_price", Cell: priceCell("total_price"), },
+        { Header: "Total Amount", accessor: "total_price", Cell: priceCell("total_price"), },
+        {
+            Header: "Paid Amount",
+            accessor: is_partner ? "paid_to_partner" : "customer_paid_amount",
+            Cell: ({ row }: { row: any }) => {
+                const o = row.original ?? {};
+                const v = is_partner
+                    ? o.paid_to_partner
+                    : (o.customer_paid_amount ?? (o.is_paid ? o.total_price : undefined));
+                return (
+                    <span>
+                        {v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}
+                    </span>
+                );
+            },
+        },
+        {
+            Header: "Pending Amount",
+            accessor: is_partner ? "pending_to_partner" : "customer_pending_amount",
+            Cell: ({ row }: { row: any }) => {
+                const o = row.original ?? {};
+                const v = is_partner
+                    ? o.pending_to_partner
+                    : (o.customer_pending_amount ?? (!o.is_paid ? o.total_price : undefined));
+                return (
+                    <span>
+                        {v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}
+                    </span>
+                );
+            },
+        },
         {
             Header: "Payment Status", accessor: "is_paid",
             Cell: paymentStatusCell("is_paid"),
@@ -138,7 +169,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             },
         }
        
-    ], [currentPage, pageSize]);
+    ], [currentPage, pageSize, is_partner]);
 
     return (
         <>

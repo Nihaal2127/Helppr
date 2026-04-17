@@ -55,6 +55,12 @@ export const fetchFranchise = async (
         const areas = Array.isArray(item.area_name)
           ? item.area_name.join(" ")
           : String(item.area_name ?? "");
+        const catSvc = [
+          ...(Array.isArray(item.category_names) ? item.category_names : []),
+          ...(Array.isArray(item.service_names) ? item.service_names : []),
+        ]
+          .join(" ")
+          .toLowerCase();
         return (
           String(item.name ?? "").toLowerCase().includes(keyword) ||
           String(item.state_name ?? "").toLowerCase().includes(keyword) ||
@@ -62,7 +68,8 @@ export const fetchFranchise = async (
           String(areas ?? "").toLowerCase().includes(keyword) ||
           String(item.admin_name ?? "").toLowerCase().includes(keyword) ||
           String(item.description ?? "").toLowerCase().includes(keyword) ||
-          String(item.contact ?? "").toLowerCase().includes(keyword)
+          String(item.contact ?? "").toLowerCase().includes(keyword) ||
+          catSvc.includes(keyword)
         );
       });
     }

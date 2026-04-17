@@ -64,7 +64,7 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
             borderCollapse: "collapse",
           }}
         >
-          <thead className={props["theadClass"]} style={{ textAlign: "center",}}>
+          <thead className={props["theadClass"]} style={{ textAlign: "center", verticalAlign: "top"}}>
             {(dataTable.headerGroups || []).map((headerGroup: any) => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {(headerGroup.headers || []).map((column: any) => (

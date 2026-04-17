@@ -15,6 +15,10 @@ interface CustomTextFieldSelectProps {
     onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
     labelSize?: number;
     asCol?: boolean;
+    /** Passed to react-select (e.g. "Select employee"). */
+    placeholder?: string;
+    /** Use inside Bootstrap modals so the menu is not clipped. */
+    menuPortal?: boolean;
 }
 
 const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
@@ -30,6 +34,8 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
     onChange,
     labelSize = 4,
     asCol = false,
+    placeholder,
+    menuPortal = false,
 }) => {
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -49,6 +55,8 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
                     setValue={setValue}
                     asCol={asCol}
                     onChange={onChange}
+                    placeholder={placeholder}
+                    menuPortal={menuPortal}
                 />
             </Col>
         </Row>

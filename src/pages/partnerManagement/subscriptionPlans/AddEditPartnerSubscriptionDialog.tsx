@@ -412,6 +412,8 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                                             asCol={false}
                                             value={viewData.address || viewData.location || ""}
                                             isEditable={false}
+                                            as="textarea"
+                                            rows={4}
                                         />
                                     ) : (
                                         <CustomFormSelect

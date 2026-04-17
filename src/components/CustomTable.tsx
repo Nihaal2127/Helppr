@@ -27,6 +27,16 @@ const isSrNoColumn = (column: { id?: string; Header?: unknown }) => {
   return t === "SR No" || t === "S.No";
 };
 
+const isCompactColumn = (column: { compact?: boolean }) => column.compact === true;
+
+function columnExplicitWidth(column: { width?: string | number }): string | undefined {
+  const w = column.width;
+  if (w == null) return undefined;
+  if (typeof w === "number" && Number.isFinite(w)) return `${w}px`;
+  const s = String(w).trim();
+  return s.length > 0 ? s : undefined;
+}
+
 /** Core + usePagination + useSortBy — @types/react-table expects merging on `TableOptions` for full plugin props. */
 type CustomTableOptions = UseTableOptions<object> &
   UsePaginationOptions<object> &
@@ -39,6 +49,10 @@ interface CustomTableProps {
     sort?: boolean;
     Cell?: any;
     className?: string;
+    /** Narrower min/max width for tag/list cells to limit horizontal overflow */
+    compact?: boolean;
+    /** When `layoutFixed` is true, sets column width (e.g. `"12%"`, `"140px"`). */
+    width?: string | number;
   }[];
   data: any[];
   pageSize?: number;
@@ -58,6 +72,13 @@ interface CustomTableProps {
    * When omitted, horizontal scroll activates automatically for many columns (>= 8).
    */
   horizontalScroll?: boolean;
+  /**
+   * When true, table uses `table-layout: fixed` and `width: 100%` (no min-width unless horizontal scroll).
+   * Use with per-column `width` for stable columns. Other tables keep default (false).
+   */
+  layoutFixed?: boolean;
+  /** Optional min-width (px) when horizontal scroll is on; defaults to column-based estimate. */
+  tableMinWidthPx?: number;
   /**
    * Server-side sorting: parent owns `sortBy`, refetches data, passes new rows.
    * Requires `onSortChange`. Column `accessor` string becomes the sort field id sent to the API.
@@ -132,7 +153,12 @@ const CustomTable = (props: CustomTableProps) => {
     props.horizontalScroll !== undefined
       ? props.horizontalScroll
       : props.columns.length >= 8;
-  const tableMinWidthPx = Math.max(720, props.columns.length * 104);
+  const layoutFixed = props.layoutFixed === true;
+  const useTableLayoutFixed = layoutFixed || needsHorizontalScroll;
+  const tableMinWidthPx =
+    typeof props.tableMinWidthPx === "number" && Number.isFinite(props.tableMinWidthPx)
+      ? props.tableMinWidthPx
+      : Math.max(720, props.columns.length * 104);
   const serverSortEnabled = manualSortBy && typeof onSortChange === "function";
   const isLoading = props.isLoading === true;
   const loadingText = props.loadingText ?? "Loading...";
@@ -142,9 +168,10 @@ const CustomTable = (props: CustomTableProps) => {
       <div
         style={{
           border: "1px solid var(--txtfld-border)",
-          borderRadius: "8px",
+          borderRadius: "10px",
           width: "100%",
           maxWidth: "100%",
+          minWidth: 0,
           ...(needsHorizontalScroll
             ? {
                 overflowX: "auto",
@@ -162,12 +189,8 @@ const CustomTable = (props: CustomTableProps) => {
     style={{
       borderCollapse: "collapse",
       width: "100%",
-      ...(needsHorizontalScroll
-        ? {
-            minWidth: `${tableMinWidthPx}px`,
-            tableLayout: "fixed" as const,
-          }
-        : { tableLayout: "auto" as const }),
+      ...(useTableLayoutFixed ? { tableLayout: "fixed" as const } : { tableLayout: "auto" as const }),
+      ...(needsHorizontalScroll ? { minWidth: `${tableMinWidthPx}px` } : {}),
     }}
   >
     <thead className={props.theadClass}>
@@ -177,6 +200,8 @@ const CustomTable = (props: CustomTableProps) => {
           <tr key={groupKey} {...groupProps}>
             {(headerGroup.headers || []).map((column: any) => {
               const srNo = isSrNoColumn(column);
+              const compactCol = isCompactColumn(column);
+              const explicitW = columnExplicitWidth(column);
               const sortToggleProps =
                 column.sort &&
                 (serverSortEnabled
@@ -225,27 +250,46 @@ const CustomTable = (props: CustomTableProps) => {
                     fontWeight: 600,
                     textAlign: "center",
                     verticalAlign: "top",
-                    whiteSpace: srNo ? "nowrap" : "normal",
-                    wordBreak: srNo ? "normal" : "break-word",
+                    whiteSpace: layoutFixed || srNo ? "nowrap" : "normal",
+                    wordBreak: layoutFixed || srNo ? "normal" : "break-word",
                     lineHeight: "1.4",
                     padding: srNo ? "12px 6px" : "12px 10px",
                     position: "sticky",
                     top: 0,
                     zIndex: 2,
-                    width: srNo ? "64px" : undefined,
-                    minWidth: srNo ? "56px" : "120px",
-                    maxWidth: srNo ? "80px" : undefined,
+                    ...(srNo
+                      ? { width: "64px", minWidth: "56px", maxWidth: "80px" }
+                      : explicitW
+                        ? { width: explicitW }
+                        : { width: undefined }),
+                    ...(!srNo && explicitW
+                      ? {}
+                      : !srNo
+                        ? {
+                            minWidth: compactCol ? "88px" : "120px",
+                            maxWidth: compactCol ? "168px" : undefined,
+                          }
+                        : {}),
                     cursor: column.sort ? "pointer" : "default",
+                    ...(layoutFixed ? { overflow: "hidden" as const } : {}),
                   }}
                 >
                 <span
-                  className={classNames("d-flex flex-row align-items-center", {
+                  className={classNames("d-flex flex-row align-items-center min-w-0", {
                     "justify-content-center": srNo,
                     "justify-content-between": !srNo,
                   })}
                 >
-                 
-                    <span>{column.render("Header")}</span>
+                    <span
+                      className={classNames({
+                        "text-truncate": layoutFixed,
+                        "flex-grow-1": layoutFixed && column.sort,
+                        "w-100": layoutFixed && !column.sort,
+                      })}
+                      style={layoutFixed ? { minWidth: 0 } : undefined}
+                    >
+                      {column.render("Header")}
+                    </span>
 
                     {column.sort && (
                       <span className="d-flex flex-column">
@@ -317,6 +361,8 @@ const CustomTable = (props: CustomTableProps) => {
                   { className: cell.column.className },
                 ]);
                 const srNoCell = isSrNoColumn(cell.column);
+                const compactCell = isCompactColumn(cell.column);
+                const explicitWCell = columnExplicitWidth(cell.column);
 
                 return (
                   <td
@@ -337,13 +383,29 @@ const CustomTable = (props: CustomTableProps) => {
                       fontWeight: "normal",
                       textAlign: "center",
                       verticalAlign: "middle",
-                      whiteSpace: srNoCell ? "nowrap" : "normal",
-                      wordBreak: srNoCell ? "normal" : "break-word",
+                      whiteSpace: layoutFixed || srNoCell ? "nowrap" : "normal",
+                      wordBreak: layoutFixed || srNoCell ? "normal" : "break-word",
                       lineHeight: "1.4",
                       padding: srNoCell ? "10px 6px" : "10px",
-                      width: srNoCell ? "64px" : undefined,
-                      minWidth: srNoCell ? "56px" : "120px",
-                      maxWidth: srNoCell ? "80px" : undefined,
+                      ...(srNoCell
+                        ? { width: "64px", minWidth: "56px", maxWidth: "80px" }
+                        : explicitWCell
+                          ? { width: explicitWCell }
+                          : { width: undefined }),
+                      ...(!srNoCell && explicitWCell
+                        ? {}
+                        : !srNoCell
+                          ? {
+                              minWidth: compactCell ? "88px" : "120px",
+                              maxWidth: compactCell ? "168px" : undefined,
+                            }
+                          : {}),
+                      ...(layoutFixed
+                        ? {
+                            overflow: "hidden" as const,
+                            textOverflow: "ellipsis" as const,
+                          }
+                        : {}),
                     }}
                   >
                     {cell.render("Cell")}

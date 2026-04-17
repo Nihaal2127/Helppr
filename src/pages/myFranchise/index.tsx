@@ -4,59 +4,131 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
+import CustomActionColumn from "../../components/CustomActionColumn";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showSuccessAlert } from "../../helper/alertHelper";
+import { statusCell } from "../../helper/utility";
 import { useForm } from "react-hook-form";
+import type {
+  AreaRow,
+  CategoryRow,
+  EmployeeRow,
+  RequestedCategoryRow,
+  RequestedServiceRow,
+  ServiceRow,
+} from "../../services/myFranchiseService";
 import {
   fetchMyFranchiseBoxData,
   setCategoryActive as apiSetCategoryActive,
-  setEmployeeActive as apiSetEmployeeActive,
   setEmployeeChatEnabled as apiSetEmployeeChatEnabled,
   setServiceActive as apiSetServiceActive,
+  voidFranchiseEmployee,
+  voidRequestedCategory,
+  voidRequestedService,
 } from "../../services/myFranchiseService";
+import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
+import RequestedCategoryDialog from "./RequestedCategoryDialog";
+import RequestedServiceDialog from "./RequestedServiceDialog";
 
 type BoxId = "box-employees" | "box-areas" | "box-services" | "box-categories";
 
-type EmployeeRow = {
-  _id: string;
-  employee_id: string;
-  name: string;
-  role: string;
-  phone: string;
-  email: string;
-  area_name: string;
-  is_active: boolean;
-  chat_enabled?: boolean;
+type ServicesViewMode = "catalog" | "requested";
+
+type CategoriesViewMode = "catalog" | "requested";
+
+type FranchiseBoxConfig = {
+  id: BoxId;
+  title: string;
+  data: Record<string, number>;
+  isAddShow: boolean;
+  addLabel: string;
+  onAdd?: () => void;
 };
 
-type AreaRow = {
-  _id: string;
-  area_name: string;
-  city_name: string;
-  state_name: string;
-  pincode: string;
-  is_active: boolean;
-};
+const pendingRequestedStatusCell = () => (
+  <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
+);
 
-type ServiceRow = {
-  _id: string;
-  service_id: string;
-  name: string;
-  category_name: string;
-  is_active: boolean;
-};
+function normalizeAreaPinCodesFromRow(original: any): string[] {
+  const rawPinCodes = original?.pincodes ?? original?.pincode ?? original?.pin_codes ?? [];
 
-type CategoryRow = {
-  _id: string;
-  category_id: string;
-  name: string;
-  is_active: boolean;
-};
+  const pinCodes = Array.isArray(rawPinCodes)
+    ? rawPinCodes
+    : typeof rawPinCodes === "string"
+      ? rawPinCodes.split(",")
+      : [];
 
-// NOTE: Requested services/categories rows were intentionally removed.
+  return pinCodes.map((p: unknown) => String(p).trim()).filter(Boolean);
+}
+
+/** Same pattern as `locationManagement/index.tsx` pinCodesCell — uses global `.pin-code-hover-*` styles. */
+function franchiseAreasPinCodesCell({ row }: { row: any }) {
+  const normalized = normalizeAreaPinCodesFromRow(row?.original);
+
+  if (normalized.length === 0) return "-";
+
+  return (
+    <div className="pin-code-hover-wrapper">
+      <span className="pin-code-hover-trigger">
+        {normalized.length === 1 ? (
+          normalized[0]
+        ) : (
+          <>
+            {normalized[0]}...
+            <span className="pin-code-more-count"> +{normalized.length - 1}</span>
+          </>
+        )}
+      </span>
+      {normalized.length > 1 && (
+        <div className="pin-code-hover-card">
+          {normalized.map((p: string) => (
+            <div key={p} className="pin-code-hover-item">
+              {p}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Services column: first name + “...+N”, hover card lists all (matches `serviceManagement` category table). */
+function renderCategoryServicesNamesHover(names: (string | undefined)[]): React.ReactNode {
+  const list = names.map((n) => String(n ?? "").trim()).filter(Boolean);
+  if (list.length === 0) return "-";
+  if (list.length === 1) return list[0];
+  const additionalCount = list.length - 1;
+  return (
+    <div className="pin-code-hover-wrapper">
+      <span className="pin-code-hover-trigger">
+        {`${list[0]}...`}
+        <span style={{ color: "red", fontWeight: 600 }}>{`+${additionalCount}`}</span>
+      </span>
+      <div className="pin-code-hover-card">
+        {list.map((n, idx) => (
+          <div key={`${n}-${idx}`} className="pin-code-hover-item">
+            {`• ${n}`}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function franchiseRequestedCategoryServicesCell({ row }: { row: any }) {
+  const rc = row.original as RequestedCategoryRow;
+  return renderCategoryServicesNamesHover(rc.service_names ?? []);
+}
+
+function serviceNamesForCatalogCategory(cat: CategoryRow, servicesList: ServiceRow[]): string[] {
+  return servicesList.filter((s) => s.category_name === cat.name).map((s) => s.name);
+}
 
 const MyFranchise = () => {
   const { register, setValue } = useForm();
   const [selectedBox, setSelectedBox] = useState<BoxId>("box-employees");
+  const [servicesViewMode, setServicesViewMode] = useState<ServicesViewMode>("catalog");
+  const [categoriesViewMode, setCategoriesViewMode] = useState<CategoriesViewMode>("catalog");
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -66,10 +138,27 @@ const MyFranchise = () => {
   const [areas, setAreas] = useState<AreaRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [requestedServices, setRequestedServices] = useState<RequestedServiceRow[]>([]);
+  const [requestedCategories, setRequestedCategories] = useState<RequestedCategoryRow[]>([]);
+
+  const reloadFranchiseData = useCallback(async () => {
+    const data = await fetchMyFranchiseBoxData();
+    setEmployees(
+      (data.employees as unknown as EmployeeRow[]).map((e) => ({
+        ...e,
+        chat_enabled: e.is_active ? (e.chat_enabled ?? true) : false,
+      }))
+    );
+    setAreas(data.areas as unknown as AreaRow[]);
+    setServices(data.services as unknown as ServiceRow[]);
+    setCategories(data.categories as unknown as CategoryRow[]);
+    setRequestedServices(data.requested_services as RequestedServiceRow[]);
+    setRequestedCategories(data.requested_categories as RequestedCategoryRow[]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       const data = await fetchMyFranchiseBoxData();
       if (cancelled) return;
       setEmployees(
@@ -81,11 +170,31 @@ const MyFranchise = () => {
       setAreas(data.areas as unknown as AreaRow[]);
       setServices(data.services as unknown as ServiceRow[]);
       setCategories(data.categories as unknown as CategoryRow[]);
+      setRequestedServices(data.requested_services as RequestedServiceRow[]);
+      setRequestedCategories(data.requested_categories as RequestedCategoryRow[]);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const handleEmployeeVoid = useCallback(
+    (id: string) => {
+      openConfirmDialog(
+        "Are you sure you want to void this employee? ",
+        "Void",
+        "Cancel",
+        async () => {
+          const ok = await voidFranchiseEmployee(id);
+          if (ok) {
+            showSuccessAlert("Employee voided");
+            await reloadFranchiseData();
+          }
+        }
+      );
+    },
+    [reloadFranchiseData]
+  );
 
   const employeesSummary = useMemo(() => {
     const total = employees.length;
@@ -106,8 +215,9 @@ const MyFranchise = () => {
       Total: total,
       Active: active,
       Inactive: total - active,
+      requested_service: requestedServices.length,
     };
-  }, [services]);
+  }, [services, requestedServices]);
 
   const categoriesSummary = useMemo(() => {
     const total = categories.length;
@@ -116,23 +226,25 @@ const MyFranchise = () => {
       Total: total,
       Active: active,
       Inactive: total - active,
+      requested_category: requestedCategories.length,
     };
-  }, [categories]);
+  }, [categories, requestedCategories]);
 
   const handleBoxSelect = (divId: string) => {
     setSelectedBox(divId as BoxId);
+    setServicesViewMode("catalog");
+    setCategoriesViewMode("catalog");
     setStatusFilter(undefined);
     setSearchKeyword("");
     setCurrentPage(1);
   };
 
-  const handleFilterChange = useCallback(
-    (filter: { status?: string }) => {
-      setStatusFilter(filter.status);
-      setCurrentPage(1);
-    },
-    []
-  );
+  const handleFilterChange = useCallback((filter: { status?: string }) => {
+    setStatusFilter(filter.status);
+    setServicesViewMode("catalog");
+    setCategoriesViewMode("catalog");
+    setCurrentPage(1);
+  }, []);
 
   const keyword = searchKeyword.trim().toLowerCase();
 
@@ -156,7 +268,8 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const hay = [row.area_name, row.city_name, row.state_name, row.pincode].join(" ").toLowerCase();
+      const pins = normalizeAreaPinCodesFromRow(row);
+      const hay = [row.area_name, row.city_name, row.state_name, ...pins].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
     });
@@ -168,11 +281,18 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const hay = [row.service_id, row.name, row.category_name].join(" ").toLowerCase();
+      const hay = [row.name, row.category_name].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
     });
   }, [services, statusFilter, keyword]);
+
+  const filteredRequestedServices = useMemo(() => {
+    return requestedServices.filter((row) => {
+      const hay = [row.name, row.category_name].join(" ").toLowerCase();
+      return !keyword || hay.includes(keyword);
+    });
+  }, [requestedServices, keyword]);
 
   const filteredCategories = useMemo(() => {
     return categories.filter((row) => {
@@ -180,11 +300,19 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const hay = [row.category_id, row.name].join(" ").toLowerCase();
+      const svcHay = serviceNamesForCatalogCategory(row, services).join(" ").toLowerCase();
+      const hay = [row.name, svcHay].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
     });
-  }, [categories, statusFilter, keyword]);
+  }, [categories, services, statusFilter, keyword]);
+
+  const filteredRequestedCategories = useMemo(() => {
+    return requestedCategories.filter((row: RequestedCategoryRow) => {
+      const hay = [row.name, ...(row.service_names ?? [])].join(" ").toLowerCase();
+      return !keyword || hay.includes(keyword);
+    });
+  }, [requestedCategories, keyword]);
 
   const activeFilteredList = useMemo(() => {
     switch (selectedBox) {
@@ -193,13 +321,23 @@ const MyFranchise = () => {
       case "box-areas":
         return filteredAreas;
       case "box-services":
-        return filteredServices;
+        return servicesViewMode === "requested" ? filteredRequestedServices : filteredServices;
       case "box-categories":
-        return filteredCategories;
+        return categoriesViewMode === "requested" ? filteredRequestedCategories : filteredCategories;
       default:
         return [];
     }
-  }, [selectedBox, filteredEmployees, filteredAreas, filteredServices, filteredCategories]);
+  }, [
+    selectedBox,
+    servicesViewMode,
+    categoriesViewMode,
+    filteredEmployees,
+    filteredAreas,
+    filteredServices,
+    filteredRequestedServices,
+    filteredCategories,
+    filteredRequestedCategories,
+  ]);
 
   const totalPages = useMemo(() => {
     if (!activeFilteredList.length) return 0;
@@ -210,18 +348,6 @@ const MyFranchise = () => {
     const start = (currentPage - 1) * pageSize;
     return activeFilteredList.slice(start, start + pageSize);
   }, [activeFilteredList, currentPage, pageSize]);
-
-  const setEmployeeActive = useCallback((id: string, is_active: boolean) => {
-    void apiSetEmployeeActive(id, is_active);
-    setEmployees((prev) =>
-      prev.map((e) => {
-        if (e._id !== id) return e;
-        if (!is_active) return { ...e, is_active: false, chat_enabled: false };
-        return { ...e, is_active: true, chat_enabled: e.chat_enabled ?? true };
-      })
-    );
-    showSuccessAlert("Employee status updated");
-  }, []);
 
   const setEmployeeChatEnabled = useCallback((id: string, enabled: boolean) => {
     void apiSetEmployeeChatEnabled(id, enabled);
@@ -243,6 +369,52 @@ const MyFranchise = () => {
     showSuccessAlert("Category status updated");
   };
 
+  const handleRequestedServiceVoid = useCallback(
+    (id: string) => {
+      openConfirmDialog(
+        "Are you sure you want to void this service request?",
+        "Void",
+        "Cancel",
+        async () => {
+          const ok = await voidRequestedService(id);
+          if (ok) {
+            showSuccessAlert("Service request voided");
+            await reloadFranchiseData();
+          }
+        }
+      );
+    },
+    [reloadFranchiseData]
+  );
+
+  const handleRequestedCategoryVoid = useCallback(
+    (id: string) => {
+      openConfirmDialog(
+        "Are you sure you want to void this category request?",
+        "Void",
+        "Cancel",
+        async () => {
+          const ok = await voidRequestedCategory(id);
+          if (ok) {
+            showSuccessAlert("Category request voided");
+            await reloadFranchiseData();
+          }
+        }
+      );
+    },
+    [reloadFranchiseData]
+  );
+
+  const categorySelectOptions = useMemo(
+    () => categories.map((c) => ({ value: c.category_id, label: c.name })),
+    [categories]
+  );
+
+  const franchiseServiceOptionsForCategoryDialog = useMemo(
+    () => services.map((s) => ({ value: s._id, label: s.name })),
+    [services]
+  );
+
   const utilityTitle = useMemo(() => {
     switch (selectedBox) {
       case "box-employees":
@@ -250,11 +422,26 @@ const MyFranchise = () => {
       case "box-areas":
         return "Areas";
       case "box-services":
-        return "Services";
+        return servicesViewMode === "requested" ? "Requested services" : "Services";
       case "box-categories":
-        return "Categories";
+        return categoriesViewMode === "requested" ? "Requested categories" : "Categories";
       default:
         return "";
+    }
+  }, [selectedBox, servicesViewMode, categoriesViewMode]);
+
+  const utilitySearchHint = useMemo(() => {
+    switch (selectedBox) {
+      case "box-employees":
+        return "Search employee name";
+      case "box-areas":
+        return "Search area or pin code";
+      case "box-services":
+        return "Search service";
+      case "box-categories":
+        return "Search category";
+      default:
+        return "Search";
     }
   }, [selectedBox]);
 
@@ -266,12 +453,9 @@ const MyFranchise = () => {
         className: "my-franchise-col-sr",
         Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Employee ID", accessor: "employee_id", className: "my-franchise-col-id" },
       { Header: "Name", accessor: "name", className: "my-franchise-col-name" },
-      { Header: "Role", accessor: "role", className: "my-franchise-col-role" },
       { Header: "Phone", accessor: "phone", className: "my-franchise-col-phone" },
       { Header: "Email", accessor: "email", className: "my-franchise-col-email" },
-      { Header: "Area", accessor: "area_name", className: "my-franchise-col-area" },
       {
         Header: "Chat",
         accessor: "chat_enabled",
@@ -301,26 +485,30 @@ const MyFranchise = () => {
         Header: "Status",
         accessor: "is_active",
         className: "my-franchise-col-status",
-        Cell: ({ row }: { row: any }) => {
-          const emp = row.original as EmployeeRow;
-          return (
-            <Form.Select
-              size="sm"
-              value={emp.is_active ? "active" : "inactive"}
-              onChange={(e) => {
-                e.stopPropagation();
-                setEmployeeActive(emp._id, e.target.value === "active");
-              }}
-              className="my-franchise-status-select"
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Form.Select>
-          );
-        },
+        Cell: statusCell("is_active"),
+      },
+      {
+        Header: "Action",
+        accessor: "action",
+        className: "my-franchise-col-actions",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={(r) => {
+              const emp = r.original as EmployeeRow;
+              FranchiseEmployeeDialog.showView(emp, () => {
+                void reloadFranchiseData();
+              });
+            }}
+            onDelete={(r) => {
+              const emp = r.original as EmployeeRow;
+              handleEmployeeVoid(emp._id);
+            }}
+          />
+        ),
       },
     ],
-    [currentPage, pageSize, setEmployeeActive, setEmployeeChatEnabled]
+    [currentPage, pageSize, setEmployeeChatEnabled, reloadFranchiseData, handleEmployeeVoid]
   );
 
   const areaColumns = useMemo(
@@ -333,7 +521,11 @@ const MyFranchise = () => {
       { Header: "Area Name", accessor: "area_name" },
       { Header: "City", accessor: "city_name" },
       { Header: "State", accessor: "state_name" },
-      { Header: "Pincode", accessor: "pincode" },
+      {
+        Header: "Pin code",
+        accessor: "pincodes",
+        Cell: franchiseAreasPinCodesCell,
+      },
       {
         Header: "Status",
         accessor: "is_active",
@@ -350,7 +542,6 @@ const MyFranchise = () => {
         accessor: "serial_no",
         Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Service ID", accessor: "service_id" },
       { Header: "Service Name", accessor: "name" },
       { Header: "Category", accessor: "category_name" },
       {
@@ -378,6 +569,84 @@ const MyFranchise = () => {
     [currentPage, pageSize]
   );
 
+  const requestedServiceColumns = useMemo(
+    () => [
+      {
+        Header: "SR No",
+        accessor: "serial_no",
+        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+      },
+      { Header: "Service Name", accessor: "name" },
+      { Header: "Category", accessor: "category_name" },
+      {
+        Header: "Status",
+        accessor: "status",
+        Cell: pendingRequestedStatusCell,
+      },
+      {
+        Header: "Action",
+        accessor: "action",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={(r) => {
+              RequestedServiceDialog.showView(r.original as RequestedServiceRow, categorySelectOptions, () => {
+                void reloadFranchiseData();
+              });
+            }}
+            onDelete={(r) => {
+              handleRequestedServiceVoid((r.original as RequestedServiceRow)._id);
+            }}
+          />
+        ),
+      },
+    ],
+    [currentPage, pageSize, categorySelectOptions, reloadFranchiseData, handleRequestedServiceVoid]
+  );
+
+  const requestedCategoryColumns = useMemo(
+    () => [
+      {
+        Header: "SR No",
+        accessor: "serial_no",
+        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+      },
+      { Header: "Category Name", accessor: "name" },
+      {
+        Header: "Services",
+        accessor: "service_names",
+        Cell: franchiseRequestedCategoryServicesCell,
+      },
+      {
+        Header: "Status",
+        accessor: "status",
+        Cell: pendingRequestedStatusCell,
+      },
+      {
+        Header: "Action",
+        accessor: "action",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={(r) => {
+              RequestedCategoryDialog.showView(
+                r.original as RequestedCategoryRow,
+                franchiseServiceOptionsForCategoryDialog,
+                () => {
+                  void reloadFranchiseData();
+                }
+              );
+            }}
+            onDelete={(r) => {
+              handleRequestedCategoryVoid((r.original as RequestedCategoryRow)._id);
+            }}
+          />
+        ),
+      },
+    ],
+    [franchiseServiceOptionsForCategoryDialog, reloadFranchiseData, handleRequestedCategoryVoid]
+  );
+
   const categoryColumns = useMemo(
     () => [
       {
@@ -385,8 +654,15 @@ const MyFranchise = () => {
         accessor: "serial_no",
         Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Category ID", accessor: "category_id" },
       { Header: "Category Name", accessor: "name" },
+      {
+        Header: "Services",
+        accessor: "service_names_display",
+        Cell: ({ row }: { row: any }) => {
+          const cat = row.original as CategoryRow;
+          return renderCategoryServicesNamesHover(serviceNamesForCatalogCategory(cat, services));
+        },
+      },
       {
         Header: "Status",
         accessor: "is_active",
@@ -400,7 +676,6 @@ const MyFranchise = () => {
                 e.stopPropagation();
                 setCategoryActive(cat._id, e.target.value === "active");
               }}
-           
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -409,7 +684,7 @@ const MyFranchise = () => {
         },
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, services]
   );
 
   const tableColumns = useMemo(() => {
@@ -419,51 +694,79 @@ const MyFranchise = () => {
       case "box-areas":
         return areaColumns;
       case "box-services":
-        return serviceColumns;
+        return servicesViewMode === "requested" ? requestedServiceColumns : serviceColumns;
       case "box-categories":
-        return categoryColumns;
+        return categoriesViewMode === "requested" ? requestedCategoryColumns : categoryColumns;
       default:
         return employeeColumns;
     }
-  }, [selectedBox, employeeColumns, areaColumns, serviceColumns, categoryColumns]);
+  }, [
+    selectedBox,
+    servicesViewMode,
+    categoriesViewMode,
+    employeeColumns,
+    areaColumns,
+    serviceColumns,
+    requestedServiceColumns,
+    categoryColumns,
+    requestedCategoryColumns,
+  ]);
 
-  const boxConfigs: {
-    id: BoxId;
-    title: string;
-    data: Record<string, number>;
-    isAddShow: boolean;
-    addLabel: string;
-    onAdd?: () => void;
-  }[] = [
-    {
-      id: "box-employees",
-      title: "Employees",
-      data: employeesSummary,
-      isAddShow: false,
-      addLabel: "",
-    },
-    {
-      id: "box-areas",
-      title: "Areas",
-      data: areasSummary,
-      isAddShow: false,
-      addLabel: "",
-    },
-    {
-      id: "box-services",
-      title: "Services",
-      data: servicesSummary,
-      isAddShow: false,
-      addLabel: "",
-    },
-    {
-      id: "box-categories",
-      title: "Categories",
-      data: categoriesSummary,
-      isAddShow: false,
-      addLabel: "",
-    },
-  ];
+  const boxConfigs = useMemo((): FranchiseBoxConfig[] => {
+    return [
+      {
+        id: "box-employees",
+        title: "Employees",
+        data: employeesSummary,
+        isAddShow: true,
+        addLabel: "Add Employee",
+        onAdd: () => {
+          FranchiseEmployeeDialog.showAdd(() => {
+            void reloadFranchiseData();
+          });
+        },
+      },
+      {
+        id: "box-areas",
+        title: "Areas",
+        data: areasSummary,
+        isAddShow: false,
+        addLabel: "",
+      },
+      {
+        id: "box-services",
+        title: "Services",
+        data: servicesSummary,
+        isAddShow: true,
+        addLabel: "Add request",
+        onAdd: () => {
+          RequestedServiceDialog.showAdd(categorySelectOptions, () => {
+            void reloadFranchiseData();
+          });
+        },
+      },
+      {
+        id: "box-categories",
+        title: "Categories",
+        data: categoriesSummary,
+        isAddShow: true,
+        addLabel: "Add request",
+        onAdd: () => {
+          RequestedCategoryDialog.showAdd(franchiseServiceOptionsForCategoryDialog, () => {
+            void reloadFranchiseData();
+          });
+        },
+      },
+    ];
+  }, [
+    employeesSummary,
+    areasSummary,
+    servicesSummary,
+    categoriesSummary,
+    categorySelectOptions,
+    franchiseServiceOptionsForCategoryDialog,
+    reloadFranchiseData,
+  ]);
 
   return (
     <div className="main-page-content my-franchise-page">
@@ -485,13 +788,34 @@ const MyFranchise = () => {
             isAddShow={cfg.isAddShow}
             addButtonLable={cfg.addLabel}
             onAddClick={cfg.onAdd}
+            onItemClick={
+              cfg.id === "box-services"
+                ? (key) => {
+                    if (key === "requested_service") {
+                      setSelectedBox("box-services");
+                      setServicesViewMode("requested");
+                      setStatusFilter(undefined);
+                      setCurrentPage(1);
+                    }
+                  }
+                : cfg.id === "box-categories"
+                  ? (key) => {
+                      if (key === "requested_category") {
+                        setSelectedBox("box-categories");
+                        setCategoriesViewMode("requested");
+                        setStatusFilter(undefined);
+                        setCurrentPage(1);
+                      }
+                    }
+                  : undefined
+            }
           />
         ))}
       </div>
 
       <CustomUtilityBox
         title={utilityTitle}
-        searchHint="Search name, ID, Description etc."
+        searchHint={utilitySearchHint}
         hideMoreIcon
         toolsInlineRow
         onDownloadClick={async () => {}}
@@ -510,7 +834,11 @@ const MyFranchise = () => {
           pageSize={pageSize}
           currentPage={currentPage}
           totalPages={totalPages}
-          horizontalScroll
+          horizontalScroll={
+            selectedBox !== "box-areas" &&
+            !(selectedBox === "box-services" && servicesViewMode === "requested") &&
+            !(selectedBox === "box-categories" && categoriesViewMode === "requested")
+          }
           onPageChange={(page: number) => setCurrentPage(page)} 
           onLimitChange={(limit: number) => {
             setPageSize(limit);

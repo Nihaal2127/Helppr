@@ -10,6 +10,13 @@ import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateFranchise } from "../../services/franchiseService";
+import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchService } from "../../services/servicesService";
+import {
+    MOCK_FRANCHISE_CATEGORY_DROPDOWN,
+    MOCK_FRANCHISE_SERVICES_LIST,
+    USE_MOCK_FRANCHISE_CATALOG,
+} from "../../mockData/franchiseCatalogMock";
 import { openDialog } from "../../helper/DialogManager";
 
 type AddEditFranchiseDialogProps = {
@@ -24,6 +31,35 @@ type OptionType = {
     value: string;
     label: string;
 };
+
+type ServiceLite = {
+    _id: string;
+    name: string;
+    category_id: string;
+    category_name?: string;
+};
+
+type ViewCategoryServicesGroup = {
+    categoryId: string;
+    categoryLabel: string;
+    services: string[];
+};
+
+const UNCATEGORIZED_KEY = "__uncategorized__";
+/** Services with no resolvable category_id — single row, never labeled "Other". */
+const FLAT_SERVICES_KEY = "__services_flat__";
+
+function parseMultiSelectIds(selectedOptions: OptionType[], allOptions: OptionType[]): string[] {
+    const isSelectAllSelected = selectedOptions.some((o) => o.value === "select-all");
+    const all = allOptions.filter((s) => s.value !== "select-all");
+    if (isSelectAllSelected) {
+        const isAllSelected =
+            selectedOptions.length - 1 === all.length &&
+            all.every((svc) => selectedOptions.some((sel) => sel.value === svc.value));
+        return isAllSelected ? [] : all.map((s) => s.value);
+    }
+    return selectedOptions.map((o) => o.value).filter((v) => v !== "select-all");
+}
 
 type FranchiseFormValues = Omit<FranchiseModel, "area_id"> & {
     area_id: string[];
@@ -164,6 +200,11 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     ]);
     const [localViewMode, setLocalViewMode] = useState(isViewMode);
 
+    const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
+    const [allServices, setAllServices] = useState<ServiceLite[]>([]);
+    const [categoryIds, setCategoryIds] = useState<string[]>([]);
+    const [serviceIds, setServiceIds] = useState<string[]>([]);
+
     const selectedState = watch("state_id");
     const selectedCity = watch("city_id");
     const selectedAdmin = watch("admin_id");
@@ -175,6 +216,191 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     const areaOptions = useMemo(() => {
         return areaOptionsMap[selectedCity] || [];
     }, [selectedCity]);
+
+    const serviceOptions = useMemo(
+        () => [{ value: "select-all", label: "Select All" }, ...allServices.map((s) => ({ value: s._id, label: s.name }))],
+        [allServices]
+    );
+
+    const selectedCategoryOptions = useMemo(
+        () => categoryOptions.filter((c) => categoryIds.includes(c.value)),
+        [categoryOptions, categoryIds]
+    );
+
+    const selectedServiceOptions = useMemo(
+        () => serviceOptions.filter((s) => serviceIds.includes(s.value)),
+        [serviceOptions, serviceIds]
+    );
+
+    /** View mode: one row per category with its services in the adjacent column. */
+    const viewCategoryServiceGroups = useMemo((): ViewCategoryServicesGroup[] => {
+        if (!franchise) return [];
+
+        const svcIds = (franchise.service_ids ?? []).map(String);
+        const svcNames = franchise.service_names;
+        const catIdsOrder = (franchise.category_ids ?? []).map(String);
+        const catNames = franchise.category_names;
+
+        const serviceLabel = (sid: string, index: number): string => {
+            const fromAll = allServices.find((x) => String(x._id) === sid);
+            if (fromAll?.name) return fromAll.name;
+            if (Array.isArray(svcNames) && svcNames[index] != null && svcNames[index] !== "") {
+                return String(svcNames[index]);
+            }
+            return sid;
+        };
+
+        const categoryLabel = (cid: string): string => {
+            if (cid === FLAT_SERVICES_KEY) return "Services";
+            const opt = categoryOptions.find((o) => String(o.value) === cid && o.value !== "select-all");
+            if (opt?.label) return opt.label;
+            const idx = catIdsOrder.indexOf(cid);
+            if (Array.isArray(catNames) && idx >= 0 && catNames[idx] != null && String(catNames[idx]).trim()) {
+                return String(catNames[idx]);
+            }
+            const svc = allServices.find((x) => String(x.category_id) === cid);
+            if (svc?.category_name) return svc.category_name;
+            return cid;
+        };
+
+        const byCat = new Map<string, string[]>();
+        const insertOrder: string[] = [];
+
+        const pushService = (cid: string, label: string) => {
+            if (!byCat.has(cid)) {
+                byCat.set(cid, []);
+                insertOrder.push(cid);
+            }
+            const arr = byCat.get(cid)!;
+            if (!arr.includes(label)) arr.push(label);
+        };
+
+        svcIds.forEach((sid, index) => {
+            const label = serviceLabel(sid, index);
+            const s = allServices.find((x) => String(x._id) === sid);
+            const cid = s?.category_id ? String(s.category_id) : "";
+            pushService(cid || UNCATEGORIZED_KEY, label);
+        });
+
+        for (const cid of catIdsOrder) {
+            if (!byCat.has(cid)) {
+                byCat.set(cid, []);
+                if (!insertOrder.includes(cid)) insertOrder.push(cid);
+            }
+        }
+
+        /** Merge API-unknown services into real categories (round-robin); never show "Other". */
+        const orphanLabels = [...(byCat.get(UNCATEGORIZED_KEY) ?? [])];
+        if (orphanLabels.length) {
+            byCat.delete(UNCATEGORIZED_KEY);
+            const uIdx = insertOrder.indexOf(UNCATEGORIZED_KEY);
+            if (uIdx !== -1) insertOrder.splice(uIdx, 1);
+
+            const uniqueInsert = insertOrder.filter((c) => c !== UNCATEGORIZED_KEY).filter((c, i, a) => a.indexOf(c) === i);
+            const pool = catIdsOrder.length > 0 ? catIdsOrder : uniqueInsert;
+
+            if (pool.length > 0) {
+                orphanLabels.forEach((label, i) => {
+                    const cid = pool[i % pool.length];
+                    if (!byCat.has(cid)) {
+                        byCat.set(cid, []);
+                        if (!insertOrder.includes(cid)) insertOrder.push(cid);
+                    }
+                    const arr = byCat.get(cid)!;
+                    if (!arr.includes(label)) arr.push(label);
+                });
+            } else {
+                if (!byCat.has(FLAT_SERVICES_KEY)) {
+                    byCat.set(FLAT_SERVICES_KEY, []);
+                    insertOrder.push(FLAT_SERVICES_KEY);
+                }
+                const flat = byCat.get(FLAT_SERVICES_KEY)!;
+                orphanLabels.forEach((label) => {
+                    if (!flat.includes(label)) flat.push(label);
+                });
+            }
+        }
+
+        const built: ViewCategoryServicesGroup[] = [];
+        const seen = new Set<string>();
+
+        for (const cid of catIdsOrder) {
+            if (!byCat.has(cid)) continue;
+            built.push({
+                categoryId: cid,
+                categoryLabel: categoryLabel(cid),
+                services: byCat.get(cid)!,
+            });
+            seen.add(cid);
+        }
+        for (const cid of insertOrder) {
+            if (cid === UNCATEGORIZED_KEY) continue;
+            if (seen.has(cid)) continue;
+            built.push({
+                categoryId: cid,
+                categoryLabel: categoryLabel(cid),
+                services: byCat.get(cid) ?? [],
+            });
+            seen.add(cid);
+        }
+
+        if (built.length === 0 && Array.isArray(catNames) && catNames.length > 0 && svcIds.length === 0) {
+            return catNames.map((label, i) => ({
+                categoryId: `cat-name-${i}`,
+                categoryLabel: String(label),
+                services: [],
+            }));
+        }
+
+        return built;
+    }, [franchise, allServices, categoryOptions]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            try {
+                const [cats, svcRes] = await Promise.all([
+                    USE_MOCK_FRANCHISE_CATALOG
+                        ? Promise.resolve(MOCK_FRANCHISE_CATEGORY_DROPDOWN.map((c) => ({ ...c })))
+                        : fetchCategoryDropDown(),
+                    USE_MOCK_FRANCHISE_CATALOG
+                        ? Promise.resolve({
+                              response: true,
+                              services: MOCK_FRANCHISE_SERVICES_LIST,
+                              totalPages: 1,
+                          })
+                        : fetchService(1, 500, {}),
+                ]);
+                if (cancelled) return;
+                const catList = Array.isArray(cats) ? cats.filter((c: any) => c?.value) : [];
+                setCategoryOptions([{ value: "select-all", label: "Select All" }, ...catList]);
+                const list = svcRes?.response && Array.isArray(svcRes.services) ? svcRes.services : [];
+                setAllServices(
+                    list.map((s: any) => ({
+                        _id: String(s._id),
+                        name: String(s.name ?? ""),
+                        category_id: String(s.category_id ?? ""),
+                        category_name: s.category_name ? String(s.category_name) : undefined,
+                    }))
+                );
+            } catch {
+                if (!cancelled) {
+                    setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+                    setAllServices([]);
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!franchise && !isEditable) {
+            setCategoryIds([]);
+            setServiceIds([]);
+        }
+    }, [franchise, isEditable]);
 
     useEffect(() => {
         if (isEditable && franchise) {
@@ -194,6 +420,11 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
             setAreaIds(editAreaIds);
             setValue("area_id", editAreaIds);
+
+            const c = franchise.category_ids ?? [];
+            const s = franchise.service_ids ?? [];
+            setCategoryIds(Array.isArray(c) ? c.map(String) : []);
+            setServiceIds(Array.isArray(s) ? s.map(String) : []);
         }
     }, [isEditable, franchise, setValue]);
 
@@ -215,6 +446,55 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         setAreaIds(selectedIds);
         setValue("area_id", selectedIds, { shouldValidate: true });
     };
+
+    const handleCategorySelection = (selectedOptions: OptionType[]) => {
+        const selectedIds = parseMultiSelectIds(selectedOptions, categoryOptions);
+        const removedCategoryIds = categoryIds.filter((id) => !selectedIds.includes(id));
+        setCategoryIds(selectedIds);
+
+        const auto = allServices
+            .filter((svc) => selectedIds.includes(String(svc.category_id)))
+            .map((svc) => String(svc._id));
+
+        setServiceIds((prev) => {
+            const withoutDeselectedCategories = prev.filter((sid) => {
+                const svc = allServices.find((x) => String(x._id) === String(sid));
+                if (!svc) return true;
+                return !removedCategoryIds.includes(String(svc.category_id));
+            });
+            const manual = withoutDeselectedCategories.filter((sid) => {
+                const svc = allServices.find((x) => String(x._id) === String(sid));
+                if (!svc) return true;
+                if (selectedIds.length === 0) return true;
+                return !selectedIds.includes(String(svc.category_id));
+            });
+            const merged = auto.concat(manual);
+            const uniq: string[] = [];
+            for (let i = 0; i < merged.length; i++) {
+                const id = merged[i];
+                if (uniq.indexOf(id) === -1) uniq.push(id);
+            }
+            return uniq;
+        });
+    };
+
+    const handleServiceSelection = (selectedOptions: OptionType[]) => {
+        const selectedIds = parseMultiSelectIds(selectedOptions, serviceOptions);
+        setServiceIds(selectedIds);
+    };
+
+    /** If no service from a category remains selected, drop that category from the Category field. */
+    useEffect(() => {
+        if (allServices.length === 0) return;
+        setCategoryIds((prev) =>
+            prev.filter((catId) =>
+                serviceIds.some((sid) => {
+                    const svc = allServices.find((x) => String(x._id) === String(sid));
+                    return Boolean(svc && String(svc.category_id) === String(catId));
+                })
+            )
+        );
+    }, [serviceIds, allServices]);
 
     const handleAddAdmin = useCallback(() => {
         const adminName = window.prompt("Enter new admin name");
@@ -279,6 +559,14 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                     item.value === data.admin_id && item.value !== "add_new_admin"
             )?.label || "";
 
+        const categoryOpts = categoryOptions.filter((c) => c.value !== "select-all");
+        const selectedCategoryLabels = categoryOpts
+            .filter((c) => categoryIds.includes(c.value))
+            .map((c) => c.label);
+        const selectedServiceLabels = allServices
+            .filter((s) => serviceIds.includes(String(s._id)))
+            .map((s) => s.name);
+
         const payload = {
             name: data.name,
             desc: data.desc,
@@ -291,6 +579,10 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             admin_id: data.admin_id,
             admin_name: selectedAdminLabel,
             is_active: data.is_active,
+            category_ids: categoryIds,
+            category_names: selectedCategoryLabels,
+            service_ids: serviceIds,
+            service_names: selectedServiceLabels,
         };
 
         let response;
@@ -313,7 +605,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     };
 
     return (
-        <Modal show={true} onHide={onClose} centered size="lg">
+        <Modal show={true} onHide={onClose} centered size="lg" enforceFocus={false}>
             <Modal.Header className="py-3 px-4 border-bottom-0">
                 <Modal.Title as="h5" className="custom-modal-title">
                     {localViewMode ? "Franchise Details" : isEditable ? "Edit Franchise" : "Add Franchise"}
@@ -335,24 +627,104 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
                         <div className="row">
                             <div className="col-md-6 custom-helper-column">
-                                <DetailsRow title="Franchise ID" value={franchise._id} />
                                 <DetailsRow title="Franchise Name" value={franchise.name} />
                                 <DetailsRow title="State" value={franchise.state_name ?? franchise.state_id} />
                                 <DetailsRow title="City" value={franchise.city_name ?? franchise.city_id} />
                             </div>
 
                             <div className="col-md-6 custom-helper-column">
-                                <DetailsRow
-                                    title="Area"
-                                    value={
-                                        Array.isArray((franchise as any).area_name)
+                                <div className="row custom-personal-row">
+                                    <label className="col-md-3 custom-personal-row-title">Admin</label>
+                                    <label className="col-md-9 custom-personal-row-value">
+                                        {franchise.admin_name ?? franchise.admin_id ?? "-"}
+                                    </label>
+                                </div>
+                                <div className="row custom-personal-row">
+                                    <label className="col-md-3 custom-personal-row-title">Area</label>
+                                    <label className="col-md-9 custom-personal-row-value text-wrap">
+                                        {Array.isArray((franchise as any).area_name)
                                             ? (franchise as any).area_name.join(", ")
-                                            : (franchise as any).area_name ?? franchise.area_id
-                                    }
-                                />
-                                <DetailsRow title="Admin" value={franchise.admin_name ?? franchise.admin_id} />
-                                <DetailsRow title="Status" value={franchise.is_active ? "Active" : "Inactive"} />
-                                <DetailsRow title="Contact" value={(franchise as any).contact ?? "-"} />
+                                            : (franchise as any).area_name ?? franchise.area_id ?? "-"}
+                                    </label>
+                                </div>
+                                <div className="row custom-personal-row">
+                                    <label className="col-md-3 custom-personal-row-title">Status</label>
+                                    <label className="col-md-9 custom-personal-row-value">
+                                        {franchise.is_active ? "Active" : "Inactive"}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="row mt-3">
+                            <div className="col-12">
+                                <div
+                                    className="rounded border px-3 py-2"
+                                    style={{
+                                        backgroundColor: "var(--bg-color)",
+                                        borderColor: "var(--lb1-border)",
+                                    }}
+                                >
+                                    <div
+                                        className="custom-personal-row-title mb-2"
+                                    >
+                                        Categories &amp; services
+                                    </div>
+                                    {viewCategoryServiceGroups.length === 0 ? (
+                                        <div className="text-muted small py-1">-</div>
+                                    ) : (
+                                        <div className="table-responsive">
+                                            <table
+                                                className="table table-sm table-bordered mb-0 align-middle"
+                                                style={{
+                                                    fontSize: "13px",
+                                                    color: "var(--content-txt-color)",
+                                                    borderColor: "var(--lb1-border)",
+                                                }}
+                                            >
+                                                <thead>
+                                                    <tr className="" style={{ borderColor: "var(--lb1-border)" }}>
+                                                        <th
+                                                            scope="col"
+                                                            className="fw-semibold  py-2 ps-3 pe-0"
+                                                            style={{ width: "22%", minWidth: "120px", color: "var(--primary-txt-color)" }}
+                                                        >
+                                                            Category
+                                                        </th>
+                                                        <th scope="col" className="fw-semibold  py-2 ps-3 pe-0" style={{ color: "var(--primary-txt-color)" }}>
+                                                            Services offered
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {viewCategoryServiceGroups.map((g) => (
+                                                        <tr
+                                                            key={g.categoryId}
+                                                            style={{ borderColor: "var(--lb1-border)" }}
+                                                        >
+                                                            <td className="align-top py-2 ps-3 text-wrap">
+                                                                <span style={{ color: "#101010" }}>
+                                                                    {g.categoryLabel}
+                                                                </span>
+                                                            </td>
+                                                            <td className="align-top py-2 ps-3 pe-0">
+                                                                <div
+                                                                    className="text-wrap"
+                                                                >
+                                                                    {g.services.length > 0 ? (
+                                                                        <span>{g.services.join(", ")}</span>
+                                                                    ) : (
+                                                                        <span className="text-muted">—</span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -380,6 +752,20 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                                     error={errors.name}
                                     asCol={false}
                                     validation={{ required: "Franchise name is required" }}
+                                />
+                            </Col>
+                            <Col md={6}>
+                                <CustomFormSelect
+                                    label="Admin"
+                                    controlId="Admin"
+                                    options={adminOptions}
+                                    register={register as unknown as UseFormRegister<any>}
+                                    fieldName="admin_id"
+                                    error={errors.admin_id}
+                                    asCol={false}
+                                    requiredMessage="Please select admin"
+                                    defaultValue={isEditable ? franchise?.admin_id : ""}
+                                    setValue={setValue as (name: string, value: any) => void}
                                 />
                             </Col>
 
@@ -422,25 +808,43 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                                     onChange={(selectedOptions) => {
                                         handleAreaSelection(selectedOptions as OptionType[]);
                                     }}
+                                    selectedChipsMaxHeight="100px"
                                     asCol={false}
                                 />
                             </Col>
+                            
 
                             <Col md={6}>
-                                <CustomFormSelect
-                                    label="Admin"
-                                    controlId="Admin"
-                                    options={adminOptions}
-                                    register={register as unknown as UseFormRegister<any>}
-                                    fieldName="admin_id"
-                                    error={errors.admin_id}
+                                <CustomMultiSelect
+                                    label="Category"
+                                    controlId="Category"
+                                    options={categoryOptions}
+                                    value={selectedCategoryOptions}
+                                    onChange={(opts) => handleCategorySelection(opts as OptionType[])}
                                     asCol={false}
-                                    requiredMessage="Please select admin"
-                                    defaultValue={isEditable ? franchise?.admin_id : ""}
-                                    setValue={setValue as (name: string, value: any) => void}
+                                    menuPortal
+                                    selectedChipsMaxHeight="100px"
                                 />
                             </Col>
-                            <Col md={6}>
+                        </Row>
+                        <Row>
+                            <Col md={12}>
+                                <CustomMultiSelect
+                                    label="Services"
+                                    controlId="Services"
+                                    options={serviceOptions}
+                                    value={selectedServiceOptions}
+                                    onChange={(opts) => handleServiceSelection(opts as OptionType[])}
+                                    asCol={false}
+                                    menuPortal
+                                    selectedChipsMaxHeight="180px"
+                                />
+                            </Col>
+                        </Row>
+
+                        
+                        <Row>
+                        <Col md={6}>
                                 <CustomRadioSelection
                                     label="Status"
                                     name="is_active"
