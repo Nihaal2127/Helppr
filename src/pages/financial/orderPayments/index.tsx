@@ -25,20 +25,20 @@ import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 const ORDER_STATUS_OPTIONS = [
-  { value: "", label: "All order statuses" },
+  { value: "", label: "All" },
   { value: "3", label: "Completed" },
   { value: "2", label: "In progress" },
 ] as const;
 
 const PARTNER_PAYMENT_STATUS_OPTIONS = [
-  { value: "", label: "All partner payment statuses" },
+  { value: "", label: "All" },
   { value: "paid", label: "Paid" },
   { value: "pending", label: "Pending" },
   { value: "partially_paid", label: "Partially paid" },
 ] as const;
 
 const CUSTOMER_PAYMENT_STATUS_OPTIONS = [
-  { value: "", label: "All customer payment statuses" },
+  { value: "", label: "All" },
   { value: "paid", label: "Paid" },
   { value: "pending", label: "Pending" },
   { value: "partially_paid", label: "Partially paid" },

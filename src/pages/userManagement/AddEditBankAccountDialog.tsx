@@ -121,14 +121,14 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                                 error={errors.bank_name}
                                 validation={{ required: "Bank name is required" }}
                             />
-                            {/* <CustomTextField
+                            <CustomTextField
                                 label="Branch Name"
                                 controlId="branch_name"
                                 placeholder="Enter Branch Name"
                                 register={register}
                                 error={errors.branch_name}
                                 validation={{ required: "Branch name is required" }}
-                            /> */}
+                            />
                              <CustomTextFieldRadio
                                 label="Account Status"
                                 name="is_active"

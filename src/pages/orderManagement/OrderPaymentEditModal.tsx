@@ -1,13 +1,16 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Modal, Button, Form, Table } from "react-bootstrap";
+import { Modal, Button, Form, Table, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
 import { createOrUpdateOrder } from "../../services/orderService";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import { CustomFormInput } from "../../components/CustomFormInput";
+import CustomFormSelect from "../../components/CustomFormSelect";
 import { useForm } from "react-hook-form";
 import { showErrorAlert } from "../../helper/alertHelper";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type {
     CustomerPaymentRow,
     OrderPaymentExtV1,
@@ -45,8 +48,7 @@ const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 /** Shared typography for payment edit (matches order info density). */
 const FONT_BODY = "0.9375rem";
-const FONT_LABEL = "0.8125rem";
-const FONT_SECTION = "1rem";
+const FONT_LABEL = "14px";
 const FONT_TOTAL = "1.125rem";
 
 const moneyTabular: React.CSSProperties = {
@@ -54,41 +56,32 @@ const moneyTabular: React.CSSProperties = {
     whiteSpace: "nowrap",
 };
 
-const billCard: React.CSSProperties = {
-    backgroundColor: "var(--bg-color, #f8f9fa)",
+/** Match `OrderInfoDialog` section panels. */
+const sectionShell: React.CSSProperties = {
+    padding: "14px 16px",
     borderRadius: "10px",
-    border: "1px solid var(--txtfld-border, rgba(0,0,0,0.1))",
+    border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08))",
+    backgroundColor: "var(--bg-color)",
 };
 
-/** One major panel (services, price summary, payments). */
-const sectionBlock: React.CSSProperties = {
-    ...billCard,
-    marginBottom: "1.35rem",
+/** Match `OrderInfoDialog` payment sub-cards / bordered tables. */
+const paymentSubcard: React.CSSProperties = {
+    // borderRadius: "8px",
+    // border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1))",
+    backgroundColor: "var(--bg-color)",
 };
 
-/** Full-width title strip under a block top edge. */
-const sectionBlockHeader: React.CSSProperties = {
+const tableThStyle: React.CSSProperties = {
+    color: "var(--primary-txt-color)",
     fontSize: FONT_LABEL,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "var(--content-txt-color, #6c757d)",
-    marginBottom: "14px",
-    paddingBottom: "10px",
-    borderBottom: "2px solid var(--txtfld-border, rgba(0,0,0,0.12))",
+    // borderColor: "var(--lb1-border, var(--txtfld-border))",
 };
 
-const blockTitleInline: React.CSSProperties = {
-    fontSize: FONT_SECTION,
-    fontWeight: 700,
-    color: "var(--primary-txt-color, #1a1a1a)",
-};
-
-const serviceTableShell: React.CSSProperties = {
-    borderRadius: "8px",
-    overflow: "hidden",
-    border: "1px solid var(--txtfld-border, rgba(0,0,0,0.1))",
-    backgroundColor: "#fff",
+const tablePriceInputStyle: React.CSSProperties = {
+    ...moneyTabular,
+    marginBottom: 0,
+    fontSize: FONT_BODY,
+    textAlign: "right",
 };
 
 const summaryRow: React.CSSProperties = {
@@ -143,24 +136,6 @@ const summaryTotalValue: React.CSSProperties = {
     ...moneyTabular,
 };
 
-const footerRow: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "8px 0",
-    fontSize: FONT_BODY,
-};
-
-const footerLabel: React.CSSProperties = {
-    color: "var(--content-txt-color, #6c757d)",
-    fontWeight: 500,
-};
-
-const footerValue: React.CSSProperties = {
-    fontWeight: 600,
-    ...moneyTabular,
-};
-
 const offerSubline: React.CSSProperties = {
     fontSize: FONT_LABEL,
     fontWeight: 500,
@@ -179,19 +154,28 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
 
     const [ext, setExt] = useState<OrderPaymentExtV1>(() => {
         const base = resolvePaymentExtension(order, primary);
-        const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary);
+        const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary, order);
         return { ...base, taxPercent: taxPct, commissionPercent: commissionPct };
     });
     const { register, setValue } = useForm<any>();
-    const [otherDeleteAck, setOtherDeleteAck] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         const base = resolvePaymentExtension(order, primary);
-        const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary);
+        const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary, order);
         setExt({ ...base, taxPercent: taxPct, commissionPercent: commissionPct });
-    }, [order._id, order.comment, primary]);
+    }, [
+        order._id,
+        order.comment,
+        order.sub_total,
+        order.tax,
+        order.partner_commison_platform_fee,
+        primary,
+    ]);
 
-    const { taxPct, commissionPct } = useMemo(() => getServiceTaxCommissionPercents(primary), [primary]);
+    const { taxPct, commissionPct } = useMemo(
+        () => getServiceTaxCommissionPercents(primary, order),
+        [primary, order]
+    );
 
     const otherSum = useMemo(() => otherChargesTotal(ext.otherCharges), [ext.otherCharges]);
     const combinedServiceBase = useMemo(
@@ -232,13 +216,19 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
         [preAdjustTotal, offerBreakdown.appliedDiscount, orderDiscount]
     );
 
+    /** Partner obligation before tax/commission: service + other charges minus partner offer share. */
+    const partnerDueTotal = useMemo(
+        () => Math.max(0, combinedServiceBase - offerBreakdown.partnerContribution),
+        [combinedServiceBase, offerBreakdown.partnerContribution]
+    );
+
     const customerPaidBal = useMemo(
         () => customerPaidBalanceForEdit(ext, finalTotal, !!order.is_paid),
         [ext, finalTotal, order.is_paid]
     );
     const partnerPaidBal = useMemo(
-        () => partnerPaidBalanceForEdit(ext, finalTotal, ext.serviceAmount, !!order.is_paid),
-        [ext, finalTotal, order.is_paid]
+        () => partnerPaidBalanceForEdit(ext, partnerDueTotal, ext.serviceAmount, !!order.is_paid),
+        [ext, partnerDueTotal, order.is_paid]
     );
 
     const canAddCustomerPayment = customerPaidBal.balance > 0.009;
@@ -267,17 +257,50 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
         }));
     };
 
-    const tryDeleteOtherRow = (id: string) => {
-        if (!otherDeleteAck[id]) {
-            showErrorAlert("Select the checkbox for this row, then use Delete.");
-            return;
-        }
+    const addOtherServiceChargeRow = () => {
+        setExt((e) => ({
+            ...e,
+            otherCharges: [...e.otherCharges, { id: nid(), amount: 0, description: "", serviceName: "" }],
+        }));
+    };
+
+    const removeOtherChargeRow = (id: string) => {
         setExt((e) => ({ ...e, otherCharges: e.otherCharges.filter((r) => r.id !== id) }));
-        setOtherDeleteAck((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
+    };
+
+    const confirmRemoveOtherChargeRow = (id: string) => {
+        openConfirmDialog(
+            "Are you sure you want to remove this additional service charge? This cannot be undone.",
+            "Delete",
+            "Cancel",
+            () => removeOtherChargeRow(id)
+        );
+    };
+
+    const confirmRemoveCustomerPaymentRow = (id: string) => {
+        openConfirmDialog(
+            "Are you sure you want to delete this user payment entry?",
+            "Delete",
+            "Cancel",
+            () =>
+                setExt((e) => ({
+                    ...e,
+                    customerPayments: e.customerPayments.filter((r) => r.id !== id),
+                }))
+        );
+    };
+
+    const confirmRemovePartnerPaymentRow = (id: string) => {
+        openConfirmDialog(
+            "Are you sure you want to delete this partner payment entry?",
+            "Delete",
+            "Cancel",
+            () =>
+                setExt((e) => ({
+                    ...e,
+                    partnerPayments: e.partnerPayments.filter((r) => r.id !== id),
+                }))
+        );
     };
 
     const save = async () => {
@@ -288,11 +311,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
         const custSum = sumCustomerAmounts(ext.customerPayments);
         const partSum = sumPartnerAmounts(ext.partnerPayments);
         if (custSum > finalTotal + 0.01) {
-            showErrorAlert("Sum of customer payment amounts cannot exceed the final total.");
+            showErrorAlert("Sum of user payment amounts cannot exceed the final total.");
             return;
         }
-        if (!partnerLock && partSum > ext.serviceAmount + 0.01) {
-            showErrorAlert("Sum of partner payment amounts cannot exceed the service amount.");
+        if (!partnerLock && partSum > partnerDueTotal + 0.01) {
+            showErrorAlert(
+                "Sum of partner payment amounts cannot exceed the partner total (service charges minus partner offer share, excluding tax and commission)."
+            );
             return;
         }
 
@@ -319,100 +344,101 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
 
     return (
         <Modal show onHide={onClose} centered size="xl" dialogClassName="custom-big-modal" enforceFocus={false}>
-            <Modal.Header className="py-3 px-4 border-bottom-0">
-                <Modal.Title as="h5" className="custom-modal-title">
-                    Edit order payments
-                </Modal.Title>
-                <CustomCloseButton onClose={onClose} />
-            </Modal.Header>
-            <Modal.Body className="px-4 pb-4 pt-3" style={{ maxHeight: "78vh", overflowY: "auto", fontSize: FONT_BODY }}>
+            <div className="custom-order-model-detail">
+                <Modal.Header className="py-3 px-4 border-bottom-0">
+                    <Modal.Title as="h5" className="custom-modal-title">
+                        Edit order payments
+                    </Modal.Title>
+                    <CustomCloseButton onClose={onClose} />
+                </Modal.Header>
+                <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "75vh", overflowY: "auto", fontSize: FONT_BODY }}>
                 {/* Services */}
-                <div className="p-3" style={sectionBlock}>
-                    <div style={sectionBlockHeader}>Services</div>
-                    <div style={serviceTableShell}>
-                        <Table responsive bordered size="sm" className="mb-0 align-middle">
+                <section className="custom-other-details mt-2" style={sectionShell}>
+                    <Row className="align-items-center mb-3 pb-2 border-bottom">
+                        <Col>
+                            <h3 className="mb-0">Services</h3>
+                        </Col>
+                    </Row>
+                    <div className="table-responsive" style={paymentSubcard}>
+                        <Table
+                            responsive
+                            bordered
+                            size="sm"
+                            className="mb-0 align-middle"
+                            style={{ color: "var(--content-txt-color)",  width: "100%" }}
+                        >
+                            <colgroup>
+                                <col style={{ width: 50 }} />
+                                <col style={{ width: 250 }} />
+                                <col />
+                                <col style={{ width: 120 }} />
+                                <col style={{ width: 44}}/>
+                            </colgroup>
                             <thead className="table-light">
-                                <tr>
-                                    <th
-                                        className="text-center fw-semibold text-secondary"
-                                        style={{ width: "100px", fontSize: FONT_LABEL, letterSpacing: "0.05em", verticalAlign: "middle" }}
-                                    >
-                                        <div className="text-uppercase">Select</div>
-                                        <div className="text-uppercase mt-1 opacity-75" style={{ fontSize: "0.7rem" }}>
-                                            Delete
-                                        </div>
+                                <tr style={{ borderColor: "var(--lb1-border, var(--txtfld-border))" }}>
+                                    <th className="text-center fw-semibold" style={tableThStyle}>
+                                        S.No
                                     </th>
-                                    <th
-                                        className="text-start fw-semibold text-secondary text-uppercase"
-                                        style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, minWidth: "160px" }}
-                                    >
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
                                         Service name
                                     </th>
-                                    <th
-                                        className="text-start fw-semibold text-secondary text-uppercase"
-                                        style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, minWidth: "120px" }}
-                                    >
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
                                         Description
                                     </th>
-                                    <th
-                                        className="text-end fw-semibold text-secondary text-uppercase"
-                                        style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "128px" }}
-                                    >
+                                    <th className="text-end fw-semibold" style={tableThStyle}>
                                         Price
                                     </th>
+                                    <th className="text-center fw-semibold" style={tableThStyle} aria-label="Add or remove row" />
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td className="align-middle text-center text-muted small">—</td>
-                                    <td className="fw-semibold text-break align-middle" style={{ fontSize: FONT_BODY }}>
+                                    <td className="align-middle text-center fw-medium">1</td>
+                                    <td className="fw-semibold text-break align-middle text-wrap" style={{ fontSize: FONT_BODY }}>
                                         {mainServiceLabel}
                                     </td>
-                                    <td className="text-muted align-middle" style={{ fontSize: FONT_BODY }}>
+                                    <td className="text-muted align-middle text-wrap" style={{ fontSize: FONT_BODY }}>
                                         —
                                     </td>
                                     <td className="align-middle">
-                                        <Form.Control
-                                            size="sm"
-                                            className="custom-form-input text-end"
-                                            style={{ ...moneyTabular, fontSize: FONT_BODY }}
-                                            type="number"
-                                            min={0}
-                                            value={ext.serviceAmount}
-                                            onChange={(e) =>
-                                                setExt((x) => ({ ...x, serviceAmount: Number(e.target.value) || 0 }))
-                                            }
+                                        <CustomFormInput
+                                            label=""
+                                            controlId="order-payment-main-service-amount"
+                                            placeholder="0.00"
+                                            register={register}
+                                            asCol={false}
+                                            inputType="text"
+                                            inputClassName="text-end"
+                                            inputStyle={tablePriceInputStyle}
+                                            value={ext.serviceAmount === 0 ? "" : String(ext.serviceAmount)}
+                                            onChange={(val) => {
+                                                const t = val.trim();
+                                                if (t === "") {
+                                                    setExt((x) => ({ ...x, serviceAmount: 0 }));
+                                                    return;
+                                                }
+                                                const n = parseFloat(t);
+                                                if (!Number.isNaN(n) && n >= 0) {
+                                                    setExt((x) => ({ ...x, serviceAmount: n }));
+                                                }
+                                            }}
                                         />
                                     </td>
+                                    <td className="text-center align-middle">
+                                        <button
+                                            type="button"
+                                            className="btn btn-link p-0 text-success"
+                                            title="Add other service charge"
+                                            aria-label="Add other service charge"
+                                            onClick={addOtherServiceChargeRow}
+                                        >
+                                            <i className="bi bi-plus-circle fs-5" aria-hidden />
+                                        </button>
+                                    </td>
                                 </tr>
-                                {ext.otherCharges.map((row) => (
+                                {ext.otherCharges.map((row, idx) => (
                                     <tr key={row.id}>
-                                        <td className="align-middle bg-light bg-opacity-50">
-                                            <div className="d-flex flex-column align-items-center gap-2 py-2 px-1">
-                                                <Form.Check
-                                                    type="checkbox"
-                                                    checked={!!otherDeleteAck[row.id]}
-                                                    onChange={(e) =>
-                                                        setOtherDeleteAck((prev) => ({
-                                                            ...prev,
-                                                            [row.id]: e.target.checked,
-                                                        }))
-                                                    }
-                                                    aria-label="Select row to delete"
-                                                    className="m-0"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="outline-danger"
-                                                    className="px-2 py-0"
-                                                    style={{ fontSize: FONT_LABEL, minWidth: "4.5rem" }}
-                                                    onClick={() => tryDeleteOtherRow(row.id)}
-                                                >
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </td>
+                                        <td className="align-middle text-center fw-medium">{idx + 2}</td>
                                         <td className="align-middle">
                                             <Form.Control
                                                 size="sm"
@@ -424,7 +450,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                                 }
                                             />
                                         </td>
-                                        <td className="align-middle">
+                                        <td className="align-middle text-wrap" style={{ wordBreak: "break-word" }}>
                                             <Form.Control
                                                 size="sm"
                                                 className="custom-form-input"
@@ -436,16 +462,42 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                             />
                                         </td>
                                         <td className="align-middle">
-                                            <Form.Control
-                                                size="sm"
-                                                className="custom-form-input text-end"
-                                                style={{ ...moneyTabular, fontSize: FONT_BODY }}
-                                                type="number"
-                                                min={0}
-                                                value={row.amount || ""}
-                                                onChange={(e) =>
-                                                    updateOther(row.id, { amount: Number(e.target.value) || 0 })
-                                                }
+                                            <CustomFormInput
+                                                label=""
+                                                controlId={`order-payment-other-amt-${row.id}`}
+                                                placeholder="0.00"
+                                                register={register}
+                                                asCol={false}
+                                                inputType="text"
+                                                inputClassName="text-end"
+                                                inputStyle={tablePriceInputStyle}
+                                                value={row.amount === 0 ? "" : String(row.amount)}
+                                                onChange={(val) => {
+                                                    const t = val.trim();
+                                                    if (t === "") {
+                                                        updateOther(row.id, { amount: 0 });
+                                                        return;
+                                                    }
+                                                    const n = parseFloat(t);
+                                                    if (!Number.isNaN(n) && n >= 0) {
+                                                        updateOther(row.id, { amount: n });
+                                                    }
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="text-center align-middle">
+                                            <i
+                                                className="bi bi-trash text-danger fs-6"
+                                                role="button"
+                                                tabIndex={0}
+                                                title="Remove row"
+                                                aria-label="Remove other service charge row"
+                                                onClick={() => confirmRemoveOtherChargeRow(row.id)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key !== "Enter" && e.key !== " ") return;
+                                                    e.preventDefault();
+                                                    confirmRemoveOtherChargeRow(row.id);
+                                                }}
                                             />
                                         </td>
                                     </tr>
@@ -453,30 +505,15 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             </tbody>
                         </Table>
                     </div>
-                    <div className="d-flex justify-content-end mt-3">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline-primary"
-                            style={{ fontSize: FONT_BODY }}
-                            onClick={() =>
-                                setExt((e) => ({
-                                    ...e,
-                                    otherCharges: [
-                                        ...e.otherCharges,
-                                        { id: nid(), amount: 0, description: "", serviceName: "" },
-                                    ],
-                                }))
-                            }
-                        >
-                            + Add other service charge
-                        </Button>
-                    </div>
-                </div>
+                </section>
 
                 {/* Price summary */}
-                <div className="p-3" style={sectionBlock}>
-                    <div style={sectionBlockHeader}>Price summary</div>
+                <section className="custom-other-details mt-3" style={sectionShell}>
+                    <Row className="align-items-center mb-3 pb-2 border-bottom">
+                        <Col>
+                            <h3 className="mb-0">Price summary</h3>
+                        </Col>
+                    </Row>
                     <div>
                         <div style={summaryRow}>
                             <span style={summaryLabel}>Total services price</span>
@@ -573,285 +610,366 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             </span>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 {/* Customer payments */}
-                <div className="p-3" style={sectionBlock}>
-                    <div
-                        className="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 mb-0"
-                        style={{ borderBottom: "2px solid var(--txtfld-border, rgba(0,0,0,0.1))" }}
-                    >
-                        <span style={blockTitleInline}>Customer payments</span>
-                        <Button
-                            type="button"
+                <section className="custom-other-details mt-3" style={sectionShell}>
+                    <Row className="align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap g-2">
+                        <Col xs="auto" className="me-auto d-flex flex-wrap align-items-baseline gap-2 gap-md-3">
+                            <h3 className="mb-0">User payments</h3>
+                            <span className="text-secondary" style={{ fontSize: FONT_LABEL }}>
+                                Final total
+                            </span>
+                            <span className="fw-semibold" style={{ ...moneyTabular, fontSize: FONT_BODY }}>
+                                {sym}
+                                {finalTotal.toFixed(2)}
+                            </span>
+                        </Col>
+                        <Col xs="auto">
+                            <Button
+                                type="button"
+                                className="custom-btn-secondary w-auto"
+                                disabled={!canAddCustomerPayment}
+                                onClick={() =>
+                                    setExt((e) => ({
+                                        ...e,
+                                        customerPayments: [
+                                            ...e.customerPayments,
+                                            { id: nid(), date: "", amount: 0, type: "COD", description: "" },
+                                        ],
+                                    }))
+                                }
+                            >
+                                Add User payment
+                            </Button>
+                        </Col>
+                    </Row>
+                    <div style={paymentSubcard}>
+                        <Table
+                            responsive
+                            bordered
                             size="sm"
-                            variant="outline-primary"
-                            style={{ fontSize: FONT_BODY }}
-                            disabled={!canAddCustomerPayment}
-                            onClick={() =>
-                                setExt((e) => ({
-                                    ...e,
-                                    customerPayments: [
-                                        ...e.customerPayments,
-                                        { id: nid(), date: "", amount: 0, type: "COD", description: "" },
-                                    ],
-                                }))
-                            }
+                            className="mb-0 align-middle"
+                            style={{ color: "var(--content-txt-color)", width: "100%" }}
                         >
-                            Add customer payment
-                        </Button>
+                            <colgroup>
+                                <col style={{ width: 44 }} />
+                                <col style={{ width: 170 }} />
+                                <col style={{ width: 120 }} />
+                                <col style={{ width: 150 }} />
+                                <col />
+                                <col style={{ width: 44 }} />
+                            </colgroup>
+                            <thead className="table-light">
+                                <tr style={{ borderColor: "var(--lb1-border, var(--txtfld-border))" }}>
+                                    <th className="text-center fw-semibold" style={tableThStyle}>
+                                        S.No
+                                    </th>
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
+                                        Date
+                                    </th>
+                                    <th className="text-end fw-semibold" style={tableThStyle}>
+                                        Paid amount
+                                    </th>
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
+                                        Type
+                                    </th>
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
+                                        Description
+                                    </th>
+                                    <th className="text-center fw-semibold" style={tableThStyle} aria-label="Remove row" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {ext.customerPayments.map((row, idx) => (
+                                    <tr key={row.id}>
+                                        <td className="align-middle text-center fw-medium">{idx + 1}</td>
+                                        <td className="align-middle">
+                                            <CustomDatePicker
+                                                label=""
+                                                controlId={`cdate-${row.id}`}
+                                                selectedDate={row.date || null}
+                                                onChange={(d) => {
+                                                    if (!d) return;
+                                                    const y = d.getFullYear();
+                                                    const m = `${d.getMonth() + 1}`.padStart(2, "0");
+                                                    const day = `${d.getDate()}`.padStart(2, "0");
+                                                    updateCustomer(row.id, { date: `${y}-${m}-${day}` });
+                                                }}
+                                                register={register}
+                                                setValue={setValue}
+                                                asCol={false}
+                                                groupClassName="mb-0"
+                                                filterDate={() => true}
+                                            />
+                                        </td>
+                                        <td className="align-middle">
+                                            <CustomFormInput
+                                                label=""
+                                                controlId={`cust-pay-amt-${row.id}`}
+                                                placeholder="0.00"
+                                                register={register}
+                                                asCol={false}
+                                                inputType="text"
+                                                inputClassName="text-end"
+                                                inputStyle={tablePriceInputStyle}
+                                                value={row.amount === 0 ? "" : String(row.amount)}
+                                                onChange={(val) => {
+                                                    const t = val.trim();
+                                                    if (t === "") {
+                                                        updateCustomer(row.id, { amount: 0 });
+                                                        return;
+                                                    }
+                                                    const n = parseFloat(t);
+                                                    if (!Number.isNaN(n) && n >= 0) {
+                                                        updateCustomer(row.id, { amount: n });
+                                                    }
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="align-middle">
+                                            <CustomFormSelect
+                                                label=""
+                                                controlId={`cust-pay-type-${row.id}`}
+                                                register={register}
+                                                fieldName={`custPayType_${row.id}`}
+                                                options={PAY_TYPES}
+                                                defaultValue={row.type}
+                                                setValue={setValue}
+                                                asCol={false}
+                                                noBottomMargin
+                                                menuPortal
+                                                onChange={(e) => updateCustomer(row.id, { type: e.target.value })}
+                                            />
+                                        </td>
+                                        <td className="align-middle text-wrap" style={{ wordBreak: "break-word" }}>
+                                            <Form.Control
+                                                size="sm"
+                                                className="custom-form-input"
+                                                style={{ fontSize: FONT_BODY, marginBottom: 0 }}
+                                                value={row.description}
+                                                onChange={(e) =>
+                                                    updateCustomer(row.id, { description: e.target.value })
+                                                }
+                                            />
+                                        </td>
+                                        <td className="text-center align-middle">
+                                            <i
+                                                className="bi bi-trash text-danger fs-6"
+                                                role="button"
+                                                tabIndex={0}
+                                                title="Remove row"
+                                                aria-label="Remove user payment row"
+                                                onClick={() => confirmRemoveCustomerPaymentRow(row.id)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key !== "Enter" && e.key !== " ") return;
+                                                    e.preventDefault();
+                                                    confirmRemoveCustomerPaymentRow(row.id);
+                                                }}
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
                     </div>
-                    <div className="mt-3" style={serviceTableShell}>
-                        <Table responsive bordered size="sm" className="mb-0 align-middle">
-                    <thead className="table-light">
-                        <tr>
-                            <th className="small fw-semibold text-secondary text-uppercase" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "22%" }}>
-                                Date
-                            </th>
-                            <th className="small fw-semibold text-secondary text-uppercase text-end" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "20%" }}>
-                                Paid amount
-                            </th>
-                            <th className="small fw-semibold text-secondary text-uppercase" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "18%" }}>
-                                Type
-                            </th>
-                            <th className="small fw-semibold text-secondary text-uppercase" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL }}>
-                                Description
-                            </th>
-                            <th style={{ width: "48px" }} aria-label="Delete row" />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {ext.customerPayments.map((row) => (
-                            <tr key={row.id}>
-                                <td className="align-middle">
-                                    <CustomDatePicker
-                                        label=""
-                                        controlId={`cdate-${row.id}`}
-                                        selectedDate={row.date || null}
-                                        onChange={(d) => {
-                                            if (!d) return;
-                                            const y = d.getFullYear();
-                                            const m = `${d.getMonth() + 1}`.padStart(2, "0");
-                                            const day = `${d.getDate()}`.padStart(2, "0");
-                                            updateCustomer(row.id, { date: `${y}-${m}-${day}` });
-                                        }}
-                                        register={register}
-                                        setValue={setValue}
-                                        asCol={false}
-                                        groupClassName="mb-0"
-                                        filterDate={() => true}
-                                    />
-                                </td>
-                                <td className="align-middle">
-                                    <Form.Control
-                                        size="sm"
-                                        type="number"
-                                        className="custom-form-input text-end"
-                                        style={{ ...moneyTabular, fontSize: FONT_BODY }}
-                                        value={row.amount || ""}
-                                        onChange={(e) =>
-                                            updateCustomer(row.id, { amount: Number(e.target.value) || 0 })
-                                        }
-                                    />
-                                </td>
-                                <td className="align-middle">
-                                    <Form.Select
-                                        size="sm"
-                                        className="custom-form-input"
-                                        style={{ fontSize: FONT_BODY }}
-                                        value={row.type}
-                                        onChange={(e) => updateCustomer(row.id, { type: e.target.value })}
-                                    >
-                                        {PAY_TYPES.map((o) => (
-                                            <option key={o.value} value={o.value}>
-                                                {o.label}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </td>
-                                <td className="align-middle">
-                                    <Form.Control
-                                        size="sm"
-                                        className="custom-form-input"
-                                        style={{ fontSize: FONT_BODY }}
-                                        value={row.description}
-                                        onChange={(e) =>
-                                            updateCustomer(row.id, { description: e.target.value })
-                                        }
-                                    />
-                                </td>
-                                <td className="text-center align-middle">
-                                    <i
-                                        className="bi bi-trash text-danger fs-6"
-                                        role="button"
-                                        onClick={() =>
-                                            setExt((e) => ({
-                                                ...e,
-                                                customerPayments: e.customerPayments.filter((r) => r.id !== row.id),
-                                            }))
-                                        }
-                                    />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </Table>
-                    </div>
-                    <div className="mt-3 pt-3 border-top" style={{ borderColor: "var(--txtfld-border, rgba(0,0,0,0.12))" }}>
-                        <div style={footerRow}>
-                            <span style={footerLabel}>Total Paid</span>
-                            <span style={footerValue}>
+                    <div className="mt-3 pt-3 border-top">
+                        <div className="d-flex justify-content-between align-items-center py-1">
+                            <span className="text-secondary">Total Paid</span>
+                            <span className="fw-semibold" style={moneyTabular}>
                                 {sym}
                                 {customerPaidBal.totalPaid.toFixed(2)}
                             </span>
                         </div>
-                        <div style={footerRow}>
-                            <span style={footerLabel}>Balance</span>
-                            <span style={footerValue}>
+                        <div className="d-flex justify-content-between align-items-center py-1">
+                            <span className="text-secondary">Balance</span>
+                            <span className="fw-semibold" style={moneyTabular}>
                                 {sym}
                                 {customerPaidBal.balance.toFixed(2)}
                             </span>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 {/* Partner payments */}
-                <div className="p-3" style={{ ...sectionBlock, marginBottom: 0 }}>
-                    <div
-                        className="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 mb-0"
-                        style={{ borderBottom: "2px solid var(--txtfld-border, rgba(0,0,0,0.1))" }}
-                    >
-                        <span style={blockTitleInline}>Partner payments</span>
+                <section className="custom-other-details mt-3 mb-0" style={sectionShell}>
+                    <Row className="align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap g-2">
+                        <Col xs="auto" className="me-auto d-flex flex-wrap align-items-baseline gap-2 gap-md-3">
+                            <h3 className="mb-0">Partner payments</h3>
+                            <span className="text-secondary" style={{ fontSize: FONT_LABEL }}>
+                                Partner total
+                            </span>
+                            <span className="fw-semibold" style={{ ...moneyTabular, fontSize: FONT_BODY }}>
+                                {sym}
+                                {partnerDueTotal.toFixed(2)}
+                            </span>
+                        </Col>
                         {!partnerLock ? (
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline-primary"
-                                style={{ fontSize: FONT_BODY }}
-                                disabled={!canAddPartnerPayment}
-                                onClick={() =>
-                                    setExt((e) => ({
-                                        ...e,
-                                        partnerPayments: [
-                                            ...e.partnerPayments,
-                                            { id: nid(), date: "", amount: 0, description: "" },
-                                        ],
-                                    }))
-                                }
-                            >
-                                Add partner payment
-                            </Button>
+                            <Col xs="auto">
+                                <Button
+                                    type="button"
+                                    className="custom-btn-secondary w-auto"
+                                    disabled={!canAddPartnerPayment}
+                                    onClick={() =>
+                                        setExt((e) => ({
+                                            ...e,
+                                            partnerPayments: [
+                                                ...e.partnerPayments,
+                                                { id: nid(), date: "", amount: 0, description: "" },
+                                            ],
+                                        }))
+                                    }
+                                >
+                                    Add partner payment
+                                </Button>
+                            </Col>
                         ) : null}
+                    </Row>
+                    <div style={paymentSubcard}>
+                        <Table
+                            responsive
+                            bordered
+                            size="sm"
+                            className="mb-0 align-middle"
+                            style={{ color: "var(--content-txt-color)", width: "100%" }}
+                        >
+                            <colgroup>
+                                <col style={{ width: 44 }} />
+                                <col style={{ width: 170 }} />
+                                <col style={{ width: 120 }} />
+                                <col />
+                                <col style={{ width: 44 }} />
+                            </colgroup>
+                            <thead className="table-light">
+                                <tr style={{ borderColor: "var(--lb1-border, var(--txtfld-border))" }}>
+                                    <th className="text-center fw-semibold" style={tableThStyle}>
+                                        S.No
+                                    </th>
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
+                                        Date
+                                    </th>
+                                    <th className="text-end fw-semibold" style={tableThStyle}>
+                                        Paid amount
+                                    </th>
+                                    <th className="text-start fw-semibold" style={tableThStyle}>
+                                        Description
+                                    </th>
+                                    <th className="text-center fw-semibold" style={tableThStyle} aria-label="Remove row" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {ext.partnerPayments.map((row, idx) => (
+                                    <tr key={row.id}>
+                                        <td className="align-middle text-center fw-medium">{idx + 1}</td>
+                                        <td className="align-middle">
+                                            <CustomDatePicker
+                                                label=""
+                                                controlId={`pdate-${row.id}`}
+                                                selectedDate={row.date || null}
+                                                onChange={(d) => {
+                                                    if (!d) return;
+                                                    const y = d.getFullYear();
+                                                    const m = `${d.getMonth() + 1}`.padStart(2, "0");
+                                                    const day = `${d.getDate()}`.padStart(2, "0");
+                                                    updatePartner(row.id, { date: `${y}-${m}-${day}` });
+                                                }}
+                                                register={register}
+                                                setValue={setValue}
+                                                asCol={false}
+                                                groupClassName="mb-0"
+                                                filterDate={() => true}
+                                            />
+                                        </td>
+                                        <td className="align-middle">
+                                            <CustomFormInput
+                                                label=""
+                                                controlId={`partner-pay-amt-${row.id}`}
+                                                placeholder="0.00"
+                                                register={register}
+                                                asCol={false}
+                                                inputType="text"
+                                                inputClassName="text-end"
+                                                inputStyle={tablePriceInputStyle}
+                                                isEditable={!partnerLock}
+                                                value={row.amount === 0 ? "" : String(row.amount)}
+                                                onChange={(val) => {
+                                                    if (partnerLock) return;
+                                                    const t = val.trim();
+                                                    if (t === "") {
+                                                        updatePartner(row.id, { amount: 0 });
+                                                        return;
+                                                    }
+                                                    const n = parseFloat(t);
+                                                    if (!Number.isNaN(n) && n >= 0) {
+                                                        updatePartner(row.id, { amount: n });
+                                                    }
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="align-middle text-wrap" style={{ wordBreak: "break-word" }}>
+                                            <Form.Control
+                                                size="sm"
+                                                className="custom-form-input"
+                                                style={{ fontSize: FONT_BODY, marginBottom: 0 }}
+                                                value={row.description}
+                                                disabled={partnerLock}
+                                                onChange={(e) =>
+                                                    updatePartner(row.id, { description: e.target.value })
+                                                }
+                                            />
+                                        </td>
+                                        <td className="text-center align-middle">
+                                            {!partnerLock && (
+                                                <i
+                                                    className="bi bi-trash text-danger fs-6"
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    title="Remove row"
+                                                    aria-label="Remove partner payment row"
+                                                    onClick={() => confirmRemovePartnerPaymentRow(row.id)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key !== "Enter" && e.key !== " ") return;
+                                                        e.preventDefault();
+                                                        confirmRemovePartnerPaymentRow(row.id);
+                                                    }}
+                                                />
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
                     </div>
-                    <div className="mt-3" style={serviceTableShell}>
-                        <Table responsive bordered size="sm" className="mb-0 align-middle">
-                    <thead className="table-light">
-                        <tr>
-                            <th className="small fw-semibold text-secondary text-uppercase" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "26%" }}>
-                                Date
-                            </th>
-                            <th className="small fw-semibold text-secondary text-uppercase text-end" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL, width: "22%" }}>
-                                Paid amount
-                            </th>
-                            <th className="small fw-semibold text-secondary text-uppercase" style={{ letterSpacing: "0.04em", fontSize: FONT_LABEL }}>
-                                Description
-                            </th>
-                            <th style={{ width: "48px" }} aria-label="Delete row" />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {ext.partnerPayments.map((row) => (
-                            <tr key={row.id}>
-                                <td className="align-middle">
-                                    <CustomDatePicker
-                                        label=""
-                                        controlId={`pdate-${row.id}`}
-                                        selectedDate={row.date || null}
-                                        onChange={(d) => {
-                                            if (!d) return;
-                                            const y = d.getFullYear();
-                                            const m = `${d.getMonth() + 1}`.padStart(2, "0");
-                                            const day = `${d.getDate()}`.padStart(2, "0");
-                                            updatePartner(row.id, { date: `${y}-${m}-${day}` });
-                                        }}
-                                        register={register}
-                                        setValue={setValue}
-                                        asCol={false}
-                                        groupClassName="mb-0"
-                                        filterDate={() => true}
-                                    />
-                                </td>
-                                <td className="align-middle">
-                                    <Form.Control
-                                        size="sm"
-                                        type="number"
-                                        className="custom-form-input text-end"
-                                        style={{ ...moneyTabular, fontSize: FONT_BODY }}
-                                        value={row.amount || ""}
-                                        disabled={partnerLock}
-                                        onChange={(e) =>
-                                            updatePartner(row.id, { amount: Number(e.target.value) || 0 })
-                                        }
-                                    />
-                                </td>
-                                <td className="align-middle">
-                                    <Form.Control
-                                        size="sm"
-                                        className="custom-form-input"
-                                        style={{ fontSize: FONT_BODY }}
-                                        value={row.description}
-                                        disabled={partnerLock}
-                                        onChange={(e) =>
-                                            updatePartner(row.id, { description: e.target.value })
-                                        }
-                                    />
-                                </td>
-                                <td className="text-center align-middle">
-                                    {!partnerLock && (
-                                        <i
-                                            className="bi bi-trash text-danger fs-6"
-                                            role="button"
-                                            onClick={() =>
-                                                setExt((e) => ({
-                                                    ...e,
-                                                    partnerPayments: e.partnerPayments.filter((r) => r.id !== row.id),
-                                                }))
-                                            }
-                                        />
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </Table>
-                    </div>
-                    <div className="mt-3 pt-3 border-top" style={{ borderColor: "var(--txtfld-border, rgba(0,0,0,0.12))" }}>
-                        <div style={footerRow}>
-                            <span style={footerLabel}>Total Paid</span>
-                            <span style={footerValue}>
+                    <div className="mt-3 pt-3 border-top">
+                        <div className="d-flex justify-content-between align-items-center py-1">
+                            <span className="text-secondary">Total Paid</span>
+                            <span className="fw-semibold" style={moneyTabular}>
                                 {sym}
                                 {partnerPaidBal.totalPaid.toFixed(2)}
                             </span>
                         </div>
-                        <div style={footerRow}>
-                            <span style={footerLabel}>Balance</span>
-                            <span style={footerValue}>
+                        <div className="d-flex justify-content-between align-items-center py-1">
+                            <span className="text-secondary">Balance</span>
+                            <span className="fw-semibold" style={moneyTabular}>
                                 {sym}
                                 {partnerPaidBal.balance.toFixed(2)}
                             </span>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div className="d-flex justify-content-end gap-2 mt-3">
-                    <Button type="button" variant="secondary" className="custom-btn-secondary" onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button type="button" className="custom-btn-primary" onClick={() => void save()}>
-                        Save
-                    </Button>
-                </div>
+                <Row className="mt-4">
+                    <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+                        <Button type="button" className="custom-btn-primary" onClick={() => void save()}>
+                            Save
+                        </Button>
+                        <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+                            Cancel
+                        </Button>
+                    </Col>
+                </Row>
             </Modal.Body>
+            </div>
         </Modal>
     );
 };

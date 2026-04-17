@@ -3,13 +3,10 @@ import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
-import {
-    shouldUseRealVerificationApi as shouldUseRealVerificationApiFromMock,
-    getMockVerificationListPage,
-} from "../mockData/verificationTableMock";
+import { shouldUseRealVerificationApi, getMockVerificationListPage } from "../mockData/verificationTableMock";
 
-/** `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
-export const shouldUseRealVerificationApi: () => boolean = shouldUseRealVerificationApiFromMock;
+/** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
+export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
 
 export const fetchUserDropDown = async (type: number, serviceId?: string
 ): Promise<{ users: UserModel[]; }> => {

@@ -496,9 +496,21 @@ function PartnerDetailsDialogView({
                                         value={userDetails?.no_of_services ?? userDetails?.total_service}
                                         onClick={() => openServices(null)}
                                     />
-                                    <DetailsRowLink title="Completed" value={userDetails?.completed_service} />
-                                    <DetailsRowLink title="In Progress" value={userDetails?.in_progress_service} />
-                                    <DetailsRowLink title="Cancelled" value={userDetails?.cancelled_service} />
+                                    <DetailsRowLink
+                                        title="Completed"
+                                        value={userDetails?.completed_service}
+                                        onClick={() => openServices(3)}
+                                    />
+                                    <DetailsRowLink
+                                        title="In Progress"
+                                        value={userDetails?.in_progress_service}
+                                        onClick={() => openServices(2)}
+                                    />
+                                    <DetailsRowLink
+                                        title="Cancelled"
+                                        value={userDetails?.cancelled_service}
+                                        onClick={() => openServices(4)}
+                                    />
                                 </section>
                             </Col>
 

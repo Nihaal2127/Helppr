@@ -5,15 +5,6 @@ import { DocumentModel } from "../models/DocumentModel";
 import { AppConstant } from "../constant/AppConstant";
 import { verificationStatusCell } from "../helper/utility";
 
-function documentPreviewImageSrc(documentPreview: DocumentModel): string {
-    const img = documentPreview.document_image ?? "";
-    if (!img) return "";
-    if (/^(https?:|data:)/i.test(img) || img.startsWith("/")) {
-        return img;
-    }
-    return `${AppConstant.IMAGE_BASE_URL}${img}`;
-}
-
 export const CustomImagePreviewDialog = (
     documentPreview: DocumentModel,
 ) => {
@@ -24,8 +15,6 @@ export const CustomImagePreviewDialog = (
         ReactDOM.unmountComponentAtNode(modalContainer);
         document.body.removeChild(modalContainer);
     };
-
-    const imageSrc = documentPreviewImageSrc(documentPreview);
 
     ReactDOM.render(
         <Modal show={true}
@@ -41,7 +30,7 @@ export const CustomImagePreviewDialog = (
             </Modal.Header>
             <Modal.Body className="d-flex justify-content-center align-items-center">
                 <img
-                    src={imageSrc}
+                    src={`${AppConstant.IMAGE_BASE_URL}${documentPreview.document_image}`}
                     alt="document"
                     className="img-fluid"
                     style={{ maxWidth: "80%", maxHeight: "80%" }}

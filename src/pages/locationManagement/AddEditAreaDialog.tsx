@@ -12,7 +12,6 @@ import { createOrUpdateArea } from "../../services/areaService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { openDialog } from "../../helper/DialogManager";
-import { sanitizeIndianPincodeInput, validateIndianPincodeList } from "../../helper/pincodeValidation";
 
 type PincodeTagFieldProps = {
     value: string[];
@@ -51,7 +50,7 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
     };
 
     const updateRow = (index: number, nextValue: string) => {
-        const numericOnly = sanitizeIndianPincodeInput(nextValue);
+        const numericOnly = nextValue.replace(/\D/g, "");
         const nextRows = rows.map((row, i) => (i === index ? numericOnly : row));
         setRows(nextRows);
         emitUniqueCodes(nextRows);
@@ -136,7 +135,7 @@ const parseAreaPincodesArray = (row: AreaModel | null): string[] => {
           : [];
     const seen = new Set<string>();
     return parts
-        .map((p) => sanitizeIndianPincodeInput(String(p)))
+        .map((p) => p.trim())
         .filter(Boolean)
         .filter((p) => {
             if (seen.has(p)) return false;
@@ -263,9 +262,7 @@ const AddEditAreaDialog: React.FC<Props> & {
     };
 
     const onSubmitEvent = async (data: AreaFormValues) => {
-        const pinCodes = (data.pincode || [])
-            .map((p) => sanitizeIndianPincodeInput(String(p)))
-            .filter(Boolean);
+        const pinCodes = (data.pincode || []).map((p) => p.trim()).filter(Boolean);
 
         const payload = {
             name: data.name,
@@ -385,7 +382,9 @@ const AddEditAreaDialog: React.FC<Props> & {
                                 name="pincode"
                                 control={control}
                                 rules={{
-                                    validate: (value) => validateIndianPincodeList(value),
+                                    validate: (value) => {
+                                        return (Array.isArray(value) && value.length > 0) || "Pincode is required";
+                                    },
                                 }}
                                 render={({ field, fieldState }) => (
                                     <PincodeTagField

@@ -20,9 +20,9 @@ import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
 import { indianPincodeRequiredRules, sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
-
+import editIcon from "../../assets/icons/edit_red.svg";
 import { buildViewCategoryServiceGroups } from "./partnerCategoryServiceView";
-// import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
+import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
 
 const PARTNER_ROLE = 2;
 
@@ -570,18 +570,6 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                                     error={errors.phone_number}
                                     validation={{ required: "Phone no is required" }}
                                 />
-                                {!isPartnerEdit && (
-                                    <CustomTextField
-                                        label="Address"
-                                        controlId="address"
-                                        placeholder="Enter Address"
-                                        register={register}
-                                        error={errors.address}
-                                        validation={{ required: "Address is required" }}
-                                        as="textarea"
-                                        rows={4}
-                                    />
-                                )}
                                 <CustomTextFieldSelect
                                     label="State"
                                     controlId="State"
@@ -625,16 +613,24 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                                     isIndianPincodeField
                                     maxLength={6}
                                 />
-                                {!isPartnerEdit && (
-                                    <CustomTextFieldUpload
-                                        label="Profile Photo"
-                                        {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
-                                        onFileChange={(files, replaceUrls) => {
-                                            setFileInputs(files);
-                                            setReplaceUrl(replaceUrls);
-                                        }}
-                                    />
-                                )}
+                                <CustomTextField
+                                    label="Address"
+                                    controlId="address"
+                                    placeholder="Enter Address"
+                                    register={register}
+                                    error={errors.address}
+                                    validation={{ required: "Address is required" }}
+                                    as="textarea"
+                                    rows={3}
+                                />
+                                <CustomTextFieldUpload
+                                    label="Profile Photo"
+                                    {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
+                                    onFileChange={(files, replaceUrls) => {
+                                        setFileInputs(files);
+                                        setReplaceUrl(replaceUrls);
+                                    }}
+                                />
                             </Row>
                         )}
 
@@ -734,46 +730,18 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                         ) : null}
 
                         {isPartnerEdit ? (
-                            <>
-                                <Row className="mt-2">
-                                    <Col xs={12}>
-                                        <CustomTextFieldUpload
-                                            label="Profile Photo"
-                                            {...(user?.profile_url ? { existingImages: [user.profile_url] } : [])}
-                                            onFileChange={(files, replaceUrls) => {
-                                                setFileInputs(files);
-                                                setReplaceUrl(replaceUrls);
-                                            }}
-                                        />
-                                    </Col>
-                                </Row>
-                                <Row className="mt-2">
-                                    <Col xs={12}>
-                                        <CustomTextField
-                                            label="Address"
-                                            controlId="address"
-                                            placeholder="Enter Address"
-                                            register={register}
-                                            error={errors.address}
-                                            validation={{ required: "Address is required" }}
-                                            as="textarea"
-                                            rows={4}
-                                        />
-                                    </Col>
-                                </Row>
-                                <Row className="mt-2">
-                                    <Col xs={12}>
-                                        <CustomTextFieldRadio
-                                            label="Status"
-                                            name="is_active"
-                                            options={getStatusOptions()}
-                                            defaultValue={user?.is_active?.toString() ?? "true"}
-                                            isEditable={true}
-                                            setValue={setValue}
-                                        />
-                                    </Col>
-                                </Row>
-                            </>
+                            <Row className="mt-2">
+                                <Col xs={12}>
+                                    <CustomTextFieldRadio
+                                        label="Status"
+                                        name="is_active"
+                                        options={getStatusOptions()}
+                                        defaultValue={user?.is_active?.toString() ?? "true"}
+                                        isEditable={true}
+                                        setValue={setValue}
+                                    />
+                                </Col>
+                            </Row>
                         ) : null}
 
                         <Row className="mt-4">

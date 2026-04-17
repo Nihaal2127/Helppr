@@ -74,7 +74,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
 
                         <div className="custom-personal-details" style={{ flexWrap: "wrap" }}>
                                 <Col className="custom-helper-column">
-                                    <DetailsRow title="Name" value={userDetails?.name} />
+                                    <DetailsRow title="User Name" value={userDetails?.name} />
                                     <DetailsRow title="Phone No" value={userDetails?.phone_number} />
                                     <DetailsRow title="State" value={userDetails?.state_name} />
                                     <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
@@ -190,12 +190,12 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                     </div>
                     <Row className="custom-helper-row">
                         <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
-                            <h3>Services</h3>
+                            <h3 className="mb-3">Services</h3>
                             <div className="user-details-service-stats">
                                 {(
                                     [
                                         {
-                                            label: "Services Taken",
+                                            label: "Total Services",
                                             node: (
                                                 <button
                                                     type="button"
@@ -223,7 +223,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                             label: "Cancelled",
                                             node: <span>{userDetails?.cancelled_service ?? "-"}</span>,
                                         },
-                                      
                                     ] as const
                                 ).map(({ label, node }) => (
                                     <div

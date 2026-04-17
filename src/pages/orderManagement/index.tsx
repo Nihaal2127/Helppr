@@ -220,8 +220,8 @@ const OrderManagement = () => {
                     getPartnerPaymentStatusLabel(row.original as OrderModel),
             },
             {
-                Header: "Customer Payment Status",
-                accessor: "customer_payment_status_col",
+                Header: "User Payment Status",
+                accessor: "user_payment_status_col",
                 Cell: ({ row }: { row: any }) =>
                     getCustomerPaymentStatusLabel(row.original as OrderModel),
             },
@@ -256,7 +256,7 @@ const OrderManagement = () => {
                     setValue={setValue}
                 />
 
-                <div className="d-flex mt-4 gap-2 flex-wrap">
+                <div className="d-flex mt-4 gap-2">
                     {ORDER_TAB_KEYS.map((key) => {
                         const meta = OrderStatusEnum.get(key);
                         if (!meta) return null;

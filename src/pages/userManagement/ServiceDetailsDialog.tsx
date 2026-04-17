@@ -168,7 +168,6 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
                 );
             },
         }
-       
     ], [currentPage, pageSize, is_partner]);
 
     return (
@@ -212,7 +211,12 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
     );
 };
 
-ServiceDetailsDialog.show = (user_id: string, is_partner: boolean, status: number | null,) => {
+ServiceDetailsDialog.show = (
+    user_id: string,
+    is_partner: boolean,
+    status: number | null,
+    _onRefreshData?: () => void
+) => {
     openDialog("service-details-modal", (close) => (
         <ServiceDetailsDialog
             user_id={user_id}

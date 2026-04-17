@@ -55,10 +55,13 @@ export function applyOrderPaymentPreviewDummy(order: OrderModel): OrderModel {
     if (wantOfferDummy || wantBothDummy) {
         next.offer_id = next.offer_id?.toString().trim() || "PREVIEW-OFR";
         next.offer_name = next.offer_name?.trim() || "Sample offer (UI preview)";
-        next.offer_discount_amount = next.offer_discount_amount ?? 150;
         next.total_offer_value = next.total_offer_value ?? 500;
         next.admin_contribution = next.admin_contribution ?? 200;
         next.partner_contribution = next.partner_contribution ?? 300;
+        /** Keep in sync with total split (200+300) so the main offer line matches the breakdown. */
+        next.offer_discount_amount =
+            next.offer_discount_amount ??
+            (parseOrderMoneyField(next.total_offer_value as unknown) || 500);
         touched = true;
     }
 

@@ -231,8 +231,6 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_address}
                                 validation={{ required: "Service address is required" }}
                                 onChange={(value) => handleInputChange(index, "service_address", value)}
-                                as="textarea"
-                                rows={4}
                             />
                         </Col>
                     </Row>

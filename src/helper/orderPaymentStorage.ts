@@ -62,9 +62,39 @@ export function mergePaymentExtension(humanComment: string | null | undefined, e
     return `${base}${sep}${ORDER_PAYMENT_MARKER}${JSON.stringify(ext)}`;
 }
 
-export function getServiceTaxCommissionPercents(primary?: OrderItemModel): { taxPct: number; commissionPct: number } {
-    const taxPct = Number(primary?.service_info?.tax ?? 0);
-    const commissionPct = Number(primary?.service_info?.commission ?? 0);
+function impliedPercent(amount: number, base: number): number {
+    if (!Number.isFinite(amount) || !Number.isFinite(base) || base <= 0 || amount <= 0) return 0;
+    return Math.min(100, Math.round((amount / base) * 10000) / 100);
+}
+
+/**
+ * Tax / commission % for payment math: prefers `service_info`, then implied rates from
+ * line-item amounts, then order-level amounts when the catalog fields are missing or zero.
+ */
+export function getServiceTaxCommissionPercents(
+    primary?: OrderItemModel,
+    order?: OrderModel
+): { taxPct: number; commissionPct: number } {
+    const catalogTax = Number(primary?.service_info?.tax ?? 0);
+    const catalogComm = Number(primary?.service_info?.commission ?? 0);
+
+    const itemSub = Number(primary?.sub_total ?? 0);
+    const itemTaxAmt = Number(primary?.tax ?? 0);
+    const itemCommAmt = Number(primary?.partner_commison_platform_fee ?? 0);
+
+    const orderSub = Number(order?.sub_total ?? 0);
+    const orderTaxAmt = Number(order?.tax ?? 0);
+    const orderCommAmt = Number(order?.partner_commison_platform_fee ?? 0);
+
+    let taxPct = Number.isFinite(catalogTax) && catalogTax > 0 ? catalogTax : 0;
+    let commissionPct = Number.isFinite(catalogComm) && catalogComm > 0 ? catalogComm : 0;
+
+    if (taxPct <= 0) taxPct = impliedPercent(itemTaxAmt, itemSub);
+    if (taxPct <= 0) taxPct = impliedPercent(orderTaxAmt, orderSub);
+
+    if (commissionPct <= 0) commissionPct = impliedPercent(itemCommAmt, itemSub);
+    if (commissionPct <= 0) commissionPct = impliedPercent(orderCommAmt, orderSub);
+
     return {
         taxPct: Number.isFinite(taxPct) ? taxPct : 0,
         commissionPct: Number.isFinite(commissionPct) ? commissionPct : 0,
@@ -89,7 +119,7 @@ export function computeTaxCommissionAmounts(
 
 /** When no saved extension, show sensible default rows (matches common invoice-style lines). */
 export function buildDefaultPaymentExtension(order: OrderModel, primary?: OrderItemModel): OrderPaymentExtV1 {
-    const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary);
+    const { taxPct, commissionPct } = getServiceTaxCommissionPercents(primary, order);
     const serviceAmount = roundMoney(Number(order.sub_total ?? 0));
     const { taxAmount, commissionAmount } = computeTaxCommissionAmounts(serviceAmount, taxPct, commissionPct);
     const payMode =
@@ -102,8 +132,10 @@ export function buildDefaultPaymentExtension(order: OrderModel, primary?: OrderI
     const userBal = order.is_paid ? 0 : userTotal;
 
     const sub = serviceAmount;
-    const partnerPaid = order.is_paid ? sub : 0;
-    const partnerBal = order.is_paid ? 0 : Math.max(0, userTotal - partnerPaid);
+    /** Partner obligation for this template (no extra charges / offer in defaults). */
+    const partnerDue = roundMoney(Math.max(0, sub));
+    const partnerPaidAmt = order.is_paid ? partnerDue : 0;
+    const partnerBalAmt = order.is_paid ? 0 : Math.max(0, partnerDue - partnerPaidAmt);
 
     return {
         v: 1,
@@ -112,20 +144,12 @@ export function buildDefaultPaymentExtension(order: OrderModel, primary?: OrderI
         commissionPercent: commissionPct,
         otherCharges: [],
         customerPayments: [
-            {
-                id: newId(),
-                date: d,
-                amount: userTotal,
-                type: payMode || "—",
-                description: "",
-            },
             { id: newId(), date: d, amount: userPaid, type: payMode || "—", description: "Paid amount" },
             { id: newId(), date: d, amount: userBal, type: payMode || "—", description: "Balance amount" },
         ],
         partnerPayments: [
-            { id: newId(), date: d, amount: sub, description: "" },
-            { id: newId(), date: d, amount: partnerPaid, description: "Paid amount" },
-            { id: newId(), date: d, amount: partnerBal, description: "Balance amount" },
+            { id: newId(), date: d, amount: partnerPaidAmt, description: "Paid amount" },
+            { id: newId(), date: d, amount: partnerBalAmt, description: "Balance amount" },
         ],
     };
 }
@@ -161,30 +185,77 @@ export function amountForPaymentDescription(
     return Number(row.amount) || 0;
 }
 
+/**
+ * Legacy default template may start with a non-payment “echo” line (empty description, amount ≈ invoice)
+ * while “Paid amount” + “Balance amount” already add up to the invoice. That first line must not count
+ * toward Total Paid. If those template lines do not cover the invoice, the empty-desc rows are treated
+ * as real payment lines (e.g. user cleared template rows and entered the full amount on line 1).
+ */
+function isDefaultStyleMirrorRow<T extends { amount: number; description?: string }>(
+    rows: T[],
+    rowIndex: number,
+    r: T,
+    invoiceTotal: number
+): boolean {
+    const d = normPaymentDescription(r.description);
+    if (rowIndex !== 0 || d !== "") return false;
+    const paidAmt = amountForPaymentDescription(rows, "Paid amount");
+    const balAmt = amountForPaymentDescription(rows, "Balance amount");
+    if (paidAmt === null || balAmt === null) return false;
+    const inv = Math.max(0, Number(invoiceTotal) || 0);
+    if (Math.abs(paidAmt + balAmt - inv) > 0.02) return false;
+    return Math.abs((Number(r.amount) || 0) - inv) < 0.01;
+}
+
+/** Sum of cash lines for template tables: every row except balance, minus the first-row invoice echo when present. */
+function sumTemplateSideCountedPayments<T extends { amount: number; description?: string }>(
+    rows: T[],
+    invoiceTotal: number
+): number {
+    return roundMoney(
+        rows.reduce((acc, r, idx) => {
+            if (normPaymentDescription(r.description) === "balance amount") return acc;
+            if (isDefaultStyleMirrorRow(rows, idx, r, invoiceTotal)) return acc;
+            return acc + Math.max(0, Number(r.amount) || 0);
+        }, 0)
+    );
+}
+
 /** User-facing headline: paid vs balance (uses template rows when present). */
 export function customerPaidBalanceHeadline(
     ext: OrderPaymentExtV1,
     invoiceTotal: number,
     orderIsPaid: boolean
 ): { totalPaid: number; balance: number } {
-    const paidRow = amountForPaymentDescription(ext.customerPayments, "Paid amount");
-    const balRow = amountForPaymentDescription(ext.customerPayments, "Balance amount");
-    const totalPaid = paidRow !== null ? paidRow : orderIsPaid ? invoiceTotal : 0;
-    const balance = balRow !== null ? balRow : Math.max(0, invoiceTotal - totalPaid);
+    const inv = Math.max(0, Number(invoiceTotal) || 0);
+    const totalPaidRaw = hasCustomerPaymentTemplateRows(ext)
+        ? sumTemplateSideCountedPayments(ext.customerPayments, inv)
+        : (() => {
+              const paidRow = amountForPaymentDescription(ext.customerPayments, "Paid amount");
+              return paidRow !== null ? paidRow : orderIsPaid ? inv : 0;
+          })();
+    const totalPaid = Math.min(inv, Math.max(0, totalPaidRaw));
+    /** Always derive balance from the current invoice total — stored "Balance amount" rows go stale. */
+    const balance = Math.max(0, roundMoney(inv - totalPaid));
     return { totalPaid, balance };
 }
 
-/** Partner headline: paid vs balance (balance defaults against invoice total). */
+/** Partner headline: paid vs balance (`invoiceTotal` = partner obligation before tax/commission). */
 export function partnerPaidBalanceHeadline(
     ext: OrderPaymentExtV1,
     invoiceTotal: number,
-    serviceAmount: number,
+    _serviceAmount: number,
     orderIsPaid: boolean
 ): { totalPaid: number; balance: number } {
-    const paidRow = amountForPaymentDescription(ext.partnerPayments, "Paid amount");
-    const balRow = amountForPaymentDescription(ext.partnerPayments, "Balance amount");
-    const totalPaid = paidRow !== null ? paidRow : orderIsPaid ? serviceAmount : 0;
-    const balance = balRow !== null ? balRow : Math.max(0, invoiceTotal - totalPaid);
+    const inv = Math.max(0, Number(invoiceTotal) || 0);
+    const totalPaidRaw = hasPartnerPaymentTemplateRows(ext)
+        ? sumTemplateSideCountedPayments(ext.partnerPayments, inv)
+        : (() => {
+              const paidRow = amountForPaymentDescription(ext.partnerPayments, "Paid amount");
+              return paidRow !== null ? paidRow : orderIsPaid ? inv : 0;
+          })();
+    const totalPaid = Math.min(inv, Math.max(0, totalPaidRaw));
+    const balance = Math.max(0, roundMoney(inv - totalPaid));
     return { totalPaid, balance };
 }
 

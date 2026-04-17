@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
+import { capitalizeString, textUnderlineCell, statusCell, verificationStatusCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import { deleteUser, fetchUser, shouldUseRealVerificationApi } from "../../services/userService";
-import { MOCK_VERIFICATION_SUMMARY } from "../../mockData/verificationTableMock";
+import { deleteUser, fetchUser } from "../../services/userService";
+import { shouldUseRealVerificationApi, MOCK_VERIFICATION_SUMMARY } from "../../mockData/verificationTableMock";
 import { getCount } from "../../services/getCountService";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
@@ -40,7 +40,12 @@ const UserManagement = () => {
         try {
             const { responseCount, countModel } = await getCount(3);
             if (responseCount && countModel) {
-                setUserData({ Total: countModel.total_user });
+                setUserData({
+                    Total: countModel.total_user,
+                    Active: countModel.active_user,
+                    Inactive: countModel.inactive_user,
+                    Blocked: countModel.blocked_user,
+                });
                 setParnterData({
                     Total: countModel.total_partner,
                     Active: countModel.active_partner,

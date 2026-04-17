@@ -164,7 +164,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 
     const taxCommFromService = useMemo(() => {
         if (!orderDetails) return { taxPct: 0, commissionPct: 0 };
-        return getServiceTaxCommissionPercents(getPrimaryServiceItem(orderDetails));
+        return getServiceTaxCommissionPercents(getPrimaryServiceItem(orderDetails), orderDetails);
     }, [orderDetails]);
 
     const { viewTax, viewComm } = useMemo(() => {
@@ -214,18 +214,23 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 
     const paymentHeadlines = useMemo(() => {
         if (!paymentExt || !orderDetails) return null;
-        const invoiceTotal = Number(orderDetails.total_price ?? 0) || viewFinalTotal;
+        /** Match payment editor: customer side vs computed final from extension + tax/offer. */
+        const userInvoice = viewFinalTotal;
+        const partnerInvoice = Math.max(
+            0,
+            paymentExt.serviceAmount + viewOtherSum - offerBreakdown.partnerContribution
+        );
         const serviceAmt = Number(orderDetails.sub_total ?? paymentExt.serviceAmount ?? 0);
         const isPaid = !!orderDetails.is_paid;
         return {
-            user: customerPaidBalanceHeadline(paymentExt, invoiceTotal, isPaid),
-            partner: partnerPaidBalanceHeadline(paymentExt, invoiceTotal, serviceAmt, isPaid),
+            user: customerPaidBalanceHeadline(paymentExt, userInvoice, isPaid),
+            partner: partnerPaidBalanceHeadline(paymentExt, partnerInvoice, serviceAmt, isPaid),
             serviceAmt,
             taxAmt: Number(orderDetails.tax ?? viewTax),
             commAmt: Number(orderDetails.partner_commison_platform_fee ?? viewComm),
             totalPriceDisp: Number(orderDetails.total_price ?? 0) || viewFinalTotal,
         };
-    }, [paymentExt, orderDetails, viewFinalTotal, viewTax, viewComm]);
+    }, [paymentExt, orderDetails, viewFinalTotal, viewTax, viewComm, viewOtherSum, offerBreakdown.partnerContribution]);
 
     /** When service line omits %, infer from stored amounts (tax/commission apply to service + other charges). */
     const taxPctForLabel = useMemo(() => {
@@ -271,17 +276,17 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                 <Col xs="auto" className="text-end d-flex align-items-center justify-content-end">
                                     {editIcon(() => {
                                         if (orderDetails) EditOrderDialog.show(orderDetails, refreshInfoData);
-                                    }, "Edit partner / customer payment status and order status")}
+                                    }, "Edit partner / user payment status and order status")}
                                 </Col>
                             )}
                         </Row>
-                        <Row className="g-2">
+                        <Row>
                             <Col md={6} className="custom-helper-column">
                                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
                                 <DetailsRow title="Order Date" value={formatDate(orderDetails?.order_date ?? "")} />
                                 <DetailsRow title="Category Name" value={orderDetails?.category_info?.name} />
                                 <DetailsRow title="Service Name" value={serviceNamesJoined(orderDetails)} />
-                                <DetailsRow title="Service Address" value={getOrderServiceAddress(orderDetails)} />
+                               
                             </Col>
                             <Col md={6} className="custom-helper-column">
                                 <DetailsRow title="Schedule Date/time" value={formatServiceScheduleLine(primary)} />
@@ -290,11 +295,21 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                     value={getPartnerPaymentStatusLabel(orderDetails)}
                                 />
                                 <DetailsRow
-                                    title="Customer Payment Status"
+                                    title="User Payment Status"
                                     value={getCustomerPaymentStatusLabel(orderDetails)}
                                 />
                                 <DetailsOrderStatusRow title="Order Status" value={orderDetails?.order_status!} />
                             </Col>
+                            <Col md={12}>
+                            <Row className="custom-personal-row align-items-start">
+                                    <Col md={3} className="custom-personal-row-title">
+                                        Service Address
+                                    </Col>
+                                    <Col md={9} className="text-wrap">
+                                        {getOrderServiceAddress(orderDetails)}
+                                    </Col>
+                                </Row>
+                                </Col>
                         </Row>
                     </section>
 
@@ -326,8 +341,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             <Col className="min-w-0">
                                 <Row className="g-2">
                                     <Col sm={6}>
-                                        <DetailsRow title="User Name" value={orderDetails?.user_info?.name} />
-                                        <DetailsRow title="User Email" value={orderDetails?.user_info?.email} />
+                                        <DetailsRow title="Name" value={orderDetails?.user_info?.name} />
+                                        <DetailsRow title="Email" value={orderDetails?.user_info?.email} />
                                     </Col>
                                     <Col sm={6}>
                                         <DetailsRow title="Phone number" value={orderDetails?.user_info?.phone_number} />
@@ -411,7 +426,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                         <Row className="g-3 mb-3">
                             <Col lg={6}>
                                 <div className="p-3 h-100" style={paymentSubcard}>
-                                    <div className="fw-semibold mb-2">Customer payments</div>
+                                    <div className="fw-semibold mb-2">User payments</div>
                                     <Table responsive bordered size="sm" className="mb-0 align-middle">
                                         <thead className="table-light">
                                             <tr>

@@ -18,6 +18,7 @@ interface CustomTextFieldProps {
     as?: string;
     rows?: number;
     maxLength?: number;
+    /** Indian PIN: numeric keyboard hint and optional stricter defaults when used with `maxLength={6}`. */
     isIndianPincodeField?: boolean;
 }
 
@@ -39,6 +40,7 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
     maxLength,
     isIndianPincodeField,
 }) => {
+    const resolvedInputType = isIndianPincodeField ? "tel" : inputType;
     return (
         <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
             <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
@@ -53,14 +55,13 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
                     error={error}
                     asCol={asCol}
                     validation={validation}
-                    inputType={inputType}
+                    inputType={resolvedInputType}
                     isEditable={isEditable}
                     onChange={onChange}
                     value={value}
                     as={as}
                     rows={rows}
                     maxLength={maxLength}
-                    isIndianPincodeField={isIndianPincodeField}
                 />
             </Col>
         </Row>

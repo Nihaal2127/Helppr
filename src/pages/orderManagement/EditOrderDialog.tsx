@@ -83,7 +83,7 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
                         onSubmit={handleSubmit(onSubmitEvent)}
                     >
                         <Row className="g-3">
-                            <Col xs={12} md={6}>
+                            <Col xs={12}>
                                 <CustomTextFieldSelect
                                     label="Order Status"
                                     controlId="order_status"
@@ -96,10 +96,10 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
                                     setValue={setValue as (name: string, value: any) => void}
                                 />
                             </Col>
-                            <Col xs={12} md={6}>
+                            <Col xs={12}>
                                 <CustomTextFieldSelect
-                                    label="Customer payment status"
-                                    controlId="customer_payment_status"
+                                    label="Customer Payment Status"
+                                    controlId="Customer Payment Status"
                                     options={paymentLabelOptions}
                                     register={register}
                                     fieldName="customer_payment_status"
@@ -109,10 +109,10 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
                                     setValue={setValue as (name: string, value: any) => void}
                                 />
                             </Col>
-                            <Col xs={12} md={6}>
+                            <Col xs={12}>
                                 <CustomTextFieldSelect
-                                    label="Partner payment status"
-                                    controlId="partner_payment_status"
+                                    label="Partner Payment Status"
+                                    controlId="partner Payment Status"
                                     options={paymentLabelOptions}
                                     register={register}
                                     fieldName="partner_payment_status"
@@ -122,9 +122,9 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
                                     setValue={setValue as (name: string, value: any) => void}
                                 />
                             </Col>
-                            <Col xs={12} md={6}>
+                            {/* <Col xs={12} md={6}>
                                 <CustomTextFieldSelect
-                                    label="Payment mode"
+                                    label="Payment model"
                                     controlId="payment_mode_id"
                                     options={paymentStatusOptions}
                                     register={register}
@@ -137,7 +137,7 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
                                     }
                                     setValue={setValue as (name: string, value: any) => void}
                                 />
-                            </Col>
+                            </Col> */}
                         </Row>
                         <Row className="mt-4">
                             <Col xs={12} className="text-center d-flex justify-content-end gap-3">

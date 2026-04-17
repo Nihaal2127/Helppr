@@ -166,7 +166,7 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
                 </Col>
                 <Col className="custom-helper-column">
                   <DetailsRow title="Bank Name" value={bank.bank_name ?? "-"} />
-                  {/* <DetailsRow title="Branch Name" value={bank.branch_name ?? "-"} /> */}
+                  <DetailsRow title="Branch Name" value={bank.branch_name ?? "-"} />
                 </Col>
               </Row>
             ) : (

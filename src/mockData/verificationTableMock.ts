@@ -17,8 +17,9 @@ export type VerificationListFilters = {
  * When `false`, the list and verification summary counts use local mock data (UI design only).
  * (Named without a `use` prefix so eslint `react-hooks/rules-of-hooks` does not treat this as a React hook.)
  */
-export const shouldUseRealVerificationApi = (): boolean =>
-    AppConstant.USE_REAL_VERIFICATION_API !== false;
+export function shouldUseRealVerificationApi(): boolean {
+    return AppConstant.USE_REAL_VERIFICATION_API !== false;
+}
 
 const MOCK_VERIFICATION_SOURCE: UserModel[] = [
     {

@@ -266,33 +266,18 @@ export const formatUtcToLocalTime = (
     }
 };
 
-export const DetailsRowLink = ({
-    title,
-    value,
-    onClick,
-}: {
-    title: string;
-    value: number | null | undefined;
-    onClick?: () => void;
-}) => {
-    const displayValue = value === undefined || value === null ? "0" : value;
+export const DetailsRowLink = ({ title, value, onClick }: { title: string; value: number | null | undefined; onClick: () => void }) => {
     return (
         <Row className="row custom-personal-row">
             <label className="col custom-personal-row-title">{title}</label>
             <label className="col custom-personal-row-value">
-                {onClick ? (
-                    <button
-                        type="button"
-                        className="btn btn-link p-0 align-baseline text-danger"
-                        onClick={onClick}
-                    >
-                        {displayValue}
-                    </button>
-                ) : (
-                    <span className="btn btn-link p-0 align-baseline text-decoration-none text-black" style={{ cursor: "default" }}>
-                        {displayValue}
-                    </span>
-                )}
+                <button
+                    type="button"
+                    className="btn btn-link p-0 align-baseline text-decoration-underline"
+                    onClick={onClick}
+                >
+                    {(value === undefined || value === null) ? "0" : value}
+                </button>
             </label>
         </Row>
     );
@@ -326,41 +311,16 @@ export const DetailsRowLinkDocument = ({
     onAddClick,
     onViewClick,
     onDeleteClick,
-    viewOnly = false,
-    hideAdd = false,
+    hideAdd,
 }: {
     title: string;
     isEditable: boolean;
     onAddClick: () => void;
     onViewClick: () => void;
     onDeleteClick: () => void;
-    /** When true, show only View (no Add/Delete). Used for read-only previews. */
-    viewOnly?: boolean;
-    /** When true and there is no file yet, show "—" instead of Add. */
+    /** When false and not editable, hide the Add action (e.g. static verification preview rows). */
     hideAdd?: boolean;
 }) => {
-    if (viewOnly) {
-        return (
-            <Row className="row custom-personal-row">
-                <Col className="custom-document-title">{title}</Col>
-                <Col xs={6}>
-                    {isEditable ? (
-                        <label
-                            onClick={(e) => {
-                                e.preventDefault();
-                                onViewClick();
-                            }}
-                            className="custom-document-view"
-                        >
-                            View
-                        </label>
-                    ) : (
-                        <span className="text-muted">—</span>
-                    )}
-                </Col>
-            </Row>
-        );
-    }
     return (
         <Row className="row custom-personal-row">
             <Col className="custom-document-title">{title}</Col>
@@ -378,7 +338,7 @@ export const DetailsRowLinkDocument = ({
                         }} className="custom-document-delete">Delete</label>
                     </>
                 ) : hideAdd ? (
-                    <span className="text-muted">—</span>
+                    <span className="text-muted small">—</span>
                 ) : (
                     <label onClick={(e) => {
                         e.preventDefault();
