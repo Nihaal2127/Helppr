@@ -393,11 +393,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                 labelSize={2}
                             />
                         </Col>
-                    </Row>
-                    <Row>
-                        {!compact && (
-                            <>
-                                <Col xs={3} className="mt-3">
+                        <Col xs={3} className="mt-3">
                                     <CustomTextField
                                         label="Sub Total"
                                         controlId={`serviceItems.${index}.sub_total`}
@@ -481,6 +477,11 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                         isEditable={false}
                                     />
                                 </Col>
+                    </Row>
+                    <Row>
+                        {!compact && (
+                            <>
+                                
                             </>
                         )}
                     </Row>

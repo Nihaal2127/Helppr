@@ -493,6 +493,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     rows={5}
                                 />
                             </section>
+                            </>
+                         )}
                        
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Payment</h3>
@@ -524,8 +526,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
-                        </>
-                         )}
+                       
                         <Row className="mt-4">
                             <Col xs={12} className="text-center d-flex justify-content-end gap-3">
                                 <Button type="submit" className="custom-btn-primary">
