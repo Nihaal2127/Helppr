@@ -7,6 +7,7 @@ interface CustomTextFieldDatePicketProps {
     labelSize?: number;
     label: string;
     controlId: string;
+    groupControlId?: string;
     selectedDate: string | null;
     onChange: (date: Date | null) => void;
     placeholderText?: string;
@@ -16,12 +17,14 @@ interface CustomTextFieldDatePicketProps {
     error?: any;
     asCol?: boolean;
     setValue: UseFormSetValue<any>;
+    suppressHiddenRegister?: boolean;
 }
 
 const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
     labelSize = 4,
     label,
     controlId,
+    groupControlId,
     selectedDate,
     onChange,
     placeholderText = "Select a date",
@@ -31,16 +34,18 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
     setValue,
     register,
     validation,
+    suppressHiddenRegister,
 }) => {
     return (
-        <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
-            <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
+        <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
+            <Col sm={labelSize} className="d-flex align-items-start">
                 <label className="custom-profile-lable">{label}</label>
             </Col>
             <Col>
                 <CustomDatePicker
                     label=""
                     controlId={controlId}
+                    groupControlId={groupControlId}
                     selectedDate={selectedDate}
                     onChange={onChange}
                     placeholderText={placeholderText}
@@ -50,6 +55,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
                     setValue={setValue}
                     asCol={asCol}
                     filterDate={filterDate}
+                    suppressHiddenRegister={suppressHiddenRegister}
                 />
             </Col>
         </Row>

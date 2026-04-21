@@ -8,6 +8,14 @@ import { offersMockSeed } from "../mockData/settingsOffersMockData";
 import { rolesMockSeed } from "../mockData/settingsRolesMockData";
 import { staffMockSeed } from "../mockData/settingsStaffMockData";
 import { expenseCategoriesMockSeed } from "../mockData/settingsExpenseCategoryMockData";
+import { AppConstant } from "../constant/AppConstant";
+import { getLocalStorage } from "../helper/localStorageHelper";
+import { showErrorAlert } from "../helper/alertHelper";
+import {
+  createWebManagementUser,
+  mapMenuKeysToAccessibleScreens,
+  WEB_MANAGEMENT_USER_TYPE,
+} from "./userService";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -97,7 +105,8 @@ export const voidOffer = (id: string) => {
 export const getRoles = (): RoleSettingsModel[] => [...mockRoles];
 export const saveRole = (
   payload: Omit<RoleSettingsModel, "id" | "createdDate">,
-  id?: string
+  id?: string,
+  opts?: { newId?: string }
 ) => {
   if (id) {
     mockRoles = mockRoles.map((item) =>
@@ -109,7 +118,7 @@ export const saveRole = (
   mockRoles = [
     {
       ...payload,
-      id: generateId(),
+      id: opts?.newId ?? generateId(),
       createdDate: new Date().toISOString(),
     },
     ...mockRoles,
@@ -125,7 +134,8 @@ export const getStaff = (): StaffSettingsModel[] => [...mockStaff];
 
 export const saveStaff = (
   payload: Omit<StaffSettingsModel, "id" | "createdDate">,
-  id?: string
+  id?: string,
+  opts?: { newId?: string }
 ) => {
   if (id) {
     mockStaff = mockStaff.map((item) =>
@@ -137,11 +147,121 @@ export const saveStaff = (
   mockStaff = [
     {
       ...payload,
-      id: generateId(),
+      id: opts?.newId ?? generateId(),
       createdDate: new Date().toISOString(),
     },
     ...mockStaff,
   ];
+};
+
+function profileUrlForApi(profileUrl?: string): string | undefined {
+  const u = (profileUrl ?? "").trim();
+  if (!u || u.startsWith("uploads/")) return undefined;
+  return u;
+}
+
+function pickRecordId(record: Record<string, unknown> | null | undefined): string | undefined {
+  if (!record) return undefined;
+  const id = record._id ?? record.id;
+  return id != null ? String(id) : undefined;
+}
+
+/**
+ * Create franchise admin / franchise employee via `POST /user/create` (Postman web types),
+ * then append to in-memory list for the settings UI.
+ */
+export const createRoleUserWithApi = async (
+  payload: Omit<RoleSettingsModel, "id" | "createdDate">
+): Promise<boolean> => {
+  const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
+  if (!createdById) {
+    showErrorAlert("Missing session (created_by_id). Please log in again.");
+    return false;
+  }
+
+  const type =
+    payload.roleType === "franchise_admin"
+      ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
+      : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
+
+  const result = await createWebManagementUser({
+    name: payload.roleName.trim(),
+    email: (payload.email ?? "").trim(),
+    phone_number: (payload.phone_number ?? "").trim(),
+    type,
+    is_from_web: true,
+    created_by_id: createdById,
+    accessible_screens: mapMenuKeysToAccessibleScreens(payload.screenPermissions ?? []),
+    profile_url: profileUrlForApi(payload.profile_url),
+  });
+
+  if (!result.ok) return false;
+
+  const raw = result.record as Record<string, unknown> | null | undefined;
+  const serverId = pickRecordId(raw);
+  const roleId = String(raw?.user_id ?? raw?.userId ?? payload.roleId ?? serverId ?? generateId());
+  const isActive = raw?.is_active !== false;
+
+  saveRole(
+    {
+      ...payload,
+      roleId,
+      roleName: String(raw?.name ?? payload.roleName),
+      email: (raw?.email as string | undefined) ?? payload.email,
+      phone_number: (raw?.phone_number as string | undefined) ?? payload.phone_number,
+      profile_url: (raw?.profile_url as string | undefined) ?? payload.profile_url,
+      status: isActive ? "active" : "inactive",
+    },
+    undefined,
+    serverId ? { newId: serverId } : undefined
+  );
+  return true;
+};
+
+/**
+ * Create staff (Postman `type: 6`) via `POST /user/create`, then append to in-memory list.
+ */
+export const createStaffUserWithApi = async (
+  payload: Omit<StaffSettingsModel, "id" | "createdDate">
+): Promise<boolean> => {
+  const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
+  if (!createdById) {
+    showErrorAlert("Missing session (created_by_id). Please log in again.");
+    return false;
+  }
+
+  const result = await createWebManagementUser({
+    name: payload.name.trim(),
+    email: (payload.email ?? "").trim(),
+    phone_number: (payload.phone_number ?? "").trim(),
+    type: WEB_MANAGEMENT_USER_TYPE.STAFF,
+    is_from_web: true,
+    created_by_id: createdById,
+    accessible_screens: mapMenuKeysToAccessibleScreens(payload.screenPermissions ?? []),
+    profile_url: profileUrlForApi(payload.profile_url),
+  });
+
+  if (!result.ok) return false;
+
+  const raw = result.record as Record<string, unknown> | null | undefined;
+  const serverId = pickRecordId(raw);
+  const staffId = String(raw?.user_id ?? raw?.userId ?? payload.staffId ?? serverId ?? generateId());
+  const isActive = raw?.is_active !== false;
+
+  saveStaff(
+    {
+      ...payload,
+      staffId,
+      name: String(raw?.name ?? payload.name),
+      email: (raw?.email as string | undefined) ?? payload.email,
+      phone_number: (raw?.phone_number as string | undefined) ?? payload.phone_number,
+      profile_url: (raw?.profile_url as string | undefined) ?? payload.profile_url,
+      status: isActive ? "active" : "inactive",
+    },
+    undefined,
+    serverId ? { newId: serverId } : undefined
+  );
+  return true;
 };
 
 export const getExpenseCategories = (): ExpenseCategoryModel[] => [

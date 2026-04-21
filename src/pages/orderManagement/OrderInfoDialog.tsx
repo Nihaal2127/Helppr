@@ -343,9 +343,9 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                     <Col sm={6}>
                                         <DetailsRow title="Name" value={orderDetails?.user_info?.name} />
                                         <DetailsRow title="Email" value={orderDetails?.user_info?.email} />
+                                        <DetailsRow title="Phone number" value={orderDetails?.user_info?.phone_number} />
                                     </Col>
                                     <Col sm={6}>
-                                        <DetailsRow title="Phone number" value={orderDetails?.user_info?.phone_number} />
                                     </Col>
                                 </Row>
                                 <Row className="mt-2">

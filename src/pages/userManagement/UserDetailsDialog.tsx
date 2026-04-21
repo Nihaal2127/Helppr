@@ -1,14 +1,22 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { fetchUserById } from "../../services/userService";
+import { createOrUpdateUser, fetchUserById } from "../../services/userService";
+import { fetchCityDropDown } from "../../services/cityService";
+import { fetchStateDropDown } from "../../services/stateService";
 import editIcon from "../../assets/icons/edit_red.svg"
 import profileIcon from "../../assets/icons/profile.svg"
 import { DetailsRow, formatDate } from "../../helper/utility";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
+import UserAddressReadOnlyCards from "./UserAddressReadOnlyCards";
+import UserViewAddressModal from "./UserViewAddressModal";
+import type { UserViewAddressFormValues } from "./UserViewAddressModal";
 import { AppConstant } from "../../constant/AppConstant";
+import { getLocalStorage } from "../../helper/localStorageHelper";
 import { openDialog } from "../../helper/DialogManager";
+import { sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 
 type UserDetailsDialogProps = {
     userId: string;
@@ -22,6 +30,11 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
 
     const [userDetails, setUserDetails] = useState<UserModel>();
     const fetchRef = useRef(false);
+
+    const [viewAddrModalOpen, setViewAddrModalOpen] = useState(false);
+    const [viewAddrMode, setViewAddrMode] = useState<"edit" | "add">("edit");
+    const [viewStates, setViewStates] = useState<{ value: string; label: string }[]>([]);
+    const [viewCities, setViewCities] = useState<{ value: string; label: string }[]>([]);
 
     const fetchDataFromApi = useCallback(async () => {
         if (fetchRef.current) return;
@@ -47,7 +60,129 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     const onRefreshuser = async () => {
         await fetchDataFromApi();
         onRefreshData();
-    }
+    };
+
+    const loadViewCities = useCallback(async (stateId: string) => {
+        if (!stateId) {
+            setViewCities([]);
+            return;
+        }
+        const opts = await fetchCityDropDown([stateId]);
+        setViewCities(opts);
+    }, []);
+
+    /** Stable ref so `UserViewAddressModal` effects do not re-run every parent render (was causing a fetch/setState loop). */
+    const onViewModalFetchCities = useCallback(
+        (stateId: string) => {
+            void loadViewCities(stateId);
+        },
+        [loadViewCities]
+    );
+
+    const openViewAddressModal = useCallback(
+        async (mode: "edit" | "add") => {
+            if (viewStates.length === 0) {
+                const s = await fetchStateDropDown();
+                setViewStates(s);
+            }
+            if (mode === "add") {
+                setViewCities([]);
+            } else if (userDetails?.state_id) {
+                await loadViewCities(userDetails.state_id);
+            }
+            setViewAddrMode(mode);
+            setViewAddrModalOpen(true);
+        },
+        [viewStates.length, userDetails?.state_id, loadViewCities]
+    );
+
+    const handleViewAddressSave = useCallback(
+        async (values: UserViewAddressFormValues): Promise<boolean> => {
+            if (!userDetails?._id) {
+                showErrorAlert("Unable to save. User data is missing.");
+                return false;
+            }
+            const pin = sanitizeIndianPincodeInput(values.postal);
+            const common: Record<string, unknown> = {
+                type: userDetails.type,
+                is_from_web: userDetails.is_from_web,
+                registration_type: 1,
+                created_by_id: getLocalStorage(AppConstant.createdById),
+                name: userDetails.name ?? "",
+                email: userDetails.email ?? "",
+                phone_number: userDetails.phone_number ?? "",
+                is_active: userDetails.is_active,
+                ...(userDetails.profile_url ? { profile_url: userDetails.profile_url } : {}),
+            };
+
+            let payload: Record<string, unknown>;
+            if (viewAddrMode === "edit") {
+                payload = {
+                    ...common,
+                    address: values.line,
+                    state_id: values.stateId,
+                    city_id: values.cityId,
+                    pincode: pin,
+                };
+            } else {
+                const raw = userDetails.extra_addresses ?? [];
+                const mapped = raw.map((x) => ({
+                    state_id: x.state_id ?? "",
+                    city_id: x.city_id ?? "",
+                    pincode: sanitizeIndianPincodeInput(String(x.pincode ?? "")),
+                    address: (x.address ?? "").trim(),
+                }));
+                payload = {
+                    ...common,
+                    address: userDetails.address ?? "",
+                    state_id: userDetails.state_id ?? "",
+                    city_id: userDetails.city_id ?? "",
+                    pincode: sanitizeIndianPincodeInput(String(userDetails.pincode ?? "")),
+                    extra_addresses: [
+                        ...mapped,
+                        {
+                            state_id: values.stateId,
+                            city_id: values.cityId,
+                            pincode: pin,
+                            address: values.line.trim(),
+                        },
+                    ],
+                };
+            }
+
+            const ok = await createOrUpdateUser(payload, true, userDetails._id);
+            if (ok) {
+                showSuccessAlert(viewAddrMode === "edit" ? "Address updated." : "Address added.");
+                const refreshed = await fetchUserById(userId);
+                if (refreshed.response && refreshed.user) {
+                    setUserDetails(refreshed.user);
+                }
+                onRefreshData();
+                return true;
+            }
+            showErrorAlert("Could not save address. Please try again.");
+            return false;
+        },
+        [userDetails, viewAddrMode, userId, onRefreshData]
+    );
+
+    const viewAddressInitial = useMemo((): UserViewAddressFormValues | null => {
+        if (viewAddrMode !== "edit" || !userDetails) return null;
+        return {
+            stateId: userDetails.state_id ?? "",
+            cityId: userDetails.city_id ?? "",
+            postal: userDetails.pincode ?? "",
+            line: userDetails.address ?? "",
+        };
+    }, [
+        viewAddrMode,
+        userDetails?._id,
+        userDetails?.state_id,
+        userDetails?.city_id,
+        userDetails?.pincode,
+        userDetails?.address,
+    ]);
+
     return (
         <>
             <Modal
@@ -76,7 +211,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                 <Col className="custom-helper-column">
                                     <DetailsRow title="User Name" value={userDetails?.name} />
                                     <DetailsRow title="Phone No" value={userDetails?.phone_number} />
-                                    <DetailsRow title="State" value={userDetails?.state_name} />
                                     <DetailsRow title="Registered Date" value={formatDate(userDetails?.created_at ? userDetails?.created_at : "")} />
                                 </Col>
                                 <Col className="custom-helper-column">
@@ -101,44 +235,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                             </div>
                                         </Row>
                                         <Row className="row custom-personal-row gx-0 align-items-start">
-                                            <div className="col-md-4 custom-personal-row-title">City</div>
-                                            <div
-                                                className="col-md-8"
-                                                style={{
-                                                    fontSize: "16px",
-                                                    fontWeight: "normal",
-                                                    fontFamily: "Inter",
-                                                    color: "var(--txt-color)",
-                                                    wordBreak: "break-word",
-                                                }}
-                                            >
-                                                {userDetails?.city_name === undefined ||
-                                                userDetails?.city_name === "" ||
-                                                userDetails?.city_name === null
-                                                    ? "-"
-                                                    : userDetails.city_name}
-                                            </div>
-                                        </Row>
-                                        <Row className="row custom-personal-row gx-0 align-items-start">
-                                            <div className="col-md-4 custom-personal-row-title">Postal Code</div>
-                                            <div
-                                                className="col-md-8"
-                                                style={{
-                                                    fontSize: "16px",
-                                                    fontWeight: "normal",
-                                                    fontFamily: "Inter",
-                                                    color: "var(--txt-color)",
-                                                    wordBreak: "break-word",
-                                                }}
-                                            >
-                                                {userDetails?.pincode === undefined ||
-                                                userDetails?.pincode === "" ||
-                                                userDetails?.pincode === null
-                                                    ? "-"
-                                                    : userDetails.pincode}
-                                            </div>
-                                        </Row>
-                                        <Row className="row custom-personal-row gx-0 align-items-start">
                                             <div className="col-md-4 custom-personal-row-title">Last Service Date</div>
                                             <div
                                                 className="col-md-8"
@@ -159,28 +255,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                                         </Row>
                                     </div>
                                 </Col>
-                                <div className="w-100" style={{ flex: "1 1 100%", minWidth: "100%" }}>
-                                    <Row className="row custom-personal-row gx-0 align-items-start" style={{ gap: "9rem"}}>
-                                        <Col xs={12} sm="auto" className="custom-personal-row-title pe-sm-3 mb-1 mb-sm-0">
-                                            Address
-                                        </Col>
-                                        <Col xs={12} sm style={{ minWidth: 0 }}>
-                                            <div
-                                                className="text-wrap"
-                                                style={{
-                                                    fontSize: "16px",
-                                                    fontWeight: "normal",
-                                                    fontFamily: "Inter",
-                                                    color: "var(--txt-color)",
-                                                    whiteSpace: "normal",
-                                                    wordBreak: "break-word",
-                                                }}
-                                            >
-                                                {userDetails?.address?.trim() ? userDetails.address : "-"}
-                                            </div>
-                                        </Col>
-                                    </Row>
-                                </div>
                             </div>
                         <img src={editIcon} alt="edit" onClick={() => {
                             void import("./AddEditUserDialog").then(({ default: AddEditUserDialog }) => {
@@ -188,6 +262,24 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                             });
                         }} />
                     </div>
+                    {userDetails ? (
+                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                            <h3 className="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <span>Address</span>
+                                <button
+                                    type="button"
+                                    className="btn btn-link p-0 text-decoration-none fw-semibold"
+                                    style={{ color: "var(--primary-color)", fontSize: "15px" }}
+                                    onClick={() => void openViewAddressModal("add")}>
+                                    + Add address
+                                </button>
+                            </h3>
+                            <UserAddressReadOnlyCards
+                                user={userDetails}
+                                onEdit={() => void openViewAddressModal("edit")}
+                            />
+                        </section>
+                    ) : null}
                     <Row className="custom-helper-row">
                         <section className="custom-other-details" style={{ paddingBottom: "30px" }}>
                             <h3 className="mb-3">Services</h3>
@@ -266,6 +358,18 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                     </Row>
                 </Modal.Body>
             </Modal>
+            {userDetails ? (
+                <UserViewAddressModal
+                    show={viewAddrModalOpen}
+                    title={viewAddrMode === "edit" ? "Edit address" : "Add address"}
+                    states={viewStates}
+                    cities={viewCities}
+                    onFetchCities={onViewModalFetchCities}
+                    initial={viewAddressInitial}
+                    onHide={() => setViewAddrModalOpen(false)}
+                    onSave={handleViewAddressSave}
+                />
+            ) : null}
         </>
     );
 };

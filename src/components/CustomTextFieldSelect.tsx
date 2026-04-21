@@ -19,6 +19,10 @@ interface CustomTextFieldSelectProps {
     placeholder?: string;
     /** Use inside Bootstrap modals so the menu is not clipped. */
     menuPortal?: boolean;
+    /** Omit default `mb-4` on the label row (e.g. dense stacks in modals). */
+    noRowBottomMargin?: boolean;
+    /** Passed to `CustomFormSelect` — removes control bottom margin. */
+    noBottomMargin?: boolean;
 }
 
 const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
@@ -36,10 +40,13 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
     asCol = false,
     placeholder,
     menuPortal = false,
+    noRowBottomMargin = false,
+    noBottomMargin = false,
 }) => {
+    const rowMarginClass = noRowBottomMargin ? "" : labelSize !== 4 ? "mb-4" : "";
     return (
-        <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
-            <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
+        <Row className={["align-items-start", rowMarginClass].filter(Boolean).join(" ")}>
+            <Col sm={labelSize} className="d-flex align-items-start">
                 <label className="custom-profile-lable">{label}</label>
             </Col>
             <Col>
@@ -57,6 +64,7 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
                     onChange={onChange}
                     placeholder={placeholder}
                     menuPortal={menuPortal}
+                    noBottomMargin={noBottomMargin}
                 />
             </Col>
         </Row>

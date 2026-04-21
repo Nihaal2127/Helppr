@@ -22,8 +22,6 @@ import {
   voidPartnerSubscription,
   voidSubscriptionPlan,
 } from "../../../services/partnerManagementService";
-import { getLocalStorage } from "../../../helper/localStorageHelper";
-import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 type SubscriptionPlansProps = {
@@ -32,12 +30,7 @@ type SubscriptionPlansProps = {
 
 const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const { register, setValue } = useForm<any>();
-  const userRole = getLocalStorage(AppConstant.userRole);
-  const canViewPlans =
-    userRole !== UserRole.FRANCHISE_ADMIN && userRole !== UserRole.EMPLOYEE;
-  const [selectedBox, setSelectedBox] = useState<"plans" | "partner_subscription_list">(
-    canViewPlans ? "plans" : "partner_subscription_list"
-  );
+  const [selectedBox, setSelectedBox] = useState<"plans" | "partner_subscription_list">("plans");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const [planData, setPlanData] = useState({ Total: 0, Active: 0, Inactive: 0 });
@@ -65,7 +58,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   }>({});
 
   const fetchRef = useRef(false);
-  const activeBox = canViewPlans ? selectedBox : "partner_subscription_list";
+  const activeBox = selectedBox;
 
   const fetchData = useCallback(async () => {
     if (fetchRef.current) return;
@@ -335,29 +328,27 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       />
 
       <div className="box-container d-flex gap-3 flex-wrap">
-        {canViewPlans && (
-          <CustomSummaryBox
-            divId="box-subscription-plan"
-            title={capitalizeString("plans")}
-            data={planData}
-            onSelect={() => {
-              setSelectedBox("plans");
-              handlePlanFilterChange({});
+        <CustomSummaryBox
+          divId="box-subscription-plan"
+          title={capitalizeString("plans")}
+          data={planData}
+          onSelect={() => {
+            setSelectedBox("plans");
+            handlePlanFilterChange({});
             setPlanSortBy([]);
-            }}
-            isSelected={activeBox === "plans"}
-            onFilterChange={(filter) => {
-              setSelectedBox("plans");
-              handlePlanFilterChange(filter);
-              setPlanSortBy([]);
-            }}
-            isAddShow={true}
-            addButtonLable="Add Plan"
-            onAddClick={() => {
-              AddEditSubscriptionPlanDialog.show(true, null, () => refreshData());
-            }}
-          />
-        )}
+          }}
+          isSelected={activeBox === "plans"}
+          onFilterChange={(filter) => {
+            setSelectedBox("plans");
+            handlePlanFilterChange(filter);
+            setPlanSortBy([]);
+          }}
+          isAddShow={true}
+          addButtonLable="Add Plan"
+          onAddClick={() => {
+            AddEditSubscriptionPlanDialog.show(true, null, () => refreshData());
+          }}
+        />
 
         <CustomSummaryBox
           divId="box-partner-subscription-list"

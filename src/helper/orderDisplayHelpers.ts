@@ -1,5 +1,6 @@
 import { OrderModel } from "../models/OrderModel";
 import { OrderItemModel } from "../models/OrderItemModel";
+import type { OfferModel } from "../models/SettingsModel";
 import { formatDate, formatUtcToLocalTime } from "./utility";
 import { getOffers } from "../services/settingsService";
 
@@ -99,7 +100,68 @@ export type OrderOfferBreakdown = {
   offerName?: string;
   /** Business / settings offer id for display */
   offerCode?: string;
+  /** Create-order preview: % taken off `discountBaseForPercent` when offer is percentage (or unknown id fallback). */
+  percentOffOrder?: number | null;
+  /** Create-order preview: monetary base the % was applied to (prefers order total, else subtotal). */
+  discountBaseForPercent?: number;
 };
+
+/** When an offer is selected on create order but not found in settings, use this % off order total. */
+export const CREATE_ORDER_OFFER_FALLBACK_PERCENT = 20;
+
+/**
+ * Rupee discount for create-order preview / payment total.
+ * - `percentage`: `totalOfferValue` is the percent (e.g. 20 → 20% of order total).
+ * - `fixed`: `totalOfferValue` is max rupee discount, capped by order total (or subtotal if total is 0).
+ */
+export function computeCreateOrderOfferDiscountRupees(args: {
+  offerId: string;
+  fromSettings?: OfferModel;
+  orderTotalPrice: number;
+  orderSubTotal: number;
+}): { discount: number; percentOff: number | null; baseUsed: number } {
+  const id = args.offerId.trim();
+  if (!id) return { discount: 0, percentOff: null, baseUsed: 0 };
+
+  const total = Math.max(0, Number(args.orderTotalPrice) || 0);
+  const sub = Math.max(0, Number(args.orderSubTotal) || 0);
+  const base = total > 0.009 ? total : sub;
+
+  if (!args.fromSettings) {
+    const pct = CREATE_ORDER_OFFER_FALLBACK_PERCENT;
+    const discount = Math.min((base * pct) / 100, base);
+    return { discount, percentOff: pct, baseUsed: base };
+  }
+
+  if (args.fromSettings.offerType === "percentage") {
+    const pct = Number(args.fromSettings.totalOfferValue) || 0;
+    const discount = Math.min((base * pct) / 100, base);
+    return { discount, percentOff: pct, baseUsed: base };
+  }
+
+  const flat = Math.max(0, Number(args.fromSettings.totalOfferValue) || 0);
+  return { discount: Math.min(flat, base), percentOff: null, baseUsed: base };
+}
+
+/** Split a rupee discount between admin / partner using template ratio (or 60/40 if template has no parts). */
+export function splitOfferContributionAmounts(
+  discountRupees: number,
+  template?: Pick<OfferModel, "adminContribution" | "partnerContribution">
+): { admin: number; partner: number } {
+  if (discountRupees <= 0.00001) return { admin: 0, partner: 0 };
+
+  const adminT = Math.max(0, Number(template?.adminContribution) || 0);
+  const partnerT = Math.max(0, Number(template?.partnerContribution) || 0);
+  const parts = adminT + partnerT;
+  if (parts > 0.009) {
+    return {
+      admin: discountRupees * (adminT / parts),
+      partner: discountRupees * (partnerT / parts),
+    };
+  }
+
+  return { admin: discountRupees * 0.6, partner: discountRupees * 0.4 };
+}
 
 /**
  * Resolves offer display: prefers explicit API fields on the order, else matches `offer_id`

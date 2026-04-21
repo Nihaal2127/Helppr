@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import type { UseFormUnregister } from "react-hook-form";
 import { Row, Col, Button } from "react-bootstrap";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
@@ -9,6 +10,11 @@ import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicke
 import { fetchPartnerDropDown } from "../../services/userService";
 import addIcon from "../../assets/icons/add.svg";
 import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
+import type { ServiceAddressCard, AddressCityDropdownRow } from "../../models/OrderItemModel";
+import { AppConstant } from "../../constant/AppConstant";
+import { CustomFormInput } from "../../components/CustomFormInput";
+import ServiceAddressCardsPanel, { serializeServiceAddressCards } from "./ServiceAddressCardsPanel";
+import type { CustomerSavedAddressPreview } from "../../helper/userAddressPreview";
 
 /** Digits and at most one decimal point (for text `type="text"` service price). */
 function sanitizeDecimalDigits(raw: string): string {
@@ -17,6 +23,19 @@ function sanitizeDecimalDigits(raw: string): string {
     if (dotIdx === -1) return cleaned;
     return cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, "");
 }
+
+const newAddressCardId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const defaultAddressCard = (isActive = true): ServiceAddressCard => ({
+    id: newAddressCardId(),
+    stateId: "",
+    cityId: "",
+    postal: "",
+    line: "",
+    stateLabel: "",
+    cityLabel: "",
+    isActive,
+});
 
 const servicePriceFieldValidation = {
     required: "Service price is required",
@@ -48,6 +67,22 @@ type ServiceItemFormProps = {
     errors: any;
     /** Add Order: compact layout; fees still derived from entered service price. */
     compact?: boolean;
+    /** Create order: only one line item, no add/remove controls. */
+    singleServiceOnly?: boolean;
+    /** Render rows inside a parent section (no inner "Service" card chrome). */
+    embedded?: boolean;
+    /** Hide service date / time row (parent renders “Scheduled Date/Time”). */
+    omitSchedule?: boolean;
+    /** Multi-address card grid instead of a single textarea. */
+    useAddressCards?: boolean;
+    /** When `omitSchedule`, parent-owned date/time is merged from here (create order). */
+    scheduleMirror?: OrderItemModel[];
+    /** Create flow: states/cities from parent `fetchCityDropDown` (no extra fetches). */
+    addressStateOptions?: { value: string; label: string }[];
+    addressCityRows?: AddressCityDropdownRow[];
+    unregister?: UseFormUnregister<any>;
+    /** Create order: show selected customer profile address above service location cards. */
+    customerSavedAddresses?: CustomerSavedAddressPreview[];
 };
 
 const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
@@ -59,9 +94,19 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
     getValues,
     errors,
     compact = false,
+    singleServiceOnly = false,
+    embedded = false,
+    omitSchedule = false,
+    useAddressCards = false,
+    scheduleMirror,
+    addressStateOptions,
+    addressCityRows,
+    unregister,
+    customerSavedAddresses,
 }) => {
     const [services, setService] = useState<{ value: string; label: string; price?: number }[]>([]);
     const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
+    const prevCategoryRef = useRef<string | null>(null);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([
         {
             service_id: "",
@@ -78,6 +123,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
             partner_earning: 0,
             total_price: 0,
             admin_earning: 0,
+            address_cards: [defaultAddressCard(true)],
         },
     ]);
     const fetchRef = useRef(false);
@@ -88,20 +134,94 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
         onChangeRef.current(serviceItems);
     }, [serviceItems]);
 
-    const fetchServiceFromApi = useCallback(async () => {
-        if (fetchRef.current) return;
-        fetchRef.current = true;
-        try {
-            const serviceOptions = await fetchServiceDropDown(categoryId);
-            setService(serviceOptions);
-        } finally {
-            fetchRef.current = false;
+    useEffect(() => {
+        if (!omitSchedule || !scheduleMirror?.length) return;
+        const m0 = scheduleMirror[0];
+        setServiceItems((prev) => {
+            if (!prev.length) return prev;
+            const s0 = prev[0];
+            const same =
+                (m0.service_date || "") === (s0.service_date || "") &&
+                (m0.service_from_time || "") === (s0.service_from_time || "") &&
+                (m0.service_to_time || "") === (s0.service_to_time || "");
+            if (same) return prev;
+            return [
+                {
+                    ...s0,
+                    service_date: m0.service_date ?? s0.service_date,
+                    service_from_time: m0.service_from_time ?? s0.service_from_time,
+                    service_to_time: m0.service_to_time ?? s0.service_to_time,
+                },
+                ...prev.slice(1),
+            ];
+        });
+    }, [
+        omitSchedule,
+        scheduleMirror?.[0]?.service_date,
+        scheduleMirror?.[0]?.service_from_time,
+        scheduleMirror?.[0]?.service_to_time,
+    ]);
+
+    useEffect(() => {
+        if (!singleServiceOnly || serviceItems.length <= 1) return;
+        setServiceItems((items) => [items[0]]);
+    }, [singleServiceOnly, serviceItems.length]);
+
+    useEffect(() => {
+        const cid = (categoryId ?? "").trim();
+        if (!cid) {
+            setService([]);
+            return;
         }
+        void (async () => {
+            if (fetchRef.current) return;
+            fetchRef.current = true;
+            try {
+                const serviceOptions = await fetchServiceDropDown(cid);
+                setService(serviceOptions);
+            } finally {
+                fetchRef.current = false;
+            }
+        })();
     }, [categoryId]);
 
     useEffect(() => {
-        void fetchServiceFromApi();
-    }, [fetchServiceFromApi]);
+        const next = categoryId ?? "";
+        if (prevCategoryRef.current === null) {
+            prevCategoryRef.current = next;
+            return;
+        }
+        if (prevCategoryRef.current === next) return;
+        if (prevCategoryRef.current === "" && next) {
+            prevCategoryRef.current = next;
+            return;
+        }
+        prevCategoryRef.current = next;
+
+        setServiceItems((prev) =>
+            prev.map((item, idx) => {
+                setValue(`serviceItems.${idx}.service_id`, "");
+                setValue(`serviceItems.${idx}.partner_id`, "");
+                setValue(`serviceItems.${idx}.service_price`, 0, { shouldValidate: true });
+                return {
+                    ...item,
+                    service_id: "",
+                    partner_id: "",
+                    service_price: 0,
+                    tax: 0,
+                    sub_total: 0,
+                    user_paltform_fee: 0,
+                    total_price: 0,
+                    partner_commison_platform_fee: 0,
+                    partner_earning: 0,
+                    admin_earning: 0,
+                    address_cards: [defaultAddressCard(true)],
+                    service_address: "",
+                };
+            })
+        );
+        setPartner([]);
+    }, [categoryId, setValue]);
 
     const fetchPartnerFromApi = async (serviceId: string) => {
         if (fetchRef.current) return;
@@ -132,7 +252,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                 partner_earning: 0,
                 total_price: 0,
                 admin_earning: 0,
-
+                address_cards: [defaultAddressCard(true)],
             },
         ]);
     };
@@ -219,51 +339,91 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
         };
     };
 
-    return (
-        <>
-            {serviceItems.map((service, index) => (
-                <section key={index} className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                    <Row className="d-flex justify-content-between align-items-center">
-                        <Col>
-                            <h3 className="mb-0">Service</h3>
-                        </Col>
-                        <Col className="text-end">
-                            {index > 0 && (
-                                <label
-                                    onClick={(e) => { e.preventDefault(); removeServiceItem(index); }}
-                                    className="custom-document-delete">
-                                    Remove
-                                </label>
-                            )}
-                            <Button
-                                style={{
-                                    height: "26px",
-                                    borderRadius: "4px",
-                                    backgroundColor: "var(--bg-color)",
-                                    color: "var(--primary-color)",
-                                    fontFamily: "Inter",
-                                    fontSize: "14px",
-                                    fontWeight: "normal",
-                                    border: "1px solid var(--primary-txt-color)",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: "6px",
-                                    padding: "0 10px",
-                                    margin: "0px 10px"
-                                }}
-                                onClick={() => addServiceItem()}>
-                                <img src={addIcon} alt="Add" style={{ height: "14px", width: "14px" }} />
-                                Add
-                            </Button>
+    const showAddRemoveRow = !singleServiceOnly && !embedded;
+    const categorySelected = !!(categoryId ?? "").trim();
 
-                        </Col>
-                    </Row>
-                    <Row className="mt-3">
+    const renderServicePriceControl = (index: number) => {
+        const priceFieldError = errors.serviceItems?.[index]?.service_price as
+            | { message?: string }
+            | undefined;
+        const invalid = !!priceFieldError;
+        const borderColor = invalid
+            ? "var(--bs-form-invalid-border-color, #dc3545)"
+            : "var(--primary-color)";
+        return (
+            <div className="d-flex flex-column">
+                <div
+                    className="d-flex align-items-stretch"
+                    style={{
+                        border: `1px solid ${borderColor}`,
+                        borderRadius: "8px",
+                        overflow: "hidden",
+                        backgroundColor: "var(--bg-color)",
+                        minHeight: 35,
+                    }}>
+                    <span
+                        className="d-flex align-items-center justify-content-center flex-shrink-0"
+                        style={{
+                            borderRight: `1px solid ${borderColor}`,
+                            color: "var(--primary-txt-color)",
+                            fontWeight: 600,
+                            fontFamily: "Inter",
+                            fontSize: "14px",
+                            fontVariantNumeric: "tabular-nums",
+                            paddingLeft: "10px",
+                            paddingRight: "10px",
+                            minWidth: 40,
+                            alignSelf: "stretch",
+                        }}>
+                        {AppConstant.currencySymbol}
+                    </span>
+                    <div className="flex-grow-1 d-flex" style={{ minWidth: 0 }}>
+                        <CustomFormInput
+                            label=""
+                            controlId={`serviceItems.${index}.service_price`}
+                            placeholder="0.00"
+                            register={register}
+                            validation={servicePriceFieldValidation}
+                            error={undefined}
+                            asCol={false}
+                            inputType="text"
+                            value={
+                                serviceItems[index].service_price ??
+                                getValues(`serviceItems.${index}.service_price` as any)
+                            }
+                            onChange={(value) =>
+                                handleInputChange(index, "service_price", sanitizeDecimalDigits(value))
+                            }
+                            inputStyle={{
+                                border: "none",
+                                borderRadius: 0,
+                                boxShadow: "none",
+                                marginBottom: 0,
+                                minHeight: 35,
+                                height: "100%",
+                                width: "100%",
+                            }}
+                            inputClassName="shadow-none"
+                        />
+                    </div>
+                </div>
+                {invalid && priceFieldError?.message ? (
+                    <div className="invalid-feedback d-block" style={{ marginTop: "0.25rem" }}>
+                        {priceFieldError.message}
+                    </div>
+                ) : null}
+            </div>
+        );
+    };
+
+    const serviceFieldRows = (service: OrderItemModel, index: number) => (
+                    <>
+                    <Row className={embedded ? "mt-2" : "mt-3"}>
                         <Col xs={4}>
                             <CustomTextFieldSelect
                                 label="Service"
                                 controlId={`Service`}
-                                options={services}
+                                options={categorySelected ? services : []}
                                 register={register}
                                 fieldName={`serviceItems.${index}.service_id`}
                                 error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_id}
@@ -275,6 +435,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                 onChange={(e) => {
                                     handleInputChange(index, "service_id", e.target.value)
                                 }}
+                                placeholder={categorySelected ? "Select service" : "Select a category first"}
                                 menuPortal
                             />
                         </Col>
@@ -294,23 +455,21 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                 onChange={(e) => {
                                     handleInputChange(index, "partner_id", e.target.value)
                                 }}
+                                placeholder={
+                                    serviceItems[index].service_id
+                                        ? "Select partner"
+                                        : "Select a service first"
+                                }
                                 menuPortal
                             />
                         </Col>
                         <Col xs={4}>
-                            <CustomTextField
-                                label="Service Price"
-                                controlId={`serviceItems.${index}.service_price`}
-                                placeholder="Enter amount"
-                                register={register}
-                                inputType="text"
-                                value={serviceItems[index].service_price ?? getValues(`serviceItems.${index}.service_price` as any)}
-                                error={errors.serviceItems?.[index]?.service_price}
-                                validation={servicePriceFieldValidation}
-                                onChange={(value) =>
-                                    handleInputChange(index, "service_price", sanitizeDecimalDigits(value))
-                                }
-                            />
+                            <Row className="align-items-start mx-0">
+                                <Col sm={4} className="d-flex align-items-start px-0">
+                                    <label className="custom-profile-lable">Service Price</label>
+                                </Col>
+                                <Col className="ps-1 pe-0">{renderServicePriceControl(index)}</Col>
+                            </Row>
                         </Col>
                     </Row>
                     {!compact && (
@@ -329,6 +488,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                             </Col>
                         </Row>
                     )}
+                    {!omitSchedule && (
                     <Row className="mt-3">
                         <Col xs={4}>
                             <CustomTextFieldDatePicket
@@ -378,6 +538,36 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                             />
                         </Col>
                     </Row>
+                    )}
+                    {useAddressCards && addressStateOptions && addressCityRows ? (
+                        <ServiceAddressCardsPanel
+                            cards={
+                                serviceItems[index].address_cards?.length
+                                    ? serviceItems[index].address_cards!
+                                    : [defaultAddressCard(true)]
+                            }
+                            onChange={(next) => {
+                                setServiceItems((prev) =>
+                                    prev.map((it, i) =>
+                                        i === index
+                                            ? {
+                                                  ...it,
+                                                  address_cards: next,
+                                                  service_address: serializeServiceAddressCards(next),
+                                              }
+                                            : it
+                                    )
+                                );
+                            }}
+                            register={register}
+                            setValue={setValue}
+                            unregister={unregister}
+                            stateOptions={addressStateOptions}
+                            cityRows={addressCityRows}
+                            customerSavedAddresses={customerSavedAddresses}
+                        />
+                    ) : null}
+                    {!useAddressCards && (
                     <Row className="mt-3">
                         <Col xs={12}>
                             <CustomTextField
@@ -389,11 +579,16 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                 validation={{ required: "Service address is required" }}
                                 onChange={(value) => handleInputChange(index, "service_address", value)}
                                 as="textarea"
-                                rows={2}
+                                rows={4}
                                 labelSize={2}
                             />
                         </Col>
-                        <Col xs={3} className="mt-3">
+                    </Row>
+                    )}
+                    <Row>
+                        {!compact && (
+                            <>
+                                <Col xs={3} className="mt-3">
                                     <CustomTextField
                                         label="Sub Total"
                                         controlId={`serviceItems.${index}.sub_total`}
@@ -477,16 +672,62 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                                         isEditable={false}
                                     />
                                 </Col>
-                    </Row>
-                    <Row>
-                        {!compact && (
-                            <>
-                                
                             </>
                         )}
                     </Row>
-                </section>
-            ))}
+                    </>
+    );
+
+    return (
+        <>
+            {serviceItems.map((service, index) =>
+                embedded ? (
+                    <React.Fragment key={index}>{serviceFieldRows(service, index)}</React.Fragment>
+                ) : (
+                    <section key={index} className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                        {showAddRemoveRow && (
+                            <Row className="d-flex justify-content-between align-items-center">
+                                <Col>
+                                    <h3 className="mb-0">Service</h3>
+                                </Col>
+                                <Col className="text-end">
+                                    {index > 0 && (
+                                        <label
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                removeServiceItem(index);
+                                            }}
+                                            className="custom-document-delete">
+                                            Remove
+                                        </label>
+                                    )}
+                                    <Button
+                                        style={{
+                                            height: "26px",
+                                            borderRadius: "4px",
+                                            backgroundColor: "var(--bg-color)",
+                                            color: "var(--primary-color)",
+                                            fontFamily: "Inter",
+                                            fontSize: "14px",
+                                            fontWeight: "normal",
+                                            border: "1px solid var(--primary-txt-color)",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: "6px",
+                                            padding: "0 10px",
+                                            margin: "0px 10px",
+                                        }}
+                                        onClick={() => addServiceItem()}>
+                                        <img src={addIcon} alt="Add" style={{ height: "14px", width: "14px" }} />
+                                        Add
+                                    </Button>
+                                </Col>
+                            </Row>
+                        )}
+                        {serviceFieldRows(service, index)}
+                    </section>
+                )
+            )}
         </>
     );
 };

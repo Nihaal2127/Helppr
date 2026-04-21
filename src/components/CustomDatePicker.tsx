@@ -7,6 +7,8 @@ import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 interface CustomDatePickerProps {
   label?: string;
   controlId: string;
+  /** Optional DOM id for `Form.Group` when the same field is shown twice (avoids duplicate `controlId` in the tree). */
+  groupControlId?: string;
   selectedDate: string | null;
   onChange: (date: Date | null) => void;
   placeholderText?: string;
@@ -17,11 +19,14 @@ interface CustomDatePickerProps {
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
   groupClassName?: string;
+  /** Second copy of the same field: still calls `setValue(controlId, …)` but skips the hidden `register` input. */
+  suppressHiddenRegister?: boolean;
 }
 
 const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   label,
   controlId,
+  groupControlId,
   selectedDate,
   onChange,
   placeholderText = "Select a date",
@@ -32,6 +37,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   register,
   validation,
   groupClassName,
+  suppressHiddenRegister = false,
 }) => {
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
@@ -51,7 +57,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={controlId} className={groupClassName ?? "mb-3 w-100"}>
+      <Form.Group controlId={groupControlId ?? controlId} className={groupClassName ?? "mb-3 w-100"}>
         {label && <Form.Label>{label}</Form.Label>}
         <div className="position-relative w-100">
           <DatePicker
@@ -82,11 +88,13 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
           </Form.Control.Feedback>
         )}
       </Form.Group>
-      <input
-        type="hidden"
-        {...register(controlId, validation)}
-        value={selectedDate || ""}
-      />
+      {!suppressHiddenRegister ? (
+        <input
+          type="hidden"
+          {...register(controlId, validation)}
+          value={selectedDate || ""}
+        />
+      ) : null}
     </Wrapper>
   );
 };

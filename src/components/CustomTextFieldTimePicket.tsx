@@ -7,6 +7,7 @@ interface CustomTextFieldTimePicketProps {
     labelSize?: number;
     label: string;
     controlId: string;
+    groupControlId?: string;
     selectedTime: string | null;
     onChange: (date: Date | null) => void;
     placeholderText?: string;
@@ -16,12 +17,14 @@ interface CustomTextFieldTimePicketProps {
     error?: any;
     asCol?: boolean;
     setValue: UseFormSetValue<any>;
+    suppressHiddenRegister?: boolean;
 }
 
 const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
     labelSize = 4,
     label,
     controlId,
+    groupControlId,
     selectedTime,
     onChange,
     placeholderText = "Select a time",
@@ -31,16 +34,18 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
     setValue,
     register,
     validation,
+    suppressHiddenRegister,
 }) => {
     return (
-        <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
-            <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
+        <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
+            <Col sm={labelSize} className="d-flex align-items-start">
                 <label className="custom-profile-lable">{label}</label>
             </Col>
             <Col>
                 <CustomTimePicker
                     label=""
                     controlId={controlId}
+                    groupControlId={groupControlId}
                     selectedTime={selectedTime}
                     onChange={onChange}
                     placeholderText={placeholderText}
@@ -50,6 +55,7 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
                     setValue={setValue}
                     asCol={asCol}
                     filterTime={filterTime}
+                    suppressHiddenRegister={suppressHiddenRegister}
                 />
             </Col>
         </Row>

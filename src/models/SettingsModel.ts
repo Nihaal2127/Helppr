@@ -23,9 +23,14 @@ export interface RoleSettingsModel {
   roleName: string;
   roleType: "franchise_admin" | "employee";
   assignedFranchise?: string;
+  /** Contact (settings / mock; optional for backward compatibility). */
+  email?: string;
+  phone_number?: string;
+  /** Profile image path or URL after upload (mock). */
+  profile_url?: string;
   status: ActiveStatus;
   createdDate: string;
-  /** Menu keys from `mainMenuItems` granted to franchise employees */
+  /** Menu keys from `mainMenuItems` granted to franchise admins and employees */
   screenPermissions?: string[];
 }
 
@@ -33,6 +38,9 @@ export interface StaffSettingsModel {
   id: string;
   staffId: string;
   name: string;
+  email?: string;
+  phone_number?: string;
+  profile_url?: string;
   status: ActiveStatus;
   createdDate: string;
   screenPermissions: string[];

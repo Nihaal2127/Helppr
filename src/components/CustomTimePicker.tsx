@@ -7,6 +7,7 @@ import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 interface CustomTimePickerProps {
   label?: string;
   controlId: string;
+  groupControlId?: string;
   selectedTime: string | null;
   onChange: (date: Date | null) => void;
   placeholderText?: string;
@@ -19,11 +20,13 @@ interface CustomTimePickerProps {
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
   groupClassName?: string;
+  suppressHiddenRegister?: boolean;
 }
 
 const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   label,
   controlId,
+  groupControlId,
   selectedTime,
   onChange,
   placeholderText = "Select a time",
@@ -35,6 +38,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   register,
   validation,
   groupClassName,
+  suppressHiddenRegister = false,
 }) => {
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
@@ -54,7 +58,7 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={controlId} className={groupClassName ?? "mb-3 w-100"}>
+      <Form.Group controlId={groupControlId ?? controlId} className={groupClassName ?? "mb-3 w-100"}>
         {label?.trim() ? <Form.Label>{label}</Form.Label> : null}
         <div className="position-relative w-100">
           <DatePicker
@@ -84,11 +88,13 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
           </Form.Control.Feedback>
         )}
       </Form.Group>
-      <input
-        type="hidden"
-        {...register(controlId, validation)}
-        value={selectedTime || ""}
-      />
+      {!suppressHiddenRegister ? (
+        <input
+          type="hidden"
+          {...register(controlId, validation)}
+          value={selectedTime || ""}
+        />
+      ) : null}
     </Wrapper>
   );
 };

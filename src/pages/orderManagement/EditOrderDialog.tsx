@@ -36,7 +36,7 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
         .filter(([key]) => key !== 5)
         .map(([key, value]) => ({
             value: key.toString(),
-            label: value.label,
+            label: key === 1 ? "Refunded" : value.label,
         }));
 
     const paymentStatusOptions = orderPaymentModeSelectOptions;

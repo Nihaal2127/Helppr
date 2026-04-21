@@ -7,7 +7,7 @@ const TermsConditions = () => {
         display: "flex",
         flexDirection: "column",
       }}
-    > 
+    >
       <div style={{
         width: "100%",
         border: "none",

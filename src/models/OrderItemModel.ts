@@ -1,6 +1,27 @@
 import { ServiceModel } from "./ServiceModel";
 import { UserModel } from "./UserModel";
 
+/** Structured service locations (create flow); parent serializes to `service_address` for API. */
+export type ServiceAddressCard = {
+    id: string;
+    stateId: string;
+    cityId: string;
+    postal: string;
+    line: string;
+    stateLabel?: string;
+    cityLabel?: string;
+    /** Exactly one card should be active (primary service location). */
+    isActive?: boolean;
+};
+
+/** Row from `fetchCityDropDown` (create order passes the same list used for order city). */
+export type AddressCityDropdownRow = {
+    value: string;
+    label: string;
+    state_id?: string;
+    state_name?: string;
+};
+
 export interface OrderItemModel {
     _id?: string;
     order_id?: string;
@@ -28,4 +49,5 @@ export interface OrderItemModel {
     per_hour_price?: number;
     hours?: number;
     service_address?: string | null;
+    address_cards?: ServiceAddressCard[];
 }

@@ -576,7 +576,7 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                 onHide={onClose}
                 centered
                 {...(isAddPartner ? { size: "xl" as const } : {})}
-                dialogClassName="custom-big-modal add-edit-user-dialog-vh"
+                dialogClassName="custom-big-modal"
                 enforceFocus={!(isAddPartner || isPartnerEdit)}
             >
                 <Modal.Header className="py-3 px-4 border-bottom-0">
