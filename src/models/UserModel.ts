@@ -73,6 +73,9 @@ export interface UserModel {
   service_ids?: string[] | null;
   category_names?: string[] | null;
   service_names?: string[] | null;
+  /** Parallel to `service_ids` when API returns partner-specific text/amounts. */
+  service_descriptions?: string[] | null;
+  service_prices?: (string | number)[] | null;
 
   /** Partner verification list (`/user/getVerificationAll`) when API returns these fields. */
   verification_id?: string | null;

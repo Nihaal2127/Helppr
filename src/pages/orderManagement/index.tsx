@@ -278,7 +278,7 @@ const OrderManagement = () => {
                 <CustomUtilityBox
                     key={utilitySearchKey}
                     title="Orders"
-                    searchHint={"Search name, ID, Description etc."}
+                    searchHint={"Search order ID"}
                     toolsInlineRow
                     hideMoreIcon
                     controlSlot={

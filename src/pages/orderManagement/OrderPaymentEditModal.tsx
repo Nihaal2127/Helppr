@@ -231,6 +231,47 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
         [ext, partnerDueTotal, order.is_paid]
     );
 
+    /** When final / partner caps shrink (e.g. service amount), trim rows from the bottom so sums stay within caps. */
+    useEffect(() => {
+        setExt((e) => {
+            const capC = Math.max(0, finalTotal);
+            const sumC = sumCustomerAmounts(e.customerPayments);
+            let cust = e.customerPayments;
+            let changed = false;
+            if (sumC > capC + 0.01) {
+                let over = sumC - capC;
+                cust = [...e.customerPayments];
+                for (let i = cust.length - 1; i >= 0 && over > 0.01; i--) {
+                    const a = Math.max(0, Number(cust[i].amount) || 0);
+                    const d = Math.min(a, over);
+                    cust[i] = { ...cust[i], amount: a - d };
+                    over -= d;
+                }
+                changed = true;
+            }
+
+            let part = e.partnerPayments;
+            if (!partnerLock) {
+                const capP = Math.max(0, partnerDueTotal);
+                const sumP = sumPartnerAmounts(part);
+                if (sumP > capP + 0.01) {
+                    let over = sumP - capP;
+                    part = [...part];
+                    for (let i = part.length - 1; i >= 0 && over > 0.01; i--) {
+                        const a = Math.max(0, Number(part[i].amount) || 0);
+                        const d = Math.min(a, over);
+                        part[i] = { ...part[i], amount: a - d };
+                        over -= d;
+                    }
+                    changed = true;
+                }
+            }
+
+            if (!changed) return e;
+            return { ...e, customerPayments: cust, partnerPayments: part };
+        });
+    }, [finalTotal, partnerDueTotal, partnerLock]);
+
     const canAddCustomerPayment = customerPaidBal.balance > 0.009;
     const canAddPartnerPayment = !partnerLock && partnerPaidBal.balance > 0.009;
 
@@ -359,9 +400,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             <h3 className="mb-0">Services</h3>
                         </Col>
                     </Row>
-                    <div className="table-responsive" style={paymentSubcard}>
+                    <div style={paymentSubcard}>
                         <Table
-                            responsive
                             bordered
                             size="sm"
                             className="mb-0 align-middle"
@@ -646,7 +686,6 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                     </Row>
                     <div style={paymentSubcard}>
                         <Table
-                            responsive
                             bordered
                             size="sm"
                             className="mb-0 align-middle"
@@ -715,15 +754,27 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                                 inputStyle={tablePriceInputStyle}
                                                 value={row.amount === 0 ? "" : String(row.amount)}
                                                 onChange={(val) => {
-                                                    const t = val.trim();
-                                                    if (t === "") {
-                                                        updateCustomer(row.id, { amount: 0 });
-                                                        return;
-                                                    }
-                                                    const n = parseFloat(t);
-                                                    if (!Number.isNaN(n) && n >= 0) {
-                                                        updateCustomer(row.id, { amount: n });
-                                                    }
+                                                    setExt((e) => {
+                                                        const cap = Math.max(0, finalTotal);
+                                                        const otherSum = sumCustomerAmounts(
+                                                            e.customerPayments.filter((r) => r.id !== row.id)
+                                                        );
+                                                        const maxForRow = Math.max(0, cap - otherSum);
+                                                        const t = val.trim();
+                                                        let nextAmount = 0;
+                                                        if (t !== "") {
+                                                            const n = parseFloat(t);
+                                                            if (!Number.isNaN(n) && n >= 0) {
+                                                                nextAmount = Math.min(n, maxForRow);
+                                                            }
+                                                        }
+                                                        return {
+                                                            ...e,
+                                                            customerPayments: e.customerPayments.map((r) =>
+                                                                r.id === row.id ? { ...r, amount: nextAmount } : r
+                                                            ),
+                                                        };
+                                                    });
                                                 }}
                                             />
                                         </td>
@@ -827,7 +878,6 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                     </Row>
                     <div style={paymentSubcard}>
                         <Table
-                            responsive
                             bordered
                             size="sm"
                             className="mb-0 align-middle"
@@ -894,15 +944,27 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                                 value={row.amount === 0 ? "" : String(row.amount)}
                                                 onChange={(val) => {
                                                     if (partnerLock) return;
-                                                    const t = val.trim();
-                                                    if (t === "") {
-                                                        updatePartner(row.id, { amount: 0 });
-                                                        return;
-                                                    }
-                                                    const n = parseFloat(t);
-                                                    if (!Number.isNaN(n) && n >= 0) {
-                                                        updatePartner(row.id, { amount: n });
-                                                    }
+                                                    setExt((e) => {
+                                                        const cap = Math.max(0, partnerDueTotal);
+                                                        const otherSum = sumPartnerAmounts(
+                                                            e.partnerPayments.filter((r) => r.id !== row.id)
+                                                        );
+                                                        const maxForRow = Math.max(0, cap - otherSum);
+                                                        const t = val.trim();
+                                                        let nextAmount = 0;
+                                                        if (t !== "") {
+                                                            const n = parseFloat(t);
+                                                            if (!Number.isNaN(n) && n >= 0) {
+                                                                nextAmount = Math.min(n, maxForRow);
+                                                            }
+                                                        }
+                                                        return {
+                                                            ...e,
+                                                            partnerPayments: e.partnerPayments.map((r) =>
+                                                                r.id === row.id ? { ...r, amount: nextAmount } : r
+                                                            ),
+                                                        };
+                                                    });
                                                 }}
                                             />
                                         </td>

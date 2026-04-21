@@ -323,7 +323,7 @@ export const DetailsRowLinkDocument = ({
 }) => {
     return (
         <Row className="row custom-personal-row">
-            <Col className="custom-document-title">{title}</Col>
+            <Col className="custom-document-title" style={{ fontSize: "16px", fontWeight: 600}}>{title}</Col>
             <Col xs={6} >
                 {isEditable ? (
                     <>

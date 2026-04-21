@@ -127,15 +127,54 @@ export function buildDefaultPaymentExtension(order: OrderModel, primary?: OrderI
         (order.payment_mode_id === "1" ? "COD" : order.payment_mode_id === "2" ? "Online" : "");
 
     const d = order.order_date ? formatDate(order.order_date) : "";
-    const userTotal = Number(order.total_price ?? 0);
-    const userPaid = order.is_paid ? userTotal : 0;
-    const userBal = order.is_paid ? 0 : userTotal;
+    const userTotalRounded = roundMoney(Math.max(0, Number(order.total_price ?? 0)));
 
     const sub = serviceAmount;
     /** Partner obligation for this template (no extra charges / offer in defaults). */
     const partnerDue = roundMoney(Math.max(0, sub));
-    const partnerPaidAmt = order.is_paid ? partnerDue : 0;
-    const partnerBalAmt = order.is_paid ? 0 : Math.max(0, partnerDue - partnerPaidAmt);
+
+    /**
+     * Unpaid defaults: two instalments (~25% + ~25%, each at least ₹1 when cap ≥ 2) so both Paid amount
+     * cells show values; footer Total Paid / Balance still use cap − sum. Paid: full amount on row 1 only.
+     */
+    const defaultUnpaidTwoRowAmounts = (cap: number): { first: number; second: number } => {
+        const c = Math.max(0, cap);
+        if (c <= 0) return { first: 0, second: 0 };
+        if (c === 1) return { first: 1, second: 0 };
+        let a = Math.max(1, roundMoney(c * 0.25));
+        let b = Math.max(1, roundMoney(c * 0.25));
+        if (a + b > c) {
+            a = Math.max(1, Math.floor(c / 2));
+            b = Math.max(1, c - a);
+            if (a + b > c) {
+                a = Math.max(1, c - 1);
+                b = 1;
+            }
+        }
+        return { first: a, second: b };
+    };
+
+    let customerRow1: number;
+    let customerRow2: number;
+    if (order.is_paid) {
+        customerRow1 = userTotalRounded;
+        customerRow2 = 0;
+    } else {
+        const split = defaultUnpaidTwoRowAmounts(userTotalRounded);
+        customerRow1 = split.first;
+        customerRow2 = split.second;
+    }
+
+    let partnerRow1: number;
+    let partnerRow2: number;
+    if (order.is_paid) {
+        partnerRow1 = partnerDue;
+        partnerRow2 = 0;
+    } else {
+        const split = defaultUnpaidTwoRowAmounts(partnerDue);
+        partnerRow1 = split.first;
+        partnerRow2 = split.second;
+    }
 
     return {
         v: 1,
@@ -144,12 +183,12 @@ export function buildDefaultPaymentExtension(order: OrderModel, primary?: OrderI
         commissionPercent: commissionPct,
         otherCharges: [],
         customerPayments: [
-            { id: newId(), date: d, amount: userPaid, type: payMode || "—", description: "Paid amount" },
-            { id: newId(), date: d, amount: userBal, type: payMode || "—", description: "Balance amount" },
+            { id: newId(), date: d, amount: customerRow1, type: payMode || "—", description: "Paid amount" },
+            { id: newId(), date: d, amount: customerRow2, type: payMode || "—", description: "Balance amount" },
         ],
         partnerPayments: [
-            { id: newId(), date: d, amount: partnerPaidAmt, description: "Paid amount" },
-            { id: newId(), date: d, amount: partnerBalAmt, description: "Balance amount" },
+            { id: newId(), date: d, amount: partnerRow1, description: "Paid amount" },
+            { id: newId(), date: d, amount: partnerRow2, description: "Balance amount" },
         ],
     };
 }
@@ -274,30 +313,26 @@ function hasPartnerPaymentTemplateRows(ext: OrderPaymentExtV1): boolean {
 }
 
 /**
- * Customer paid / balance for the payment editor: uses Paid amount & Balance amount rows when present
- * (same as read-only view); otherwise total paid is the sum of all payment lines and balance is the remainder.
+ * Customer paid / balance for the payment editor: **sum of every row’s amount** (real-time with the table).
+ * Balance is the remainder against the invoice cap. Read-only views still use `customerPaidBalanceHeadline`.
  */
-export function customerPaidBalanceForEdit(ext: OrderPaymentExtV1, invoiceTotal: number, orderIsPaid: boolean): {
+export function customerPaidBalanceForEdit(ext: OrderPaymentExtV1, invoiceTotal: number, _orderIsPaid: boolean): {
     totalPaid: number;
     balance: number;
 } {
-    if (hasCustomerPaymentTemplateRows(ext)) {
-        return customerPaidBalanceHeadline(ext, invoiceTotal, orderIsPaid);
-    }
+    const inv = Math.max(0, Number(invoiceTotal) || 0);
     const totalPaid = sumCustomerAmounts(ext.customerPayments);
-    return { totalPaid, balance: Math.max(0, roundMoney(invoiceTotal - totalPaid)) };
+    return { totalPaid, balance: Math.max(0, roundMoney(inv - totalPaid)) };
 }
 
-/** Partner paid / balance for the payment editor (same rules as customer). */
+/** Partner paid / balance for the editor — sum of all partner payment rows vs partner obligation cap. */
 export function partnerPaidBalanceForEdit(
     ext: OrderPaymentExtV1,
     invoiceTotal: number,
-    serviceAmount: number,
-    orderIsPaid: boolean
+    _serviceAmount: number,
+    _orderIsPaid: boolean
 ): { totalPaid: number; balance: number } {
-    if (hasPartnerPaymentTemplateRows(ext)) {
-        return partnerPaidBalanceHeadline(ext, invoiceTotal, serviceAmount, orderIsPaid);
-    }
+    const inv = Math.max(0, Number(invoiceTotal) || 0);
     const totalPaid = sumPartnerAmounts(ext.partnerPayments);
-    return { totalPaid, balance: Math.max(0, roundMoney(invoiceTotal - totalPaid)) };
+    return { totalPaid, balance: Math.max(0, roundMoney(inv - totalPaid)) };
 }

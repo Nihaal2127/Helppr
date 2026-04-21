@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { Modal, Button, Row, Col } from "react-bootstrap";
+import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
-import { getRoleLabel, getStatusOptions } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { getRoleLabel, getStatusOptions, DetailsRow, DetailsRowLinkDocument } from "../../helper/utility";
+import { showErrorAlert, showInfoAlert } from "../../helper/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { createOrUpdateUser } from "../../services/userService";
@@ -15,16 +15,35 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
-import CustomMultiSelect from "../../components/CustomMultiSelect";
+import CustomUploadDialog from "../../components/CustomUpload";
+
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
 import { indianPincodeRequiredRules, sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
-import editIcon from "../../assets/icons/edit_red.svg";
-import { buildViewCategoryServiceGroups } from "./partnerCategoryServiceView";
-import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
 
+import { buildViewCategoryServiceGroups } from "./partnerCategoryServiceView";
+
+import {
+    PartnerSingleSelect,
+    emptyPartnerCatalogBlock,
+    emptyPartnerServiceRow,
+    flattenPartnerBlocksForSave,
+    partnerCatalogControlStyle,
+    partnerCatalogOutlineAddBtn,
+    partnerCatalogOutlineDeleteBtn,
+} from "./partnerCatalogBlockUi";
+import type {
+    PartnerCatalogFlattenOk,
+    PartnerCategoryBlock,
+    PartnerCatalogServiceLite,
+    PartnerServiceRow,
+} from "./partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
+
+/** Same copy as Partner details verification preview (`verificationStaticPreview`). */
+const ADD_PARTNER_VERIFICATION_PREVIEW_STATUS = "-";
+const ADD_PARTNER_VERIFICATION_PREVIEW_DATE = "-";
 
 type OptionType = { value: string; label: string };
 
@@ -103,6 +122,9 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
     const [allServices, setAllServices] = useState<ServiceLite[]>([]);
     const [categoryIds, setCategoryIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
+    const [partnerCatalogBlocks, setPartnerCatalogBlocks] = useState<PartnerCategoryBlock[]>(() => [
+        emptyPartnerCatalogBlock(""),
+    ]);
 
     const serviceOptions = useMemo(
         () => [
@@ -189,6 +211,12 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                         category_name: (s as { category_name?: string }).category_name
                             ? String((s as { category_name?: string }).category_name)
                             : undefined,
+                        desc: String((s as { desc?: string }).desc ?? ""),
+                        price:
+                            (s as { price?: number | null }).price !== undefined &&
+                            (s as { price?: number | null }).price !== null
+                                ? Number((s as { price?: number }).price)
+                                : undefined,
                     }))
                 );
             } catch {
@@ -207,6 +235,7 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
         if (isAddPartner) {
             setCategoryIds([]);
             setServiceIds([]);
+            setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
         } else if (
             isPartnerEdit &&
             user?.city_id &&
@@ -273,8 +302,114 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
         setServiceIds(selectedIds);
     };
 
+    const categorySelectOptions = useMemo((): OptionType[] => {
+        const rest = categoryOptions.filter((c) => c.value !== "select-all");
+        return [{ value: "", label: "Select category" }, ...rest];
+    }, [categoryOptions]);
+
+    const catalogServicesForBlocks = useMemo((): PartnerCatalogServiceLite[] => {
+        return allServices.map((s) => ({
+            _id: s._id,
+            name: s.name,
+            category_id: s.category_id,
+        }));
+    }, [allServices]);
+
+    const serviceOptionsForCategory = useCallback(
+        (categoryId: string): OptionType[] => {
+            if (!categoryId) {
+                return [{ value: "", label: "Select category first" }];
+            }
+            const list = allServices
+                .filter((svc) => String(svc.category_id) === String(categoryId))
+                .map((s) => ({ value: s._id, label: s.name }));
+            return [{ value: "", label: "Select service" }, ...list];
+        },
+        [allServices]
+    );
+
+    const addCategoryBlock = useCallback(() => {
+        setPartnerCatalogBlocks((prev) => [...prev, emptyPartnerCatalogBlock("")]);
+    }, []);
+
+    const removeCategoryBlock = useCallback((blockId: string) => {
+        setPartnerCatalogBlocks((prev) => (prev.length <= 1 ? prev : prev.filter((b) => b.id !== blockId)));
+    }, []);
+
+    const updateBlockCategory = useCallback((blockId: string, categoryId: string) => {
+        setPartnerCatalogBlocks((prev) =>
+            prev.map((b) =>
+                b.id === blockId
+                    ? {
+                          ...b,
+                          categoryId,
+                          serviceRows: b.serviceRows.map((r) => ({ ...r, serviceId: "" })),
+                      }
+                    : b
+            )
+        );
+    }, []);
+
+    const addServiceRow = useCallback((blockId: string) => {
+        setPartnerCatalogBlocks((prev) =>
+            prev.map((b) =>
+                b.id === blockId ? { ...b, serviceRows: [...b.serviceRows, emptyPartnerServiceRow()] } : b
+            )
+        );
+    }, []);
+
+    const updateServiceRow = useCallback(
+        (blockId: string, rowId: string, patch: Partial<Omit<PartnerServiceRow, "id">>) => {
+            setPartnerCatalogBlocks((prev) =>
+                prev.map((b) =>
+                    b.id !== blockId
+                        ? b
+                        : {
+                              ...b,
+                              serviceRows: b.serviceRows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
+                          }
+                )
+            );
+        },
+        []
+    );
+
+    const removeServiceRow = useCallback((blockId: string, rowId: string) => {
+        setPartnerCatalogBlocks((prev) =>
+            prev.map((b) => {
+                if (b.id !== blockId) return b;
+                if (b.serviceRows.length <= 1) {
+                    return b;
+                }
+                return { ...b, serviceRows: b.serviceRows.filter((r) => r.id !== rowId) };
+            })
+        );
+    }, []);
+
+    const hoverIconBtn = (e: React.MouseEvent<HTMLButtonElement>, on: boolean) => {
+        (e.currentTarget as HTMLButtonElement).style.filter = on ? "brightness(0.94)" : "";
+    };
+
+    /** Opens upload dialog like `PartnerDetailsDialog` `addDocument`; no partner doc id until partner is saved. */
+    const openAddPartnerVerificationDocumentUpload = useCallback(() => {
+        CustomUploadDialog.show(async (files, replaceUrls) => {
+            const formData = new FormData();
+            formData.append("type", "1");
+            files.forEach((file) => formData.append("files", file));
+
+            const { response, fileList } = await createOrUpdateDocument(formData, false);
+
+            if (response && fileList.length > 0) {
+                showInfoAlert(
+                    "Document uploaded. After you save this partner, open Partner details to attach or replace verification documents for each type."
+                );
+            }
+        });
+    }, []);
+
     useEffect(() => {
         if (!(isAddPartner || isPartnerEdit) || allServices.length === 0) return;
+        if (isAddPartner) return;
         setCategoryIds((prev) =>
             prev.filter((catId) =>
                 serviceIds.some((sid) => {
@@ -311,18 +446,28 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
             return;
         }
 
+        let addPartnerCatalogFlat: PartnerCatalogFlattenOk | null = null;
         if (isAddPartner || isPartnerEdit) {
             if (!data.city_id) {
                 showErrorAlert("Please select city before choosing categories and services.");
                 return;
             }
-            if (categoryIds.length === 0) {
-                showErrorAlert("Please select at least one category.");
-                return;
-            }
-            if (serviceIds.length === 0) {
-                showErrorAlert("Please select at least one service.");
-                return;
+            if (isAddPartner) {
+                const catalogFlat = flattenPartnerBlocksForSave(partnerCatalogBlocks, catalogServicesForBlocks);
+                if (!catalogFlat.ok) {
+                    showErrorAlert(catalogFlat.message);
+                    return;
+                }
+                addPartnerCatalogFlat = catalogFlat;
+            } else {
+                if (categoryIds.length === 0) {
+                    showErrorAlert("Please select at least one category.");
+                    return;
+                }
+                if (serviceIds.length === 0) {
+                    showErrorAlert("Please select at least one service.");
+                    return;
+                }
             }
         }
 
@@ -365,10 +510,25 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
             is_active: isActivePayload,
             pincode: sanitizeIndianPincodeInput(String(data.pincode ?? "")),
             ...(profile_url !== "" && { profile_url }),
-            ...(role === PARTNER_ROLE && {
-                category_ids: categoryIds,
-                service_ids: serviceIds,
-            }),
+            ...(role === PARTNER_ROLE &&
+                (isAddPartner
+                    ? (() => {
+                          const catalogFlat = flattenPartnerBlocksForSave(partnerCatalogBlocks, catalogServicesForBlocks);
+                          if (!catalogFlat.ok) {
+                              return {};
+                          }
+                          return {
+                              category_ids: catalogFlat.category_ids,
+                              service_ids: catalogFlat.service_ids,
+                              service_names: catalogFlat.service_names,
+                              service_descriptions: catalogFlat.service_descriptions,
+                              service_prices: catalogFlat.service_prices,
+                          };
+                      })()
+                    : {
+                          category_ids: categoryIds,
+                          service_ids: serviceIds,
+                      })),
             ...(isAddPartner && {
                 bank_account: {
                     account_holder_name: (data.partner_bank_holder ?? "").trim(),
@@ -416,7 +576,7 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                 onHide={onClose}
                 centered
                 {...(isAddPartner ? { size: "xl" as const } : {})}
-                dialogClassName={`custom-big-modal${isAddPartner ? " add-partner-modal-vh" : ""}`}
+                dialogClassName="custom-big-modal add-edit-user-dialog-vh"
                 enforceFocus={!(isAddPartner || isPartnerEdit)}
             >
                 <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -638,33 +798,215 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
                             <>
                                 <section className="custom-other-details mt-4" style={{ padding: "10px" }}>
                                     <h3 className="mb-2">Categories and services</h3>
-                                   
-                                    <Row>
-                                        <Col xs={12} md={6}>
-                                            <CustomMultiSelect
-                                                label="Categories"
-                                                controlId="categories"
-                                                options={categoryOptions}
-                                                value={selectedCategoryOptions}
-                                                onChange={(opts) => handleCategorySelection(opts as OptionType[])}
-                                                asCol={false}
-                                                menuPortal
-                                                selectedChipsMaxHeight="120px"
-                                            />
-                                        </Col>
-                                        <Col xs={12} md={6}>
-                                            <CustomMultiSelect
-                                                label="Services"
-                                                controlId="services"
-                                                options={serviceOptions}
-                                                value={selectedServiceOptions}
-                                                onChange={(opts) => handleServiceSelection(opts as OptionType[])}
-                                                asCol={false}
-                                                menuPortal
-                                                selectedChipsMaxHeight="180px"
-                                            />
-                                        </Col>
-                                    </Row>
+                                    {partnerCatalogBlocks.map((block) => (
+                                        <div
+                                            key={block.id}
+                                            className="rounded-3 border px-3 py-3 mb-4"
+                                            style={{
+                                                borderColor: "var(--lb1-border)",
+                                                backgroundColor: "var(--bg-color)",
+                                                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                                            }}
+                                        >
+                                            <Row className="g-3 align-items-end mb-3">
+                                                <Col xs={12} md>
+                                                    <PartnerSingleSelect
+                                                        instanceId={`${block.id}-category`}
+                                                        label="Category"
+                                                        options={categorySelectOptions}
+                                                        value={block.categoryId}
+                                                        placeholder="Select category"
+                                                        onChange={(cid: string) => updateBlockCategory(block.id, cid)}
+                                                    />
+                                                </Col>
+                                                <Col xs="auto" className="d-flex align-items-end gap-2 pb-1">
+                                                    <button
+                                                        type="button"
+                                                        title="Add another category block"
+                                                        aria-label="Add another category block"
+                                                        style={partnerCatalogOutlineAddBtn}
+                                                        onClick={addCategoryBlock}
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                                        onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                                    >
+                                                        <i className="bi bi-plus fs-6" aria-hidden />
+                                                    </button>
+                                                    {partnerCatalogBlocks.length > 1 ? (
+                                                        <button
+                                                            type="button"
+                                                            title="Remove this category block"
+                                                            aria-label="Remove this category block"
+                                                            style={partnerCatalogOutlineDeleteBtn}
+                                                            onClick={() => removeCategoryBlock(block.id)}
+                                                            onMouseDown={(e) => e.preventDefault()}
+                                                            onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                                            onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                                        >
+                                                            <i className="bi bi-trash fs-6" aria-hidden />
+                                                        </button>
+                                                    ) : null}
+                                                </Col>
+                                            </Row>
+
+                                            {block.serviceRows.map((row) => (
+                                                <Row key={row.id} className="g-3 align-items-start mb-2">
+                                                    <Col xs={12} md={3} lg={3}>
+                                                        <PartnerSingleSelect
+                                                            instanceId={`${block.id}-${row.id}-service`}
+                                                            label="Service"
+                                                            options={serviceOptionsForCategory(block.categoryId)}
+                                                            value={row.serviceId}
+                                                            placeholder="Select service"
+                                                            onChange={(sid: string) =>
+                                                                updateServiceRow(block.id, row.id, { serviceId: sid })
+                                                            }
+                                                        />
+                                                    </Col>
+                                                    <Col xs={12} md={5} lg={6}>
+                                                        <Form.Group controlId={`desc-${block.id}-${row.id}`}>
+                                                            <Form.Label className="fw-medium mb-1">Description</Form.Label>
+                                                            <Form.Control
+                                                                as="textarea"
+                                                                rows={1}
+                                                                className="custom-form-input"
+                                                                style={{
+                                                                    ...partnerCatalogControlStyle,
+                                                                    resize: "vertical",
+                                                                }}
+                                                                placeholder="Describe this offering"
+                                                                value={row.description}
+                                                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                                                                    updateServiceRow(block.id, row.id, {
+                                                                        description: e.target.value,
+                                                                    })
+                                                                }
+                                                            />
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col xs={12} md={2} lg={2}>
+                                                        <Form.Group controlId={`price-${block.id}-${row.id}`}>
+                                                            <Form.Label className="fw-medium mb-1">Price</Form.Label>
+                                                            <InputGroup>
+                                                                <InputGroup.Text
+                                                                    className="custom-form-input text-muted"
+                                                                    style={{
+                                                                        ...partnerCatalogControlStyle,
+                                                                        borderTopRightRadius: 0,
+                                                                        borderBottomRightRadius: 0,
+                                                                        fontWeight: 600,
+                                                                    }}
+                                                                >
+                                                                    {AppConstant.currencySymbol}
+                                                                </InputGroup.Text>
+                                                                <Form.Control
+                                                                    type="text"
+                                                                    inputMode="decimal"
+                                                                    className="custom-form-input border-start-0"
+                                                                    style={{
+                                                                        ...partnerCatalogControlStyle,
+                                                                        borderLeft: 0,
+                                                                        borderTopLeftRadius: 0,
+                                                                        borderBottomLeftRadius: 0,
+                                                                    }}
+                                                                    placeholder="e.g. 499"
+                                                                    value={row.price}
+                                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                                        updateServiceRow(block.id, row.id, {
+                                                                            price: e.target.value,
+                                                                        })
+                                                                    }
+                                                                />
+                                                            </InputGroup>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col
+                                                        xs={12}
+                                                        md={12}
+                                                        lg="auto"
+                                                        className="d-flex flex-row align-items-end justify-content-end gap-2 pt-2 pt-md-4"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            title="Add another service in this category"
+                                                            aria-label="Add another service in this category"
+                                                            style={partnerCatalogOutlineAddBtn}
+                                                            onClick={() => addServiceRow(block.id)}
+                                                            onMouseDown={(e) => e.preventDefault()}
+                                                            onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                                            onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                                        >
+                                                            <i className="bi bi-plus fs-6" aria-hidden />
+                                                        </button>
+                                                        {block.serviceRows.length > 1 ? (
+                                                            <button
+                                                                type="button"
+                                                                title="Remove this service row"
+                                                                aria-label="Remove this service row"
+                                                                style={partnerCatalogOutlineDeleteBtn}
+                                                                onClick={() => removeServiceRow(block.id, row.id)}
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                                                onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                                            >
+                                                                <i className="bi bi-trash fs-6" aria-hidden />
+                                                            </button>
+                                                        ) : null}
+                                                    </Col>
+                                                </Row>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </section>
+
+                                <section
+                                    className="custom-other-details mt-3"
+                                    style={{ marginLeft: "0px", marginRight: "0px", padding: "10px" }}
+                                >
+                                    <h3 className="mb-2">Verification &amp; Documents</h3>
+                                    <DetailsRow
+                                        title="Verification Status"
+                                        value={ADD_PARTNER_VERIFICATION_PREVIEW_STATUS}
+                                    />
+                                    <DetailsRow
+                                        title="Verified Date"
+                                        value={ADD_PARTNER_VERIFICATION_PREVIEW_DATE}
+                                    />
+                                    <DetailsRowLinkDocument
+                                        title="Vehicle Registration"
+                                        isEditable={false}
+                                        onAddClick={() => void openAddPartnerVerificationDocumentUpload()}
+                                        onViewClick={() => {}}
+                                        onDeleteClick={() => {}}
+                                    />
+                                    <DetailsRowLinkDocument
+                                        title="Police Verification Certificate"
+                                        isEditable={false}
+                                        onAddClick={() => void openAddPartnerVerificationDocumentUpload()}
+                                        onViewClick={() => {}}
+                                        onDeleteClick={() => {}}
+                                    />
+                                    <DetailsRowLinkDocument
+                                        title="PAN Card"
+                                        isEditable={false}
+                                        onAddClick={() => void openAddPartnerVerificationDocumentUpload()}
+                                        onViewClick={() => {}}
+                                        onDeleteClick={() => {}}
+                                    />
+                                    <DetailsRowLinkDocument
+                                        title="Driving License"
+                                        isEditable={false}
+                                        onAddClick={() => void openAddPartnerVerificationDocumentUpload()}
+                                        onViewClick={() => {}}
+                                        onDeleteClick={() => {}}
+                                    />
+                                    <DetailsRowLinkDocument
+                                        title="Aadhar Card"
+                                        isEditable={false}
+                                        onAddClick={() => void openAddPartnerVerificationDocumentUpload()}
+                                        onViewClick={() => {}}
+                                        onDeleteClick={() => {}}
+                                    />
                                 </section>
 
                                 <section className="custom-other-details mt-3" style={{ padding: "10px" }}>

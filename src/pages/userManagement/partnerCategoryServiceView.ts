@@ -1,7 +1,18 @@
+import { AppConstant } from "../../constant/AppConstant";
+
+export type ViewCategoryServiceRow = {
+    /** Present when row came from `service_ids` (stable key for React). */
+    serviceId?: string;
+    name: string;
+    description: string;
+    price: string;
+};
+
 export type ViewCategoryServicesGroup = {
     categoryId: string;
     categoryLabel: string;
-    services: string[];
+    /** One table row per service under this category (category column uses rowspan). */
+    rows: ViewCategoryServiceRow[];
 };
 
 type OptionType = { value: string; label: string };
@@ -11,6 +22,8 @@ type ServiceLite = {
     name: string;
     category_id: string;
     category_name?: string;
+    desc?: string;
+    price?: number | null;
 };
 
 const UNCATEGORIZED_KEY = "__uncategorized__";
@@ -23,7 +36,24 @@ export type PartnerCategoryViewSource = {
     service_names?: string[] | null;
 };
 
-/** One row per category with services (same rules as franchise view). */
+function formatServicePrice(price: unknown): string {
+    if (price == null || price === "") return "—";
+    const n = typeof price === "number" ? price : Number(price);
+    if (!Number.isFinite(n)) return String(price);
+    return `${AppConstant.currencySymbol}${n}`;
+}
+
+function rowDisplayDescription(fromAll: ServiceLite | undefined): string {
+    const raw = (fromAll?.desc ?? "").trim();
+    return raw || "—";
+}
+
+function rowsEqualKey(a: ViewCategoryServiceRow, b: ViewCategoryServiceRow): boolean {
+    if (a.serviceId && b.serviceId) return a.serviceId === b.serviceId;
+    return a.name === b.name;
+}
+
+/** One group per category with one row per selected service (same rules as franchise view). */
 export function buildViewCategoryServiceGroups(
     source: PartnerCategoryViewSource | null | undefined,
     allServices: ServiceLite[],
@@ -58,23 +88,32 @@ export function buildViewCategoryServiceGroups(
         return cid;
     };
 
-    const byCat = new Map<string, string[]>();
+    const byCat = new Map<string, ViewCategoryServiceRow[]>();
     const insertOrder: string[] = [];
 
-    const pushService = (cid: string, label: string) => {
+    const pushRow = (cid: string, row: ViewCategoryServiceRow) => {
         if (!byCat.has(cid)) {
             byCat.set(cid, []);
             insertOrder.push(cid);
         }
         const arr = byCat.get(cid)!;
-        if (!arr.includes(label)) arr.push(label);
+        if (arr.some((r) => rowsEqualKey(r, row))) return;
+        arr.push(row);
     };
 
     svcIds.forEach((sid, index) => {
-        const label = serviceLabel(sid, index);
-        const s = allServices.find((x) => String(x._id) === sid);
+        const fromAll = allServices.find((x) => String(x._id) === sid);
+        const name = serviceLabel(sid, index);
+        const s = fromAll;
         const cid = s?.category_id ? String(s.category_id) : "";
-        pushService(cid || UNCATEGORIZED_KEY, label);
+        const description = rowDisplayDescription(fromAll);
+        const price = formatServicePrice(fromAll?.price);
+        pushRow(cid || UNCATEGORIZED_KEY, {
+            serviceId: sid,
+            name,
+            description,
+            price,
+        });
     });
 
     for (const cid of catIdsOrder) {
@@ -84,8 +123,8 @@ export function buildViewCategoryServiceGroups(
         }
     }
 
-    const orphanLabels = [...(byCat.get(UNCATEGORIZED_KEY) ?? [])];
-    if (orphanLabels.length) {
+    const orphanRows = [...(byCat.get(UNCATEGORIZED_KEY) ?? [])];
+    if (orphanRows.length) {
         byCat.delete(UNCATEGORIZED_KEY);
         const uIdx = insertOrder.indexOf(UNCATEGORIZED_KEY);
         if (uIdx !== -1) insertOrder.splice(uIdx, 1);
@@ -96,14 +135,14 @@ export function buildViewCategoryServiceGroups(
         const pool = catIdsOrder.length > 0 ? catIdsOrder : uniqueInsert;
 
         if (pool.length > 0) {
-            orphanLabels.forEach((label, i) => {
+            orphanRows.forEach((row, i) => {
                 const cid = pool[i % pool.length];
                 if (!byCat.has(cid)) {
                     byCat.set(cid, []);
                     if (!insertOrder.includes(cid)) insertOrder.push(cid);
                 }
                 const arr = byCat.get(cid)!;
-                if (!arr.includes(label)) arr.push(label);
+                if (!arr.some((r) => rowsEqualKey(r, row))) arr.push(row);
             });
         } else {
             if (!byCat.has(FLAT_SERVICES_KEY)) {
@@ -111,8 +150,8 @@ export function buildViewCategoryServiceGroups(
                 insertOrder.push(FLAT_SERVICES_KEY);
             }
             const flat = byCat.get(FLAT_SERVICES_KEY)!;
-            orphanLabels.forEach((label) => {
-                if (!flat.includes(label)) flat.push(label);
+            orphanRows.forEach((row) => {
+                if (!flat.some((r) => rowsEqualKey(r, row))) flat.push(row);
             });
         }
     }
@@ -125,7 +164,7 @@ export function buildViewCategoryServiceGroups(
         built.push({
             categoryId: cid,
             categoryLabel: categoryLabel(cid),
-            services: byCat.get(cid)!,
+            rows: byCat.get(cid)!,
         });
         seen.add(cid);
     }
@@ -135,7 +174,7 @@ export function buildViewCategoryServiceGroups(
         built.push({
             categoryId: cid,
             categoryLabel: categoryLabel(cid),
-            services: byCat.get(cid) ?? [],
+            rows: byCat.get(cid) ?? [],
         });
         seen.add(cid);
     }
@@ -144,7 +183,7 @@ export function buildViewCategoryServiceGroups(
         return catNames.map((label, i) => ({
             categoryId: `cat-name-${i}`,
             categoryLabel: String(label),
-            services: [],
+            rows: [],
         }));
     }
 

@@ -53,6 +53,8 @@ type CatalogServiceLite = {
     name: string;
     category_id: string;
     category_name?: string;
+    desc?: string;
+    price?: number | null;
 };
 
 /** Demo data for multi-account carousel (API may return a single bank_account today). */
@@ -91,12 +93,39 @@ const DUMMY_PARTNER_CATEGORY_SERVICE_GROUPS: ViewCategoryServicesGroup[] = [
     {
         categoryId: "dummy-cat-1",
         categoryLabel: "Home cleaning",
-        services: ["Deep clean", "Kitchen cleaning", "Bathroom cleaning"],
+        rows: [
+            {
+                name: "Deep clean",
+                description: "Full home sanitization, floors, walls, and fixtures.",
+                price: `${AppConstant.currencySymbol}2499`,
+            },
+            {
+                name: "Kitchen cleaning",
+                description: "Degrease hob, cabinets exterior, sink, and tiles.",
+                price: `${AppConstant.currencySymbol}899`,
+            },
+            {
+                name: "Bathroom cleaning",
+                description: "Tiles, fittings, glass, and disinfection.",
+                price: `${AppConstant.currencySymbol}649`,
+            },
+        ],
     },
     {
         categoryId: "dummy-cat-2",
         categoryLabel: "Appliance repair",
-        services: ["AC servicing", "Washing machine repair"],
+        rows: [
+            {
+                name: "AC servicing",
+                description: "Split / window unit gas check, filter wash, and test run.",
+                price: `${AppConstant.currencySymbol}599`,
+            },
+            {
+                name: "Washing machine repair",
+                description: "Motor, drain, or board fault diagnosis and fix.",
+                price: `${AppConstant.currencySymbol}450`,
+            },
+        ],
     },
 ];
 
@@ -237,6 +266,12 @@ function PartnerDetailsDialogView({
                         category_name: (s as { category_name?: string }).category_name
                             ? String((s as { category_name?: string }).category_name)
                             : undefined,
+                        desc: String((s as { desc?: string }).desc ?? ""),
+                        price:
+                            (s as { price?: number | null }).price !== undefined &&
+                            (s as { price?: number | null }).price !== null
+                                ? Number((s as { price?: number }).price)
+                                : undefined,
                     }))
                 );
             } catch {
@@ -616,7 +651,7 @@ function PartnerDetailsDialogView({
                                                         <tr className="" style={{ borderColor: "var(--lb1-border)" }}>
                                                             <th
                                                                 scope="col"
-                                                                className="fw-semibold py-2 ps-3 pe-0"
+                                                                className="fw-semibold py-1 ps-3 pe-0"
                                                                 style={{
                                                                     width: "22%",
                                                                     minWidth: "120px",
@@ -632,30 +667,65 @@ function PartnerDetailsDialogView({
                                                             >
                                                                 Services offered
                                                             </th>
+                                                            <th
+                                                                scope="col"
+                                                                className="fw-semibold  py-2 ps-3 pe-0"
+                                                                style={{ color: "var(--primary-txt-color)" }}
+                                                            >
+                                                                Description
+                                                            </th>
+                                                            <th
+                                                                scope="col"
+                                                                className="fw-semibold  py-2 ps-3 pe-0"
+                                                                style={{ color: "var(--primary-txt-color)" }}
+                                                            >
+                                                                Price
+                                                            </th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {viewCategoryServiceGroups.map((g) => (
-                                                            <tr
-                                                                key={g.categoryId}
-                                                                style={{ borderColor: "var(--lb1-border)" }}
-                                                            >
-                                                                <td className="align-top py-2 ps-3 text-wrap">
-                                                                    <span style={{ color: "#101010" }}>
-                                                                        {g.categoryLabel}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="align-top py-2 ps-3 pe-0">
-                                                                    <div className="text-wrap">
-                                                                        {g.services.length > 0 ? (
-                                                                            <span>{g.services.join(", ")}</span>
-                                                                        ) : (
-                                                                            <span className="text-muted">—</span>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
+                                                        {viewCategoryServiceGroups.flatMap((g) => {
+                                                            const rows =
+                                                                g.rows.length > 0
+                                                                    ? g.rows
+                                                                    : [
+                                                                          {
+                                                                              name: "—",
+                                                                              description: "—",
+                                                                              price: "—",
+                                                                          },
+                                                                      ];
+                                                            const rowSpan = rows.length;
+                                                            return rows.map((row, idx) => (
+                                                                <tr
+                                                                    key={`${g.categoryId}-${row.serviceId ?? row.name}-${idx}`}
+                                                                    style={{ borderColor: "var(--lb1-border)" }}
+                                                                >
+                                                                    {idx === 0 ? (
+                                                                        <td
+                                                                            className="align-middle py-2 ps-3 text-wrap fw-medium fs-6"
+                                                                            rowSpan={rowSpan}
+                                                                            style={{
+                                                                                color: "#101010",
+                                                                                verticalAlign: "middle",
+                                                                                borderRight: "1px solid var(--lb1-border)",
+                                                                            }}
+                                                                        >
+                                                                            {g.categoryLabel}
+                                                                        </td>
+                                                                    ) : null}
+                                                                    <td className="align-top py-2 ps-3 pe-2 text-wrap fs-6">
+                                                                        {row.name}
+                                                                    </td>
+                                                                    <td className="align-top py-2 ps-2 pe-2 text-wrap small fs-6">
+                                                                        {row.description}
+                                                                    </td>
+                                                                    <td className="align-top py-2 ps-2 pe-3 text-nowrap fw-semibold fs-6">
+                                                                        {row.price}
+                                                                    </td>
+                                                                </tr>
+                                                            ));
+                                                        })}
                                                     </tbody>
                                                 </table>
                                             </div>
