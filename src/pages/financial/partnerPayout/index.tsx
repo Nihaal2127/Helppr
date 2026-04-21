@@ -20,7 +20,7 @@ import AddPayoutDialog from "./AddPayoutDialog";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 const WALLET_STATUS_OPTIONS = [
-  { value: "all", label: "All wallet statuses" },
+  { value: "all", label: "All" },
   { value: "pending", label: "Pending" },
   { value: "cleared", label: "Cleared" },
 ] as const;
@@ -110,7 +110,7 @@ const PartnerPayout = () => {
   );
 
   const filterControls = (
-    <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mt-2 mb-3 align-items-end">
+    <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mb-3 align-items-end">
       <Col>
         <CustomFormSelect
           label="Wallet Status"
@@ -240,7 +240,7 @@ const PartnerPayout = () => {
         Cell: ({ row }: { row: { original: UserModel } }) => (
           <CustomActionColumn
             row={row}
-            onView={() => navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.original._id}`)}
+            onView={(r) => navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(r.original._id)}`)}
             onDelete={() => handleVoidPartnerPayout(row.original)}
           />
         ),

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Spinner, Row, Col, Button, Card } from "react-bootstrap";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
-import FinancialSubPageNav from "../../../components/FinancialSubPageNav";
+import { ROUTES } from "../../../routes/Routes";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomTable from "../../../components/CustomTable";
 import CustomFormSelect from "../../../components/CustomFormSelect";
@@ -118,11 +118,34 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
   ];
 }
 
+/** Chevron in header: returns to Partner Payout list (not the Financials hub). */
+function PartnerPayoutDetailsBackButton() {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="financial-subpage-back"
+      onClick={() => navigate(ROUTES.PARTNER_PAYOUT.path)}
+      aria-label="Back to Partner Payout"
+    >
+      <i className="bi bi-chevron-left text-danger"></i>
+    </button>
+  );
+}
+
 function ShowPartnerPayout() {
   const { register, setValue } = useForm();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const partnerId = queryParams.get("id");
+  const partnerId = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get("id");
+    const trimmed = raw?.trim();
+    if (!trimmed) return null;
+    try {
+      return decodeURIComponent(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }, [location.search]);
   const [partnerSummary, setPartnerSummary] = useState<UserModel | null>(null);
   const [partnerLoading, setPartnerLoading] = useState(true);
 
@@ -453,98 +476,97 @@ function ShowPartnerPayout() {
     </Row>
   );
 
-  if (!partnerId) {
-    return (
-      <div className="main-page-content">
-        <CustomHeader title="Financial — Partner Payout Details" titlePrefix={<FinancialSubPageNav />} />
-        <p className="text-muted">Missing partner ID.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="main-page-content">
-      <CustomHeader title="Financial — Partner Payout Details" titlePrefix={<FinancialSubPageNav />} />
+      <CustomHeader title="Financial — Partner Payout Details" titlePrefix={<PartnerPayoutDetailsBackButton />} />
 
-      {partnerLoading ? (
-        <Card className="partner-payout-detail-card border-0 shadow-sm mb-4">
-          <Card.Body className="py-5 d-flex justify-content-center align-items-center gap-2 text-muted small">
-            <Spinner animation="border" size="sm" />
-            Loading partner…
-          </Card.Body>
-        </Card>
-      ) : partnerDetail ? (
-        <Card className="partner-payout-detail-card border-0 shadow-sm mb-4">
-          <Card.Body className="p-3 p-md-4">
-            <Row className="align-items-center g-3">
-              <Col className="min-w-0">
-                <h5 className="partner-payout-detail-name mb-1 text-break">{partnerDetail.name}</h5>
-                <div className="text-muted small mb-0">
-                  Partner ID{" "}
-                  <span className="font-monospace user-select-all">{partnerDetail.userId}</span>
-                </div>
-              </Col>
-              <Col xs={12} md="auto" className="ms-md-auto">
-                <div className="partner-payout-detail-wallet text-md-end">
-                  <div className="partner-payout-detail-wallet-label text-uppercase">Total wallet</div>
-                  <div className="partner-payout-detail-wallet-value">
-                    {totalWalletAmount === null
-                      ? "—"
-                      : `${AppConstant.currencySymbol}${totalWalletAmount.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`}
-                  </div>
-                </div>
-              </Col>
-            </Row>
-          </Card.Body>
-        </Card>
-      ) : null}
-
-      <CustomUtilityBox
-        key={utilitySearchKey}
-        searchOnlyToolbar
-        title="Wallet transactions"
-        searchHint="Order ID or description…"
-        onSearch={(value) => {
-          setKeyword(value.trim());
-          setLedgerPage(1);
-        }}
-        onDownloadClick={() => {}}
-        onSortClick={() => {}}
-        onMoreClick={() => {}}
-      />
-
-      {filterControls}
-
-      {ledgerLoading ? (
-        <div
-          className="d-flex justify-content-center align-items-center gap-2 py-5"
-          style={{ border: "1px solid var(--txtfld-border)", borderRadius: "8px" }}
-        >
-          <Spinner animation="border" size="sm" />
-          <span className="text-muted small">Loading transactions…</span>
-        </div>
+      {!partnerId ? (
+        <p className="text-muted px-1">
+          Missing partner ID. Open this screen from Financial — Partner Payout and choose View on a partner row.
+        </p>
       ) : (
-        <CustomTable
-          columns={walletTxColumns}
-          data={ledgerSlice}
-          pageSize={ledgerPageSize}
-          currentPage={ledgerPage}
-          totalPages={ledgerTotalPages}
-          onPageChange={(page: number) => setLedgerPage(page)}
-          onLimitChange={(ps: number) => {
-            setLedgerPageSize(ps);
+        <>
+          {partnerLoading ? (
+            <Card className="partner-payout-detail-card border-0 shadow-sm mb-4">
+              <Card.Body className="py-5 d-flex justify-content-center align-items-center gap-2 text-muted small">
+                <Spinner animation="border" size="sm" />
+                Loading partner…
+              </Card.Body>
+            </Card>
+          ) : partnerDetail ? (
+            <Card className="partner-payout-detail-card border-0 shadow-sm mb-4">
+              <Card.Body className="p-3 p-md-4">
+                <Row className="align-items-center g-3">
+                  <Col className="min-w-0">
+                    <h5 className="partner-payout-detail-name mb-1 text-break">{partnerDetail.name}</h5>
+                    <div className="text-muted small mb-0">
+                      Partner ID{" "}
+                      <span className="font-monospace user-select-all">{partnerDetail.userId}</span>
+                    </div>
+                  </Col>
+                  <Col xs={12} md="auto" className="ms-md-auto">
+                    <div className="partner-payout-detail-wallet text-md-end">
+                      <div className="partner-payout-detail-wallet-label text-uppercase">Total wallet</div>
+                      <div className="partner-payout-detail-wallet-value">
+                        {totalWalletAmount === null
+                          ? "—"
+                          : `${AppConstant.currencySymbol}${totalWalletAmount.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}`}
+                      </div>
+                    </div>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          ) : null}
+
+        <CustomUtilityBox
+          key={utilitySearchKey}
+          searchOnlyToolbar
+          title="Wallet transactions"
+          searchHint="Order ID or description…"
+          onSearch={(value) => {
+            setKeyword(value.trim());
             setLedgerPage(1);
           }}
-          theadClass="table-light"
-          tableClass="wallet-tx-react-table"
-          dynamicRowBackground={false}
-          getRowClassName={(row) =>
-            row.original.txType === "credit" ? "wallet-tx-table__row--credit" : "wallet-tx-table__row--debit"
-          }
+          onDownloadClick={() => {}}
+          onSortClick={() => {}}
+          onMoreClick={() => {}}
         />
+
+        {filterControls}
+
+        {ledgerLoading ? (
+          <div
+            className="d-flex justify-content-center align-items-center gap-2 py-5"
+            style={{ border: "1px solid var(--txtfld-border)", borderRadius: "8px" }}
+          >
+            <Spinner animation="border" size="sm" />
+            <span className="text-muted small">Loading transactions…</span>
+          </div>
+        ) : (
+          <CustomTable
+            columns={walletTxColumns}
+            data={ledgerSlice}
+            pageSize={ledgerPageSize}
+            currentPage={ledgerPage}
+            totalPages={ledgerTotalPages}
+            onPageChange={(page: number) => setLedgerPage(page)}
+            onLimitChange={(ps: number) => {
+              setLedgerPageSize(ps);
+              setLedgerPage(1);
+            }}
+            theadClass="table-light"
+            tableClass="wallet-tx-react-table"
+            dynamicRowBackground={false}
+            getRowClassName={(row) =>
+              row.original.txType === "credit" ? "wallet-tx-table__row--credit" : "wallet-tx-table__row--debit"
+            }
+          />
+        )}
+      </>
       )}
     </div>
   );

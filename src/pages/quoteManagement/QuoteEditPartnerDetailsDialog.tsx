@@ -102,9 +102,9 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
             }}
           />
           <CustomTextField
-            label="Partner location"
+            label="Partner address"
             controlId="partner_city"
-            placeholder="Enter city / location"
+            placeholder="Enter address"
             register={register}
             error={errors.partner_city}
           />

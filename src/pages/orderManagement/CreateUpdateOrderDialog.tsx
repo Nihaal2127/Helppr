@@ -52,6 +52,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
     const [offerOptions, setOfferOptions] = useState<{ value: string; label: string }[]>([{ value: "", label: "None" }]);
     const [employeeOptions, setEmployeeOptions] = useState<{ value: string; label: string }[]>([]);
+    const [customerUsers, setCustomerUsers] = useState<UserModel[]>([]);
+    const [customerUserOptions, setCustomerUserOptions] = useState<{ value: string; label: string }[]>([]);
 
     const fetchRef = useRef(false);
 
@@ -97,6 +99,18 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     }, []);
 
     useEffect(() => {
+        if (isEditable) return;
+        void (async () => {
+            const categoryOptions = await fetchCategoryDropDown();
+            setCategory(categoryOptions);
+        })();
+        setValue("payment_mode_id", "2");
+        setValue("comments", "");
+        setValue("offer_id", "");
+        setValue("customer_user_id", "");
+    }, [isEditable]);
+
+    useEffect(() => {
         const offers = getOffers().filter(
             (o) => o.status === "active" && (o.applicableOn === "orders" || o.applicableOn === "quotes")
         );
@@ -116,7 +130,18 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                 }))
             );
         };
+        const loadCustomers = async () => {
+            const { users } = await fetchUserDropDown(4);
+            setCustomerUsers(users);
+            setCustomerUserOptions(
+                users.map((u) => ({
+                    value: u._id,
+                    label: (u.name && String(u.name).trim()) || u.user_id || u.phone_number || u._id,
+                }))
+            );
+        };
         void loadEmployees();
+        void loadCustomers();
     }, []);
 
     useEffect(() => {
@@ -188,13 +213,18 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         }));
 
         const firstAddr = updatedServiceItems.find((s) => s.service_address?.trim())?.service_address?.trim();
+        const resolvedCityId =
+            data.city_id ||
+            selectedUser?.city_id ||
+            (cities.length > 0 ? cities[0].value : "");
+
         const payload = {
             user_id: selectedUser?._id,
             user_unique_id: selectedUser?.user_id,
-            city_id: data.city_id,
+            city_id: resolvedCityId,
             category_id: data.category_id,
             is_paid: false,
-            payment_mode_id: data.payment_mode_id,
+            payment_mode_id: data.payment_mode_id ?? "2",
             transaction_id: "",
             created_by_id: data.created_by_id || getLocalStorage(AppConstant.createdById),
             ...(data.offer_id ? { offer_id: data.offer_id } : {}),
@@ -210,7 +240,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             total_price: paymentDetails.totalPrice,
             admin_earning: paymentDetails.adminEarning,
             service_items: updatedServiceItems,
-            comments: data.comments,
+            comments: data.comments ?? "",
             name: selectedUser?.name,
             email: selectedUser?.email,
             contact: selectedUser?.phone_number,
@@ -247,129 +277,196 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         name="order-form"
                         id="order-form"
                         onSubmit={handleSubmit(onSubmitEvent)}>
-                        <section className="custom-other-details" style={{ padding: "10px" }}>
-                            <h3>User</h3>
-                            <Row>
-                                <Col xs={4}>
-                                    <CustomTextField
-                                        label="Phone No"
-                                        controlId="user_phone_number"
-                                        placeholder="Enter Phone Number"
-                                        register={register}
-                                        error={errors.user_phone_number}
-                                        validation={{ required: "Phone number is required" }}
-                                        // value={isEditable
-                                        //     ? order?.user_phone_number
-                                        //         ? order?.user_phone_number
-                                        //         : getValues("user_phone_number")
-                                        //     : getValues("user_phone_number")}
-                                        onChange={async (value) => await fetchUserFromApi(value)}
-                                    />
-                                </Col>
-                                <ShowDetailsRow title="User ID" value={selectedUser?.user_id} />
-                                <ShowDetailsRow title="User Name" value={selectedUser?.name} />
-                            </Row>
-                            <Row>
-                                <ShowDetailsRow
-                                    title="Address"
-                                    value={selectedUser?.address ?? selectedUser?.city_name ?? "-"}
-                                />
-                            </Row>
-                        </section>
-                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                            <Row>
-                                <Col xs={4} className="mt-2">
-                                    <CustomTextFieldSelect
-                                        label="City"
-                                        controlId="City"
-                                        options={cities}
-                                        register={register}
-                                        fieldName="city_id"
-                                        error={errors.city_id}
-                                        requiredMessage="Please select city"
-                                        defaultValue={isEditable
-                                            ? order?.city_id
-                                                ? order?.city_id
-                                                : getValues("city_id")
-                                            : getValues("city_id")}
-                                        setValue={setValue as (name: string, value: any) => void}
-                                        onChange={async (e) =>
-                                            await fetchCategoryFromApi(e.target.value)
-                                        }
-                                    />
-                                </Col>
-                                <Col xs={4} className="mt-2">
-                                    <CustomTextFieldSelect
-                                        label="Category"
-                                        controlId="Category"
-                                        options={categories}
-                                        register={register}
-                                        fieldName="category_id"
-                                        error={errors.category_id}
-                                        requiredMessage="Please select category"
-                                        defaultValue={isEditable
-                                            ? order?.category_id
-                                                ? order?.category_id
-                                                : getValues("category_id")
-                                            : getValues("category_id")}
-                                        setValue={setValue as (name: string, value: any) => void}
-                                        onChange={async (e) =>
-                                            setSelectedCategory(e.target.value)
-                                        }
-                                    />
-                                </Col>
-                                <Col xs={4} className="mt-2">
-                                    <CustomTextFieldSelect
-                                        label="Payment Mode"
-                                        controlId="Payment"
-                                        options={payments}
-                                        register={register}
-                                        fieldName="payment_mode_id"
-                                        error={errors.payment_mode_id}
-                                        requiredMessage="Please select payment"
-                                        defaultValue={isEditable
-                                            ? order?.payment_mode_id
-                                                ? order?.payment_mode_id
-                                                : getValues("payment_mode_id")
-                                            : getValues("payment_mode_id")}
-                                        setValue={setValue as (name: string, value: any) => void}
-                                    />
-                                </Col>
-                                <Col xs={4} className="mt-2">
-                                    <CustomTextFieldSelect
-                                        label="Offer (optional)"
-                                        controlId="offer_id"
-                                        options={offerOptions}
-                                        register={register}
-                                        fieldName="offer_id"
-                                        error={errors.offer_id}
-                                        defaultValue={isEditable ? order?.offer_id ?? "" : getValues("offer_id")}
-                                        setValue={setValue as (name: string, value: any) => void}
-                                    />
-                                </Col>
-                                <Col xs={4} className="mt-2">
-                                    <CustomTextFieldSelect
-                                        label="Employee"
-                                        controlId="created_by_id"
-                                        options={employeeOptions}
-                                        register={register}
-                                        fieldName="created_by_id"
-                                        error={errors.created_by_id}
-                                        requiredMessage={
-                                            employeeOptions.length > 0 ? "Please select employee" : undefined
-                                        }
-                                        defaultValue={
-                                            isEditable
-                                                ? order?.created_by_id ??
-                                                  getLocalStorage(AppConstant.createdById) ??
-                                                  ""
-                                                : getLocalStorage(AppConstant.createdById) ?? ""
-                                        }
-                                        setValue={setValue as (name: string, value: any) => void}
-                                    />
-                                </Col>
-                            </Row>
-                        </section>
+                        {!isEditable ? (
+                            <section className="custom-other-details" style={{ padding: "10px" }}>
+                                <h3>Add Order</h3>
+                                <Row>
+                                    <Col xs={12} md={4} className="mt-2">
+                                        <CustomTextFieldSelect
+                                            label="Category"
+                                            controlId="Category"
+                                            options={categories}
+                                            register={register}
+                                            fieldName="category_id"
+                                            error={errors.category_id}
+                                            requiredMessage="Please select category"
+                                            defaultValue={getValues("category_id")}
+                                            setValue={setValue as (name: string, value: any) => void}
+                                            onChange={(e) => setSelectedCategory(e.target.value)}
+                                            menuPortal
+                                        />
+                                    </Col>
+                                    <Col xs={12} md={4} className="mt-2">
+                                        <CustomTextFieldSelect
+                                            label="User"
+                                            controlId="User"
+                                            options={customerUserOptions}
+                                            register={register}
+                                            fieldName="customer_user_id"
+                                            error={errors.customer_user_id}
+                                            requiredMessage="Please select user"
+                                            defaultValue={getValues("customer_user_id")}
+                                            setValue={setValue as (name: string, value: any) => void}
+                                            onChange={(e) => {
+                                                const id = e.target.value;
+                                                const u = customerUsers.find((cu) => cu._id === id);
+                                                setSelectedUser(u);
+                                                setValue("user_phone_number", u?.phone_number ?? "");
+                                                if (u?.city_id) {
+                                                    setValue("city_id", u.city_id);
+                                                    void fetchCategoryFromApi(u.city_id);
+                                                }
+                                            }}
+                                            menuPortal
+                                        />
+                                    </Col>
+                                    <Col xs={12} md={4} className="mt-2">
+                                        <CustomTextFieldSelect
+                                            label="Employee"
+                                            controlId="Employee"
+                                            options={employeeOptions}
+                                            register={register}
+                                            fieldName="created_by_id"
+                                            error={errors.created_by_id}
+                                            requiredMessage={
+                                                employeeOptions.length > 0 ? "Please select employee" : undefined
+                                            }
+                                            defaultValue={getLocalStorage(AppConstant.createdById) ?? ""}
+                                            setValue={setValue as (name: string, value: any) => void}
+                                            menuPortal
+                                        />
+                                    </Col>
+                                    <Col xs={12} md={4} className="mt-2">
+                                        <CustomTextFieldSelect
+                                            label="Offer"
+                                            controlId="Offer"
+                                            options={offerOptions}
+                                            register={register}
+                                            fieldName="offer_id"
+                                            error={errors.offer_id}
+                                            defaultValue={getValues("offer_id")}
+                                            setValue={setValue as (name: string, value: any) => void}
+                                            menuPortal
+                                        />
+                                    </Col>
+                                </Row>
+                            </section>
+                        ) : (
+                            <>
+                                <section className="custom-other-details" style={{ padding: "10px" }}>
+                                    <h3>User</h3>
+                                    <Row>
+                                        <Col xs={4}>
+                                            <CustomTextField
+                                                label="Phone No"
+                                                controlId="user_phone_number"
+                                                placeholder="Enter Phone Number"
+                                                register={register}
+                                                error={errors.user_phone_number}
+                                                validation={{ required: "Phone number is required" }}
+                                                onChange={async (value) => await fetchUserFromApi(value)}
+                                            />
+                                        </Col>
+                                        <ShowDetailsRow title="User ID" value={selectedUser?.user_id} />
+                                        <ShowDetailsRow title="User Name" value={selectedUser?.name} />
+                                    </Row>
+                                    <Row>
+                                        <ShowDetailsRow
+                                            title="Address"
+                                            value={selectedUser?.address ?? selectedUser?.city_name ?? "-"}
+                                        />
+                                    </Row>
+                                </section>
+                                <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                                    <Row>
+                                        <Col xs={4} className="mt-2">
+                                            <CustomTextFieldSelect
+                                                label="City"
+                                                controlId="City"
+                                                options={cities}
+                                                register={register}
+                                                fieldName="city_id"
+                                                error={errors.city_id}
+                                                requiredMessage="Please select city"
+                                                defaultValue={
+                                                    order?.city_id
+                                                        ? order?.city_id
+                                                        : getValues("city_id")
+                                                }
+                                                setValue={setValue as (name: string, value: any) => void}
+                                                onChange={async (e) => await fetchCategoryFromApi(e.target.value)}
+                                            />
+                                        </Col>
+                                        <Col xs={4} className="mt-2">
+                                            <CustomTextFieldSelect
+                                                label="Category"
+                                                controlId="Category"
+                                                options={categories}
+                                                register={register}
+                                                fieldName="category_id"
+                                                error={errors.category_id}
+                                                requiredMessage="Please select category"
+                                                defaultValue={
+                                                    order?.category_id
+                                                        ? order?.category_id
+                                                        : getValues("category_id")
+                                                }
+                                                setValue={setValue as (name: string, value: any) => void}
+                                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                            />
+                                        </Col>
+                                        <Col xs={4} className="mt-2">
+                                            <CustomTextFieldSelect
+                                                label="Payment Mode"
+                                                controlId="Payment"
+                                                options={payments}
+                                                register={register}
+                                                fieldName="payment_mode_id"
+                                                error={errors.payment_mode_id}
+                                                requiredMessage="Please select payment"
+                                                defaultValue={
+                                                    order?.payment_mode_id
+                                                        ? order?.payment_mode_id
+                                                        : getValues("payment_mode_id")
+                                                }
+                                                setValue={setValue as (name: string, value: any) => void}
+                                            />
+                                        </Col>
+                                        <Col xs={4} className="mt-2">
+                                            <CustomTextFieldSelect
+                                                label="Offer (optional)"
+                                                controlId="offer_id"
+                                                options={offerOptions}
+                                                register={register}
+                                                fieldName="offer_id"
+                                                error={errors.offer_id}
+                                                defaultValue={order?.offer_id ?? ""}
+                                                setValue={setValue as (name: string, value: any) => void}
+                                            />
+                                        </Col>
+                                        <Col xs={4} className="mt-2">
+                                            <CustomTextFieldSelect
+                                                label="Employee"
+                                                controlId="created_by_id"
+                                                options={employeeOptions}
+                                                register={register}
+                                                fieldName="created_by_id"
+                                                error={errors.created_by_id}
+                                                requiredMessage={
+                                                    employeeOptions.length > 0 ? "Please select employee" : undefined
+                                                }
+                                                defaultValue={
+                                                    order?.created_by_id ??
+                                                    getLocalStorage(AppConstant.createdById) ??
+                                                    ""
+                                                }
+                                                setValue={setValue as (name: string, value: any) => void}
+                                            />
+                                        </Col>
+                                    </Row>
+                                </section>
+                            </>
+                        )}
                         {taxDetails && (
                             <ServiceItemForm
                                 taxDetails={taxDetails}
@@ -379,20 +476,24 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 setValue={setValue}
                                 getValues={getValues}
                                 errors={errors}
+                                compact={!isEditable}
                             />
                         )}
-                        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-                            <h3>Comments</h3>
-                            <CustomFormInput
-                                label=""
-                                controlId="comments"
-                                placeholder="Write Something"
-                                register={register}
-                                as="textarea"
-                                asCol={false}
-                                rows={5}
-                            />
-                        </section>
+                        {isEditable && (
+                            <>
+                            <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+                                <h3>Comments</h3>
+                                <CustomFormInput
+                                    label=""
+                                    controlId="comments"
+                                    placeholder="Write Something"
+                                    register={register}
+                                    as="textarea"
+                                    asCol={false}
+                                    rows={5}
+                                />
+                            </section>
+                       
                         <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
                             <h3>Payment</h3>
                             <Row>
@@ -423,6 +524,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 </Col>
                             </Row>
                         </section>
+                        </>
+                         )}
                         <Row className="mt-4">
                             <Col xs={12} className="text-center d-flex justify-content-end gap-3">
                                 <Button type="submit" className="custom-btn-primary">

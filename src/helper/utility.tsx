@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Row, Col } from "react-bootstrap";
 import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
 import { RoleEnum } from "../constant/RoleEnum";
@@ -131,6 +132,46 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
         </Row>
     );
 };
+
+/** Full-width label + value without `custom-personal-row` (long schedule / address text). */
+export function WideLabelValueBlock({
+    label,
+    children,
+    whiteSpace = "normal",
+    gap = "3rem",
+}: {
+    label: string;
+    children: ReactNode;
+    whiteSpace?: "pre-line" | "normal";
+    gap?: string;
+}) {
+    const content =
+        children === null || children === undefined || children === "" ? "-" : children;
+    return (
+        <div className="w-100" style={{ flex: "1 1 100%", minWidth: "100%" }}>
+            <Row className="gx-0 align-items-start" style={{ gap }}>
+                <Col xs={12} sm="auto" className="custom-personal-row-title pe-sm-3 mb-1 mb-sm-0 col-sm-auto col-12">
+                    {label}
+                </Col>
+                <Col xs={12} sm className="col-12" style={{ minWidth: 0 }}>
+                    <div
+                        className="text-wrap"
+                        style={{
+                            fontSize: 16,
+                            fontWeight: "normal",
+                            fontFamily: "Inter, sans-serif",
+                            color: "var(--txt-color)",
+                            whiteSpace,
+                            wordBreak: "break-word",
+                        }}
+                    >
+                        {content}
+                    </div>
+                </Col>
+            </Row>
+        </div>
+    );
+}
 
 export const FullDetailsRow = ({ title, value }: { title: string; value: any }) => {
     const displayValue =
@@ -323,7 +364,7 @@ export const DetailsRowLinkDocument = ({
 }) => {
     return (
         <Row className="row custom-personal-row">
-            <Col className="custom-document-title" style={{ fontSize: "16px", fontWeight: 600}}>{title}</Col>
+            <Col className="custom-document-title">{title}</Col>
             <Col xs={6} >
                 {isEditable ? (
                     <>

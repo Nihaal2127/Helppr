@@ -19,6 +19,8 @@ type QuoteUpdatePartnerDialogProps = {
   serviceId?: string;
   defaultPartnerId?: string;
   context?: QuoteUpdatePartnerContext;
+  /** When true, only the partner dropdown + actions (same pattern as order assign partner). */
+  partnerOnly?: boolean;
   onClose: () => void;
   onAssigned: (partnerId: string, partnerName: string) => void;
 };
@@ -44,9 +46,10 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     serviceId: string | undefined,
     defaultPartnerId: string | undefined,
     onAssigned: (partnerId: string, partnerName: string) => void,
-    context?: QuoteUpdatePartnerContext
+    context?: QuoteUpdatePartnerContext,
+    partnerOnly?: boolean
   ) => void;
-} = ({ serviceId, defaultPartnerId, context, onClose, onAssigned }) => {
+} = ({ serviceId, defaultPartnerId, context, partnerOnly, onClose, onAssigned }) => {
   const {
     register,
     handleSubmit,
@@ -116,10 +119,10 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     "-";
 
   return (
-    <Modal show={true} onHide={onClose} centered size="lg" dialogClassName="custom-big-modal">
+    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
-          Update Partner
+          {partnerOnly ? "Change partner" : "Update Partner"}
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
@@ -136,45 +139,50 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
               requiredMessage="Please select partner"
               defaultValue={defaultPartnerId}
               setValue={setValue as (name: string, value: any) => void}
+              menuPortal
             />
           </Row>
 
-          <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-            <h3 className="mb-2">Service & category</h3>
-            <Row>
-              <Col className="custom-helper-column">
-                <DetailsRow title="Service" value={serviceDisplay} />
-              </Col>
-              <Col className="custom-helper-column">
-                <DetailsRow title="Category" value={categoryDisplay} />
-              </Col>
-            </Row>
-          </section>
-
-          <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
-            <h3 className="mb-2">Bank information</h3>
-            {!selectedPartner ? (
-              <p className="mb-0 text-muted" style={{ fontSize: "14px" }}>
-                Select a partner to view bank details.
-              </p>
-            ) : bank ? (
+          {!partnerOnly && (
+            <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+              <h3 className="mb-2">Service & category</h3>
               <Row>
                 <Col className="custom-helper-column">
-                  <DetailsRow title="Account Name" value={bank.account_holder_name ?? "-"} />
-                  <DetailsRow title="Account Number" value={bank.account_number ?? "-"} />
-                  <DetailsRow title="IFSC Code" value={bank.ifsc_code ?? "-"} />
+                  <DetailsRow title="Service" value={serviceDisplay} />
                 </Col>
                 <Col className="custom-helper-column">
-                  <DetailsRow title="Bank Name" value={bank.bank_name ?? "-"} />
-                  <DetailsRow title="Branch Name" value={bank.branch_name ?? "-"} />
+                  <DetailsRow title="Category" value={categoryDisplay} />
                 </Col>
               </Row>
-            ) : (
-              <p className="mb-0 text-muted" style={{ fontSize: "14px" }}>
-                No bank account on file for this partner.
-              </p>
-            )}
-          </section>
+            </section>
+          )}
+
+          {!partnerOnly && (
+            <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+              <h3 className="mb-2">Bank information</h3>
+              {!selectedPartner ? (
+                <p className="mb-0 text-muted" style={{ fontSize: "14px" }}>
+                  Select a partner to view bank details.
+                </p>
+              ) : bank ? (
+                <Row>
+                  <Col className="custom-helper-column">
+                    <DetailsRow title="Account Name" value={bank.account_holder_name ?? "-"} />
+                    <DetailsRow title="Account Number" value={bank.account_number ?? "-"} />
+                    <DetailsRow title="IFSC Code" value={bank.ifsc_code ?? "-"} />
+                  </Col>
+                  <Col className="custom-helper-column">
+                    <DetailsRow title="Bank Name" value={bank.bank_name ?? "-"} />
+                    <DetailsRow title="Branch Name" value={bank.branch_name ?? "-"} />
+                  </Col>
+                </Row>
+              ) : (
+                <p className="mb-0 text-muted" style={{ fontSize: "14px" }}>
+                  No bank account on file for this partner.
+                </p>
+              )}
+            </section>
+          )}
 
           <Row className="mt-4">
             <Col xs={12} className="text-center d-flex justify-content-end gap-3">
@@ -196,13 +204,15 @@ QuoteUpdatePartnerDialog.show = (
   serviceId: string | undefined,
   defaultPartnerId: string | undefined,
   onAssigned: (partnerId: string, partnerName: string) => void,
-  context?: QuoteUpdatePartnerContext
+  context?: QuoteUpdatePartnerContext,
+  partnerOnly?: boolean
 ) => {
   openDialog("quote-update-partner-modal", (close) => (
     <QuoteUpdatePartnerDialog
       serviceId={serviceId}
       defaultPartnerId={defaultPartnerId}
       context={context}
+      partnerOnly={partnerOnly}
       onClose={close}
       onAssigned={onAssigned}
     />

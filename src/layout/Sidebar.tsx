@@ -37,14 +37,14 @@ const Sidebar: React.FC = () => {
 
     if( role === UserRole.EMPLOYEE){
       // return ![
-      //   // "content-management",
-      //   // "location-management",
-      //   // "franchise-management",
-      //   // "service-management",
-      //   // "my-franchise",
-      //   // "financials",
-      //   // "expenses-management",
-      //   // "settings"
+      //   "content-management",
+      //   "location-management",
+      //   "franchise-management",
+      //   "service-management",
+      //   "my-franchise",
+      //   "financials",
+      //   "expenses-management",
+      //   "settings"
       // ].includes(key);
     }
 

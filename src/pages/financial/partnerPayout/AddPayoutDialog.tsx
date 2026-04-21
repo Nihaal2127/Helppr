@@ -28,7 +28,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   const [pendingRows, setPendingRows] = useState<FinancialModel[]>([]);
   const [loadingPartners, setLoadingPartners] = useState(true);
   const [loadingPending, setLoadingPending] = useState(false);
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "razorpay">("cash");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -99,10 +99,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
 
   /** Same pool as “Total Pending Amount” — amount available to pay out from pending lines. */
   const walletAmount = totalPending;
-  const enterParsed = (() => {
-    const n = parseFloat(amount);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
-  })();
+  const enterParsed = Number.isFinite(amount) && amount >= 0 ? amount : 0;
   const pendingAfterPayout = Math.max(0, walletAmount - enterParsed);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,8 +108,8 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
       showErrorAlert("Please select a partner.");
       return;
     }
-    const num = parseFloat(amount);
-    if (Number.isNaN(num) || num <= 0) {
+    const num = amount;
+    if (!Number.isFinite(num) || num <= 0) {
       showErrorAlert("Please enter a valid amount greater than zero.");
       return;
     }
@@ -171,7 +168,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
               ) : (
                 <CustomFormSelect
                   label="Partner ID"
-                  controlId="partner_id"
+                  controlId="partner ID"
                   register={register as unknown as UseFormRegister<any>}
                   options={partnerOptions}
                   fieldName="partner_id"
@@ -188,7 +185,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
               <>
                 <Col xs={12}>
                   <div className="border rounded p-3 bg-light mb-2">
-                    <div className="fw-semibold mb-2">Total pending amount</div>
+                    <div className="fw-semibold mb-2">Total wallet amount</div>
                     {loadingPending ? (
                       <Spinner animation="border" size="sm" />
                     ) : (
@@ -200,7 +197,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                   </div>
                 </Col>
 
-                <Col xs={12}>
+                {/* <Col xs={12}>
                   <div className="fw-semibold mb-2 small">Order-wise pending</div>
                   {loadingPending ? (
                     <Spinner animation="border" size="sm" />
@@ -233,11 +230,11 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                       </Table>
                     </div>
                   )}
-                </Col>
+                </Col> */}
 
                 <Col xs={12}>
                   <Row className="g-3 align-items-end">
-                    <Col xs={12} md={4}>
+                    {/* <Col xs={12} md={4}>
                       <CustomFormInput
                         label="Wallet amount"
                         controlId="wallet_amount"
@@ -252,7 +249,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                         isEditable={false}
                         inputClassName="custom-form-input--read-only"
                       />
-                    </Col>
+                    </Col> */}
                     <Col xs={12} md={4}>
                       <CustomFormInput
                         label="Pay Now"
@@ -260,9 +257,19 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                         placeholder="0.00"
                         register={register}
                         asCol={false}
-                        inputType="number"
-                        value={amount}
-                        onChange={(value) => setAmount(value)}
+                        inputType="text"
+                        value={amount === 0 ? "" : String(amount)}
+                        onChange={(val) => {
+                          const t = val.trim();
+                          if (t === "") {
+                            setAmount(0);
+                            return;
+                          }
+                          const n = parseFloat(t);
+                          if (!Number.isNaN(n) && n >= 0) {
+                            setAmount(n);
+                          }
+                        }}
                       />
                     </Col>
                     <Col xs={12} md={4}>
@@ -282,9 +289,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                       />
                       {/* <Form.Text className="text-muted">Wallet amount − enter amount</Form.Text> */}
                     </Col>
-                  </Row>
-                </Col>
-                <Col xs={12} md={6}>
+                <Col xs={12} md={4}>
                   <CustomFormSelect
                     label="Payment method"
                     controlId="payment_method"
@@ -298,9 +303,11 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                     onChange={(e) => setPaymentMethod(e.target.value as "cash" | "razorpay")}
                   />
                 </Col>
+                  </Row>
+                </Col>
                 <Col xs={12}>
                   <CustomFormInput
-                    label="Description (optional)"
+                    label="Description"
                     controlId="description"
                     placeholder="Notes for this payout"
                     register={register}

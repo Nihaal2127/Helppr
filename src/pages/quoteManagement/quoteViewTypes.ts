@@ -7,6 +7,7 @@ export type QuoteViewData = {
   user_name: string;
   user_id?: string;
   phone_number?: string;
+  user_email?: string;
   user_city?: string;
   profile_url?: string | null;
   category_id?: string;
@@ -29,6 +30,7 @@ export type QuoteViewData = {
   /** Employee shown in quote view */
   employee_id?: string;
   employee_name?: string;
+  employee_phone?: string;
   service_price?: number;
   scheduled_date?: string;
   scheduled_time_from?: string;

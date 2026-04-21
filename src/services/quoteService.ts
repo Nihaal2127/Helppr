@@ -7,6 +7,36 @@ import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 export type OptionType = { value: string; label: string };
 
+/** How the Add Quote form collects schedule fields for a chosen service. */
+export type QuoteServiceScheduleMode = "single" | "range" | "hourly";
+
+export type QuoteUserOption = OptionType & { user_name: string };
+
+/**
+ * Maps a service label to schedule UI: one day, date range, or one day with time window.
+ * Heuristic over mock labels; replace with API-driven metadata when available.
+ */
+export function getQuoteServiceScheduleMode(serviceLabel: string): QuoteServiceScheduleMode {
+  const s = String(serviceLabel || "").toLowerCase().trim();
+  if (!s) return "single";
+
+  if (
+    /sofa|deep cleaning|full home|termite|painting|marble polishing|office sanitization|terrace waterproof|elevator|home cleaning and dusting/.test(
+      s
+    )
+  ) {
+    return "range";
+  }
+  if (
+    /repair|ac |^ac |split ac|geyser|microwave|refrigerator|washing machine|cctv|laptop|electrical|plumbing|kitchen sink|pest control|installation|install|chimney|led tv|inverter|water tank|bathroom sanitization|garden|curtain|window mesh|roof leak|false ceiling|glass facade|wooden flooring/.test(
+      s
+    )
+  ) {
+    return "hourly";
+  }
+  return "single";
+}
+
 /** Same shape as `CustomTable` server sort; `id` is the column accessor / API `sort_by` field. */
 export type QuoteListSort = ServerTableSortBy;
 
@@ -17,6 +47,22 @@ export type QuoteListFilters = {
 };
 
 const USE_MOCK_QUOTE_API = true;
+
+/** Only these accessors match server `sort_by` and in-memory sort (see quote table columns). */
+const QUOTE_SORTABLE_ACCESSORS = new Set([
+  "requested_services",
+  "services",
+  "requested_partner",
+  "partner_name",
+  "user_name",
+]);
+
+export function normalizeQuoteListSort(sort: QuoteListSort): QuoteListSort {
+  if (!sort.length) return [];
+  const first = sort[0];
+  if (!first?.id || !QUOTE_SORTABLE_ACCESSORS.has(first.id)) return [];
+  return [{ id: first.id, desc: Boolean(first.desc) }];
+}
 
 /** Same rule as backend `tab` query: show rows whose DB `status` matches the tab (case-insensitive). */
 function filterQuotesByStatusTab(records: QuoteRow[], tab: QuoteTabKey): QuoteRow[] {
@@ -85,6 +131,7 @@ function sortValueForColumn(row: QuoteRow, sortId: string): string | number {
       return row.order_id ?? "";
     case "status":
       return row.status ?? "";
+    case "address":
     case "location":
       return `${row.door_no}, ${row.street}, ${row.city}`;
     case "time":
@@ -96,8 +143,9 @@ function sortValueForColumn(row: QuoteRow, sortId: string): string | number {
 }
 
 function sortQuotesInMemory(rows: QuoteRow[], sort: QuoteListSort): QuoteRow[] {
-  if (!sort.length) return rows;
-  const { id, desc } = sort[0];
+  const safe = normalizeQuoteListSort(sort);
+  if (!safe.length) return rows;
+  const { id, desc } = safe[0];
   const dir = desc ? -1 : 1;
   return [...rows].sort((a, b) => {
     const va = sortValueForColumn(a, id);
@@ -172,7 +220,8 @@ export async function fetchQuotes(
     ...(filters.to_date ? { to_date: filters.to_date } : {}),
   });
 
-  const primarySort = sort[0];
+  const safeSort = normalizeQuoteListSort(sort);
+  const primarySort = safeSort[0];
   if (primarySort) {
     params.set("sort_by", primarySort.id);
     params.set("sort_order", primarySort.desc ? "desc" : "asc");
@@ -212,21 +261,38 @@ export async function fetchQuotes(
   return { response: true, quotes: records, totalPages, totalCount };
 }
 
+/**
+ * Services available for a category (from mock quote rows; replace with API when wired).
+ */
+export function getQuoteServiceOptionsForCategory(categoryId: string | undefined | null): OptionType[] {
+  const cid = String(categoryId ?? "").trim();
+  if (!cid) return [];
+
+  const names = new Set<string>();
+  for (const row of quoteListMockData.records) {
+    if (String(row.category_id ?? "").trim() !== cid) continue;
+    const raw = String(row.requested_services ?? "").trim();
+    if (!raw) continue;
+    for (const part of raw.split(",")) {
+      const s = part.trim();
+      if (s) names.add(s);
+    }
+  }
+
+  return Array.from(names)
+    .sort((a, b) => a.localeCompare(b))
+    .map((s) => ({ value: s, label: s }));
+}
+
 export async function fetchQuoteCreateOptions(): Promise<{
-  quoteServiceOptions: OptionType[];
   quotePartnerOptions: OptionType[];
+  quoteUserOptions: QuoteUserOption[];
+  quoteEmployeeOptions: OptionType[];
+  quoteCategoryOptions: OptionType[];
 }> {
   // Right now, the create modal options are derived from the same mock quote dataset.
-  // In "real mode", we can swap this to real endpoints without touching the UI.
+  // In "real mode", you can swap this to real endpoints without touching the UI.
   const allMock = quoteListMockData.records;
-  const services = Array.from(
-    new Set(
-      allMock
-        .flatMap((row) => String(row.requested_services || "").split(","))
-        .map((s) => s.trim())
-        .filter(Boolean)
-    )
-  );
 
   const partners = Array.from(
     new Set(
@@ -234,9 +300,49 @@ export async function fetchQuoteCreateOptions(): Promise<{
     )
   );
 
+  const userById = new Map<string, QuoteUserOption>();
+  for (const row of allMock) {
+    const uid = String(row.user_id || "").trim();
+    if (!uid) continue;
+    const name = String(row.user_name || "").trim() || uid;
+    const phone = String(row.phone_number || "").trim();
+    const label = phone ? `${name} (${phone})` : name;
+    if (!userById.has(uid)) {
+      userById.set(uid, { value: uid, label, user_name: name });
+    }
+  }
+
+  const employeeById = new Map<string, OptionType>();
+  for (const row of allMock) {
+    const eid = String(row.employee_id || "").trim();
+    if (!eid) continue;
+    const ename = String(row.employee_name || "").trim() || eid;
+    if (!employeeById.has(eid)) {
+      employeeById.set(eid, { value: eid, label: ename });
+    }
+  }
+
+  const categoryById = new Map<string, OptionType>();
+  for (const row of allMock) {
+    const cid = String(row.category_id || "").trim();
+    if (!cid) continue;
+    const cname = String(row.category_name || "").trim() || cid;
+    if (!categoryById.has(cid)) {
+      categoryById.set(cid, { value: cid, label: cname });
+    }
+  }
+
   return {
-    quoteServiceOptions: services.map((s) => ({ value: s, label: s })),
     quotePartnerOptions: partners.map((p) => ({ value: p, label: p })),
+    quoteUserOptions: Array.from(userById.values()).sort((a, b) =>
+      a.user_name.localeCompare(b.user_name)
+    ),
+    quoteEmployeeOptions: Array.from(employeeById.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    ),
+    quoteCategoryOptions: Array.from(categoryById.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    ),
   };
 }
 

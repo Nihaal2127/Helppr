@@ -74,7 +74,7 @@ const QuoteEditServicePriceDialog: React.FC<QuoteEditServicePriceDialogProps> & 
                   </InputGroup.Text>
                   <Form.Control
                     className="custom-form-input"
-                    type="number"
+                    type="text"
                     inputMode="decimal"
                     step="any"
                     min={0}

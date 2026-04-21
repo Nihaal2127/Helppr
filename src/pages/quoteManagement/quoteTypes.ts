@@ -1,12 +1,20 @@
 export type QuoteTabKey = "new" | "pending" | "accepted" | "success" | "failed";
 
 export type AddQuoteFormValues = {
-  quote_id: string;
+  /** Selected user id (dropdown value). */
+  user_id: string;
   user_name: string;
   requested_services: string;
   requested_partner: string;
+  employee_id: string;
+  category_id: string;
   requested_date: string;
+  /** End date when service schedule mode is `range`. */
+  requested_date_to: string;
   requested_time: string;
+  /** Start / end time when mode is `hourly`. */
+  requested_time_from: string;
+  requested_time_to: string;
   service_price: string;
 };
 
@@ -18,6 +26,7 @@ export type QuoteRow = {
   partner_name?: string;
   employee_id?: string;
   employee_name?: string;
+  employee_phone?: string;
   user_name: string;
   door_no: string;
   street: string;
@@ -44,6 +53,7 @@ export type QuoteRow = {
    */
   user_id?: string;
   phone_number?: string;
+  user_email?: string;
   user_city?: string;
   profile_url?: string | null;
   category_id?: string;

@@ -16,7 +16,7 @@ const HEADERS = [
   "Partner Name",
   "Service Name",
   "Service Date",
-  "Total Price",
+  "Total Amount",
   "Tax (%)",
   "Commission (%)",
   "User Paid Amount",

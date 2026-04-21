@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Modal, Row, Col, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel } from "../../models/OrderModel";
-import { DetailsRow, formatDate, DetailsOrderStatusRow } from "../../helper/utility";
+import { DetailsRow, formatDate, DetailsOrderStatusRow, WideLabelValueBlock } from "../../helper/utility";
 import { fetchOrderById } from "../../services/orderService";
 import { AppConstant } from "../../constant/AppConstant";
 import profileIcon from "../../assets/icons/profile.svg";
@@ -346,7 +346,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                                     </Col>
                                     <Col sm={6}>
                                         <DetailsRow title="Phone number" value={orderDetails?.user_info?.phone_number} />
-                                        <DetailsRow title="Address" value={orderDetails?.user_info?.address} />
+                                    </Col>
+                                </Row>
+                                <Row className="mt-2">
+                                    <Col xs={12} md={12}>
+                                        <WideLabelValueBlock label="Address" whiteSpace="normal">
+                                            {orderDetails?.user_info?.address}
+                                        </WideLabelValueBlock>
                                     </Col>
                                 </Row>
                             </Col>
@@ -379,7 +385,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             </Col>
                             <Col md={6} className="custom-helper-column">
                                 <DetailsRow title="Email" value={primary?.partner_info?.email ?? "-"} />
-                                <DetailsRow title="Address" value={primary?.partner_info?.address ?? "-"} />
+                            </Col>
+                        </Row>
+                        <Row className="mt-2">
+                            <Col xs={12} md={12}>
+                                <WideLabelValueBlock label="Address" whiteSpace="normal">
+                                    {primary?.partner_info?.address}
+                                </WideLabelValueBlock>
                             </Col>
                         </Row>
                     </section>

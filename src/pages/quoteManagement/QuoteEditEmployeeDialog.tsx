@@ -8,6 +8,7 @@ import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 
 export type QuoteEmployeePatch = {
   employee_name: string;
+  employee_phone?: string;
 };
 
 type QuoteEditEmployeeDialogProps = {
@@ -30,12 +31,14 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
   } = useForm<FormValues>({
     defaultValues: {
       employee_name: defaults.employee_name ?? "",
+      employee_phone: defaults.employee_phone ?? "",
     },
   });
 
   useEffect(() => {
     reset({
       employee_name: defaults.employee_name ?? "",
+      employee_phone: defaults.employee_phone ?? "",
     });
   }, [defaults, reset]);
 
@@ -46,7 +49,10 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
       return;
     }
 
-    onSaved({ employee_name: name });
+    onSaved({
+      employee_name: name,
+      employee_phone: (data.employee_phone ?? "").trim() || undefined,
+    });
     showSuccessAlert("Employee updated successfully.");
     onClose();
   };
@@ -79,6 +85,26 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
                 error={errors.employee_name}
                 asCol={false}
                 validation={{ required: "Employee name is required" }}
+              />
+            </Col>
+          </Row>
+
+          <Row className="align-items-center mt-3">
+            <Col sm={4} className="d-flex align-items-center">
+              <label className="custom-profile-lable">Phone number</label>
+            </Col>
+            <Col>
+              <CustomFormInput
+                label=""
+                controlId="employee_phone"
+                placeholder="Enter phone number"
+                register={register}
+                error={errors.employee_phone}
+                asCol={false}
+                validation={{
+                  validate: (v: string) =>
+                    !v?.trim() || /^[\d\s\-+()]+$/.test(v.trim()) || "Enter a valid phone number",
+                }}
               />
             </Col>
           </Row>

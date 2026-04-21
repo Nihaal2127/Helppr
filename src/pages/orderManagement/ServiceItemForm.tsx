@@ -10,6 +10,34 @@ import { fetchPartnerDropDown } from "../../services/userService";
 import addIcon from "../../assets/icons/add.svg";
 import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 
+/** Digits and at most one decimal point (for text `type="text"` service price). */
+function sanitizeDecimalDigits(raw: string): string {
+    const cleaned = raw.replace(/[^\d.]/g, "");
+    const dotIdx = cleaned.indexOf(".");
+    if (dotIdx === -1) return cleaned;
+    return cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, "");
+}
+
+const servicePriceFieldValidation = {
+    required: "Service price is required",
+    validate: (v: unknown): string | true => {
+        if (v === "" || v === null || v === undefined) {
+            return "Service price is required";
+        }
+        if (typeof v === "number") {
+            if (!Number.isFinite(v)) return "Enter a valid number";
+            if (v <= 0) return "Enter an amount greater than 0";
+            return true;
+        }
+        const raw = String(v).trim().replace(/,/g, "");
+        if (raw === "" || raw === ".") return "Service price is required";
+        const n = Number.parseFloat(raw);
+        if (!Number.isFinite(n)) return "Enter a valid number";
+        if (n <= 0) return "Enter an amount greater than 0";
+        return true;
+    },
+};
+
 type ServiceItemFormProps = {
     taxDetails: TaxOtherChargesModel
     categoryId: string,
@@ -18,9 +46,20 @@ type ServiceItemFormProps = {
     setValue: any;
     getValues: any;
     errors: any;
+    /** Add Order: compact layout; fees still derived from entered service price. */
+    compact?: boolean;
 };
 
-const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryId, onChange, register, setValue, getValues, errors }) => {
+const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
+    taxDetails,
+    categoryId,
+    onChange,
+    register,
+    setValue,
+    getValues,
+    errors,
+    compact = false,
+}) => {
     const [services, setService] = useState<{ value: string; label: string; price?: number }[]>([]);
     const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
     const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([
@@ -121,22 +160,33 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                     service_price: 0,
                     ...calculateServiceDetails(0),
                 };
+                setValue(`serviceItems.${index}.service_id`, value);
                 setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
-            } else if (field === "service_from_time" || field === "service_to_time" || field === "per_hour_price") {
-                const updated = { ...updatedServices[index], [field]: value };
-                const { service_from_time, service_to_time } = updated;
-
-                const perHourPrice = updated.per_hour_price ?? 0;
-                const { hours, price } = calculateHoursAndUpdatePrice(service_from_time, service_to_time, perHourPrice);
-
-                updated.hours = hours;
-                updated.service_price = price;
-                Object.assign(updated, calculateServiceDetails(price));
-
-                updatedServices[index] = updated;
-                setValue(`serviceItems.${index}.${field}`, value);
-                setValue(`serviceItems.${index}.service_price`, price);
-
+                setValue(`serviceItems.${index}.service_price`, 0, { shouldValidate: true });
+            } else if (field === "service_price") {
+                const raw = String(value ?? "").trim().replace(/,/g, "");
+                const n = raw === "" ? 0 : Number.parseFloat(raw);
+                const price = Number.isFinite(n) ? n : 0;
+                updatedServices[index] = {
+                    ...updatedServices[index],
+                    service_price: price,
+                    ...calculateServiceDetails(price),
+                };
+                setValue(`serviceItems.${index}.service_price`, price, { shouldValidate: true });
+            } else if (field === "service_from_time" || field === "service_to_time") {
+                updatedServices[index] = {
+                    ...updatedServices[index],
+                    [field]: value,
+                };
+                setValue(`serviceItems.${index}.${field}` as any, value);
+            } else if (field === "per_hour_price") {
+                const n = Number.parseFloat(String(value ?? "").trim());
+                const perHour = Number.isFinite(n) ? n : 0;
+                updatedServices[index] = {
+                    ...updatedServices[index],
+                    per_hour_price: perHour,
+                };
+                setValue(`serviceItems.${index}.per_hour_price`, value);
             }
             else {
                 updatedServices[index] = {
@@ -169,21 +219,6 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
         };
     };
 
-    const calculateHoursAndUpdatePrice = (from: string, to: string, pricePerHour: number) => {
-        if (!from || !to) return { hours: 0, price: 0 };
-
-        const start = new Date(from);
-        const end = new Date(to);
-        const diffMs = end.getTime() - start.getTime();
-        const hours = diffMs > 0 ? diffMs / (1000 * 60 * 60) : 0;
-
-        const roundedHours = parseFloat(hours.toFixed(2));
-        const calculatedPrice = roundedHours * pricePerHour;
-        const roundedPrice = Math.round(calculatedPrice);
-
-        return { hours: roundedHours, price: roundedPrice };
-    };
-
     return (
         <>
             {serviceItems.map((service, index) => (
@@ -193,11 +228,13 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                             <h3 className="mb-0">Service</h3>
                         </Col>
                         <Col className="text-end">
-                            <label
-                                onClick={(e) => { e.preventDefault(); removeServiceItem(index); }}
-                                className="custom-document-delete">
-                                Remove
-                            </label>
+                            {index > 0 && (
+                                <label
+                                    onClick={(e) => { e.preventDefault(); removeServiceItem(index); }}
+                                    className="custom-document-delete">
+                                    Remove
+                                </label>
+                            )}
                             <Button
                                 style={{
                                     height: "26px",
@@ -221,21 +258,8 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
 
                         </Col>
                     </Row>
-                    <Row>
-                        <Col xs={12} className="mt-3">
-                            <CustomTextField
-                                label="Service address"
-                                controlId={`serviceItems.${index}.service_address`}
-                                placeholder="Enter service address"
-                                register={register}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_address}
-                                validation={{ required: "Service address is required" }}
-                                onChange={(value) => handleInputChange(index, "service_address", value)}
-                            />
-                        </Col>
-                    </Row>
-                    <Row>
-                        <Col xs={6} className="mt-4">
+                    <Row className="mt-3">
+                        <Col xs={4}>
                             <CustomTextFieldSelect
                                 label="Service"
                                 controlId={`Service`}
@@ -251,10 +275,10 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 onChange={(e) => {
                                     handleInputChange(index, "service_id", e.target.value)
                                 }}
-                                labelSize={2}
+                                menuPortal
                             />
                         </Col>
-                        <Col xs={6} className="mt-4">
+                        <Col xs={4}>
                             <CustomTextFieldSelect
                                 label="Partner"
                                 controlId={`Partner`}
@@ -270,25 +294,43 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 onChange={(e) => {
                                     handleInputChange(index, "partner_id", e.target.value)
                                 }}
-                                labelSize={2}
+                                menuPortal
+                            />
+                        </Col>
+                        <Col xs={4}>
+                            <CustomTextField
+                                label="Service Price"
+                                controlId={`serviceItems.${index}.service_price`}
+                                placeholder="Enter amount"
+                                register={register}
+                                inputType="text"
+                                value={serviceItems[index].service_price ?? getValues(`serviceItems.${index}.service_price` as any)}
+                                error={errors.serviceItems?.[index]?.service_price}
+                                validation={servicePriceFieldValidation}
+                                onChange={(value) =>
+                                    handleInputChange(index, "service_price", sanitizeDecimalDigits(value))
+                                }
                             />
                         </Col>
                     </Row>
-                    <Row>
-                        <Col xs={3} className="mt-3" >
-                            <CustomTextField
-                                label="Hours Price"
-                                controlId={`serviceItems.${index}.per_hour_price`}
-                                placeholder="Enter Hours Price"
-                                register={register}
-                                // value={serviceItems[index].per_hour_price ?? getValues(`serviceItems.${index}.per_hour_price` as any)}
-                                error={errors.serviceItems?.[index]?.per_hour_price}
-                                validation={{ required: "Price is required" }}
-                                //isEditable={false}
-                                onChange={(value) => handleInputChange(index, "per_hour_price", value)}
-                            />
-                        </Col>
-                        <Col xs={3} >
+                    {!compact && (
+                        <Row className="mt-3">
+                            <Col xs={4}>
+                                <CustomTextField
+                                    label="Hours Price"
+                                    controlId={`serviceItems.${index}.per_hour_price`}
+                                    placeholder="Reference hourly rate"
+                                    register={register}
+                                    error={errors.serviceItems?.[index]?.per_hour_price}
+                                    inputType="number"
+                                    value={serviceItems[index].per_hour_price ?? ""}
+                                    onChange={(value) => handleInputChange(index, "per_hour_price", value)}
+                                />
+                            </Col>
+                        </Row>
+                    )}
+                    <Row className="mt-3">
+                        <Col xs={4}>
                             <CustomTextFieldDatePicket
                                 label="Service Date"
                                 controlId={`serviceItems.${index}.service_date`}
@@ -300,9 +342,8 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 validation={{ required: "Service date is required" }}
                                 setValue={setValue}
                             />
-
                         </Col>
-                        <Col xs={3}>
+                        <Col xs={4}>
                             <CustomTextFieldTimePicket
                                 label="From Time"
                                 controlId={`serviceItems.${index}.service_from_time`}
@@ -319,7 +360,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                                 }}
                             />
                         </Col>
-                        <Col xs={3}>
+                        <Col xs={4}>
                             <CustomTextFieldTimePicket
                                 label="To Time"
                                 controlId={`serviceItems.${index}.service_to_time`}
@@ -337,103 +378,111 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({ taxDetails, categoryI
                             />
                         </Col>
                     </Row>
+                    <Row className="mt-3">
+                        <Col xs={12}>
+                            <CustomTextField
+                                label="Service address"
+                                controlId={`serviceItems.${index}.service_address`}
+                                placeholder="Enter service address"
+                                register={register}
+                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.service_address}
+                                validation={{ required: "Service address is required" }}
+                                onChange={(value) => handleInputChange(index, "service_address", value)}
+                                as="textarea"
+                                rows={2}
+                                labelSize={2}
+                            />
+                        </Col>
+                    </Row>
                     <Row>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Service Price"
-                                controlId={`serviceItems.${index}.service_price`}
-                                placeholder="Enter Service Price"
-                                register={register}
-                                value={serviceItems[index].service_price ?? getValues(`serviceItems.${index}.service_price` as any)}
-                                error={errors.serviceItems?.[index]?.service_price}
-                                validation={{ required: "Service price is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Sub Total"
-                                controlId={`serviceItems.${index}.sub_total`}
-                                placeholder="Enter Sub Total"
-                                register={register}
-                                value={serviceItems[index].sub_total}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.sub_total}
-                                validation={{ required: "Sub total is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Tax"
-                                controlId={`serviceItems.${index}.tax`}
-                                placeholder="Enter Tax"
-                                register={register}
-                                value={serviceItems[index].tax}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.tax}
-                                validation={{ required: "Tax is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="User Platform Fee"
-                                controlId={`serviceItems.${index}.user_paltform_fee`}
-                                placeholder="Enter User Platform Fee"
-                                register={register}
-                                value={serviceItems[index].user_paltform_fee}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.user_paltform_fee}
-                                validation={{ required: "User platform fee is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Partner Commison Platform Fee"
-                                controlId={`serviceItems.${index}.partner_commison_platform_fee`}
-                                placeholder="Enter Partner Commison Platform Fee"
-                                register={register}
-                                value={serviceItems[index].partner_commison_platform_fee}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_commison_platform_fee}
-                                validation={{ required: "Partner commison platform fee is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Partner Earning"
-                                controlId={`serviceItems.${index}.partner_earning`}
-                                placeholder="Enter Partner Earning"
-                                register={register}
-                                value={serviceItems[index].partner_earning}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_earning}
-                                validation={{ required: "Partner earning is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Total Price"
-                                controlId={`serviceItems.${index}.total_price`}
-                                placeholder="Enter Total Price"
-                                register={register}
-                                value={serviceItems[index].total_price}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.total_price}
-                                validation={{ required: "Total price is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
-                        <Col xs={3} className="mt-3">
-                            <CustomTextField
-                                label="Admin Earning"
-                                controlId={`serviceItems.${index}.admin_earning`}
-                                placeholder="Enter Admin Earning"
-                                register={register}
-                                value={serviceItems[index].admin_earning}
-                                error={(errors as Record<string, any>)?.serviceItems?.[index]?.admin_earning}
-                                validation={{ required: "Admin earning is required" }}
-                                isEditable={false}
-                            />
-                        </Col>
+                        {!compact && (
+                            <>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Sub Total"
+                                        controlId={`serviceItems.${index}.sub_total`}
+                                        placeholder="Enter Sub Total"
+                                        register={register}
+                                        value={serviceItems[index].sub_total}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.sub_total}
+                                        validation={{ required: "Sub total is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Tax"
+                                        controlId={`serviceItems.${index}.tax`}
+                                        placeholder="Enter Tax"
+                                        register={register}
+                                        value={serviceItems[index].tax}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.tax}
+                                        validation={{ required: "Tax is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="User Platform Fee"
+                                        controlId={`serviceItems.${index}.user_paltform_fee`}
+                                        placeholder="Enter User Platform Fee"
+                                        register={register}
+                                        value={serviceItems[index].user_paltform_fee}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.user_paltform_fee}
+                                        validation={{ required: "User platform fee is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Partner Commison Platform Fee"
+                                        controlId={`serviceItems.${index}.partner_commison_platform_fee`}
+                                        placeholder="Enter Partner Commison Platform Fee"
+                                        register={register}
+                                        value={serviceItems[index].partner_commison_platform_fee}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_commison_platform_fee}
+                                        validation={{ required: "Partner commison platform fee is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Partner Earning"
+                                        controlId={`serviceItems.${index}.partner_earning`}
+                                        placeholder="Enter Partner Earning"
+                                        register={register}
+                                        value={serviceItems[index].partner_earning}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.partner_earning}
+                                        validation={{ required: "Partner earning is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Total Price"
+                                        controlId={`serviceItems.${index}.total_price`}
+                                        placeholder="Enter Total Price"
+                                        register={register}
+                                        value={serviceItems[index].total_price}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.total_price}
+                                        validation={{ required: "Total price is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                                <Col xs={3} className="mt-3">
+                                    <CustomTextField
+                                        label="Admin Earning"
+                                        controlId={`serviceItems.${index}.admin_earning`}
+                                        placeholder="Enter Admin Earning"
+                                        register={register}
+                                        value={serviceItems[index].admin_earning}
+                                        error={(errors as Record<string, any>)?.serviceItems?.[index]?.admin_earning}
+                                        validation={{ required: "Admin earning is required" }}
+                                        isEditable={false}
+                                    />
+                                </Col>
+                            </>
+                        )}
                     </Row>
                 </section>
             ))}
