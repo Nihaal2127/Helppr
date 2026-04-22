@@ -6,7 +6,9 @@ export const AppConstant = {
     // IMAGE_BASE_URL: "https://d2d4noj5f8gqer.cloudfront.net/",
     authToken: "authToken",
     deviceToken: "deviceToken",
+    
     isAdmin: "isAdmin",
+
     /** "admin" | "franchise_admin" | "employee" — set on login; used for mock logout and future RBAC. */
     userRole: "userRole",
     adminId: "adminId",
