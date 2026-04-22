@@ -6,7 +6,7 @@ import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 export const fetchCityDropDown = async (
   stateIdList?: string[],
-): Promise<{ value: string; label: string; state_id?: string }[]> => {
+): Promise<{ value: string; label: string; state_id?: string; state_name?: string }[]> => {
   const params = stateIdList ? new URLSearchParams({ state_id: stateIdList.toString() }) : "";
 
   const response = await apiRequest(
@@ -19,6 +19,7 @@ export const fetchCityDropDown = async (
       value: city._id,
       label: city.name,
       state_id: city.state_id,
+      state_name: city.state_name,
     }));
   } else {
     showLog(response.message || "Failed to fetch city");

@@ -12,7 +12,6 @@ import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
 import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";

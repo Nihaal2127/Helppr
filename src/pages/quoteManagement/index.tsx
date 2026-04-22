@@ -635,179 +635,148 @@ const QuoteManagement = () => {
 
               <Row className="mt-3 mb-2">
                 <Col xs={12}>
-                  <label className="custom-profile-lable d-block mb-1">Schedule date and time</label>
+                  <label style={{ fontSize: "17px", fontWeight: "600", color: "var(--primary-color)" }} className="d-block mb-1">Schedule date and time</label>
                   <div className="small text-muted">
-                    {scheduleMode === "single" && "Single day — pick one date and a time slot."}
-                    {scheduleMode === "range" && "Multiple days — pick start and end dates (optional time)."}
-                    {scheduleMode === "hourly" && "Hourly slot — pick one date and start / end times."}
+                    {scheduleMode === "single" && ""}
+                    {scheduleMode === "range" && ""}
+                    {scheduleMode === "hourly" && ""}
                   </div>
                 </Col>
               </Row>
 
-              {scheduleMode === "range" ? (
-                <Row>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldDatePicket
-                      label="From date"
-                      controlId="requested_date"
-                      selectedDate={addQuote.requested_date || null}
-                      onChange={(date) => {
-                        const next = toIsoCalendarDate(date) ?? "";
-                        setAddQuoteValue("requested_date", next, { shouldValidate: true });
-                      }}
-                      register={addQuoteRegister as unknown as UseFormRegister<any>}
-                      setValue={setAddQuoteValue as (name: string, value: any) => void}
-                      asCol={false}
-                      placeholderText="From date"
-                      filterDate={() => true}
-                    />
-                  </Col>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldDatePicket
-                      label="To date"
-                      controlId="requested_date_to"
-                      selectedDate={addQuote.requested_date_to || null}
-                      onChange={(date) => {
-                        const next = toIsoCalendarDate(date) ?? "";
-                        setAddQuoteValue("requested_date_to", next, { shouldValidate: true });
-                      }}
-                      register={addQuoteRegister as unknown as UseFormRegister<any>}
-                      setValue={setAddQuoteValue as (name: string, value: any) => void}
-                      asCol={false}
-                      placeholderText="To date"
-                      filterDate={() => true}
-                    />
-                  </Col>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldTimePicket
-                      label="Time (optional)"
-                      controlId="requested_time"
-                      selectedTime={timeStorageOrNull(addQuote.requested_time)}
-                      onChange={(date) =>
-                        setAddQuoteValue("requested_time", toTimeStorageFromDate(date), {
-                          shouldValidate: true,
-                        })
-                      }
-                      placeholderText="Select time"
-                      register={addQuoteRegister}
-                      setValue={setAddQuoteValue}
-                      asCol={false}
-                      labelSize={4}
-                      filterTime={(time) => {
-                        const hour = time.getHours();
-                        return hour >= 8 && hour <= 23;
-                      }}
-                    />
-                  </Col>
-                </Row>
-              ) : scheduleMode === "hourly" ? (
-                <Row>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldDatePicket
-                      label="Date"
-                      controlId="requested_date"
-                      selectedDate={addQuote.requested_date || null}
-                      onChange={(date) => {
-                        const next = toIsoCalendarDate(date) ?? "";
-                        setAddQuoteValue("requested_date", next, { shouldValidate: true });
-                      }}
-                      register={addQuoteRegister as unknown as UseFormRegister<any>}
-                      setValue={setAddQuoteValue as (name: string, value: any) => void}
-                      asCol={false}
-                      placeholderText="Select date"
-                      filterDate={() => true}
-                    />
-                  </Col>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldTimePicket
-                      label="Start time"
-                      controlId="requested_time_from"
-                      selectedTime={timeStorageOrNull(addQuote.requested_time_from)}
-                      onChange={(date) =>
-                        setAddQuoteValue("requested_time_from", toTimeStorageFromDate(date), {
-                          shouldValidate: true,
-                        })
-                      }
-                      placeholderText="Select start time"
-                      error={addQuoteErrors.requested_time_from}
-                      register={addQuoteRegister}
-                      validation={{ required: "Start time is required" }}
-                      setValue={setAddQuoteValue}
-                      asCol={false}
-                      labelSize={4}
-                      filterTime={(time) => {
-                        const hour = time.getHours();
-                        return hour >= 8 && hour <= 23;
-                      }}
-                    />
-                  </Col>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldTimePicket
-                      label="End time"
-                      controlId="requested_time_to"
-                      selectedTime={timeStorageOrNull(addQuote.requested_time_to)}
-                      onChange={(date) =>
-                        setAddQuoteValue("requested_time_to", toTimeStorageFromDate(date), {
-                          shouldValidate: true,
-                        })
-                      }
-                      placeholderText="Select end time"
-                      error={addQuoteErrors.requested_time_to}
-                      register={addQuoteRegister}
-                      validation={{ required: "End time is required" }}
-                      setValue={setAddQuoteValue}
-                      asCol={false}
-                      labelSize={4}
-                      filterTime={(time) => {
-                        const hour = time.getHours();
-                        return hour >= 8 && hour <= 23;
-                      }}
-                    />
-                  </Col>
-                </Row>
-              ) : (
-                <Row>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldDatePicket
-                      label="Date"
-                      controlId="requested_date"
-                      selectedDate={addQuote.requested_date || null}
-                      onChange={(date) => {
-                        const next = toIsoCalendarDate(date) ?? "";
-                        setAddQuoteValue("requested_date", next, { shouldValidate: true });
-                      }}
-                      register={addQuoteRegister as unknown as UseFormRegister<any>}
-                      setValue={setAddQuoteValue as (name: string, value: any) => void}
-                      asCol={false}
-                      placeholderText="Select date"
-                      filterDate={() => true}
-                    />
-                  </Col>
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextFieldTimePicket
-                      label="Time"
-                      controlId="requested_time"
-                      selectedTime={timeStorageOrNull(addQuote.requested_time)}
-                      onChange={(date) =>
-                        setAddQuoteValue("requested_time", toTimeStorageFromDate(date), {
-                          shouldValidate: true,
-                        })
-                      }
-                      placeholderText="Select time"
-                      error={addQuoteErrors.requested_time}
-                      register={addQuoteRegister}
-                      validation={{ required: "Time is required" }}
-                      setValue={setAddQuoteValue}
-                      asCol={false}
-                      labelSize={4}
-                      filterTime={(time) => {
-                        const hour = time.getHours();
-                        return hour >= 8 && hour <= 23;
-                      }}
-                    />
-                  </Col>
-                </Row>
-              )}
+              <Row className="g-2">
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldDatePicket
+                    label="From date"
+                    controlId="requested_date"
+                    selectedDate={addQuote.requested_date || null}
+                    onChange={(date) => {
+                      const next = toIsoCalendarDate(date) ?? "";
+                      setAddQuoteValue("requested_date", next, { shouldValidate: true });
+                    }}
+                    register={addQuoteRegister as unknown as UseFormRegister<any>}
+                    setValue={setAddQuoteValue as (name: string, value: any) => void}
+                    asCol={false}
+                    labelSize={12}
+                    placeholderText="From date"
+                    filterDate={() => true}
+                  />
+                </Col>
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldDatePicket
+                    label="To date"
+                    controlId="requested_date_to"
+                    selectedDate={addQuote.requested_date_to || null}
+                    onChange={(date) => {
+                      const next = toIsoCalendarDate(date) ?? "";
+                      setAddQuoteValue("requested_date_to", next, { shouldValidate: true });
+                    }}
+                    register={addQuoteRegister as unknown as UseFormRegister<any>}
+                    setValue={setAddQuoteValue as (name: string, value: any) => void}
+                    asCol={false}
+                    labelSize={12}
+                    placeholderText="To date"
+                    filterDate={() => true}
+                  />
+                </Col>
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldTimePicket
+                    label={scheduleMode === "range" ? "Time (optional)" : "Time"}
+                    controlId="requested_time"
+                    selectedTime={timeStorageOrNull(addQuote.requested_time)}
+                    onChange={(date) =>
+                      setAddQuoteValue("requested_time", toTimeStorageFromDate(date), {
+                        shouldValidate: true,
+                      })
+                    }
+                    placeholderText="Select time"
+                    error={scheduleMode === "single" ? addQuoteErrors.requested_time : undefined}
+                    register={addQuoteRegister}
+                    validation={scheduleMode === "single" ? { required: "Time is required" } : undefined}
+                    setValue={setAddQuoteValue}
+                    asCol={false}
+                    labelSize={12}
+                    filterTime={(time) => {
+                      const hour = time.getHours();
+                      return hour >= 8 && hour <= 23;
+                    }}
+                  />
+                </Col>
+              </Row>
+
+              <Row className="g-2">
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldDatePicket
+                    label="Date"
+                    controlId="requested_date"
+                    groupControlId="add-quote-requested-date-fmt-b"
+                    selectedDate={addQuote.requested_date || null}
+                    onChange={(date) => {
+                      const next = toIsoCalendarDate(date) ?? "";
+                      setAddQuoteValue("requested_date", next, { shouldValidate: true });
+                    }}
+                    register={addQuoteRegister as unknown as UseFormRegister<any>}
+                    setValue={setAddQuoteValue as (name: string, value: any) => void}
+                    asCol={false}
+                    labelSize={12}
+                    placeholderText="Select date"
+                    filterDate={() => true}
+                    suppressHiddenRegister
+                  />
+                </Col>
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldTimePicket
+                    label="From time"
+                    controlId="requested_time_from"
+                    groupControlId="add-quote-time-from-fmt-b"
+                    selectedTime={timeStorageOrNull(addQuote.requested_time_from)}
+                    onChange={(date) =>
+                      setAddQuoteValue("requested_time_from", toTimeStorageFromDate(date), {
+                        shouldValidate: true,
+                      })
+                    }
+                    placeholderText="Select start time"
+                    error={scheduleMode === "hourly" ? addQuoteErrors.requested_time_from : undefined}
+                    register={addQuoteRegister}
+                    validation={
+                      scheduleMode === "hourly" ? { required: "Start time is required" } : undefined
+                    }
+                    setValue={setAddQuoteValue}
+                    asCol={false}
+                    labelSize={12}
+                    filterTime={(time) => {
+                      const hour = time.getHours();
+                      return hour >= 8 && hour <= 23;
+                    }}
+                  />
+                </Col>
+                <Col xs={12} md={4} className="mt-2">
+                  <CustomTextFieldTimePicket
+                    label="To time"
+                    controlId="requested_time_to"
+                    groupControlId="add-quote-time-to-fmt-b"
+                    selectedTime={timeStorageOrNull(addQuote.requested_time_to)}
+                    onChange={(date) =>
+                      setAddQuoteValue("requested_time_to", toTimeStorageFromDate(date), {
+                        shouldValidate: true,
+                      })
+                    }
+                    placeholderText="Select end time"
+                    error={scheduleMode === "hourly" ? addQuoteErrors.requested_time_to : undefined}
+                    register={addQuoteRegister}
+                    validation={
+                      scheduleMode === "hourly" ? { required: "End time is required" } : undefined
+                    }
+                    setValue={setAddQuoteValue}
+                    asCol={false}
+                    labelSize={12}
+                    filterTime={(time) => {
+                      const hour = time.getHours();
+                      return hour >= 8 && hour <= 23;
+                    }}
+                  />
+                </Col>
+              </Row>
             </section>
           </form>
         </Modal.Body>

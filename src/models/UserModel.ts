@@ -83,6 +83,14 @@ export interface UserModel {
   submitted_at?: string | null;
   verified_at?: string | null;
   document_uploaded_count?: number;
+
+  /** Additional saved addresses when the API returns them (e.g. after add from user view). */
+  extra_addresses?: {
+    state_id?: string | null;
+    city_id?: string | null;
+    pincode?: string | null;
+    address?: string | null;
+  }[] | null;
 }
 
 

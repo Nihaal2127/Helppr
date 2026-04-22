@@ -5,6 +5,90 @@ import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import { shouldUseRealVerificationApi, getMockVerificationListPage } from "../mockData/verificationTableMock";
 
+/** Aligns with Postman "User (New Types)" — `POST /api/user/create` (`type` 5 / 6). */
+export const WEB_MANAGEMENT_USER_TYPE = {
+  /** Postman: Create Super Admin (web) — used for UI "Franchise Admin". */
+  FRANCHISE_ADMIN: 5,
+  /**
+   * Franchise employee (web). Not in Postman; adjust if backend uses another code.
+   * Postman documents `5` (super admin) and `6` (staff) only.
+   */
+  FRANCHISE_EMPLOYEE: 3,
+  /** Postman: Create Staff (web). */
+  STAFF: 6,
+} as const;
+
+/** Map `mainMenuItems` keys to `accessible_screens` slugs expected by the API (see Postman examples). */
+export const mapMenuKeysToAccessibleScreens = (keys: string[]): string[] => {
+  const map: Record<string, string> = {
+    dashboards: "dashboard",
+    "my-franchise": "my_franchise",
+    "location-management": "location_management",
+    "franchise-management": "franchise_management",
+    "service-management": "service_management",
+    "user-management": "users",
+    "quote-management": "quotes",
+    "order-management": "orders",
+    financials: "financials",
+    "expenses-management": "expenses",
+    reports: "reports",
+    "partner-management": "subscriptions",
+    settings: "settings",
+    "support-center": "support",
+  };
+  const out = (keys ?? [])
+    .map((k) => map[k] ?? k.replace(/-/g, "_"))
+    .filter(Boolean);
+  return out.length ? out : ["dashboard"];
+};
+
+export const normalizePhoneForUserCreate = (phone: string): string => {
+  const t = (phone ?? "").trim();
+  if (!t) return t;
+  if (t.startsWith("+")) return t;
+  const digits = t.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  return t;
+};
+
+export type CreateWebManagementUserBody = {
+  name: string;
+  email: string;
+  phone_number: string;
+  type: number;
+  is_from_web: boolean;
+  created_by_id: string;
+  accessible_screens: string[];
+  profile_url?: string;
+};
+
+/**
+ * `POST` `ApiPaths.CREATE_USER` with Postman-style body (web super admin / staff / etc.).
+ * Returns parsed `record` when the API succeeds (shape may vary by environment).
+ */
+export const createWebManagementUser = async (
+  body: CreateWebManagementUserBody
+): Promise<{ ok: true; record: unknown } | { ok: false }> => {
+  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", {
+    name: body.name,
+    email: body.email,
+    phone_number: normalizePhoneForUserCreate(body.phone_number),
+    type: body.type,
+    is_from_web: body.is_from_web,
+    created_by_id: body.created_by_id,
+    accessible_screens: body.accessible_screens,
+    ...(body.profile_url ? { profile_url: body.profile_url } : {}),
+  });
+
+  if (!response.success) {
+    return { ok: false };
+  }
+
+  const data: any = response.data;
+  const record = data?.record ?? data?.data?.record ?? data?.user ?? data;
+  return { ok: true, record };
+};
+
 /** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
 export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
 

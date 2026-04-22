@@ -42,8 +42,8 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
 }) => {
     const resolvedInputType = isIndianPincodeField ? "tel" : inputType;
     return (
-        <Row className={`align-items-${error ? "start" : "center"} ${labelSize !== 4 ? "mb-4" : ""}`}>
-            <Col sm={labelSize} className={`d-flex ${error ? "align-items-start" : "align-items-center"}`}>
+        <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
+            <Col sm={labelSize} className="d-flex align-items-start">
                 <label className="custom-profile-lable">{label}</label>
             </Col>
             <Col>
