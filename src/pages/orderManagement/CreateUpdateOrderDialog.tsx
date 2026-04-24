@@ -41,7 +41,6 @@ import {
     splitOfferContributionAmounts,
 } from "../../helper/orderDisplayHelpers";
 import { serializeServiceAddressCards } from "./ServiceAddressCardsPanel";
-import { buildCustomerSavedAddressPreview } from "../../helper/userAddressPreview";
 
 /** Align create-order payment UI with `OrderPaymentEditModal` tokens. */
 const FONT_BODY = "0.9375rem";
@@ -172,6 +171,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     /** Avoid `useWatch` + `useForm<any>()` — TS2589 deep instantiation on `control`. */
     const offerIdWatch = watch("offer_id") as string | undefined;
     const [offerModalOpen, setOfferModalOpen] = useState(false);
+    /** Payment summary: long offer breakdown hidden until user expands (reset when offer changes). */
+    const [showOfferPaymentBreakdown, setShowOfferPaymentBreakdown] = useState(false);
 
     const [categories, setCategory] = useState<{ value: string; label: string }[]>([]);
     const [cities, setCity] = useState<
@@ -209,10 +210,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     const [customerUsers, setCustomerUsers] = useState<UserModel[]>([]);
     const [customerUserOptions, setCustomerUserOptions] = useState<{ value: string; label: string }[]>([]);
 
-    const customerSavedAddressPreview = useMemo(
-        () => buildCustomerSavedAddressPreview(selectedUser),
-        [selectedUser]
-    );
     const [createPaymentExt, setCreatePaymentExt] = useState<OrderPaymentExtV1>(() => ({
         v: 1,
         serviceAmount: 0,
@@ -385,6 +382,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     useEffect(() => {
         calculatePrices();
     }, [calculatePrices]);
+
+    useEffect(() => {
+        setShowOfferPaymentBreakdown(false);
+    }, [offerIdWatch]);
 
     useEffect(() => {
         if (isEditable || !taxDetails) return;
@@ -722,7 +723,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                             addressStateOptions={addressStateOptions}
                                             addressCityRows={addressCityRows}
                                             unregister={unregister}
-                                            customerSavedAddresses={customerSavedAddressPreview}
+                                            serviceAddressSeedUser={selectedUser}
                                         />
                                     )}
                                     <Row className="align-items-end">
@@ -847,13 +848,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                                     {Number(paymentDetails.partnerCommissionPlatformFee || 0).toFixed(2)}
                                                 </span>
                                             </div>
-                                            <div style={summaryRow}>
-                                                <div
-                                                    className="d-flex flex-column align-items-start gap-1"
-                                                    style={{ minWidth: 0, flex: "1 1 auto" }}>
-                                                    <div className="d-flex flex-wrap align-items-center gap-2">
-                                                        <span style={summaryLabel}>Offer</span>
-                                                        {(offerIdWatch ?? "").trim() ? (
+                                            {(offerIdWatch ?? "").trim() ? (
+                                                <div style={summaryRow}>
+                                                    <div
+                                                        className="d-flex flex-column align-items-start gap-1"
+                                                        style={{ minWidth: 0, flex: "1 1 auto" }}>
+                                                        <div className="d-flex flex-wrap align-items-center gap-2">
+                                                            <span style={summaryLabel}>Offer</span>
                                                             <span
                                                                 className="px-2 py-0 rounded-pill"
                                                                 style={{
@@ -870,75 +871,89 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                                                         ""
                                                                 ).trim()}
                                                             </span>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-link p-0 small text-decoration-underline"
+                                                                style={{
+                                                                    color: "var(--primary-color)",
+                                                                    fontSize: FONT_LABEL,
+                                                                    fontWeight: 600,
+                                                                }}
+                                                                onClick={() =>
+                                                                    setShowOfferPaymentBreakdown((v) => !v)
+                                                                }>
+                                                                {showOfferPaymentBreakdown
+                                                                    ? "Hide offer details"
+                                                                    : "Show offer details"}
+                                                            </button>
+                                                        </div>
+                                                        {showOfferPaymentBreakdown ? (
+                                                            <span style={offerSublineCreate}>
+                                                                {previewOfferBreakdown.percentOffOrder != null ? (
+                                                                    <>
+                                                                        ({" "}
+                                                                        {formatOfferSplitPercent(
+                                                                            previewOfferBreakdown.percentOffOrder
+                                                                        )}
+                                                                        % off order total {AppConstant.currencySymbol}
+                                                                        {(
+                                                                            previewOfferBreakdown.discountBaseForPercent ??
+                                                                            0
+                                                                        ).toFixed(2)}{" "}
+                                                                        · Discount {AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.appliedDiscount.toFixed(2)}{" "}
+                                                                        · Admin{" "}
+                                                                        {formatOfferSplitPercent(
+                                                                            offerContributionPercents.adminPct
+                                                                        )}
+                                                                        % ({AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.adminContribution.toFixed(2)})
+                                                                        · Partner{" "}
+                                                                        {formatOfferSplitPercent(
+                                                                            offerContributionPercents.partnerPct
+                                                                        )}
+                                                                        % ({AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.partnerContribution.toFixed(2)}{" "}
+                                                                        ) )
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        ( Total discount value{" "}
+                                                                        {AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.appliedDiscount.toFixed(2)} ·
+                                                                        Admin{" "}
+                                                                        {formatOfferSplitPercent(
+                                                                            offerContributionPercents.adminPct
+                                                                        )}
+                                                                        % ({AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.adminContribution.toFixed(2)})
+                                                                        · Partner{" "}
+                                                                        {formatOfferSplitPercent(
+                                                                            offerContributionPercents.partnerPct
+                                                                        )}
+                                                                        % ({AppConstant.currencySymbol}
+                                                                        {previewOfferBreakdown.partnerContribution.toFixed(2)}{" "}
+                                                                        ) )
+                                                                    </>
+                                                                )}
+                                                            </span>
                                                         ) : null}
                                                     </div>
-                                                    {(offerIdWatch ?? "").trim() ? (
-                                                        <span style={offerSublineCreate}>
-                                                            {previewOfferBreakdown.percentOffOrder != null ? (
-                                                                <>
-                                                                    ({" "}
-                                                                    {formatOfferSplitPercent(
-                                                                        previewOfferBreakdown.percentOffOrder
-                                                                    )}
-                                                                    % off order total {AppConstant.currencySymbol}
-                                                                    {(
-                                                                        previewOfferBreakdown.discountBaseForPercent ??
-                                                                        0
-                                                                    ).toFixed(2)}{" "}
-                                                                    · Discount {AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.appliedDiscount.toFixed(2)} ·
-                                                                    Admin{" "}
-                                                                    {formatOfferSplitPercent(
-                                                                        offerContributionPercents.adminPct
-                                                                    )}
-                                                                    % ({AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.adminContribution.toFixed(2)}) ·
-                                                                    Partner{" "}
-                                                                    {formatOfferSplitPercent(
-                                                                        offerContributionPercents.partnerPct
-                                                                    )}
-                                                                    % ({AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.partnerContribution.toFixed(2)}{" "}
-                                                                    ) )
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    ( Total discount value {AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.appliedDiscount.toFixed(2)} ·
-                                                                    Admin{" "}
-                                                                    {formatOfferSplitPercent(
-                                                                        offerContributionPercents.adminPct
-                                                                    )}
-                                                                    % ({AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.adminContribution.toFixed(2)}) ·
-                                                                    Partner{" "}
-                                                                    {formatOfferSplitPercent(
-                                                                        offerContributionPercents.partnerPct
-                                                                    )}
-                                                                    % ({AppConstant.currencySymbol}
-                                                                    {previewOfferBreakdown.partnerContribution.toFixed(2)}{" "}
-                                                                    ) )
-                                                                </>
-                                                            )}
-                                                        </span>
-                                                    ) : null}
+                                                    <span
+                                                        style={{
+                                                            ...summaryValueTop,
+                                                            flexShrink: 0,
+                                                            color:
+                                                                previewOfferBreakdown.appliedDiscount > 0.009
+                                                                    ? "var(--bs-success, #198754)"
+                                                                    : undefined,
+                                                        }}>
+                                                        {previewOfferBreakdown.appliedDiscount > 0.009
+                                                            ? `-${AppConstant.currencySymbol}${previewOfferBreakdown.appliedDiscount.toFixed(2)}`
+                                                            : "—"}
+                                                    </span>
                                                 </div>
-                                                <span
-                                                    style={{
-                                                        ...summaryValueTop,
-                                                        flexShrink: 0,
-                                                        color:
-                                                            (offerIdWatch ?? "").trim() !== "" &&
-                                                            previewOfferBreakdown.appliedDiscount > 0.009
-                                                                ? "var(--bs-success, #198754)"
-                                                                : undefined,
-                                                    }}>
-                                                    {(offerIdWatch ?? "").trim() !== "" &&
-                                                    previewOfferBreakdown.appliedDiscount > 0.009
-                                                        ? `-${AppConstant.currencySymbol}${previewOfferBreakdown.appliedDiscount.toFixed(2)}`
-                                                        : "—"}
-                                                </span>
-                                            </div>
+                                            ) : null}
                                             <div
                                                 style={{
                                                     ...summaryTotalWrap,

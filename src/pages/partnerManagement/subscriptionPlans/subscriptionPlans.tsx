@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Col, Row } from "react-bootstrap";
+import { Button, Col, Row, OverlayTrigger, Tooltip } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
@@ -23,6 +23,67 @@ import {
   voidSubscriptionPlan,
 } from "../../../services/partnerManagementService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+
+/** Days from today until `endDateStr` (date-only); negative if already past. */
+const getRemainingCalendarDays = (endDateStr: string): number | null => {
+  if (!endDateStr?.trim()) return null;
+  const end = new Date(endDateStr);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return Math.round((end.getTime() - today.getTime()) / 86400000);
+};
+
+const planDescriptionCell = (row: { original: SubscriptionPlanModel; index: number }) => {
+  const raw = row.original.plan_description;
+  const text = raw != null && String(raw).trim() !== "" ? String(raw) : "";
+  if (!text) {
+    return <span className="text-muted">—</span>;
+  }
+  const tipId = `plan-desc-${String(row.original._id ?? row.index)}`;
+  return (
+    <OverlayTrigger
+      placement="top"
+      delay={{ show: 100, hide: 80 }}
+      overlay={
+        <Tooltip id={tipId} className="subscription-plan-desc-tooltip">
+          <div
+            style={{
+              maxWidth: 380,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {text}
+          </div>
+        </Tooltip>
+      }
+    >
+      <div className="subscription-plans-desc-cell-inner">
+        <span className="d-block text-truncate">{text}</span>
+      </div>
+    </OverlayTrigger>
+  );
+};
+
+const remainingDaysCell = (endDateStr: string) => {
+  const days = getRemainingCalendarDays(endDateStr);
+  if (days === null) return <span className="text-muted">—</span>;
+  if (days < 0) return <span className="text-muted">Expired</span>;
+  if (days < 7) {
+    return (
+      <span className="text-danger fw-semibold">
+        {days} day{days === 1 ? "" : "s"}
+      </span>
+    );
+  }
+  return (
+    <span className="text-secondary">
+      {days} day{days === 1 ? "" : "s"}
+    </span>
+  );
+};
 
 type SubscriptionPlansProps = {
   onBack?: () => void;
@@ -123,7 +184,11 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     toDate?: string;
   }) => {
     setCurrentPage(1);
-    setPartnerFilters((prev) => ({ ...prev, ...filters }));
+    const next = { ...filters };
+    /** Summary card sends boolean-like status; filter dropdown uses active / inactive. */
+    if (next.status === "true") next.status = "active";
+    if (next.status === "false") next.status = "inactive";
+    setPartnerFilters((prev) => ({ ...prev, ...next }));
   };
   const handlePartnerSubSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
     setPartnerSubSortBy(next);
@@ -131,13 +196,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   }, []);
 
   const partnerFilterControls = (
-    <Row className="order-payments-filters-row g-3 mt-1 mb-2 align-items-end">
-      <Col xs="auto" className="order-payments-filter-col ">
+    <Row className="order-payments-filters-row g-3 mt-1 mb-3 align-items-end flex-wrap">
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
         <CustomFormSelect
           label="Plan Type"
           controlId="partner_sub_plan_type_filter"
           options={[
-            { value: "all", label: "All plan types" },
+            { value: "all", label: "All" },
             { value: "basic", label: "Basic" },
             { value: "silver", label: "Silver" },
             { value: "gold", label: "Gold" },
@@ -149,17 +214,19 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           noBottomMargin
           defaultValue={partnerFilters.planType || "all"}
           setValue={setValue}
+          placeholder="All plan types"
+          menuPortal
           onChange={(e) => handlePartnerSubscriptionFilterChange({ planType: e.target.value })}
         />
       </Col>
-      <Col xs="auto" className="order-payments-filter-col">
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
         <CustomFormSelect
           label="Status"
           controlId="partner_sub_status_filter"
           options={[
-            { value: "all", label: "All statuses" },
+            { value: "all", label: "All" },
             { value: "active", label: "Active" },
-            { value: "expired", label: "Expired" },
+            { value: "inactive", label: "Inactive" },
           ]}
           register={register}
           fieldName="partner_sub_status_filter"
@@ -167,11 +234,46 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           noBottomMargin
           defaultValue={partnerFilters.status || "all"}
           setValue={setValue}
+          placeholder="All statuses"
+          menuPortal
           onChange={(e) => handlePartnerSubscriptionFilterChange({ status: e.target.value })}
         />
       </Col>
-    
-      <Col xs="auto" className="order-payments-filter-col">
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+        <CustomDatePicker
+          label="From Date"
+          controlId="partner_sub_start_date_filter"
+          selectedDate={partnerFilters.fromDate || null}
+          onChange={(date) => {
+            const value = date ? date.toISOString().slice(0, 10) : "";
+            handlePartnerSubscriptionFilterChange({ fromDate: value });
+          }}
+          register={register as unknown as UseFormRegister<any>}
+          setValue={setValue as (name: string, value: any) => void}
+          asCol={false}
+          groupClassName="mb-0 w-100 fw-medium"
+          placeholderText="From Date"
+          filterDate={() => true}
+        />
+      </Col>
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+        <CustomDatePicker
+          label="To Date"
+          controlId="partner_sub_end_date_filter"
+          selectedDate={partnerFilters.toDate || null}
+          onChange={(date) => {
+            const value = date ? date.toISOString().slice(0, 10) : "";
+            handlePartnerSubscriptionFilterChange({ toDate: value });
+          }}
+          register={register as unknown as UseFormRegister<any>}
+          setValue={setValue as (name: string, value: any) => void}
+          asCol={false}
+          groupClassName="mb-0 w-100 fw-medium"
+          placeholderText="To Date"
+          filterDate={() => true}
+        />
+      </Col>
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col d-flex align-items-end ms-md-auto">
         <Button
           variant="outline-secondary"
           size="sm"
@@ -221,7 +323,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         accessor: "priority",
         Cell: ({ row }: { row: any }) => row.original.priority ?? "-",
       },
-      { Header: "Plan Description", accessor: "plan_description" },
+      {
+        Header: "Plan Description",
+        accessor: "plan_description",
+        className: "subscription-plans-desc-cell",
+        width: 260,
+        Cell: ({ row }: { row: { original: SubscriptionPlanModel; index: number } }) => planDescriptionCell(row),
+      },
       { Header: "Price", accessor: "price" },
       { Header: "Duration", accessor: "duration" },
       {
@@ -277,6 +385,21 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       },
       { Header: "Subscription Start Date", accessor: "subscription_start_date", sort: true },
       { Header: "Subscription End Date", accessor: "subscription_end_date", sort: true },
+      {
+        Header: "Remaining Days",
+        accessor: "remaining_days",
+        Cell: ({ row }: { row: any }) => {
+          const r = row.original as PartnerSubscriptionModel;
+          if (r.remaining_days_demo != null) {
+            return (
+              <span className="text-danger fw-semibold">
+                {r.remaining_days_demo} day{r.remaining_days_demo === 1 ? "" : "s"}
+              </span>
+            );
+          }
+          return remainingDaysCell(String(r.subscription_end_date ?? ""));
+        },
+      },
       {
         Header: "Subscription Status",
         accessor: "is_active",
@@ -343,8 +466,8 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             handlePlanFilterChange(filter);
             setPlanSortBy([]);
           }}
-          isAddShow={true}
-          addButtonLable="Add Plan"
+          isAddShow
+          addButtonLable="Add"
           onAddClick={() => {
             AddEditSubscriptionPlanDialog.show(true, null, () => refreshData());
           }}
@@ -377,49 +500,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         key={activeBox === "partner_subscription_list" ? utilitySearchKey : undefined}
         searchOnlyToolbar={activeBox === "partner_subscription_list"}
         toolsInlineRow={activeBox === "partner_subscription_list"}
-        controlSlot={
-          activeBox === "partner_subscription_list" ? (
-            <>
-              <div style={{ minWidth: "220px" }}>
-                <CustomDatePicker
-                  label="From Date"
-                  controlId="partner_sub_start_date_filter"
-                  selectedDate={partnerFilters.fromDate || null}
-                  onChange={(date) => {
-                    const value = date ? date.toISOString().slice(0, 10) : "";
-                    handlePartnerSubscriptionFilterChange({ fromDate: value });
-                  }}
-                  register={register as unknown as UseFormRegister<any>}
-                  setValue={setValue as (name: string, value: any) => void}
-                  asCol={false}
-                  groupClassName="mb-0 w-100 fw-medium"
-                  placeholderText="From Date"
-                  filterDate={() => true}
-                />
-              </div>
-              <div style={{ minWidth: "220px" }}>
-                <CustomDatePicker
-                  label="To Date"
-                  controlId="partner_sub_end_date_filter"
-                  selectedDate={partnerFilters.toDate || null}
-                  onChange={(date) => {
-                    const value = date ? date.toISOString().slice(0, 10) : "";
-                    handlePartnerSubscriptionFilterChange({ toDate: value });
-                  }}
-                  register={register as unknown as UseFormRegister<any>}
-                  setValue={setValue as (name: string, value: any) => void}
-                  asCol={false}
-                  groupClassName="mb-0 w-100 fw-medium"
-                  placeholderText="To Date"
-                  filterDate={() => true}
-                />
-              </div>
-            </>
-          ) : undefined
-        }
         title={activeBox === "plans" ? "Subscription Plans" : "Partner Subscription List"}
         searchHint={
-          activeBox === "plans" ? "Search Plan Name" : "Search Partner Name / Partner ID"
+          activeBox === "plans" ? "Search Plan Name" : "Search Partner Name"
         }
         onDownloadClick={async () => {
           console.log("Download clicked");

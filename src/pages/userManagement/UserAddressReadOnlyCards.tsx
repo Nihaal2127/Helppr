@@ -3,13 +3,23 @@ import { Row, Col } from "react-bootstrap";
 import type { UserModel } from "../../models/UserModel";
 import editIcon from "../../assets/icons/edit_red.svg";
 
-const cardShell: React.CSSProperties = {
+/** Matches dashed “saved” card in `ServiceAddressCardsPanel` (customer on file). */
+const savedCardShell: React.CSSProperties = {
     borderRadius: "10px",
     padding: "12px 14px",
     backgroundColor: "var(--bg-color)",
     height: "100%",
-    border: "2px solid var(--primary-color)",
-    boxShadow: "0 0 0 1px rgba(25, 135, 84, 0.12)",
+    border: "1px dashed var(--primary-color)",
+    boxShadow: "none",
+};
+
+const emptyCardShell: React.CSSProperties = {
+    borderRadius: "10px",
+    padding: "12px 14px",
+    backgroundColor: "var(--bg-color)",
+    height: "100%",
+    border: "1px dashed var(--txtfld-border, rgba(0, 0, 0, 0.2))",
+    boxShadow: "none",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -28,11 +38,17 @@ const valueStyle: React.CSSProperties = {
     wordBreak: "break-word",
 };
 
-type RowProps = { label: string; value: string };
-const DetailStack: React.FC<RowProps> = ({ label, value }) => (
+const mutedValueStyle: React.CSSProperties = {
+    ...valueStyle,
+    color: "var(--content-txt-color, #6c757d)",
+    fontStyle: "italic",
+};
+
+type RowProps = { label: string; value: string; muted?: boolean };
+const DetailStack: React.FC<RowProps> = ({ label, value, muted }) => (
     <div className="mb-2">
         <div style={labelStyle}>{label}</div>
-        <div style={valueStyle}>{value}</div>
+        <div style={muted ? mutedValueStyle : valueStyle}>{value}</div>
     </div>
 );
 
@@ -42,7 +58,7 @@ export type UserAddressReadOnlyCardsProps = {
 };
 
 /**
- * Single saved address from profile (legacy flat fields), view-only: edit only, no delete.
+ * Profile address (read-only, edit) plus an empty placeholder card — aligned with create-order service address cards.
  */
 const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({ user, onEdit }) => {
     const stateLabel = (user.state_name ?? "").trim() || "—";
@@ -53,7 +69,7 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({ use
     return (
         <Row className="g-3">
             <Col xs={12} md={6} lg={4}>
-                <div style={cardShell}>
+                <div style={savedCardShell}>
                     <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
                         <div className="d-flex flex-wrap align-items-center gap-2">
                             <span className="fw-semibold" style={{ color: "var(--primary-color)" }}>
@@ -78,6 +94,19 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({ use
                     <DetailStack label="City" value={cityLabel} />
                     <DetailStack label="Postal Code" value={postal} />
                     <DetailStack label="Address" value={line} />
+                </div>
+            </Col>
+            <Col xs={12} md={6} lg={4}>
+                <div style={emptyCardShell}>
+                    <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+                        <span className="fw-semibold" style={{ color: "var(--content-txt-color, #6c757d)" }}>
+                            Address 2
+                        </span>
+                    </div>
+                    <DetailStack label="State" value="—" muted />
+                    <DetailStack label="City" value="—" muted />
+                    <DetailStack label="Postal Code" value="—" muted />
+                    <DetailStack label="Address" value="Empty slot — use + Add address to save another." muted />
                 </div>
             </Col>
         </Row>

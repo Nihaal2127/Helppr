@@ -13,7 +13,8 @@ export const apiRequest = async (
   method: "GET" | "POST" | "PUT" | "DELETE",
   payload?: any,
   isMultipart: boolean = false,
-  skipLoader: boolean = false
+  skipLoader: boolean = false,
+  suppressErrorAlert: boolean = false
 ) => {
   try {
     if (!skipLoader) showLoader();
@@ -61,6 +62,7 @@ export const apiRequest = async (
       if (method !== "GET") {
         if (
           endpoint !== ApiPaths.LOGOUT() &&
+          endpoint !== ApiPaths.LOGIN() &&
           endpoint !== ApiPaths.DOCUMENT_UPLOAD &&
           endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
           endpoint !== ApiPaths.GET_COUNT
@@ -77,13 +79,16 @@ export const apiRequest = async (
         closeAllModals();
         navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
-        if (!isMockAuthSession()) {
+        if (endpoint !== ApiPaths.LOGIN() && !isMockAuthSession()) {
           clearLocalStorage();
           navigate?.(ROUTES.LOGIN.path);
         }
       }
 
-      if (!(response.status === 401 && isMockAuthSession())) {
+      if (
+        !(response.status === 401 && isMockAuthSession()) &&
+        !suppressErrorAlert
+      ) {
         showErrorAlert(data.message || "Request failed");
       }
       return { success: false, status: response.status, message: data.message || "Request failed" };
@@ -97,7 +102,9 @@ export const apiRequest = async (
         ? "Request failed. Please check API access."
         : error?.message || "Network error";
 
-    showErrorAlert(errorMessage);
+    if (!suppressErrorAlert) {
+      showErrorAlert(errorMessage);
+    }
 
     return { success: false, error: errorMessage };
   }

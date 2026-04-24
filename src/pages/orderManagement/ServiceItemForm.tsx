@@ -13,8 +13,13 @@ import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 import type { ServiceAddressCard, AddressCityDropdownRow } from "../../models/OrderItemModel";
 import { AppConstant } from "../../constant/AppConstant";
 import { CustomFormInput } from "../../components/CustomFormInput";
-import ServiceAddressCardsPanel, { serializeServiceAddressCards } from "./ServiceAddressCardsPanel";
-import type { CustomerSavedAddressPreview } from "../../helper/userAddressPreview";
+import ServiceAddressCardsPanel, {
+    serializeServiceAddressCards,
+    unregisterServiceAddressCardFields,
+    getServiceAddressCardFieldNames,
+} from "./ServiceAddressCardsPanel";
+import type { UserModel } from "../../models/UserModel";
+import { sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
 
 /** Digits and at most one decimal point (for text `type="text"` service price). */
 function sanitizeDecimalDigits(raw: string): string {
@@ -36,6 +41,48 @@ const defaultAddressCard = (isActive = true): ServiceAddressCard => ({
     cityLabel: "",
     isActive,
 });
+
+function customerHasAddressFields(user: UserModel): boolean {
+    return !!(
+        (user.state_id ?? "").trim() ||
+        (user.city_id ?? "").trim() ||
+        (user.pincode ?? "").trim() ||
+        (user.address ?? "").trim()
+    );
+}
+
+/** Primary card from profile + one blank card (create order / service locations). */
+function buildAddressCardsFromCustomer(user: UserModel | undefined | null): ServiceAddressCard[] {
+    if (!user || !customerHasAddressFields(user)) {
+        return [defaultAddressCard(true)];
+    }
+    return [
+        {
+            id: newAddressCardId(),
+            stateId: (user.state_id ?? "").trim(),
+            cityId: (user.city_id ?? "").trim(),
+            postal: sanitizeIndianPincodeInput(String(user.pincode ?? "")),
+            line: (user.address ?? "").trim(),
+            stateLabel: (user.state_name ?? "").trim(),
+            cityLabel: (user.city_name ?? "").trim(),
+            isActive: true,
+        },
+        defaultAddressCard(false),
+    ];
+}
+
+function syncAddrSelectFieldsToForm(
+    setValue: (name: string, value: unknown, opts?: { shouldValidate?: boolean }) => void,
+    cards: ServiceAddressCard[]
+) {
+    queueMicrotask(() => {
+        for (const c of cards) {
+            const { stateField, cityField } = getServiceAddressCardFieldNames(c.id);
+            setValue(stateField, c.stateId, { shouldValidate: false });
+            setValue(cityField, c.cityId, { shouldValidate: false });
+        }
+    });
+}
 
 const servicePriceFieldValidation = {
     required: "Service price is required",
@@ -81,8 +128,8 @@ type ServiceItemFormProps = {
     addressStateOptions?: { value: string; label: string }[];
     addressCityRows?: AddressCityDropdownRow[];
     unregister?: UseFormUnregister<any>;
-    /** Create order: show selected customer profile address above service location cards. */
-    customerSavedAddresses?: CustomerSavedAddressPreview[];
+    /** Create order: pre-fill first service address card(s) when a customer is chosen. */
+    serviceAddressSeedUser?: UserModel | null;
 };
 
 const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
@@ -102,7 +149,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
     addressStateOptions,
     addressCityRows,
     unregister,
-    customerSavedAddresses,
+    serviceAddressSeedUser,
 }) => {
     const [services, setService] = useState<{ value: string; label: string; price?: number }[]>([]);
     const [partners, setPartner] = useState<{ value: string; label: string }[]>([]);
@@ -129,6 +176,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
     const fetchRef = useRef(false);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
+    const lastSeededUserIdRef = useRef<string>("");
 
     useEffect(() => {
         onChangeRef.current(serviceItems);
@@ -160,6 +208,56 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
         scheduleMirror?.[0]?.service_date,
         scheduleMirror?.[0]?.service_from_time,
         scheduleMirror?.[0]?.service_to_time,
+    ]);
+
+    useEffect(() => {
+        if (!singleServiceOnly || !useAddressCards) return;
+        const uid = (serviceAddressSeedUser?._id ?? "").trim();
+        if (!uid) {
+            if (lastSeededUserIdRef.current !== "") {
+                lastSeededUserIdRef.current = "";
+                setServiceItems((prev) => {
+                    if (!prev.length) return prev;
+                    const old = prev[0].address_cards ?? [];
+                    unregisterServiceAddressCardFields(unregister, old.map((c) => c.id));
+                    const next = [defaultAddressCard(true)];
+                    syncAddrSelectFieldsToForm(setValue, next);
+                    return [
+                        {
+                            ...prev[0],
+                            address_cards: next,
+                            service_address: serializeServiceAddressCards(next),
+                        },
+                        ...prev.slice(1),
+                    ];
+                });
+            }
+            return;
+        }
+        if (lastSeededUserIdRef.current === uid) return;
+        lastSeededUserIdRef.current = uid;
+        const next = buildAddressCardsFromCustomer(serviceAddressSeedUser);
+        setServiceItems((prev) => {
+            if (!prev.length) return prev;
+            const old = prev[0].address_cards ?? [];
+            unregisterServiceAddressCardFields(unregister, old.map((c) => c.id));
+            return [
+                {
+                    ...prev[0],
+                    address_cards: next,
+                    service_address: serializeServiceAddressCards(next),
+                },
+                ...prev.slice(1),
+            ];
+        });
+        syncAddrSelectFieldsToForm(setValue, next);
+    }, [
+        singleServiceOnly,
+        useAddressCards,
+        serviceAddressSeedUser?._id,
+        serviceAddressSeedUser,
+        setValue,
+        unregister,
     ]);
 
     useEffect(() => {
@@ -198,11 +296,17 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
         }
         prevCategoryRef.current = next;
 
+        const nextAddrCards =
+            singleServiceOnly && useAddressCards
+                ? buildAddressCardsFromCustomer(serviceAddressSeedUser ?? undefined)
+                : [defaultAddressCard(true)];
         setServiceItems((prev) =>
             prev.map((item, idx) => {
                 setValue(`serviceItems.${idx}.service_id`, "");
                 setValue(`serviceItems.${idx}.partner_id`, "");
                 setValue(`serviceItems.${idx}.service_price`, 0, { shouldValidate: true });
+                unregisterServiceAddressCardFields(unregister, item.address_cards?.map((c) => c.id) ?? []);
+                const serialized = serializeServiceAddressCards(nextAddrCards);
                 return {
                     ...item,
                     service_id: "",
@@ -215,13 +319,16 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                     partner_commison_platform_fee: 0,
                     partner_earning: 0,
                     admin_earning: 0,
-                    address_cards: [defaultAddressCard(true)],
-                    service_address: "",
+                    address_cards: nextAddrCards,
+                    service_address: serialized,
                 };
             })
         );
+        if (useAddressCards) {
+            syncAddrSelectFieldsToForm(setValue, nextAddrCards);
+        }
         setPartner([]);
-    }, [categoryId, setValue]);
+    }, [categoryId, setValue, singleServiceOnly, useAddressCards, serviceAddressSeedUser, unregister]);
 
     const fetchPartnerFromApi = async (serviceId: string) => {
         if (fetchRef.current) return;
@@ -564,7 +671,6 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                             unregister={unregister}
                             stateOptions={addressStateOptions}
                             cityRows={addressCityRows}
-                            customerSavedAddresses={customerSavedAddresses}
                         />
                     ) : null}
                     {!useAddressCards && (

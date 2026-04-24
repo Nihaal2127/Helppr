@@ -2896,3 +2896,37 @@ body:has(.modal.show ~ .modal.show) {
   }
 }
 
+/* Subscription plans — plan description column width + ellipsis; tooltip white/black */
+table.table th.subscription-plans-desc-cell,
+table.table td.subscription-plans-desc-cell {
+  width: 260px;
+  max-width: 260px;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.subscription-plans-desc-cell-inner {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.subscription-plan-desc-tooltip .tooltip-inner {
+  background-color: #fff;
+  color: #000;
+  text-align: left;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bs-tooltip-top.subscription-plan-desc-tooltip .tooltip-arrow::before {
+  border-top-color: #fff !important;
+}
+
+.bs-tooltip-bottom.subscription-plan-desc-tooltip .tooltip-arrow::before {
+  border-bottom-color: #fff !important;
+}
+

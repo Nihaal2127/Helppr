@@ -9,7 +9,7 @@ export const AppConstant = {
     
     isAdmin: "isAdmin",
 
-    /** "admin" | "franchise_admin" | "employee" — set on login; used for mock logout and future RBAC. */
+    /** "admin" | "franchise_admin" | "employee" | "staff" — set on login from API user `type` (see `mapWebUserTypeToSessionRole`). */
     userRole: "userRole",
     adminId: "adminId",
     partnerId: "partnerId",
@@ -36,4 +36,5 @@ export const UserRole = {
     ADMIN: "admin",
     FRANCHISE_ADMIN: "franchise_admin",
     EMPLOYEE: "employee",
+    STAFF: "staff",
 } as const;

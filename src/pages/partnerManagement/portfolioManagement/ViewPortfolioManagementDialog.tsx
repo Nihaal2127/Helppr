@@ -85,9 +85,9 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
                             <Col md={4} className="custom-helper-column">
                                 <DetailsRow title="Likes Count" value={portfolio?.likes_count} />
                             </Col>
-                            <Col md={4} className="custom-helper-column">
+                            {/* <Col md={4} className="custom-helper-column">
                                 <DetailsRow title="Comments Count" value={portfolio?.comments_count} />
-                            </Col>
+                            </Col> */}
                         </Row>
 
                         <Row className="mb-2">

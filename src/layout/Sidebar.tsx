@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import { mainMenuItems, profileMenuItems } from "./menuItems";
 import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
+import { isMockAuthSession } from "../helper/authSessionHelper";
 import { logout } from "../services/adminService";
 import { ROUTES } from "../routes/Routes";
 import { openConfirmDialog } from "../components/CustomConfirmDialog";
@@ -25,17 +26,16 @@ const Sidebar: React.FC = () => {
     }
 
     // Franchise admin / Employee should not see these admin-only sections
-    if (role === UserRole.FRANCHISE_ADMIN ) {
+    if (role === UserRole.FRANCHISE_ADMIN || role === UserRole.STAFF) {
       return ![
         "content-management",
         "location-management",
         "franchise-management",
         "service-management",
-        "settings"
       ].includes(key);
     }
 
-    if( role === UserRole.EMPLOYEE){
+    if (role === UserRole.EMPLOYEE) {
       // return ![
       //   "content-management",
       //   "location-management",
@@ -60,9 +60,7 @@ const Sidebar: React.FC = () => {
         "Logout",
         "Cancel",
         async () => {
-          const role = getLocalStorage(AppConstant.userRole);
-          const isMockSession =
-            role === UserRole.FRANCHISE_ADMIN || role === UserRole.EMPLOYEE;
+          const isMockSession = isMockAuthSession();
           const isAdmin = getLocalStorage(AppConstant.isAdmin);
           const response = isMockSession ? true : await logout();
           if (response) {

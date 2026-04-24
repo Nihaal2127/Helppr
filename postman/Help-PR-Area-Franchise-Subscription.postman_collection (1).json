@@ -1,0 +1,827 @@
+{
+  "info": {
+    "_postman_id": "f7e8d9c0-help-pr-area-franchise-subscription",
+    "name": "Help PR — Area, Franchise, Subscription & Partner Subscription",
+    "description": "Merged collection for `/api/area`, `/api/franchise`, `/api/subscription-plan`, and `/api/partner-subscription`. Set `base_url`, `auth_token`, and id variables in the active environment. Partner subscription admin routes need an Admin token; `GET .../me` needs a Partner token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "area_id",
+      "value": ""
+    },
+    {
+      "key": "city_id",
+      "value": ""
+    },
+    {
+      "key": "state_id",
+      "value": ""
+    },
+    {
+      "key": "franchise_id",
+      "value": ""
+    },
+    {
+      "key": "admin_id",
+      "value": ""
+    },
+    {
+      "key": "created_by_id",
+      "value": ""
+    },
+    {
+      "key": "partner_id",
+      "value": ""
+    },
+    {
+      "key": "subscription_plan_id",
+      "value": ""
+    },
+    {
+      "key": "partner_subscription_id",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Area",
+      "item": [
+        {
+          "name": "Area",
+          "item": [
+            {
+              "name": "Create area",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Indiranagar\",\n  \"city_id\": \"{{city_id}}\",\n  \"is_active\": true,\n  \"pincodes\": [\"560038\", \"560008\"]\n}"
+                },
+                "url": "{{base_url}}/api/area/create",
+                "description": "Requires `name`, `city_id`, `is_active`. Optional `pincodes` (string array)."
+              }
+            },
+            {
+              "name": "Get all areas (paginated)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/area/getAll?page=1&limit=10&sort=-1"
+              },
+              "description": "Optional query params: name, city_id, state_id, is_active, pincode (append to URL)."
+            },
+            {
+              "name": "Get area by id",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/area/get/{{area_id}}"
+              }
+            },
+            {
+              "name": "Update area",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Indiranagar East\",\n  \"is_active\": true,\n  \"pincodes\": [\"560038\"]\n}"
+                },
+                "url": "{{base_url}}/api/area/update/{{area_id}}"
+              }
+            },
+            {
+              "name": "Delete area (soft)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/area/delete/{{area_id}}"
+              }
+            },
+            {
+              "name": "Import areas",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"records\": [\n    {\n      \"name\": \"Koramangala\",\n      \"city_id\": \"{{city_id}}\",\n      \"is_active\": true,\n      \"pincodes\": [\"560034\"]\n    }\n  ]\n}"
+                },
+                "url": "{{base_url}}/api/area/imports"
+              }
+            },
+            {
+              "name": "Dropdown (no auth)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/area/getDropDown"
+              },
+              "description": "Optional: `?city_id=<id>` or `?state_id=id1,id2` (comma-separated)."
+            }
+          ]
+        },
+        {
+          "name": "Export",
+          "item": [
+            {
+              "name": "Export areas (Excel)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": ""
+                },
+                "url": "{{base_url}}/api/export/area",
+                "description": "Returns `.xlsx` (or base64 in production). Save response as file in Postman."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Franchise",
+      "item": [
+        {
+          "name": "Franchise",
+          "item": [
+            {
+              "name": "Create franchise",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"North Zone\",\n  \"state_id\": \"{{state_id}}\",\n  \"city_id\": \"{{city_id}}\",\n  \"area_id\": [\"{{area_id}}\"],\n  \"admin_id\": \"{{admin_id}}\",\n  \"contact\": \"+919999999999\",\n  \"is_active\": true,\n  \"description\": \"Main franchise\",\n  \"desc\": \"\",\n  \"desc2\": \"\"\n}"
+                },
+                "url": "{{base_url}}/api/franchise/create",
+                "description": "Requires name, state_id, city_id, admin_id, contact, is_active. area_id is an array (can be []). City must belong to state; areas must belong to city."
+              }
+            },
+            {
+              "name": "Get all franchises (paginated)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/franchise/getAll?page=1&limit=10&sort=-1"
+              },
+              "description": "Optional query params: name, state_id, city_id, admin_id, is_active (append to URL)."
+            },
+            {
+              "name": "Get franchise by id",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/franchise/get/{{franchise_id}}"
+              }
+            },
+            {
+              "name": "Update franchise",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"North Zone East\",\n  \"is_active\": true,\n  \"contact\": \"+919988776655\",\n  \"description\": \"Updated description\"\n}"
+                },
+                "url": "{{base_url}}/api/franchise/update/{{franchise_id}}"
+              }
+            },
+            {
+              "name": "Delete franchise (soft)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/franchise/delete/{{franchise_id}}"
+              }
+            },
+            {
+              "name": "Import franchises",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"records\": [\n    {\n      \"name\": \"South Hub\",\n      \"state_id\": \"{{state_id}}\",\n      \"city_id\": \"{{city_id}}\",\n      \"area_id\": [\"{{area_id}}\"],\n      \"admin_id\": \"{{admin_id}}\",\n      \"contact\": \"+918888888888\",\n      \"is_active\": true,\n      \"description\": \"Imported\"\n    }\n  ]\n}"
+                },
+                "url": "{{base_url}}/api/franchise/imports"
+              }
+            },
+            {
+              "name": "Dropdown (no auth)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/franchise/getDropDown"
+              },
+              "description": "Optional: `?state_id=<id>` or `?city_id=id1,id2` (comma-separated)."
+            }
+          ]
+        },
+        {
+          "name": "Export",
+          "item": [
+            {
+              "name": "Export franchises (Excel)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": ""
+                },
+                "url": "{{base_url}}/api/export/franchise",
+                "description": "Returns `.xlsx` (or base64 in production). Save response as file in Postman."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Subscription plan",
+      "item": [
+        {
+          "name": "Subscription plan",
+          "item": [
+            {
+              "name": "Create subscription plan",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plan_name\": \"basic\",\n  \"plan_description\": \"Basic tier with essential features.\",\n  \"price\": 499,\n  \"duration\": 30,\n  \"duration_type\": \"days\",\n  \"priority\": 1,\n  \"is_active\": true\n}"
+                },
+                "url": "{{base_url}}/api/subscription-plan/create",
+                "description": "Requires plan_name (tier slug), plan_description, price, duration, duration_type (days|months), is_active. Optional priority."
+              }
+            },
+            {
+              "name": "Get all subscription plans (paginated)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/subscription-plan/getAll?page=1&limit=10&sort=-1"
+              },
+              "description": "Optional query: is_active, plan_name (basic|silver|gold|platinum), duration_type (days|months)."
+            },
+            {
+              "name": "Get subscription plan by id",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/subscription-plan/get/{{subscription_plan_id}}"
+              }
+            },
+            {
+              "name": "Update subscription plan",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plan_description\": \"Updated description for this tier.\",\n  \"price\": 599,\n  \"duration\": 30,\n  \"duration_type\": \"days\",\n  \"priority\": 2,\n  \"is_active\": true\n}"
+                },
+                "url": "{{base_url}}/api/subscription-plan/update/{{subscription_plan_id}}"
+              }
+            },
+            {
+              "name": "Delete subscription plan (soft)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/subscription-plan/delete/{{subscription_plan_id}}"
+              }
+            },
+            {
+              "name": "Import subscription plans",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"records\": [\n    {\n      \"plan_name\": \"silver\",\n      \"plan_description\": \"Silver tier\",\n      \"price\": 999,\n      \"duration\": 3,\n      \"duration_type\": \"months\",\n      \"priority\": 2,\n      \"is_active\": true\n    }\n  ]\n}"
+                },
+                "url": "{{base_url}}/api/subscription-plan/imports"
+              },
+              "description": "Each row needs unique plan_name among non-deleted plans. Adjust tiers if you already created some via Create."
+            },
+            {
+              "name": "Dropdown (no auth)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/subscription-plan/getDropDown"
+              },
+              "description": "Optional: `?duration_type=days` or `months`. Returns active, non-deleted plans."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Partner subscription",
+      "item": [
+        {
+          "name": "Partner subscription",
+          "item": [
+            {
+              "name": "Create partner subscription (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"partner_id\": \"{{partner_id}}\",\n  \"subscription_plan_id\": \"{{subscription_plan_id}}\",\n  \"notes\": \"Manual assignment from Postman\"\n}"
+                },
+                "url": "{{base_url}}/api/partner-subscription/create",
+                "description": "Admin only. Requires partner_id (user with type Partner) and subscription_plan_id (active plan). Optional: started_at, expires_at (omit to auto-compute from plan duration), notes. Previous active subscriptions for that partner are cancelled."
+              }
+            },
+            {
+              "name": "Get all partner subscriptions (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/partner-subscription/getAll?page=1&limit=10&sort=-1"
+              },
+              "description": "Admin only. Optional query: partner_id, subscription_plan_id, status (active|expired|cancelled)."
+            },
+            {
+              "name": "Get partner subscription by id (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/partner-subscription/get/{{partner_subscription_id}}"
+              }
+            },
+            {
+              "name": "Update partner subscription (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"active\",\n  \"notes\": \"Updated via Postman\"\n}"
+                },
+                "url": "{{base_url}}/api/partner-subscription/update/{{partner_subscription_id}}"
+              },
+              "description": "Admin only. Optional fields: subscription_plan_id, started_at, expires_at, status, notes."
+            },
+            {
+              "name": "Delete partner subscription (Admin, soft)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/api/partner-subscription/delete/{{partner_subscription_id}}"
+              }
+            },
+            {
+              "name": "Import partner subscriptions (Admin)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"records\": [\n    {\n      \"partner_id\": \"{{partner_id}}\",\n      \"subscription_plan_id\": \"{{subscription_plan_id}}\",\n      \"notes\": \"Batch import row\"\n    }\n  ]\n}"
+                },
+                "url": "{{base_url}}/api/partner-subscription/imports"
+              },
+              "description": "Admin only. Each record: partner_id, subscription_plan_id; optional started_at, expires_at, notes."
+            },
+            {
+              "name": "Get my subscription (Partner)",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{auth_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/api/partner-subscription/me"
+              },
+              "description": "Partner only (`user.type` = 2). Use a Partner JWT in `auth_token` (not Admin). Returns active subscription with populated plan, or `record: null`."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User (New Types)",
+      "item": [
+        {
+          "name": "Create Super Admin (web)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Super Admin User\",\n  \"email\": \"superadmin@example.com\",\n  \"phone_number\": \"+919900000001\",\n  \"type\": 5,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"accessible_screens\": [\"dashboard\", \"users\", \"subscriptions\"]\n}"
+            },
+            "url": "{{base_url}}/api/user/create"
+          }
+        },
+        {
+          "name": "Create Staff (web)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staff User\",\n  \"email\": \"staff@example.com\",\n  \"phone_number\": \"+919900000002\",\n  \"type\": 6,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"accessible_screens\": [\"dashboard\", \"orders\"]\n}"
+            },
+            "url": "{{base_url}}/api/user/create"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -13,7 +13,8 @@ import { getLocalStorage } from "../helper/localStorageHelper";
 import { showErrorAlert } from "../helper/alertHelper";
 import {
   createWebManagementUser,
-  mapMenuKeysToAccessibleScreens,
+  mapMenuKeysToAvailablePages,
+  staffAvailablePagesFromMenuKeys,
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
 
@@ -191,7 +192,7 @@ export const createRoleUserWithApi = async (
     type,
     is_from_web: true,
     created_by_id: createdById,
-    accessible_screens: mapMenuKeysToAccessibleScreens(payload.screenPermissions ?? []),
+    available_pages: mapMenuKeysToAvailablePages(payload.screenPermissions ?? []),
     profile_url: profileUrlForApi(payload.profile_url),
   });
 
@@ -237,7 +238,7 @@ export const createStaffUserWithApi = async (
     type: WEB_MANAGEMENT_USER_TYPE.STAFF,
     is_from_web: true,
     created_by_id: createdById,
-    accessible_screens: mapMenuKeysToAccessibleScreens(payload.screenPermissions ?? []),
+    available_pages: staffAvailablePagesFromMenuKeys(payload.screenPermissions ?? []),
     profile_url: profileUrlForApi(payload.profile_url),
   });
 

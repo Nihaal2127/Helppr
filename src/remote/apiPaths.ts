@@ -103,10 +103,27 @@ export const ApiPaths = {
   // Quotes management — GET query: page, limit, tab, keyword?, from_date?, to_date?, sort_by?, sort_order? (asc|desc)
   GET_QUOTES: () => `/quote/getAll`,
   // Partner management
+  /** Global subscription tier catalog (Postman: `/subscription-plan/*`). */
+  SUBSCRIPTION_PLAN_GET_ALL: () => `/subscription-plan/getAll`,
+  SUBSCRIPTION_PLAN_GET: (id: string) => `/subscription-plan/get/${id}`,
+  SUBSCRIPTION_PLAN_CREATE: `/subscription-plan/create`,
+  SUBSCRIPTION_PLAN_UPDATE: (id: string) => `/subscription-plan/update/${id}`,
+  SUBSCRIPTION_PLAN_DELETE: (id: string) => `/subscription-plan/delete/${id}`,
+  SUBSCRIPTION_PLAN_GET_DROP_DOWN: () => `/subscription-plan/getDropDown`,
   GET_PARTNER_SUBSCRIPTION_PLANS: () => `/partner/subscription/plans`,
   CREATE_PARTNER_SUBSCRIPTION_PLAN: `/partner/subscription/plans/create`,
   UPDATE_PARTNER_SUBSCRIPTION_PLAN: (id: string) => `/partner/subscription/plans/update/${id}`,
   VOID_PARTNER_SUBSCRIPTION_PLAN: (id: string) => `/partner/subscription/plans/void/${id}`,
+  /**
+   * Partner subscription **assignments** (Postman folder: partner-subscription), e.g.
+   * `PUT …/api/partner-subscription/update/:partner_subscription_id`.
+   * Not the same as `SUBSCRIPTION_PLAN_*` above (global plan catalog).
+   */
+  PARTNER_SUBSCRIPTION_GET_ALL: () => `/partner-subscription/getAll`,
+  PARTNER_SUBSCRIPTION_GET: (id: string) => `/partner-subscription/get/${id}`,
+  PARTNER_SUBSCRIPTION_CREATE: `/partner-subscription/create`,
+  PARTNER_SUBSCRIPTION_UPDATE: (id: string) => `/partner-subscription/update/${id}`,
+  PARTNER_SUBSCRIPTION_DELETE: (id: string) => `/partner-subscription/delete/${id}`,
   GET_PARTNER_SUBSCRIPTIONS: () => `/partner/subscriptions`,
   CREATE_PARTNER_SUBSCRIPTION: `/partner/subscriptions/create`,
   UPDATE_PARTNER_SUBSCRIPTION: (id: string) => `/partner/subscriptions/update/${id}`,

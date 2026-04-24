@@ -4,43 +4,71 @@ import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import { shouldUseRealVerificationApi, getMockVerificationListPage } from "../mockData/verificationTableMock";
+import { mainMenuItems } from "../layout/menuItems";
+import { UserRole } from "../constant/AppConstant";
 
-/** Aligns with Postman "User (New Types)" — `POST /api/user/create` (`type` 5 / 6). */
+/**
+ * Web dashboard user `type` values (DB / `POST /user/create` / login `record.type`).
+ * 1 Admin (franchise), 3 Employee, 5 Super Admin, 6 Staff — aligns with product enum.
+ */
 export const WEB_MANAGEMENT_USER_TYPE = {
-  /** Postman: Create Super Admin (web) — used for UI "Franchise Admin". */
-  FRANCHISE_ADMIN: 5,
-  /**
-   * Franchise employee (web). Not in Postman; adjust if backend uses another code.
-   * Postman documents `5` (super admin) and `6` (staff) only.
-   */
+  FRANCHISE_ADMIN: 1,
   FRANCHISE_EMPLOYEE: 3,
-  /** Postman: Create Staff (web). */
+  SUPER_ADMIN: 5,
   STAFF: 6,
 } as const;
 
-/** Map `mainMenuItems` keys to `accessible_screens` slugs expected by the API (see Postman examples). */
-export const mapMenuKeysToAccessibleScreens = (keys: string[]): string[] => {
-  const map: Record<string, string> = {
-    dashboards: "dashboard",
-    "my-franchise": "my_franchise",
-    "location-management": "location_management",
-    "franchise-management": "franchise_management",
-    "service-management": "service_management",
-    "user-management": "users",
-    "quote-management": "quotes",
-    "order-management": "orders",
-    financials: "financials",
-    "expenses-management": "expenses",
-    reports: "reports",
-    "partner-management": "subscriptions",
-    settings: "settings",
-    "support-center": "support",
-  };
-  const out = (keys ?? [])
-    .map((k) => map[k] ?? k.replace(/-/g, "_"))
-    .filter(Boolean);
-  return out.length ? out : ["dashboard"];
+/** Session role string stored under `AppConstant.userRole`, derived from `UserModel.type` after login. */
+export type SessionUserRole = (typeof UserRole)[keyof typeof UserRole];
+
+/** Maps API `UserModel.type` to session role for sidebar / guards. */
+export function mapWebUserTypeToSessionRole(
+  type: number | null | undefined
+): SessionUserRole | null {
+  const t = Number(type);
+  if (!Number.isFinite(t)) return null;
+  if (t === WEB_MANAGEMENT_USER_TYPE.SUPER_ADMIN) return UserRole.ADMIN;
+  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN) return UserRole.FRANCHISE_ADMIN;
+  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE) return UserRole.EMPLOYEE;
+  if (t === WEB_MANAGEMENT_USER_TYPE.STAFF) return UserRole.STAFF;
+  return null;
+}
+
+export type AvailablePageEntry = { page: string; url: string };
+
+function normalizeAppPath(path: string): string {
+  const p = (path ?? "").trim();
+  if (!p) return "/";
+  return p.startsWith("/") ? p : `/${p}`;
+}
+
+/**
+ * Maps selected `mainMenuItems` keys to `available_pages` entries (`page` = menu label, `url` = route path).
+ */
+export const mapMenuKeysToAvailablePages = (keys: string[]): AvailablePageEntry[] => {
+  const keySet = new Set(keys ?? []);
+  const pages: AvailablePageEntry[] = [];
+  for (const item of mainMenuItems) {
+    if (!keySet.has(item.key)) continue;
+    pages.push({ page: item.label, url: normalizeAppPath(item.path) });
+  }
+  if (pages.length) return pages;
+  const defaultItem = mainMenuItems[0];
+  return [
+    {
+      page: defaultItem?.label ?? "Dashboard",
+      url: normalizeAppPath(defaultItem?.path ?? "/dashboard"),
+    },
+  ];
 };
+
+/** Staff users always get Profile; order follows selected menu keys then Profile when added. */
+export function staffAvailablePagesFromMenuKeys(menuKeys: string[]): AvailablePageEntry[] {
+  const pages = mapMenuKeysToAvailablePages(menuKeys);
+  const hasProfile = pages.some((p) => normalizeAppPath(p.url) === "/profile");
+  if (hasProfile) return pages;
+  return [...pages, { page: "Profile", url: "/profile" }];
+}
 
 export const normalizePhoneForUserCreate = (phone: string): string => {
   const t = (phone ?? "").trim();
@@ -58,7 +86,7 @@ export type CreateWebManagementUserBody = {
   type: number;
   is_from_web: boolean;
   created_by_id: string;
-  accessible_screens: string[];
+  available_pages: AvailablePageEntry[];
   profile_url?: string;
 };
 
@@ -69,16 +97,21 @@ export type CreateWebManagementUserBody = {
 export const createWebManagementUser = async (
   body: CreateWebManagementUserBody
 ): Promise<{ ok: true; record: unknown } | { ok: false }> => {
-  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", {
+  const requestBody: Record<string, unknown> = {
     name: body.name,
     email: body.email,
     phone_number: normalizePhoneForUserCreate(body.phone_number),
     type: body.type,
     is_from_web: body.is_from_web,
     created_by_id: body.created_by_id,
-    accessible_screens: body.accessible_screens,
-    ...(body.profile_url ? { profile_url: body.profile_url } : {}),
-  });
+    available_pages: body.available_pages.map((p) => ({
+      page: p.page,
+      url: normalizeAppPath(p.url),
+    })),
+  };
+  if (body.profile_url) requestBody.profile_url = body.profile_url;
+
+  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", requestBody);
 
   if (!response.success) {
     return { ok: false };

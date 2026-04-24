@@ -6,17 +6,10 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { capitalizeString, DetailsRow } from "../../../helper/utility";
 import { openDialog } from "../../../helper/DialogManager";
+import { saveSubscriptionPlan } from "../../../services/partnerManagementService";
+import type { SubscriptionPlanModel } from "../../../models/SubscriptionPlanModel";
 
-export type SubscriptionPlanModel = {
-  _id: string;
-  plan_name: string;
-  plan_description: string;
-  price: string;
-  duration: string;
-  duration_type: string;
-  priority?: string;
-  is_active: boolean;
-};
+export type { SubscriptionPlanModel };
 
 type AddEditSubscriptionPlanDialogProps = {
   isEditable: boolean;
@@ -90,10 +83,12 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
           : data.is_active,
     };
 
-    console.log("Submitted Plan Data:", updatedData);
+    const isUpdate = Boolean(plan?._id);
+    const ok = await saveSubscriptionPlan(updatedData, isUpdate);
+    if (!ok) return;
     setViewData(updatedData);
-    onClose();
     onRefreshData();
+    onClose();
   };
 
   return (
@@ -202,7 +197,16 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                   }
                 />
               </Col>
-
+              <Col md={6}>
+                <CustomFormInput
+                  label="Priority"
+                  controlId="priority"
+                  placeholder="Enter Priority"
+                  register={register}
+                  error={errors.priority}
+                  asCol={false}
+                />
+              </Col>
               <Col md={6}>
                 <Form.Group>
                   <Form.Label className="fw-medium mb-1">Status</Form.Label>
@@ -234,16 +238,7 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                   </div>
                 </Form.Group>
               </Col>
-              <Col md={6}>
-                <CustomFormInput
-                  label="Priority"
-                  controlId="priority"
-                  placeholder="Enter Priority"
-                  register={register}
-                  error={errors.priority}
-                  asCol={false}
-                />
-              </Col>
+              
               <Col md={12}>
                 <CustomFormInput
                   label="Plan Description"

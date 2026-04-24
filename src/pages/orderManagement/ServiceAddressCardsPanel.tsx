@@ -13,6 +13,22 @@ const sanId = (id: string) => String(id).replace(/[^a-zA-Z0-9_]/g, "_");
 const fieldState = (cardId: string) => `addrCard_${sanId(cardId)}_state`;
 const fieldCity = (cardId: string) => `addrCard_${sanId(cardId)}_city`;
 
+/** Clear react-hook-form keys for removed/replaced address cards (dynamic `addrCard_*` fields). */
+export function unregisterServiceAddressCardFields(
+    unregister: UseFormUnregister<any> | undefined,
+    cardIds: readonly string[]
+) {
+    if (!unregister) return;
+    for (const id of cardIds) {
+        unregister(fieldState(id));
+        unregister(fieldCity(id));
+    }
+}
+
+export function getServiceAddressCardFieldNames(cardId: string) {
+    return { stateField: fieldState(cardId), cityField: fieldCity(cardId) };
+}
+
 const miniCardBase: React.CSSProperties = {
     borderRadius: "10px",
     padding: "12px 14px",
@@ -236,13 +252,6 @@ const ServiceAddressCardsPanel: React.FC<ServiceAddressCardsPanelProps> = ({
                                             <span className="fw-semibold" style={{ color: "var(--primary-color)" }}>
                                                 Address {globalIdx}
                                             </span>
-                                            {active ? (
-                                                <span
-                                                    className="small fw-semibold "
-                                                    style={{ color: "var(--bs-success, #198754)", letterSpacing: "0.02em" }}>
-                                                    (Active)
-                                                </span>
-                                            ) : null}
                                         </div>
                                         <div className="d-flex align-items-center gap-2 flex-shrink-0">
                                             <Form.Check

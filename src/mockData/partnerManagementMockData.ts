@@ -1,4 +1,3 @@
-import type { SubscriptionPlanModel } from "../pages/partnerManagement/subscriptionPlans/AddEditSubscriptionPlanDialog";
 import type { PartnerSubscriptionModel } from "../pages/partnerManagement/subscriptionPlans/AddEditPartnerSubscriptionDialog";
 import type { PostModel } from "../pages/partnerManagement/postManagement/AddEditPostManagementDialog";
 
@@ -19,56 +18,20 @@ type PortfolioSeedRow = {
   is_active: boolean;
 };
 
-export const partnerSubscriptionPlansSeed: SubscriptionPlanModel[] = [
-  {
-    _id: "PLN001",
-    plan_name: "basic",
-    plan_description: "Basic subscription plan for starterrr users ",
-    price: "499",
-    duration: "30",
-    duration_type: "days",
-    is_active: true,
-  },
-  {
-    _id: "PLN002",
-    plan_name: "silver",
-    plan_description: "Silver subscription plan for regular users",
-    price: "999",
-    duration: "3",
-    duration_type: "months",
-    is_active: true,
-  },
-  {
-    _id: "PLN003",
-    plan_name: "gold",
-    plan_description: "Gold subscription plan with premium benefits",
-    price: "1999",
-    duration: "6",
-    duration_type: "months",
-    is_active: false,
-  },
-  {
-    _id: "PLN004",
-    plan_name: "platinum",
-    plan_description: "Platinum subscription plan for enterprise users",
-    price: "4999",
-    duration: "12",
-    duration_type: "months",
-    is_active: true,
-  },
-];
+export { partnerSubscriptionPlansSeed } from "./partnerSubscriptionPlansSeedData";
 
 export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
   {
     _id: "1",
     partner_id: "P001",
-    partner_name: "Rahul",
+    partner_name: "Rahul1",
     subscription_plan: "basic",
+    subscription_plan_id: "basic",
     subscription_start_date: "2026-03-01",
     subscription_end_date: "2026-03-31",
     rating: "4.2",
     address: "Flat 402, Sri Sai Residency, Road No. 10, Banjara Hills, Hyderabad, Telangana 500034, India",
-    is_active: true,
+    is_active: false,
   },
   {
     _id: "2",
@@ -86,6 +49,7 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     partner_id: "P003",
     partner_name: "Suresh",
     subscription_plan: "gold",
+    subscription_plan_id: "gold",
     subscription_start_date: "2026-02-01",
     subscription_end_date: "2026-08-01",
     rating: "4.0",
@@ -97,11 +61,26 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     partner_id: "P004",
     partner_name: "Teja",
     subscription_plan: "platinum",
+    subscription_plan_id: "platinum",
     subscription_start_date: "2026-01-01",
     subscription_end_date: "2027-01-01",
     rating: "4.9",
     address: "H.No. 2-3-111, Hanamkonda Main Road, Balasamudram, Warangal, Telangana 506001, India",
+    banner_image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
     is_active: true,
+  },
+  /** Design demo row: “7 days” in red in Remaining Days column (mock only). */
+  {
+    _id: "demo-rem-7",
+    partner_id: "P099",
+    partner_name: "Kishore",
+    subscription_plan: "silver",
+    subscription_plan_id: "silver",
+    subscription_start_date: "2026-04-01",
+    subscription_end_date: "2026-04-29",
+    rating: "4.5",
+    is_active: true,
+    remaining_days_demo: 7,
   },
 ];
 

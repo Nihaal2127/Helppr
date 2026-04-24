@@ -1,22 +1,38 @@
 import React, { useEffect, useMemo, useState } from "react";
+import type { FieldErrors } from "react-hook-form";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
-import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
+import CustomDatePicker from "../../../components/CustomDatePicker";
+import CustomImageUploader from "../../../components/CustomImageUploader";
+import { DetailsRow } from "../../../helper/utility";
 import { openDialog } from "../../../helper/DialogManager";
+import { savePartnerSubscription } from "../../../services/partnerManagementService";
+import { fetchSubscriptionPlanDropDown } from "../../../services/partnerManagementService";
+import { fetchUser } from "../../../services/userService";
+import { showErrorAlert } from "../../../helper/alertHelper";
 
 export type PartnerSubscriptionModel = {
     _id?: string;
     partner_id: string;
     partner_name: string;
+    /** Plan tier slug for display / mock (e.g. `basic`). */
     subscription_plan: string;
+    /** When using live APIs, selected subscription plan document id. */
+    subscription_plan_id?: string;
     subscription_start_date: string;
     subscription_end_date: string;
     rating: string;
     location?: string;
     address?: string;
+    /** Shown for platinum plans (banner / hero image URL or data URL from upload). */
+    banner_image?: string;
+    /** Optional notes for `/partner-subscription/create|update`. */
+    notes?: string;
+    /** Mock-only: force “remaining days” cell to show this value in red (design demo). */
+    remaining_days_demo?: number;
     is_active: boolean;
 };
 
@@ -43,19 +59,21 @@ type PartnerInfoDialogProps = {
     onClose: () => void;
 };
 
-const subscriptionPlanOptions = [
+const defaultSubscriptionPlanOptions = [
     { value: "basic", label: "Basic" },
     { value: "silver", label: "Silver" },
     { value: "gold", label: "Gold" },
     { value: "platinum", label: "Platinum" },
 ];
 
+/* Address / location select options (kept when address UI is re-enabled)
 const locationOptions = [
     { value: "Hyderabad", label: "Hyderabad" },
     { value: "Vijayawada", label: "Vijayawada" },
     { value: "Visakhapatnam", label: "Visakhapatnam" },
     { value: "Warangal", label: "Warangal" },
 ];
+*/
 
 const labelStyle: React.CSSProperties = {
     fontWeight: 600,
@@ -69,16 +87,6 @@ const valueStyle: React.CSSProperties = {
     fontSize: "15px",
     lineHeight: "22px",
     wordBreak: "break-word",
-};
-
-const inputStyle: React.CSSProperties = {
-    boxShadow: "none",
-    borderRadius: "8px",
-    borderColor: "var(--primary-color)",
-    fontSize: "14px",
-    height: "2.62rem",
-    backgroundColor: "var(--bg-color)",
-    color: "var(--content-txt-color)",
 };
 
 const PartnerInfoDialog: React.FC<PartnerInfoDialogProps> & {
@@ -169,6 +177,15 @@ PartnerInfoDialog.show = (partner: PartnerInfoModel) => {
     ));
 };
 
+async function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result ?? ""));
+        fr.onerror = () => reject(new Error("Unable to read file"));
+        fr.readAsDataURL(file);
+    });
+}
+
 const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialogProps> & {
     show: (
         isEditable: boolean,
@@ -176,7 +193,6 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
         onRefreshData: () => void
     ) => void;
 } = ({ isEditable, subscription, onClose, onRefreshData }) => {
-    const isStatusOnlyEdit = isEditable && !!subscription;
     const initialData: PartnerSubscriptionModel = useMemo(
         () =>
             subscription || {
@@ -184,11 +200,14 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                 partner_id: "",
                 partner_name: "",
                 subscription_plan: "",
+                subscription_plan_id: "",
                 subscription_start_date: "",
                 subscription_end_date: "",
                 rating: "",
                 location: "",
                 address: "",
+                banner_image: "",
+                notes: "",
                 is_active: undefined as any,
             },
         [subscription]
@@ -198,6 +217,8 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
         register,
         handleSubmit,
         setValue,
+        getValues,
+        watch,
         formState: { errors },
         reset,
     } = useForm<PartnerSubscriptionModel>({
@@ -205,68 +226,199 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
     });
 
     const [viewData, setViewData] = useState<PartnerSubscriptionModel>(initialData);
+    const [forceForm, setForceForm] = useState(false);
+    const [platinumBannerFiles, setPlatinumBannerFiles] = useState<File[]>([]);
+    const [planSelectOptions, setPlanSelectOptions] =
+        useState<{ value: string; label: string }[]>(defaultSubscriptionPlanOptions);
+    const [partnerSelectOptions, setPartnerSelectOptions] = useState<{ value: string; label: string }[]>([]);
+
+    const watchedPlan = (watch("subscription_plan") || "").toString().toLowerCase();
+    const isPlatinumPlan = (plan: string) => (plan || "").toLowerCase() === "platinum";
+
+    const formActive = isEditable || forceForm;
+    const viewOnly = !isEditable && !forceForm && !!subscription;
+    const addMode = isEditable && !subscription;
 
     useEffect(() => {
         reset(initialData);
         setViewData(initialData);
+        setForceForm(false);
+        setPlatinumBannerFiles([]);
     }, [initialData, reset]);
 
-    // const handleEditClick = (): void => {
-    //     onClose();
-    //     AddEditPartnerSubscriptionDialog.show(true, viewData, onRefreshData);
-    // };
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const opts = await fetchSubscriptionPlanDropDown();
+            if (!cancelled && opts.length > 0) {
+                setPlanSelectOptions(opts);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    /** Type `2` = Partner — same source pattern as `AddPayoutDialog`. */
+    useEffect(() => {
+        if (!addMode) {
+            setPartnerSelectOptions([]);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            const pageSize = 250;
+            const first = await fetchUser(false, 2, 1, pageSize, { status: "true" });
+            if (cancelled) return;
+            if (!first.response) {
+                setPartnerSelectOptions([]);
+                return;
+            }
+            let all = [...first.users];
+            for (let page = 2; page <= first.totalPages; page++) {
+                const next = await fetchUser(false, 2, page, pageSize, { status: "true" });
+                if (cancelled) return;
+                if (next.response) {
+                    all = all.concat(next.users);
+                }
+            }
+            const opts = all
+                .map((u) => {
+                    const id = String(u._id ?? (u as { id?: string }).id ?? "").trim();
+                    const rawName = (u.name ?? "").trim();
+                    const email = (u.email ?? "").trim();
+                    const label = rawName || email || id;
+                    return id ? { value: id, label } : null;
+                })
+                .filter((x): x is { value: string; label: string } => x != null);
+            opts.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+            setPartnerSelectOptions(opts);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [addMode]);
+
+    useEffect(() => {
+        if (!isPlatinumPlan(watchedPlan)) {
+            setValue("banner_image", "", { shouldValidate: false });
+            setPlatinumBannerFiles([]);
+        }
+    }, [watchedPlan, setValue]);
+
+    const handleCancel = (): void => {
+        if (!isEditable && forceForm) {
+            setForceForm(false);
+            reset(initialData);
+            setViewData(initialData);
+            setPlatinumBannerFiles([]);
+            return;
+        }
+        onClose();
+    };
 
     const onSubmitEvent = async (data: PartnerSubscriptionModel) => {
-        const updatedData: PartnerSubscriptionModel = {
-            ...viewData,
-            ...data,
-            is_active:
-                typeof data.is_active === "string"
-                    ? data.is_active === "true"
-                    : data.is_active,
+        let banner = (data.banner_image ?? "").trim();
+        if (platinumBannerFiles.length > 0 && isPlatinumPlan(data.subscription_plan)) {
+            try {
+                banner = await readFileAsDataUrl(platinumBannerFiles[0]);
+            } catch {
+                /* keep typed URL if read fails */
+            }
+        }
+        const resolvedIsActive =
+            typeof data.is_active === "string"
+                ? data.is_active === "true"
+                : data.is_active !== undefined && data.is_active !== null
+                  ? Boolean(data.is_active)
+                  : viewData.is_active;
+
+        /** `getValues()` last — react-select fields are updated via `setValue` and can be missing from `handleSubmit` `data`. */
+        const merged = { ...viewData, ...data, ...getValues() };
+        /** Prefer row id from props so update PUT always gets the correct `:id` even if `_id` is missing from merged form state. */
+        const recordId = String(subscription?._id || merged._id || "").trim();
+        let payload: PartnerSubscriptionModel = {
+            ...merged,
+            _id: recordId,
+            banner_image: banner,
+            is_active: resolvedIsActive,
         };
-        console.log("Submitted Partner Subscription:", updatedData);
-        setViewData(updatedData);
-        onClose();
+        const ok = await savePartnerSubscription(payload);
+        if (!ok) return;
+        setViewData(payload);
+        reset(payload);
         onRefreshData();
+        setPlatinumBannerFiles([]);
+        if (addMode) {
+            onClose();
+            return;
+        }
+        if (!isEditable && forceForm) {
+            setForceForm(false);
+        } else if (isEditable) {
+            onClose();
+        }
+    };
+
+    const onSubmitInvalid = (errs: FieldErrors<PartnerSubscriptionModel>) => {
+        const first = Object.values(errs).find((e) => e && typeof e === "object" && "message" in e) as
+            | { message?: string }
+            | undefined;
+        showErrorAlert(first?.message?.trim() || "Please fix the form errors and try again.");
+    };
+
+    const modalTitle = viewOnly
+        ? "Partner Subscription Information"
+        : addMode
+        ? "Add Partner Subscription"
+        : "Edit Partner Subscription";
+
+    const statusText = viewData.is_active ? (
+        <span className="text-success fw-semibold text-capitalize">Active</span>
+    ) : (
+        <span className="text-danger fw-semibold text-capitalize">Inactive</span>
+    );
+
+    const subscriptionStartStr = watch("subscription_start_date");
+    const subscriptionEndStr = watch("subscription_end_date");
+    const toYmdString = (v: unknown): string | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "string") return v.length >= 10 ? v.slice(0, 10) : v;
+        if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+        return null;
     };
 
     return (
-        <Modal show={true} onHide={onClose} centered size="lg">
+        <Modal show={true} onHide={onClose} centered size="lg" enforceFocus={false}>
             <Modal.Header className="py-3 px-4 border-bottom-0">
                 <Modal.Title as="h5" className="custom-modal-title">
-                    {isEditable
-                        ? subscription
-                            ? "Edit Partner Subscription"
-                            : "Add Partner Subscription"
-                        : "Partner Subscription Information"}
+                    {modalTitle}
                 </Modal.Title>
                 <CustomCloseButton onClose={onClose} />
             </Modal.Header>
 
-            <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
-                <div className={isEditable ? "" : "custom-other-details"} style={{ padding: isEditable ? "0px" : "10px" }}>
-                  
-                        <Row className="align-items-center mb-2">
-                            <Col>
-                                <h3 className="mb-0">
-                                    Partner
-                                </h3>
-                            </Col>
-                            {/* <Col className="text-end">
-                                <i
-                                    className="bi bi-pencil-fill fs-6 text-danger"
-                                    onClick={handleEditClick}
-                                    style={{
-                                        cursor: "pointer",
-                                    }}
-                                />
-                            </Col> */}
-                        </Row>
-           
+            {viewOnly ? (
+                <>
+                    <Modal.Body
+                        className="px-4 pb-4 pt-0"
+                        style={{ maxHeight: "70vh", overflowY: "auto" }}
+                    >
+                        <div className="custom-other-details" style={{ padding: "10px" }}>
+                            <Row className="align-items-center mb-2">
+                                <Col>
+                                    <h3 className="mb-0">Partner</h3>
+                                </Col>
+                                <Col xs="auto" className="text-end">
+                                    <i
+                                        className="bi bi-pencil-square fs-5"
+                                        role="button"
+                                        title="Edit"
+                                        onClick={() => setForceForm(true)}
+                                        style={{ cursor: "pointer", color: "var(--primary-color)" }}
+                                    />
+                                </Col>
+                            </Row>
 
-                    {!isEditable ? (
-                        <Form noValidate id="partner-subscription-status-form" onSubmit={handleSubmit(onSubmitEvent)}>
                             <Row>
                                 <Col md={6} className="custom-helper-column">
                                     <DetailsRow title="Partner Name" value={viewData.partner_name || "-"} />
@@ -275,167 +427,188 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                                 </Col>
                                 <Col md={6} className="custom-helper-column">
                                     <DetailsRow title="End Date" value={viewData.subscription_end_date || "-"} />
-                                    <FullDetailsRow title="Address" value={viewData.address || viewData.location || "-"} />
-                                    <div className="mb-2">
-                                        <div className="fw-medium mb-1">Status</div>
-                                        <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
-                                            <Form.Check
-                                                type="radio"
-                                                id="partner_subscription_info_status_active"
-                                                label={<span className="custom-radio-text">Active</span>}
-                                                value="true"
-                                                checked={!!viewData.is_active}
-                                                onChange={() => {
-                                                    setValue("is_active", true as any, { shouldValidate: true });
-                                                    setViewData((prev) => ({ ...prev, is_active: true }));
-                                                }}
-                                                className="custom-radio-check"
-                                            />
-                                            <Form.Check
-                                                type="radio"
-                                                id="partner_subscription_info_status_inactive"
-                                                label={<span className="custom-radio-text">Inactive</span>}
-                                                value="false"
-                                                checked={!viewData.is_active}
-                                                onChange={() => {
-                                                    setValue("is_active", false as any, { shouldValidate: true });
-                                                    setViewData((prev) => ({ ...prev, is_active: false }));
-                                                }}
-                                                className="custom-radio-check"
-                                            />
-                                        </div>
-                                    </div>
+                                    <DetailsRow title="Status" value={statusText} />
                                 </Col>
                             </Row>
-                        </Form>
-                    ) : (
-                        <Form noValidate id="partner-subscription-form" onSubmit={handleSubmit(onSubmitEvent)}>
+                            {isPlatinumPlan(viewData.subscription_plan) && (viewData.banner_image || "").trim() ? (
+                                <Row className="mt-3">
+                                    <Col md={6}>
+                                        <div className="fw-medium mb-2">Banner image</div>
+                                        <div
+                                            className="border rounded overflow-hidden"
+                                            style={{ maxWidth: "100%" }}
+                                        >
+                                            <img
+                                                src={viewData.banner_image}
+                                                alt="Banner"
+                                                style={{
+                                                    width: "100%",
+                                                    maxHeight: 220,
+                                                    objectFit: "cover",
+                                                    display: "block",
+                                                }}
+                                            />
+                                        </div>
+                                    </Col>
+                                </Row>
+                            ) : isPlatinumPlan(viewData.subscription_plan) ? (
+                                <Row className="mt-3">
+                                    <Col md={12}>
+                                        <DetailsRow title="Banner image" value="—" />
+                                    </Col>
+                                </Row>
+                            ) : null}
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={onClose}>
+                            Close
+                        </Button>
+                    </Modal.Footer>
+                </>
+            ) : (
+                <Form noValidate id="partner-subscription-form" onSubmit={handleSubmit(onSubmitEvent, onSubmitInvalid)}>
+                    <Modal.Body
+                        className="px-4 pb-4 pt-0"
+                        style={{ overflow: "visible", maxHeight: "min(90vh, calc(100vh - 140px))" }}
+                    >
+                        <div className="pt-1">
                             <Row className="gx-3 gy-2">
-
                                 <Col md={6}>
-                                    {isStatusOnlyEdit ? (
-                                        <CustomFormInput
-                                            label="Partner Name"
-                                            controlId="partner_name"
-                                            placeholder="Partner Name"
-                                            register={register}
-                                            error={errors.partner_name}
-                                            asCol={false}
-                                            value={viewData.partner_name || ""}
-                                            isEditable={false}
-                                        />
-                                    ) : (
-                                        <CustomFormInput
-                                            label="Partner Name"
-                                            controlId="partner_name"
-                                            placeholder="Enter Partner Name"
-                                            register={register}
-                                            error={errors.partner_name}
-                                            asCol={false}
-                                            validation={{ required: "Partner name is required" }}
-                                        />
-                                    )}
-                                </Col>
-
-                                <Col md={6}>
-                                    {isStatusOnlyEdit ? (
-                                        <CustomFormInput
-                                            label="Subscription Plan"
-                                            controlId="subscription_plan"
-                                            placeholder="Subscription Plan"
-                                            register={register}
-                                            error={errors.subscription_plan}
-                                            asCol={false}
-                                            value={viewData.subscription_plan || ""}
-                                            isEditable={false}
-                                        />
-                                    ) : (
+                                    {addMode ? (
                                         <CustomFormSelect
-                                            label="Subscription Plan"
-                                            controlId="subscription_plan"
-                                            options={subscriptionPlanOptions}
+                                            label="Partner"
+                                            controlId="partner_id"
+                                            options={partnerSelectOptions}
                                             register={register as unknown as UseFormRegister<any>}
-                                            fieldName="subscription_plan"
-                                            error={errors.subscription_plan as any}
+                                            fieldName="partner_id"
+                                            error={errors.partner_id as any}
                                             asCol={false}
-                                            requiredMessage="Please select subscription plan"
-                                            defaultValue={viewData.subscription_plan || ""}
+                                            defaultValue={viewData.partner_id || ""}
                                             setValue={(name: string, value: any) =>
                                                 setValue(name as keyof PartnerSubscriptionModel, value)
                                             }
-                                        />
-                                    )}
-                                </Col>
-
-                                <Col md={6}>
-                                    <Form.Label className="fw-semibold">Subscription Start Date</Form.Label>
-                                    <Form.Control
-                                        type="date"
-                                        {...register("subscription_start_date", {
-                                            required: "Subscription start date is required",
-                                        })}
-                                        style={inputStyle}
-                                        disabled={isStatusOnlyEdit}
-                                    />
-                                    {errors.subscription_start_date && (
-                                        <small className="text-danger">
-                                            {errors.subscription_start_date.message}
-                                        </small>
-                                    )}
-                                </Col>
-
-                                <Col md={6}>
-                                    <Form.Label className="fw-semibold">Subscription End Date</Form.Label>
-                                    <Form.Control
-                                        type="date"
-                                        {...register("subscription_end_date", {
-                                            required: "Subscription end date is required",
-                                        })}
-                                        style={inputStyle}
-                                        disabled={isStatusOnlyEdit}
-                                    />
-                                    {errors.subscription_end_date && (
-                                        <small className="text-danger">
-                                            {errors.subscription_end_date.message}
-                                        </small>
-                                    )}
-                                </Col>
- 
-                                <Col md={6}>
-                                    {isStatusOnlyEdit ? (
-                                        <CustomFormInput
-                                            label="Address"
-                                            controlId="address"
-                                            placeholder="Address"
-                                            register={register}
-                                            error={errors.address}
-                                            asCol={false}
-                                            value={viewData.address || viewData.location || ""}
-                                            isEditable={false}
+                                            placeholder="Search and select partner"
+                                            menuPortal
+                                            onChange={(e) => {
+                                                const id = (e.target as HTMLSelectElement).value;
+                                                const opt = partnerSelectOptions.find((o) => o.value === id);
+                                                setValue("partner_name", opt?.label ?? "", {
+                                                    shouldValidate: false,
+                                                    shouldDirty: true,
+                                                });
+                                            }}
                                         />
                                     ) : (
-                                        <CustomFormSelect
-                                            label="Address"
-                                            controlId="location"
-                                            options={locationOptions}
-                                            register={register as unknown as UseFormRegister<any>}
-                                            fieldName="location"
-                                            error={errors.location as any}
+                                        <CustomFormInput
+                                            label="Partner Name"
+                                            controlId="partner_name"
+                                            placeholder="—"
+                                            register={register}
+                                            error={errors.partner_name}
                                             asCol={false}
-                                            requiredMessage="Please select address"
-                                            defaultValue={viewData.location || ""}
-                                            setValue={(name: string, value: any) =>
-                                                setValue(name as keyof PartnerSubscriptionModel, value)
-                                            }
+                                            isEditable={false}
                                         />
                                     )}
                                 </Col>
-                                
+
+                                <Col md={6}>
+                                    <CustomFormSelect
+                                        label="Subscription Plan"
+                                        controlId="subscription_plan_id"
+                                        options={planSelectOptions}
+                                        register={register as unknown as UseFormRegister<any>}
+                                        fieldName="subscription_plan_id"
+                                        error={errors.subscription_plan_id as any}
+                                        asCol={false}
+                                        defaultValue={
+                                            viewData.subscription_plan_id ||
+                                            viewData.subscription_plan ||
+                                            ""
+                                        }
+                                        setValue={(name: string, value: any) =>
+                                            setValue(name as keyof PartnerSubscriptionModel, value)
+                                        }
+                                        placeholder="Select subscription plan"
+                                        menuPortal
+                                        onChange={(e) => {
+                                            const v = (e.target as HTMLSelectElement).value;
+                                            const opt = planSelectOptions.find((o) => o.value === v);
+                                            const slug = (opt?.label ?? "")
+                                                .trim()
+                                                .toLowerCase()
+                                                .replace(/\s+/g, "");
+                                            setValue("subscription_plan", slug, { shouldValidate: false });
+                                        }}
+                                    />
+                                </Col>
+
+                                <Col md={6}>
+                                    <CustomDatePicker
+                                        label="Subscription Start Date"
+                                        controlId="subscription_start_date"
+                                        selectedDate={toYmdString(subscriptionStartStr)}
+                                        onChange={(date) => {
+                                            const value = date ? date.toISOString().slice(0, 10) : "";
+                                            setValue("subscription_start_date", value, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            });
+                                        }}
+                                        register={register as unknown as UseFormRegister<any>}
+                                        setValue={setValue as any}
+                                        asCol={false}
+                                        groupClassName="mb-0 w-100 fw-medium"
+                                        placeholderText="Start date"
+                                        filterDate={() => true}
+                                        validation={{ required: "Subscription start date is required" }}
+                                        error={errors.subscription_start_date}
+                                    />
+                                </Col>
+
+                                <Col md={6}>
+                                    <CustomDatePicker
+                                        label="Subscription End Date"
+                                        controlId="subscription_end_date"
+                                        selectedDate={toYmdString(subscriptionEndStr)}
+                                        onChange={(date) => {
+                                            const value = date ? date.toISOString().slice(0, 10) : "";
+                                            setValue("subscription_end_date", value, {
+                                                shouldValidate: true,
+                                                shouldDirty: true,
+                                            });
+                                        }}
+                                        register={register as unknown as UseFormRegister<any>}
+                                        setValue={setValue as any}
+                                        asCol={false}
+                                        groupClassName="mb-0 w-100 fw-medium"
+                                        placeholderText="End date"
+                                        filterDate={() => true}
+                                        validation={{ required: "Subscription end date is required" }}
+                                        error={errors.subscription_end_date}
+                                    />
+                                </Col>
+
+                                {isPlatinumPlan(watchedPlan) && (
+                                    <Col md={12}>
+                                        <CustomImageUploader
+                                            label="Upload banner image"
+                                            maxFiles={1}
+                                            isEditable={true}
+                                            existingImages={[]}
+                                            onFileChange={(files) => setPlatinumBannerFiles(files)}
+                                        />
+                                        <small className="text-muted d-block mt-1">
+                                            Only jpg, jpeg & png files are allowed
+                                        </small>
+                                    </Col>
+                                )}
+
                                 <Col md={12}>
                                     <Form.Group style={{ marginTop: "10px" }}>
                                         <Form.Label className="fw-medium mb-1">Status</Form.Label>
                                         <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
-                                        <Form.Check
+                                            <Form.Check
                                                 type="radio"
                                                 id="partner_subscription_status_active"
                                                 label={<span className="custom-radio-text">Active</span>}
@@ -459,30 +632,21 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                                                 }}
                                                 className="custom-radio-check"
                                             />
-                                            
                                         </div>
                                     </Form.Group>
                                 </Col>
-
-                                
                             </Row>
-                        </Form>
-                    )}
-                </div>
-            </Modal.Body>
-            {(isEditable || !isEditable) && (
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button
-                        className="btn-danger"
-                        type="submit"
-                        form={isEditable ? "partner-subscription-form" : "partner-subscription-status-form"}
-                    >
-                        {isEditable ? (subscription ? "Update" : "Save") : "Update Status"}
-                    </Button>
-                </Modal.Footer>
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" type="button" onClick={handleCancel}>
+                            Cancel
+                        </Button>
+                        <Button className="btn-danger" type="submit">
+                            {addMode ? "Save" : "Update"}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
             )}
         </Modal>
     );

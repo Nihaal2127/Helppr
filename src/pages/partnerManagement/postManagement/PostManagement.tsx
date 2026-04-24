@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
@@ -22,6 +22,11 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
   const [sortValue, setSortValue] = useState<"1" | "-1">("-1");
 
   const [postList, setPostList] = useState<PostModel[]>([]);
+
+  const refreshPosts = useCallback(async () => {
+    const res = await fetchPosts();
+    setPostList(res.response ? res.records : []);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,13 +58,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
 
     if (searchText.trim()) {
       const value = searchText.toLowerCase();
-      data = data.filter(
-        (item) =>
-          item.partner_id.toLowerCase().includes(value) ||
-          item.partner_name.toLowerCase().includes(value) ||
-          item.description.toLowerCase().includes(value) ||
-          item.location.toLowerCase().includes(value)
-      );
+      data = data.filter((item) => item.partner_name.toLowerCase().includes(value));
     }
 
     data.sort((a, b) => {
@@ -87,9 +86,9 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
     setSelectedStatus("all");
   };
 
-  const handleEdit = (post: PostModel): void => {
-    AddEditPostManagementDialog.show(true, post, () => {
-      console.log("edit refresh");
+  const handleView = (post: PostModel): void => {
+    AddEditPostManagementDialog.show(false, post, () => {
+      void refreshPosts();
     });
   };
 
@@ -100,29 +99,8 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
       Cell: ({ row }: { row: any }) => row.index + 1,
     },
     {
-      Header: "Partner ID",
-      accessor: "partner_id",
-    },
-    {
       Header: "Partner Name",
       accessor: "partner_name",
-    },
-    {
-      Header: "Description",
-      accessor: "description",
-      Cell: ({ value }: { value: string }) => (
-        <div
-          style={{
-            maxWidth: "240px",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={value}
-        >
-          {value}
-        </div>
-      ),
     },
     {
       Header: "No of Images",
@@ -139,10 +117,6 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         const post = row.original as PostModel;
         return <span>{post.media_type === "video" ? 1 : 0}</span>;
       },
-    },
-    {
-      Header: "Location",
-      accessor: "location",
     },
     {
       Header: "Uploaded Date",
@@ -172,12 +146,17 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         const post = row.original as PostModel;
         return (
           <div className="d-flex justify-content-center gap-3">
-            
-            {/* EDIT */}
-            <i
+            {/* <i
               className="bi bi-pencil-fill "
               role="button"
               onClick={() => handleEdit(post)}
+              style={{ cursor: "pointer" }}
+            /> */}
+            <i
+              className="bi bi-eye-fill"
+              role="button"
+              title="View"
+              onClick={() => handleView(post)}
               style={{ cursor: "pointer" }}
             />
           </div>
@@ -212,11 +191,18 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         isSelected={true}
         onFilterChange={() => {}}
         onItemClick={handleSummaryClick}
+        isAddShow={true}
+        addButtonLable="Add post"
+        onAddClick={() =>
+          AddEditPostManagementDialog.show(true, null, () => {
+            void refreshPosts();
+          })
+        }
       />
 
       <CustomUtilityBox
         title="Post Management"
-        searchHint="Search Partner Name / Description"
+        searchHint="Search Partner Name"
         onDownloadClick={async () => {
           console.log("Download clicked");
         }}

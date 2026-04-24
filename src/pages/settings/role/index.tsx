@@ -28,7 +28,8 @@ import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { showErrorAlert } from "../../../helper/alertHelper";
 import { mainMenuItems } from "../../../layout/menuItems";
 import { franchiseMockSeed } from "../../../mockData/franchiseMockData";
-import { AppConstant } from "../../../constant/AppConstant";
+import { AppConstant, UserRole } from "../../../constant/AppConstant";
+import { getLocalStorage } from "../../../helper/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
 
 const emptyRoleForm = {
@@ -52,6 +53,21 @@ const screenPermissionLabel = (key: string) =>
 const franchiseCatalogNames = franchiseMockSeed.map((f) => f.name);
 
 const STAFF_FRANCHISE_ALL = "__all__";
+
+/** Same keys hidden in Sidebar for franchise admin / employee; not offered on Franchise Employee screen permissions. */
+const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = [
+  "content-management",
+  "location-management",
+  "franchise-management",
+  "service-management",
+] as const;
+
+const isFranchiseEmployeeExcludedScreenKey = (key: string) =>
+  (FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS as readonly string[]).includes(key);
+
+const employeeScreenPermissionMenuItems = mainMenuItems.filter(
+  ({ key }) => !isFranchiseEmployeeExcludedScreenKey(key)
+);
 
 type StaffFranchiseOption = { value: string; label: string };
 
@@ -84,9 +100,12 @@ const staffFranchiseSummary = (s: StaffSettingsModel) =>
 
 const RoleManagement = () => {
   const { register, setValue } = useForm<any>();
+  const isFranchiseAdminSession = getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
   const [items, setItems] = useState<RoleSettingsModel[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [roleType, setRoleType] = useState<"all" | "franchise_admin" | "employee">("franchise_admin");
+  const [roleType, setRoleType] = useState<"all" | "franchise_admin" | "employee">(() =>
+    isFranchiseAdminSession ? "employee" : "franchise_admin"
+  );
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [franchiseFilter, setFranchiseFilter] = useState("all");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
@@ -95,7 +114,9 @@ const RoleManagement = () => {
   const [editing, setEditing] = useState<RoleSettingsModel | null>(null);
   const [form, setForm] = useState(emptyRoleForm);
   const [isViewMode, setIsViewMode] = useState(false);
-  const [selectedBox, setSelectedBox] = useState("box-franchise-admin");
+  const [selectedBox, setSelectedBox] = useState(() =>
+    isFranchiseAdminSession ? "box-employee" : "box-franchise-admin"
+  );
 
   const [staffItems, setStaffItems] = useState<StaffSettingsModel[]>([]);
   const [staffKeyword, setStaffKeyword] = useState("");
@@ -118,6 +139,7 @@ const RoleManagement = () => {
     }
     setEditing(item);
     setIsViewMode(viewMode);
+    const rawPerms = item.screenPermissions?.length ? [...item.screenPermissions] : [];
     setForm({
       roleName: item.roleName,
       email: item.email ?? "",
@@ -126,7 +148,10 @@ const RoleManagement = () => {
       roleType: item.roleType,
       assignedFranchise: item.assignedFranchise || "",
       status: item.status,
-      screenPermissions: item.screenPermissions?.length ? [...item.screenPermissions] : [],
+      screenPermissions:
+        item.roleType === "employee"
+          ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
+          : rawPerms,
     });
     setShowForm(true);
   }, []);
@@ -499,30 +524,32 @@ const RoleManagement = () => {
       />
 
       <div className="box-container settings-role-box-container">
-        <CustomSummaryBox
-          divId="box-franchise-admin"
-          title="Franchise Admin"
-          data={franchiseAdminSummaryData}
-          onSelect={(divId) => {
-            setSelectedBox(divId);
-            setRoleType("franchise_admin");
-          }}
-          isSelected={selectedBox === "box-franchise-admin"}
-          onFilterChange={(filter) => {
-            setRoleType("franchise_admin");
-            if (filter.status === "true") setStatus("active");
-            else if (filter.status === "false") setStatus("inactive");
-            else setStatus("all");
-          }}
-          isAddShow={true}
-          addButtonLable="Add"
-          onAddClick={() => {
-            setEditing(null);
-            setIsViewMode(false);
-            setForm({ ...emptyRoleForm, roleType: "franchise_admin" });
-            setShowForm(true);
-          }}
-        />
+        {!isFranchiseAdminSession && (
+          <CustomSummaryBox
+            divId="box-franchise-admin"
+            title="Franchise Admin"
+            data={franchiseAdminSummaryData}
+            onSelect={(divId) => {
+              setSelectedBox(divId);
+              setRoleType("franchise_admin");
+            }}
+            isSelected={selectedBox === "box-franchise-admin"}
+            onFilterChange={(filter) => {
+              setRoleType("franchise_admin");
+              if (filter.status === "true") setStatus("active");
+              else if (filter.status === "false") setStatus("inactive");
+              else setStatus("all");
+            }}
+            isAddShow={true}
+            addButtonLable="Add"
+            onAddClick={() => {
+              setEditing(null);
+              setIsViewMode(false);
+              setForm({ ...emptyRoleForm, roleType: "franchise_admin" });
+              setShowForm(true);
+            }}
+          />
+        )}
 
         <CustomSummaryBox
           divId="box-employee"
@@ -549,28 +576,30 @@ const RoleManagement = () => {
           }}
         />
 
-        <CustomSummaryBox
-          className="box-staff-card"
-          divId="box-staff"
-          title="Staff"
-          data={staffSummaryData}
-          onSelect={(divId) => setSelectedBox(divId)}
-          isSelected={selectedBox === "box-staff"}
-          onFilterChange={(filter) => {
-            setSelectedBox("box-staff");
-            if (filter.status === "true") setStaffStatus("active");
-            else if (filter.status === "false") setStaffStatus("inactive");
-            else setStaffStatus("all");
-          }}
-          isAddShow={true}
-          addButtonLable="Add"
-          onAddClick={() => {
-            setStaffEditing(null);
-            setStaffIsViewMode(false);
-            setStaffForm({ ...emptyStaffForm });
-            setShowStaffModal(true);
-          }}
-        />
+        {!isFranchiseAdminSession && (
+          <CustomSummaryBox
+            className="box-staff-card"
+            divId="box-staff"
+            title="Staff"
+            data={staffSummaryData}
+            onSelect={(divId) => setSelectedBox(divId)}
+            isSelected={selectedBox === "box-staff"}
+            onFilterChange={(filter) => {
+              setSelectedBox("box-staff");
+              if (filter.status === "true") setStaffStatus("active");
+              else if (filter.status === "false") setStaffStatus("inactive");
+              else setStaffStatus("all");
+            }}
+            isAddShow={true}
+            addButtonLable="Add"
+            onAddClick={() => {
+              setStaffEditing(null);
+              setStaffIsViewMode(false);
+              setStaffForm({ ...emptyStaffForm });
+              setShowStaffModal(true);
+            }}
+          />
+        )}
       </div>
 
       {isStaffSection ? (
@@ -755,7 +784,7 @@ const RoleManagement = () => {
                     <DetailsRow title="Assigned Franchise" value={editing.assignedFranchise || "-"} />
                     <DetailsRow title="Status" value={editing.status === "active" ? "Active" : "Inactive"} />
                     <FullDetailsRow
-                      title="Screen Permissions"
+                      title="Screen Permissions1"
                       value={
                         editing.screenPermissions?.length
                           ? editing.screenPermissions.map(screenPermissionLabel).join(", ")
@@ -860,7 +889,31 @@ const RoleManagement = () => {
                 </div>
               </Form.Group>
             </div>
-           
+            {form.roleType === "employee" && (
+              <div className="col-md-12">
+                <div className="staff-permission-section">
+                  <div className="staff-permission-section__head fw-medium mb-1">Screen Permissions</div>
+                  <div className="staff-permission-section__body">
+                    <div
+                      className="d-grid"
+                      style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, 1fr)" }}
+                    >
+                      {employeeScreenPermissionMenuItems.map(({ key, label }) => (
+                        <Form.Check
+                          key={key}
+                          type="checkbox"
+                          id={`role_screen_perm_${key}`}
+                          className="custom-checkbox-check"
+                          label={<span className="custom-radio-text">{label}</span>}
+                          checked={form.screenPermissions.includes(key)}
+                          onChange={() => toggleScreenPermission(key)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
               </div>
             )}
           </Modal.Body>
@@ -892,7 +945,10 @@ const RoleManagement = () => {
                     roleType: form.roleType,
                     assignedFranchise: form.assignedFranchise || undefined,
                     status: form.status,
-                    screenPermissions: form.screenPermissions,
+                    screenPermissions:
+                      form.roleType === "employee"
+                        ? form.screenPermissions.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
+                        : form.screenPermissions,
                   };
                   if (editing?.id) {
                     saveRole(rolePayload, editing.id);
@@ -1090,31 +1146,7 @@ const RoleManagement = () => {
                   </div>
                 </div>
               </div>
-              <div className="col-md-12">
-                <div className="staff-permission-section">
-                  <div className="staff-permission-section__head">Franchise Permissions</div>
-                  <div className="staff-permission-section__body">
-                    <Form.Label className="fw-medium mb-2 d-block" style={{ fontSize: "14px" }}>
-                      Select one or more options
-                    </Form.Label>
-                    <Select<StaffFranchiseOption, true>
-                      inputId="staff_franchise_multi"
-                      instanceId="staff_franchise_multi"
-                      isMulti
-                      isClearable
-                      closeMenuOnSelect={false}
-                      options={staffFranchiseMultiOptions}
-                      value={staffFranchiseSelectValue}
-                      onChange={handleStaffFranchiseMultiChange}
-                      placeholder="All franchises, or choose specific franchises…"
-                      styles={staffFranchiseMultiStyles}
-                      menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-                      menuPosition="fixed"
-                      classNamePrefix="staff-franchise-react-select"
-                    />
-                  </div>
-                </div>
-              </div>
+              
             </div>
           )}
         </Modal.Body>

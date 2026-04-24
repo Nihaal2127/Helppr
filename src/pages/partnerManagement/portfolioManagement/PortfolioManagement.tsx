@@ -200,7 +200,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
             { Header: "Total Images", accessor: "total_images" },
             { Header: "Total Videos", accessor: "total_videos" },
             { Header: "Likes Count", accessor: "likes_count" },
-            { Header: "Comments Count", accessor: "comments_count" },
+            // { Header: "Comments Count", accessor: "comments_count" },
             { Header: "Saves Count", accessor: "saves_count" },
             { Header: "Ratings", accessor: "ratings" },
             { Header: "Location", accessor: "location" },
