@@ -16,6 +16,10 @@ import {
   ensureSettingsSeedData,
   createRoleUserWithApi,
   createStaffUserWithApi,
+  updateRoleUserWithApi,
+  updateStaffUserWithApi,
+  fetchRoleAndStaffFromApi,
+  fetchSettingsSectionByType,
   getRoles,
   getStaff,
   saveRole,
@@ -36,6 +40,7 @@ import { franchiseMockSeed } from "../../../mockData/franchiseMockData";
 import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
+import { WEB_MANAGEMENT_USER_TYPE } from "../../../services/userService";
 
 const emptyRoleForm = {
   roleName: "",
@@ -118,6 +123,7 @@ const RoleManagement = () => {
   const [staffIsViewMode, setStaffIsViewMode] = useState(false);
   const [roleSavePending, setRoleSavePending] = useState(false);
   const [staffSavePending, setStaffSavePending] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const openFormWithData = useCallback((item?: RoleSettingsModel, viewMode = false) => {
     if (!item) {
@@ -176,9 +182,62 @@ const RoleManagement = () => {
 
   useEffect(() => {
     ensureSettingsSeedData();
-    refresh();
-    refreshStaff();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const apiData = await fetchRoleAndStaffFromApi();
+      if (cancelled) return;
+      if (apiData) {
+        setItems(apiData.roles);
+        setStaffItems(apiData.staff);
+        setInitialLoadDone(true);
+        return;
+      }
+      refresh();
+      refreshStaff();
+      setInitialLoadDone(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [refresh, refreshStaff]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const type =
+        selectedBox === "box-staff"
+          ? WEB_MANAGEMENT_USER_TYPE.STAFF
+          : selectedBox === "box-franchise-admin"
+            ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
+            : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
+      const apiData = await fetchSettingsSectionByType(type);
+      if (cancelled) return;
+      if (!apiData) {
+        // Keep current table data; avoid replacing valid API state with local fallback empties.
+        return;
+      }
+      if (selectedBox === "box-staff") {
+        if (apiData.staff.length > 0) {
+          setStaffItems(apiData.staff);
+        }
+      } else {
+        if (apiData.roles.length > 0) {
+          const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
+          setItems((prev) => {
+            const other = prev.filter((r) => r.roleType !== targetRoleType);
+            const current = apiData.roles.filter((r) => r.roleType === targetRoleType);
+            return [...other, ...current];
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBox, refresh, refreshStaff]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -702,7 +761,9 @@ const RoleManagement = () => {
         />
       )}
 
-      {isStaffSection ? (
+      {!initialLoadDone ? (
+        <div className="text-center py-4">Loading data...</div>
+      ) : isStaffSection ? (
         <div className="staff-settings-table-shell">
           <CustomTable
             columns={staffColumns}
@@ -943,9 +1004,17 @@ const RoleManagement = () => {
                         : form.screenPermissions,
                   };
                   if (editing?.id) {
-                    saveRole(rolePayload, editing.id);
-                    setShowForm(false);
-                    refresh();
+                    setRoleSavePending(true);
+                    try {
+                      const ok = await updateRoleUserWithApi(editing.id, rolePayload);
+                      if (ok) {
+                        saveRole(rolePayload, editing.id);
+                        setShowForm(false);
+                        refresh();
+                      }
+                    } finally {
+                      setRoleSavePending(false);
+                    }
                     return;
                   }
                   setRoleSavePending(true);
@@ -1181,9 +1250,17 @@ const RoleManagement = () => {
                   franchisePermissions: staffForm.allFranchises ? [] : [...staffForm.franchisePermissions],
                 };
                 if (staffEditing?.id) {
-                  saveStaff(staffPayload, staffEditing.id);
-                  setShowStaffModal(false);
-                  refreshStaff();
+                  setStaffSavePending(true);
+                  try {
+                    const ok = await updateStaffUserWithApi(staffEditing.id, staffPayload);
+                    if (ok) {
+                      saveStaff(staffPayload, staffEditing.id);
+                      setShowStaffModal(false);
+                      refreshStaff();
+                    }
+                  } finally {
+                    setStaffSavePending(false);
+                  }
                   return;
                 }
                 setStaffSavePending(true);
