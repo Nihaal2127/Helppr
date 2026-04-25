@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { mainMenuItems, profileMenuItems } from "./menuItems";
 import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
-import { AppConstant, UserRole } from "../constant/AppConstant";
+import { AppConstant } from "../constant/AppConstant";
 import { isMockAuthSession } from "../helper/authSessionHelper";
 import { logout } from "../services/adminService";
 import { ROUTES } from "../routes/Routes";
+import { isMainMenuItemVisibleForRole, parseAllowedMenuKeys } from "../routes/roleAccess";
 import { openConfirmDialog } from "../components/CustomConfirmDialog";
-import clsx from "clsx"; 
+import clsx from "clsx";
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
@@ -19,38 +20,11 @@ const Sidebar: React.FC = () => {
   };
 
   const role = getLocalStorage(AppConstant.userRole);
-  const filteredMainMenuItems = mainMenuItems.filter(({ key }) => {
-    // Admin should not see "My Franchise"
-    if (role === UserRole.ADMIN) {
-      return key !== "my-franchise";
-    }
-
-    // Franchise admin / Employee should not see these admin-only sections
-    if (role === UserRole.FRANCHISE_ADMIN || role === UserRole.STAFF) {
-      return ![
-        "content-management",
-        "location-management",
-        "franchise-management",
-        "service-management",
-      ].includes(key);
-    }
-
-    if (role === UserRole.EMPLOYEE) {
-      // return ![
-      //   "content-management",
-      //   "location-management",
-      //   "franchise-management",
-      //   "service-management",
-      //   "my-franchise",
-      //   "financials",
-      //   "expenses-management",
-      //   "settings"
-      // ].includes(key);
-    }
-
-    // Default behavior (if role missing / legacy sessions)
-    return true;
-  });
+  const allowedMenuKeys = parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys));
+  /** Same allow-list as `isAuthenticatedPathAllowed` in `routes/roleAccess.ts` (path-level guard). */
+  const filteredMainMenuItems = mainMenuItems.filter(({ key }) =>
+    isMainMenuItemVisibleForRole(key, role, allowedMenuKeys)
+  );
 
   const handleLogoutClick = async (event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
     if (key === "logout") {

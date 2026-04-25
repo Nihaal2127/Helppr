@@ -1,5 +1,37 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { getLocalStorage } from "../helper/localStorageHelper";
+import { AppConstant } from "../constant/AppConstant";
+import {
+  getDefaultAuthorizedPath,
+  isAuthenticatedPathAllowed,
+  parseAllowedMenuKeys,
+} from "./roleAccess";
 import { routes, ROUTES } from "./Routes";
+
+function ProtectedRouteElement({
+  route,
+  isAuthenticated,
+  children,
+}: {
+  route: (typeof routes)[0];
+  isAuthenticated: boolean;
+  children: ReactNode;
+}) {
+  const location = useLocation();
+  if (!route.isProtected) {
+    return <>{children}</>;
+  }
+  if (!isAuthenticated) {
+    return <Navigate to={ROUTES.LOGIN.path} replace state={{ from: location.pathname }} />;
+  }
+  const role = getLocalStorage(AppConstant.userRole);
+  const allowedMenuKeys = parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys));
+  if (!isAuthenticatedPathAllowed(location.pathname, role, allowedMenuKeys)) {
+    return <Navigate to={getDefaultAuthorizedPath(role, allowedMenuKeys)} replace />;
+  }
+  return <>{children}</>;
+}
 
 const AppRoutes = ({ isAuthenticated }: { isAuthenticated: boolean }) => {
   return (
@@ -8,7 +40,13 @@ const AppRoutes = ({ isAuthenticated }: { isAuthenticated: boolean }) => {
         path="/"
         element={
           isAuthenticated ? (
-            <Navigate to={ROUTES.DASHBOARD.path} replace />
+            <Navigate
+              to={getDefaultAuthorizedPath(
+                getLocalStorage(AppConstant.userRole),
+                parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys))
+              )}
+              replace
+            />
           ) : (
             <Navigate to={ROUTES.LOGIN.path} replace />
           )
@@ -20,11 +58,9 @@ const AppRoutes = ({ isAuthenticated }: { isAuthenticated: boolean }) => {
           key={idx}
           path={route.path}
           element={
-            route.isProtected && !isAuthenticated ? (
-              <Navigate to={ROUTES.LOGIN.path} replace />
-            ) : (
-              route.element
-            )
+            <ProtectedRouteElement route={route} isAuthenticated={isAuthenticated}>
+              {route.element as ReactNode}
+            </ProtectedRouteElement>
           }
         />
       ))}

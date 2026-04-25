@@ -49,6 +49,50 @@
     {
       "key": "partner_subscription_id",
       "value": ""
+    },
+    {
+      "key": "franchise_employee_name",
+      "value": "Franchise Employee"
+    },
+    {
+      "key": "franchise_employee_email",
+      "value": "franchise.employee@example.com"
+    },
+    {
+      "key": "franchise_employee_phone",
+      "value": "+919900000003"
+    },
+    {
+      "key": "accessible_screens_slugs",
+      "value": "[\"dashboard\", \"orders\"]"
+    },
+    {
+      "key": "staff_user_name",
+      "value": "Staff User"
+    },
+    {
+      "key": "staff_user_email",
+      "value": "staff@example.com"
+    },
+    {
+      "key": "staff_user_phone",
+      "value": "+919900000002"
+    },
+    {
+      "key": "super_admin_user_name",
+      "value": "Super Admin User"
+    },
+    {
+      "key": "super_admin_user_email",
+      "value": "superadmin@example.com"
+    },
+    {
+      "key": "super_admin_user_phone",
+      "value": "+919900000001"
+    },
+    {
+      "key": "super_admin_accessible_screens",
+      "value": "[\"dashboard\", \"users\", \"subscriptions\"]"
     }
   ],
   "auth": {
@@ -789,7 +833,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Super Admin User\",\n  \"email\": \"superadmin@example.com\",\n  \"phone_number\": \"+919900000001\",\n  \"type\": 5,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"accessible_screens\": [\"dashboard\", \"users\", \"subscriptions\"]\n}"
+              "raw": "{\n  \"name\": \"{{super_admin_user_name}}\",\n  \"email\": \"{{super_admin_user_email}}\",\n  \"phone_number\": \"{{super_admin_user_phone}}\",\n  \"type\": 5,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\"\n}"
             },
             "url": "{{base_url}}/api/user/create"
           }
@@ -816,9 +860,37 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Staff User\",\n  \"email\": \"staff@example.com\",\n  \"phone_number\": \"+919900000002\",\n  \"type\": 6,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"accessible_screens\": [\"dashboard\", \"orders\"]\n}"
+              "raw": "{\n  \"name\": \"{{staff_user_name}}\",\n  \"email\": \"{{staff_user_email}}\",\n  \"phone_number\": \"{{staff_user_phone}}\",\n  \"type\": 6,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"status\": \"active\",\n  \"available_pages\": [\n    { \"page\": \"Dashboard\", \"url\": \"/dashboard\" },\n    { \"page\": \"Order Management\", \"url\": \"/order-management\" }\n  ],\n  \"accessible_screens\": [\n    { \"page\": \"Dashboard\", \"url\": \"/dashboard\" },\n    { \"page\": \"Order Management\", \"url\": \"/order-management\" }\n  ]\n}"
             },
             "url": "{{base_url}}/api/user/create"
+          }
+        },
+        {
+          "name": "Create franchise employee (web)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{franchise_employee_name}}\",\n  \"email\": \"{{franchise_employee_email}}\",\n  \"phone_number\": \"{{franchise_employee_phone}}\",\n  \"type\": 3,\n  \"is_from_web\": true,\n  \"created_by_id\": \"{{created_by_id}}\",\n  \"status\": \"active\",\n  \"available_pages\": [\n    { \"page\": \"Dashboard\", \"url\": \"/dashboard\" },\n    { \"page\": \"User Management\", \"url\": \"/user-management\" },\n    { \"page\": \"Order Management\", \"url\": \"/order-management\" }\n  ],\n  \"accessible_screens\": [\n    { \"page\": \"Dashboard\", \"url\": \"/dashboard\" },\n    { \"page\": \"User Management\", \"url\": \"/user-management\" },\n    { \"page\": \"Order Management\", \"url\": \"/order-management\" }\n  ],\n  \"chat\": true\n}"
+            },
+            "url": "{{base_url}}/api/user/create",
+            "description": "`type` = 3. Send `available_pages` and the same array as `accessible_screens` (each `{ page, url }`). Use `chat` (not `chat_enabled`) in the request body."
           }
         }
       ]

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -7,6 +7,8 @@ import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { getFranchiseEmployeeScreenMenuItems, isFranchiseEmployeeExcludedScreenKey } from "../../layout/franchiseEmployeeScreenPermissions";
+import { menuKeysFromAvailablePages } from "../../services/userService";
 import type { EmployeeRow } from "../../services/myFranchiseService";
 import { createFranchiseEmployee, updateFranchiseEmployee } from "../../services/myFranchiseService";
 
@@ -34,11 +36,14 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const isAdd = props.mode === "add";
   const employee = isAdd ? null : props.employee;
 
+  /** Explicit tuple (avoids rare HMR / legacy `ReactDOM.render` issues with destructured setter). */
+  const screenPermissionState = useState<string[]>(["dashboards"]);
+  const screenPermissionKeys = screenPermissionState[0];
+  const setScreenPermissionKeys = screenPermissionState[1];
+
   const [isEditing, setIsEditing] = useState(isAdd);
 
-  useEffect(() => {
-    setIsEditing(isAdd);
-  }, [isAdd, employee?._id]);
+  const franchiseScreenMenuItems = useMemo(() => getFranchiseEmployeeScreenMenuItems(), []);
 
   const {
     register,
@@ -62,6 +67,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const chatEnabled = watch("chat_enabled");
 
   useEffect(() => {
+    setIsEditing(isAdd);
+  }, [isAdd, employee?._id]);
+
+  useEffect(() => {
     if (isAdd) {
       reset({
         name: "",
@@ -70,6 +79,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         is_active: "true",
         chat_enabled: true,
       });
+      setScreenPermissionKeys(["dashboards"]);
       return;
     }
     if (employee && isEditing) {
@@ -80,6 +90,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         is_active: String(employee.is_active),
         chat_enabled: Boolean(employee.is_active && (employee.chat_enabled ?? true)),
       });
+      const fromKeys = employee.screenPermissionKeys?.length
+        ? employee.screenPermissionKeys
+        : menuKeysFromAvailablePages(employee.accessible_screens);
+      setScreenPermissionKeys(fromKeys.length ? fromKeys : ["dashboards"]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- use employee?._id so parent re-fetch (new object ref) does not reset the form mid-edit; fields match that id
   }, [isAdd, employee?._id, isEditing, reset]);
@@ -93,12 +107,14 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const parseSubmitPayload = (data: EmployeeFormValues) => {
     const is_active = String(data.is_active ?? "") === "true";
     const chat_enabled = is_active ? Boolean(data.chat_enabled) : false;
+    const keys = screenPermissionKeys.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
     return {
       name: data.name.trim(),
       phone: data.phone.trim(),
       email: data.email.trim(),
       is_active,
       chat_enabled,
+      screenPermissionKeys: keys,
     };
   };
 
@@ -124,6 +140,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     }
     if (!payload.phone) {
       showErrorAlert("Phone is required");
+      return;
+    }
+    if (payload.screenPermissionKeys.length === 0) {
+      showErrorAlert("Select at least one screen permission.");
       return;
     }
 
@@ -172,6 +192,21 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             <DetailsRow title="Name" value={employee.name} />
             <DetailsRow title="Phone" value={employee.phone} />
             <DetailsRow title="Email" value={employee.email} />
+            <DetailsRow
+              title="Screen permissions"
+              value={
+                employee.accessible_screens?.length
+                  ? employee.accessible_screens.map((s) => s.page).join(", ")
+                  : employee.screenPermissionKeys?.length
+                    ? employee.screenPermissionKeys
+                        .map(
+                          (k) =>
+                            franchiseScreenMenuItems.find((i) => i.key === k)?.label ?? k
+                        )
+                        .join(", ")
+                    : "—"
+              }
+            />
             <DetailsRow title="Chat" value={chatOn ? "Enabled" : "Disabled"} />
             <Row className="row custom-personal-row">
               <label className="col custom-personal-row-title">Status</label>
@@ -249,6 +284,36 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           isEditable
           setValue={setValue}
         />
+        <Col xs={12} className="mb-1">
+          <div className="staff-permission-section">
+            <div className="staff-permission-section__head fw-medium mb-1 mt-3">Screen permissions</div>
+            <div className="staff-permission-section__body">
+              <div
+                className="d-grid"
+                style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
+              >
+                {franchiseScreenMenuItems.map(({ key, label }) => (
+                  <Form.Check
+                    key={key}
+                    type="checkbox"
+                    id={`franchise_emp_screen_${key}`}
+                    className="custom-checkbox-check"
+                    label={<span className="custom-radio-text">{label}</span>}
+                    checked={screenPermissionKeys.includes(key)}
+                    onChange={() => {
+                      setScreenPermissionKeys((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return Array.from(next);
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </Col>
       </Row>
       <Row className="mt-4">
         <Col xs={12} className="text-center d-flex justify-content-end gap-3">

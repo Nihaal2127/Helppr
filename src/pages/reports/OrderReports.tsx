@@ -1,50 +1,229 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Row, Col, Button, Form } from "react-bootstrap";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { useForm, UseFormRegister } from "react-hook-form";
+import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
+import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchServiceDropDown } from "../../services/servicesService";
+import { fetchUserDropDown } from "../../services/userService";
+import { fetchStateDropDown } from "../../services/stateService";
+import { fetchCityDropDown } from "../../services/cityService";
+import { FranchiseModel } from "../../models/FranchiseModels";
+import { AreaModel } from "../../models/AreaModel";
+import type { ReportOptionType } from "./reportFilterShared";
+import {
+  reportAllOption as allOption,
+  reportFilterLabelClass as filterLabelClass,
+  reportMultiSelectChipsMaxHeight as multiSelectChipsMaxHeight,
+  reportToIsoCalendarDate as toIsoCalendarDate,
+  loadAllPartnerOptionsForDropdown,
+  loadAllFranchiseRows,
+  loadAllAreaRows,
+  CUSTOMER_USER_TYPE,
+} from "./reportFilterShared";
 
-type OptionType = {
-  value: string;
-  label: string;
-};
+type OptionType = ReportOptionType;
 
-const allOption: OptionType = { value: "all", label: "All" };
+const QUOTE_STATUS_OPTIONS: OptionType[] = [
+  allOption,
+  { value: "new", label: "New" },
+  { value: "pending", label: "Pending" },
+  { value: "accepted", label: "Accepted" },
+  { value: "success", label: "Success" },
+  { value: "failed", label: "Failed" },
+];
 
-const toIsoCalendarDate = (date: Date | null): string => {
-  if (!date) return "";
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, "0");
-  const d = `${date.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
+const PARTNER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
+  allOption,
+  { value: "paid", label: "Paid" },
+  { value: "pending", label: "Pending" },
+  { value: "partially_paid", label: "Partially paid" },
+];
+
+const CUSTOMER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
+  allOption,
+  { value: "paid", label: "Paid" },
+  { value: "pending", label: "Pending" },
+  { value: "partially_paid", label: "Partially paid" },
+  { value: "refunded", label: "Refunded" },
+  { value: "partially_refunded", label: "Partially refunded" },
+];
 
 const OrderReportsPage = () => {
   const [orderFromDate, setOrderFromDate] = useState("");
   const [orderToDate, setOrderToDate] = useState("");
-  const { register: reportFilterRegister, setValue: setReportFilterValue } = useForm<{
-    order_from_date: string;
-    order_to_date: string;
-  }>({
-    defaultValues: {
-      order_from_date: "",
-      order_to_date: "",
-    },
-  });
+  const { register: reportFilterRegister, setValue: setReportFilterValue } =
+    useForm<{
+      order_from_date: string;
+      order_to_date: string;
+    }>({
+      defaultValues: {
+        order_from_date: "",
+        order_to_date: "",
+      },
+    });
 
+  const [userSelections, setUserSelections] = useState<OptionType[]>([]);
   const [orderStatus, setOrderStatus] = useState<OptionType[]>([]);
-  const [paymentStatus, setPaymentStatus] = useState<OptionType[]>([]);
-  const [paymentMode, setPaymentMode] = useState<OptionType[]>([]);
+  const [quoteStatus, setQuoteStatus] = useState<OptionType[]>([]);
+  const [partnerPaymentStatus, setPartnerPaymentStatus] = useState<
+    OptionType[]
+  >([]);
+  const [customerPaymentStatus, setCustomerPaymentStatus] = useState<
+    OptionType[]
+  >([]);
   const [services, setServices] = useState<OptionType[]>([]);
   const [categories, setCategories] = useState<OptionType[]>([]);
   const [partners, setPartners] = useState<OptionType[]>([]);
   const [states, setStates] = useState<OptionType[]>([]);
   const [cities, setCities] = useState<OptionType[]>([]);
+  const [franchises, setFranchises] = useState<OptionType[]>([]);
   const [areas, setAreas] = useState<OptionType[]>([]);
+
+  const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([
+    allOption,
+  ]);
+  const [serviceOptions, setServiceOptions] = useState<OptionType[]>([
+    allOption,
+  ]);
+  const [partnerOptions, setPartnerOptions] = useState<OptionType[]>([
+    allOption,
+  ]);
+  const [stateListOptions, setStateListOptions] = useState<OptionType[]>([
+    allOption,
+  ]);
+  const [cityOptionsRaw, setCityOptionsRaw] = useState<
+    (OptionType & { state_id?: string })[]
+  >([]);
+  const [userOptions, setUserOptions] = useState<OptionType[]>([allOption]);
+  const [allFranchiseRows, setAllFranchiseRows] = useState<FranchiseModel[]>(
+    [],
+  );
+  const [allAreaRows, setAllAreaRows] = useState<AreaModel[]>([]);
+
+  const orderStatusOptions = useMemo((): OptionType[] => {
+    return [
+      allOption,
+      ...Array.from(OrderStatusEnum.entries())
+        .filter(([key]) => key !== 1)
+        .map(([key, meta]) => ({
+          value: String(key),
+          label: meta.label,
+        })),
+    ];
+  }, []);
+
+  const cityOptions = useMemo(
+    (): OptionType[] => [
+      allOption,
+      ...cityOptionsRaw.map(({ value, label }) => ({ value, label })),
+    ],
+    [cityOptionsRaw],
+  );
+
+  const cityIdToStateId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cityOptionsRaw) {
+      if (c.value && c.state_id) m.set(c.value, String(c.state_id));
+    }
+    return m;
+  }, [cityOptionsRaw]);
+
+  const franchiseSelectOptions = useMemo((): OptionType[] => {
+    if (allFranchiseRows.length === 0) return [allOption];
+    const sSel = new Set(
+      states.filter((s) => s.value !== "all").map((s) => s.value),
+    );
+    const cSel = new Set(
+      cities.filter((c) => c.value !== "all").map((c) => c.value),
+    );
+    const stActive = sSel.size > 0;
+    const cActive = cSel.size > 0;
+    const out: OptionType[] = [];
+    for (const fr of allFranchiseRows) {
+      const id = fr?._id != null ? String(fr._id) : "";
+      if (!id) continue;
+      const name = (fr.name && String(fr.name)) || id;
+      if (stActive) {
+        const st = fr.state_id != null ? String(fr.state_id) : "";
+        if (st && !sSel.has(st)) continue;
+      }
+      if (cActive) {
+        const cid = fr.city_id != null ? String(fr.city_id) : "";
+        if (cid && !cSel.has(cid)) continue;
+      }
+      out.push({ value: id, label: name });
+    }
+    out.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    return [allOption, ...out];
+  }, [allFranchiseRows, states, cities]);
+
+  const areaSelectOptions = useMemo((): OptionType[] => {
+    if (allAreaRows.length === 0) return [allOption];
+    const sSel = new Set(
+      states.filter((s) => s.value !== "all").map((s) => s.value),
+    );
+    const cSel = new Set(
+      cities.filter((c) => c.value !== "all").map((c) => c.value),
+    );
+    const fSel = new Set(
+      franchises.filter((f) => f.value !== "all").map((f) => f.value),
+    );
+    const stActive = sSel.size > 0;
+    const cActive = cSel.size > 0;
+    const fActive = fSel.size > 0;
+    const allowedByFr = new Set<string>();
+    if (fActive) {
+      for (const fr of allFranchiseRows) {
+        if (!fSel.has(String(fr?._id ?? ""))) continue;
+        const raw = (fr as FranchiseModel & { area_id?: string | string[] })
+          .area_id;
+        if (Array.isArray(raw)) {
+          for (const x of raw) {
+            if (x != null) allowedByFr.add(String(x));
+          }
+        } else if (raw) {
+          allowedByFr.add(String(raw));
+        }
+      }
+    }
+    const out: OptionType[] = [];
+    for (const a of allAreaRows) {
+      const id = a?._id != null ? String(a._id) : "";
+      if (!id) continue;
+      const name = (a.name && String(a.name)) || id;
+      const cityId = a.city_id != null ? String(a.city_id) : "";
+      const st = (a as AreaModel & { state_id?: string | null }).state_id
+        ? String((a as AreaModel & { state_id: string }).state_id)
+        : cityId
+        ? cityIdToStateId.get(cityId) ?? null
+        : null;
+      if (stActive && st && !sSel.has(st)) continue;
+      if (cActive && cityId && !cSel.has(cityId)) continue;
+      if (fActive) {
+        if (allowedByFr.size > 0 && !allowedByFr.has(id)) continue;
+      }
+      out.push({ value: id, label: name });
+    }
+    out.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    return [allOption, ...out];
+  }, [
+    allAreaRows,
+    allFranchiseRows,
+    cityIdToStateId,
+    states,
+    cities,
+    franchises,
+  ]);
 
   const handleSelectWithAll = (
     selected: OptionType[],
-    setter: (val: OptionType[]) => void
+    setter: (val: OptionType[]) => void,
   ) => {
     const hasAll = selected.some((item) => item.value === "all");
     if (hasAll) {
@@ -54,23 +233,184 @@ const OrderReportsPage = () => {
     }
   };
 
-  const commonOptions = [
-    allOption,
-    { value: "1", label: "Option 1" },
-    { value: "2", label: "Option 2" },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [categories, stateRows, userDrop, partnerOpts, frRows, arRows] =
+          await Promise.all([
+            fetchCategoryDropDown(),
+            fetchStateDropDown(),
+            fetchUserDropDown(CUSTOMER_USER_TYPE),
+            loadAllPartnerOptionsForDropdown(),
+            loadAllFranchiseRows(),
+            loadAllAreaRows(),
+          ]);
+        if (cancelled) return;
+        setCategoryOptions([
+          allOption,
+          ...categories
+            .filter((c) => c?.value)
+            .map((c) => ({ value: c.value, label: c.label })),
+        ]);
+        setStateListOptions([
+          allOption,
+          ...stateRows
+            .filter((s) => s?.value)
+            .map((s) => ({ value: s.value, label: s.label })),
+        ]);
+        setUserOptions([
+          allOption,
+          ...userDrop.users
+            .filter((u) => u?._id)
+            .map((u) => ({
+              value: u._id,
+              label:
+                (u.name && String(u.name).trim()) ||
+                u.user_id ||
+                u.phone_number ||
+                u._id,
+            })),
+        ]);
+        setPartnerOptions([allOption, ...partnerOpts]);
+        setAllFranchiseRows(frRows);
+        setAllAreaRows(arRows);
+      } catch {
+        if (!cancelled) {
+          /* keep defaults */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const hasAll =
+        categories.length === 0 || categories.some((c) => c.value === "all");
+      const specific = categories.filter((c) => c.value !== "all");
+      let rows: { value: string; label: string; price?: number }[] = [];
+      try {
+        if (hasAll || specific.length === 0) {
+          rows = await fetchServiceDropDown();
+        } else {
+          const merged = await Promise.all(
+            specific.map((c) => fetchServiceDropDown(c.value)),
+          );
+          const byId = new Map<string, (typeof rows)[0]>();
+          for (const block of merged) {
+            for (const s of block) {
+              if (s?.value) byId.set(s.value, s);
+            }
+          }
+          rows = Array.from(byId.values());
+        }
+        if (cancelled) return;
+        setServiceOptions([
+          allOption,
+          ...rows
+            .filter((s) => s?.value)
+            .map((s) => ({ value: s.value, label: s.label })),
+        ]);
+      } catch {
+        if (!cancelled) setServiceOptions([allOption]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [categories]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const hasStateAll =
+        states.length === 0 || states.some((s) => s.value === "all");
+      const stateIds = states
+        .filter((s) => s.value !== "all")
+        .map((s) => s.value);
+      try {
+        const cityRows = hasStateAll
+          ? await fetchCityDropDown()
+          : await fetchCityDropDown(stateIds);
+        if (cancelled) return;
+        setCityOptionsRaw(
+          (cityRows as { value: string; label: string; state_id?: string }[])
+            .filter((c) => c?.value)
+            .map((c) => ({
+              value: c.value,
+              label: c.label,
+              state_id: c.state_id ? String(c.state_id) : undefined,
+            })),
+        );
+      } catch {
+        if (!cancelled) setCityOptionsRaw([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [states]);
+
+  useEffect(() => {
+    setServices((prev) => {
+      const valid = new Set(serviceOptions.map((o) => o.value));
+      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
+        return prev;
+      }
+      return prev.filter((p) => p.value === "all" || valid.has(p.value));
+    });
+  }, [serviceOptions]);
+
+  useEffect(() => {
+    setCities((prev) => {
+      const valid = new Set(cityOptions.map((o) => o.value));
+      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
+        return prev;
+      }
+      return prev.filter((p) => p.value === "all" || valid.has(p.value));
+    });
+  }, [cityOptions]);
+
+  useEffect(() => {
+    setFranchises((prev) => {
+      const valid = new Set(franchiseSelectOptions.map((o) => o.value));
+      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
+        return prev;
+      }
+      return prev.filter((p) => p.value === "all" || valid.has(p.value));
+    });
+  }, [franchiseSelectOptions]);
+
+  useEffect(() => {
+    setAreas((prev) => {
+      const valid = new Set(areaSelectOptions.map((o) => o.value));
+      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
+        return prev;
+      }
+      return prev.filter((p) => p.value === "all" || valid.has(p.value));
+    });
+  }, [areaSelectOptions]);
 
   const handleReset = () => {
     setOrderFromDate("");
     setOrderToDate("");
+    setReportFilterValue("order_from_date", "");
+    setReportFilterValue("order_to_date", "");
+    setUserSelections([]);
     setOrderStatus([]);
-    setPaymentStatus([]);
-    setPaymentMode([]);
+    setQuoteStatus([]);
+    setPartnerPaymentStatus([]);
+    setCustomerPaymentStatus([]);
     setServices([]);
     setCategories([]);
     setPartners([]);
     setStates([]);
     setCities([]);
+    setFranchises([]);
     setAreas([]);
   };
 
@@ -78,170 +418,297 @@ const OrderReportsPage = () => {
     <div className="mt-4">
       <div className="card border-0 shadow-sm rounded-3">
         <div className="card-body p-3 p-md-4">
-          <div className="mb-3">
-            <h5 className="custom-utilty-box-title mb-1">
-              Order Reports
-            </h5>
-            <small className="text-muted">
-              Used to generate reports related to orders, payments, and services.
-            </small>
-          </div>
+          <Row className="align-items-center justify-content-between g-3 mb-3">
+            <Col md={5} lg={4}>
+              <h5 className="custom-utilty-box-title mb-1">Order Reports</h5>
+              <small className="text-muted">
+                Used to generate reports related to orders, payments, and
+                services.
+              </small>
+            </Col>
+            <Col md={6} lg={6}>
+              <Row className="g-2 g-md-3">
+                <Col sm={6}>
+                  <Form.Label className="small fw-semibold mb-1">
+                    From
+                  </Form.Label>
+                  <CustomDatePicker
+                    label=""
+                    controlId="order_from_date"
+                    selectedDate={orderFromDate || null}
+                    onChange={(date) =>
+                      setOrderFromDate(toIsoCalendarDate(date))
+                    }
+                    register={
+                      reportFilterRegister as unknown as UseFormRegister<any>
+                    }
+                    setValue={
+                      setReportFilterValue as (name: string, value: any) => void
+                    }
+                    asCol={false}
+                    groupClassName="mb-0 w-100"
+                    filterDate={() => true}
+                  />
+                </Col>
+                <Col sm={6}>
+                  <Form.Label className="small fw-semibold mb-1">To</Form.Label>
+                  <CustomDatePicker
+                    label=""
+                    controlId="order_to_date"
+                    selectedDate={orderToDate || null}
+                    onChange={(date) => setOrderToDate(toIsoCalendarDate(date))}
+                    register={
+                      reportFilterRegister as unknown as UseFormRegister<any>
+                    }
+                    setValue={
+                      setReportFilterValue as (name: string, value: any) => void
+                    }
+                    asCol={false}
+                    groupClassName="mb-0 w-100"
+                    filterDate={() => true}
+                  />
+                </Col>
+              </Row>
+            </Col>
+          </Row>
 
           <div className="border rounded-3 p-3 bg-light">
+            <h6
+              style={{ color: "var(--primary-txt-color)" }}
+              className="fw-semibold mb-3"
+            >
+              Order filters
+            </h6>
             <Row className="g-3">
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">From Date</Form.Label>
-                <CustomDatePicker
-                  label=""
-                  controlId="order_from_date"
-                  selectedDate={orderFromDate || null}
-                  onChange={(date) => setOrderFromDate(toIsoCalendarDate(date))}
-                  register={reportFilterRegister as unknown as UseFormRegister<any>}
-                  setValue={setReportFilterValue as (name: string, value: any) => void}
-                  asCol={false}
-                  groupClassName="mb-0 w-100"
-                  filterDate={() => true}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">To Date</Form.Label>
-                <CustomDatePicker
-                  label=""
-                  controlId="order_to_date"
-                  selectedDate={orderToDate || null}
-                  onChange={(date) => setOrderToDate(toIsoCalendarDate(date))}
-                  register={reportFilterRegister as unknown as UseFormRegister<any>}
-                  setValue={setReportFilterValue as (name: string, value: any) => void}
-                  asCol={false}
-                  groupClassName="mb-0 w-100"
-                  filterDate={() => true}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Order Status</Form.Label>
+                <Form.Label className={filterLabelClass}>
+                  Order status
+                </Form.Label>
                 <CustomMultiSelect
                   label=""
-                  controlId="Order Status"
-                  options={commonOptions}
+                  controlId="Order status"
+                  options={orderStatusOptions}
                   value={orderStatus}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setOrderStatus)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setOrderStatus,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Payment Status</Form.Label>
+                <Form.Label className={filterLabelClass}>
+                  Quote status
+                </Form.Label>
                 <CustomMultiSelect
                   label=""
-                  controlId="Payment Status"
-                  options={commonOptions}
-                  value={paymentStatus}
+                  controlId="Quote status"
+                  options={QUOTE_STATUS_OPTIONS}
+                  value={quoteStatus}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setPaymentStatus)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setQuoteStatus,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Payment Mode</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="Payment Mode"
-                  options={commonOptions}
-                  value={paymentMode}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setPaymentMode)
-                  }
-                  asCol={false}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Service</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="Service"
-                  options={commonOptions}
-                  value={services}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setServices)
-                  }
-                  asCol={false}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Category</Form.Label>
+                <Form.Label className={filterLabelClass}>Category</Form.Label>
                 <CustomMultiSelect
                   label=""
                   controlId="Category"
-                  options={commonOptions}
+                  options={categoryOptions}
                   value={categories}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setCategories)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setCategories,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Partner</Form.Label>
+                <Form.Label className={filterLabelClass}>Service</Form.Label>
+                <CustomMultiSelect
+                  label=""
+                  controlId="Service"
+                  options={serviceOptions}
+                  value={services}
+                  onChange={(selectedOptions) =>
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setServices,
+                    )
+                  }
+                  asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
+                />
+              </Col>
+
+              <Col md={6}>
+                <Form.Label className={filterLabelClass}>Partner</Form.Label>
                 <CustomMultiSelect
                   label=""
                   controlId="Partner"
-                  options={commonOptions}
+                  options={partnerOptions}
                   value={partners}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setPartners)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setPartners,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">State</Form.Label>
+                <Form.Label className={filterLabelClass}>User</Form.Label>
+                <CustomMultiSelect
+                  label=""
+                  controlId="User"
+                  options={userOptions}
+                  value={userSelections}
+                  onChange={(selectedOptions) =>
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setUserSelections,
+                    )
+                  }
+                  asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
+                />
+              </Col>
+
+              <Col md={6}>
+                <Form.Label className={filterLabelClass}>
+                  Partner payment status
+                </Form.Label>
+                <CustomMultiSelect
+                  label=""
+                  controlId="Partner payment status"
+                  options={PARTNER_PAYMENT_FILTER_OPTIONS}
+                  value={partnerPaymentStatus}
+                  onChange={(selectedOptions) =>
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setPartnerPaymentStatus,
+                    )
+                  }
+                  asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
+                />
+              </Col>
+
+              <Col md={6}>
+                <Form.Label className={filterLabelClass}>
+                  Customer payment status
+                </Form.Label>
+                <CustomMultiSelect
+                  label=""
+                  controlId="Customer payment status"
+                  options={CUSTOMER_PAYMENT_FILTER_OPTIONS}
+                  value={customerPaymentStatus}
+                  onChange={(selectedOptions) =>
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setCustomerPaymentStatus,
+                    )
+                  }
+                  asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
+                />
+              </Col>
+            </Row>
+
+            <h6
+              style={{ color: "var(--primary-txt-color)" }}
+              className="fw-semibold mt-4 mb-3"
+            >
+              Location filters
+            </h6>
+            <Row className="g-3">
+              <Col md={6}>
+                <Form.Label className={filterLabelClass}>State</Form.Label>
                 <CustomMultiSelect
                   label=""
                   controlId="State"
-                  options={commonOptions}
+                  options={stateListOptions}
                   value={states}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setStates)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setStates,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">City</Form.Label>
+                <Form.Label className={filterLabelClass}>City</Form.Label>
                 <CustomMultiSelect
                   label=""
                   controlId="City"
-                  options={commonOptions}
+                  options={cityOptions}
                   value={cities}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setCities)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setCities,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
 
               <Col md={6}>
-                <Form.Label className="small fw-semibold mb-1">Area</Form.Label>
+                <Form.Label className={filterLabelClass}>Franchise</Form.Label>
+                <CustomMultiSelect
+                  label=""
+                  controlId="Franchise"
+                  options={franchiseSelectOptions}
+                  value={franchises}
+                  onChange={(selectedOptions) =>
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setFranchises,
+                    )
+                  }
+                  asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
+                />
+              </Col>
+
+              <Col md={6}>
+                <Form.Label className={filterLabelClass}>Area</Form.Label>
                 <CustomMultiSelect
                   label=""
                   controlId="Area"
-                  options={commonOptions}
+                  options={areaSelectOptions}
                   value={areas}
                   onChange={(selectedOptions) =>
-                    handleSelectWithAll(selectedOptions as OptionType[], setAreas)
+                    handleSelectWithAll(
+                      selectedOptions as OptionType[],
+                      setAreas,
+                    )
                   }
                   asCol={false}
+                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
               </Col>
             </Row>

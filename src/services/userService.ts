@@ -4,6 +4,7 @@ import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import { shouldUseRealVerificationApi, getMockVerificationListPage } from "../mockData/verificationTableMock";
+import { mapAccessibleScreenSlugsToMenuKeys } from "../layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../layout/menuItems";
 import { UserRole } from "../constant/AppConstant";
 
@@ -62,6 +63,20 @@ export const mapMenuKeysToAvailablePages = (keys: string[]): AvailablePageEntry[
   ];
 };
 
+/** Reconstruct menu keys from stored `{ page, url }` rows (e.g. when editing a user). */
+export const menuKeysFromAvailablePages = (pages: AvailablePageEntry[] | null | undefined): string[] => {
+  if (!pages?.length) return [];
+  const byUrl = new Map(
+    mainMenuItems.map((i) => [normalizeAppPath(i.path), i.key] as [string, string])
+  );
+  const keys: string[] = [];
+  for (const p of pages) {
+    const k = byUrl.get(normalizeAppPath(p.url));
+    if (k) keys.push(k);
+  }
+  return keys;
+};
+
 /** Staff users always get Profile; order follows selected menu keys then Profile when added. */
 export function staffAvailablePagesFromMenuKeys(menuKeys: string[]): AvailablePageEntry[] {
   const pages = mapMenuKeysToAvailablePages(menuKeys);
@@ -84,10 +99,20 @@ export type CreateWebManagementUserBody = {
   email: string;
   phone_number: string;
   type: number;
+  /** Optional API status (typically `active` or `inactive`). */
+  status?: string;
   is_from_web: boolean;
   created_by_id: string;
-  available_pages: AvailablePageEntry[];
+  available_pages?: AvailablePageEntry[];
+  /**
+   * Optional; if omitted, API payload `accessible_screens` mirrors `available_pages` (same shape).
+   */
+  accessible_screens?: AvailablePageEntry[];
   profile_url?: string;
+  /**
+   * App-side name; request body sends `chat` (boolean).
+   */
+  chat_enabled?: boolean;
 };
 
 /**
@@ -97,6 +122,19 @@ export type CreateWebManagementUserBody = {
 export const createWebManagementUser = async (
   body: CreateWebManagementUserBody
 ): Promise<{ ok: true; record: unknown } | { ok: false }> => {
+  const availablePages = Array.isArray(body.available_pages) ? body.available_pages : [];
+  const pageRows: AvailablePageEntry[] = availablePages.map((p) => ({
+    page: p.page,
+    url: normalizeAppPath(p.url),
+  }));
+  const screensFromBody = Array.isArray(body.accessible_screens)
+    ? (body.accessible_screens as AvailablePageEntry[]).map((p) => ({
+        page: p.page,
+        url: normalizeAppPath(p.url),
+      }))
+    : null;
+  const accessibleScreensRows = screensFromBody ?? pageRows;
+
   const requestBody: Record<string, unknown> = {
     name: body.name,
     email: body.email,
@@ -104,12 +142,21 @@ export const createWebManagementUser = async (
     type: body.type,
     is_from_web: body.is_from_web,
     created_by_id: body.created_by_id,
-    available_pages: body.available_pages.map((p) => ({
-      page: p.page,
-      url: normalizeAppPath(p.url),
-    })),
   };
+  if (body.available_pages !== undefined) {
+    requestBody.available_pages = pageRows;
+    // Same as `available_pages` — server expects the same structure for `accessible_screens`.
+    requestBody.accessible_screens = accessibleScreensRows;
+  } else if (Array.isArray(body.accessible_screens) && body.accessible_screens.length) {
+    requestBody.accessible_screens = accessibleScreensRows;
+  }
+  if (body.status) {
+    requestBody.status = String(body.status).trim().toLowerCase();
+  }
   if (body.profile_url) requestBody.profile_url = body.profile_url;
+  if (body.chat_enabled !== undefined) {
+    requestBody.chat = Boolean(body.chat_enabled);
+  }
 
   const response = await apiRequest(ApiPaths.CREATE_USER, "POST", requestBody);
 
@@ -121,6 +168,36 @@ export const createWebManagementUser = async (
   const record = data?.record ?? data?.data?.record ?? data?.user ?? data;
   return { ok: true, record };
 };
+
+type UserAccessLike = {
+  available_pages?: unknown;
+  accessible_screens?: unknown;
+};
+
+/**
+ * Build allowed sidebar menu keys from login `record` access fields.
+ * Supports `available_pages` and/or `accessible_screens` as `[{page,url}]` (mirrored) or legacy `accessible_screens` as string[] slugs.
+ */
+export function menuKeysFromUserAccess(record: UserAccessLike | null | undefined): string[] {
+  if (!record) return [];
+
+  const available = Array.isArray(record.available_pages)
+    ? menuKeysFromAvailablePages(record.available_pages as AvailablePageEntry[])
+    : [];
+
+  const rawScreens = record.accessible_screens;
+  const fromSlugs = Array.isArray(rawScreens) && rawScreens.every((x) => typeof x === "string")
+    ? mapAccessibleScreenSlugsToMenuKeys(rawScreens as string[])
+    : [];
+
+  const fromRows =
+    Array.isArray(rawScreens) && rawScreens.some((x) => typeof x === "object" && x != null)
+      ? menuKeysFromAvailablePages(rawScreens as AvailablePageEntry[])
+      : [];
+
+  const merged = new Set<string>([...available, ...fromSlugs, ...fromRows]);
+  return Array.from(merged);
+}
 
 /** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
 export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";

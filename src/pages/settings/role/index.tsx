@@ -27,6 +27,11 @@ import CustomTextFieldUpload from "../../../components/CustomTextFieldUpload";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { showErrorAlert } from "../../../helper/alertHelper";
 import { mainMenuItems } from "../../../layout/menuItems";
+import {
+  getFranchiseEmployeeScreenMenuItems,
+  isFranchiseEmployeeExcludedScreenKey,
+  labelForFranchiseEmployeeScreenKey,
+} from "../../../layout/franchiseEmployeeScreenPermissions";
 import { franchiseMockSeed } from "../../../mockData/franchiseMockData";
 import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
@@ -47,27 +52,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_PATTERN.test(v.trim());
 const isValidPhone10 = (v: string) => /^\d{10}$/.test(v.trim());
 
-const screenPermissionLabel = (key: string) =>
-  mainMenuItems.find((item) => item.key === key)?.label ?? key;
-
 const franchiseCatalogNames = franchiseMockSeed.map((f) => f.name);
 
 const STAFF_FRANCHISE_ALL = "__all__";
 
-/** Same keys hidden in Sidebar for franchise admin / employee; not offered on Franchise Employee screen permissions. */
-const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = [
-  "content-management",
-  "location-management",
-  "franchise-management",
-  "service-management",
-] as const;
-
-const isFranchiseEmployeeExcludedScreenKey = (key: string) =>
-  (FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS as readonly string[]).includes(key);
-
-const employeeScreenPermissionMenuItems = mainMenuItems.filter(
-  ({ key }) => !isFranchiseEmployeeExcludedScreenKey(key)
-);
+const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
 
 type StaffFranchiseOption = { value: string; label: string };
 
@@ -787,7 +776,7 @@ const RoleManagement = () => {
                       title="Screen Permissions1"
                       value={
                         editing.screenPermissions?.length
-                          ? editing.screenPermissions.map(screenPermissionLabel).join(", ")
+                          ? editing.screenPermissions.map(labelForFranchiseEmployeeScreenKey).join(", ")
                           : "-"
                       }
                     />
@@ -1036,7 +1025,7 @@ const RoleManagement = () => {
                     title="Screen Permissions"
                     value={
                       staffEditing.screenPermissions?.length
-                        ? staffEditing.screenPermissions.map(screenPermissionLabel).join(", ")
+                        ? staffEditing.screenPermissions.map(labelForFranchiseEmployeeScreenKey).join(", ")
                         : "-"
                     }
                   />

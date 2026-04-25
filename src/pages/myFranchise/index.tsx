@@ -518,9 +518,30 @@ const MyFranchise = () => {
         accessor: "serial_no",
         Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Area Name", accessor: "area_name" },
-      { Header: "City", accessor: "city_name" },
-      { Header: "State", accessor: "state_name" },
+      {
+        Header: "Area Name",
+        accessor: "area_name",
+        Cell: ({ row }: { row: any }) => {
+          const r = row?.original as AreaRow;
+          return r?.area_name || (r as any)?.name || "—";
+        },
+      },
+      {
+        Header: "City",
+        accessor: "city_name",
+        Cell: ({ row }: { row: any }) => {
+          const r = row?.original as AreaRow;
+          return r?.city_name || (r as any)?.city || "—";
+        },
+      },
+      {
+        Header: "State",
+        accessor: "state_name",
+        Cell: ({ row }: { row: any }) => {
+          const r = row?.original as AreaRow;
+          return r?.state_name || (r as any)?.state || "—";
+        },
+      },
       {
         Header: "Pin code",
         accessor: "pincodes",

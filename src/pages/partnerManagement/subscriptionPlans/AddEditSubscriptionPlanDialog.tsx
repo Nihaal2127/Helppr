@@ -18,13 +18,6 @@ type AddEditSubscriptionPlanDialogProps = {
   onRefreshData: () => void;
 };
 
-const planOptions = [
-  { value: "basic", label: "Basic" },
-  { value: "silver", label: "Silver" },
-  { value: "gold", label: "Gold" },
-  { value: "platinum", label: "Platinum" },
-];
-
 const durationTypeOptions = [
   { value: "days", label: "Days" },
   { value: "months", label: "Months" },
@@ -141,19 +134,16 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
           <Form noValidate id="subscription-plan-form" onSubmit={handleSubmit(onSubmitEvent)}>
             <Row className="gx-3 gy-2">
               <Col md={6}>
-                <CustomFormSelect
+                <CustomFormInput
                   label="Plan Name"
                   controlId="plan_name"
-                  options={planOptions}
-                  register={register as unknown as UseFormRegister<any>}
-                  fieldName="plan_name"
-                  error={errors.plan_name as any}
+                  placeholder={plan ? "—" : "Enter Plan Name"}
+                  register={register}
+                  error={errors.plan_name}
                   asCol={false}
-                  requiredMessage="Please select plan"
-                  defaultValue={viewData.plan_name || ""}
-                  setValue={(name: string, value: any) =>
-                    setValue(name as keyof SubscriptionPlanModel, value)
-                  }
+                  validation={{ required: "Plan name is required" }}
+                  isEditable={!plan}
+                  inputStyle={plan ? { borderColor: "var(--txtfld-border)" } : undefined}
                 />
               </Col>
 

@@ -10,6 +10,7 @@ import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateFranchise } from "../../services/franchiseService";
+import { fetchAreaDropDown } from "../../services/areaService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import {
@@ -84,6 +85,8 @@ const cityOptionsMap: Record<string, OptionType[]> = {
         { value: "karimnagar", label: "Karimnagar" },
     ],
 };
+
+const isMongoObjectId = (s: string) => /^[a-f\d]{24}$/i.test((s || "").trim());
 
 const areaOptionsMap: Record<string, OptionType[]> = {
     vijayawada: [
@@ -204,6 +207,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     const [allServices, setAllServices] = useState<ServiceLite[]>([]);
     const [categoryIds, setCategoryIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
+    const [fetchedAreaOptions, setFetchedAreaOptions] = useState<OptionType[] | null>(null);
 
     const selectedState = watch("state_id");
     const selectedCity = watch("city_id");
@@ -214,7 +218,23 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     }, [selectedState]);
 
     const areaOptions = useMemo(() => {
+        if (fetchedAreaOptions) return fetchedAreaOptions;
         return areaOptionsMap[selectedCity] || [];
+    }, [fetchedAreaOptions, selectedCity]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (isMongoObjectId(selectedCity)) {
+                const opts = await fetchAreaDropDown(selectedCity);
+                if (!cancelled) setFetchedAreaOptions(opts);
+            } else {
+                setFetchedAreaOptions(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [selectedCity]);
 
     const serviceOptions = useMemo(

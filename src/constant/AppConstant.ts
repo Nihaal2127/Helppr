@@ -11,6 +11,7 @@ export const AppConstant = {
 
     /** "admin" | "franchise_admin" | "employee" | "staff" — set on login from API user `type` (see `mapWebUserTypeToSessionRole`). */
     userRole: "userRole",
+    userAccessibleMenuKeys: "userAccessibleMenuKeys",
     adminId: "adminId",
     partnerId: "partnerId",
     createdById: "createdById",

@@ -185,16 +185,28 @@ export const createRoleUserWithApi = async (
       ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
       : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
 
-  const result = await createWebManagementUser({
+  const permKeys = payload.screenPermissions ?? [];
+  const commonBody = {
     name: payload.roleName.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
     type,
+    status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
     created_by_id: createdById,
-    available_pages: mapMenuKeysToAvailablePages(payload.screenPermissions ?? []),
     profile_url: profileUrlForApi(payload.profile_url),
-  });
+  };
+  const result = await createWebManagementUser(
+    payload.roleType === "franchise_admin"
+      ? {
+          ...commonBody,
+          // Franchise admin screens are fixed by role; do not send screen list payload.
+        }
+      : {
+          ...commonBody,
+          available_pages: mapMenuKeysToAvailablePages(permKeys),
+        }
+  );
 
   if (!result.ok) return false;
 
@@ -231,14 +243,16 @@ export const createStaffUserWithApi = async (
     return false;
   }
 
+  const staffPermKeys = payload.screenPermissions ?? [];
   const result = await createWebManagementUser({
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
     type: WEB_MANAGEMENT_USER_TYPE.STAFF,
+    status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
     created_by_id: createdById,
-    available_pages: staffAvailablePagesFromMenuKeys(payload.screenPermissions ?? []),
+    available_pages: staffAvailablePagesFromMenuKeys(staffPermKeys),
     profile_url: profileUrlForApi(payload.profile_url),
   });
 

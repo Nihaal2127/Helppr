@@ -22,6 +22,7 @@ import {
   voidPartnerSubscription,
   voidSubscriptionPlan,
 } from "../../../services/partnerManagementService";
+import { fetchAreaDropDown } from "../../../services/areaService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 /** Days from today until `endDateStr` (date-only); negative if already past. */
@@ -106,6 +107,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const [partnerSubTotalPages, setPartnerSubTotalPages] = useState(0);
   const [planSortBy, setPlanSortBy] = useState<ServerTableSortBy>([]);
   const [partnerSubSortBy, setPartnerSubSortBy] = useState<ServerTableSortBy>([]);
+  const [locationAreaOptions, setLocationAreaOptions] = useState<{ value: string; label: string }[]>([
+    { value: "all", label: "All" },
+  ]);
 
   const [planFilters, setPlanFilters] = useState<{ name?: string; status?: string; sort?: string }>({});
   const [partnerFilters, setPartnerFilters] = useState<{
@@ -121,37 +125,57 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const fetchRef = useRef(false);
   const activeBox = selectedBox;
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await fetchAreaDropDown();
+      if (cancelled) return;
+      setLocationAreaOptions([
+        { value: "all", label: "All" },
+        ...rows.map((a) => ({ value: a.label, label: a.label })),
+      ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchData = useCallback(async () => {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
-      if (activeBox === "plans") {
-        const res = await fetchSubscriptionPlans(currentPage, pageSize, planFilters, planSortBy);
-        if (res.response) {
-          setPlanRows(res.records);
-          setPlanTotalPages(res.totalPages);
-          setPlanData(res.stats);
-        } else {
-          setPlanRows([]);
-          setPlanTotalPages(0);
-          setPlanData({ Total: 0, Active: 0, Inactive: 0 });
-        }
+      /**
+       * Load both summary sources on initial page open/reload so both summary cards
+       * show real counts immediately; table rendering still depends on `activeBox`.
+       */
+      const [planRes, partnerRes] = await Promise.all([
+        fetchSubscriptionPlans(currentPage, pageSize, planFilters, planSortBy),
+        fetchPartnerSubscriptions(currentPage, pageSize, partnerFilters, partnerSubSortBy),
+      ]);
+
+      if (planRes.response) {
+        setPlanRows(planRes.records);
+        setPlanTotalPages(planRes.totalPages);
+        setPlanData(planRes.stats);
       } else {
-        const res = await fetchPartnerSubscriptions(currentPage, pageSize, partnerFilters, partnerSubSortBy);
-        if (res.response) {
-          setPartnerSubRows(res.records);
-          setPartnerSubTotalPages(res.totalPages);
-          setPartnerSubscriptionData(res.stats);
-        } else {
-          setPartnerSubRows([]);
-          setPartnerSubTotalPages(0);
-          setPartnerSubscriptionData({ Total: 0, Active: 0, Inactive: 0 });
-        }
+        setPlanRows([]);
+        setPlanTotalPages(0);
+        setPlanData({ Total: 0, Active: 0, Inactive: 0 });
+      }
+
+      if (partnerRes.response) {
+        setPartnerSubRows(partnerRes.records);
+        setPartnerSubTotalPages(partnerRes.totalPages);
+        setPartnerSubscriptionData(partnerRes.stats);
+      } else {
+        setPartnerSubRows([]);
+        setPartnerSubTotalPages(0);
+        setPartnerSubscriptionData({ Total: 0, Active: 0, Inactive: 0 });
       }
     } finally {
       fetchRef.current = false;
     }
-  }, [activeBox, currentPage, pageSize, planFilters, partnerFilters, planSortBy, partnerSubSortBy]);
+  }, [currentPage, pageSize, planFilters, partnerFilters, planSortBy, partnerSubSortBy]);
 
   useEffect(() => {
     void fetchData();
@@ -217,6 +241,22 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           placeholder="All plan types"
           menuPortal
           onChange={(e) => handlePartnerSubscriptionFilterChange({ planType: e.target.value })}
+        />
+      </Col>
+      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+        <CustomFormSelect
+          label="Location (area)"
+          controlId="partner_sub_location_filter"
+          options={locationAreaOptions}
+          register={register}
+          fieldName="partner_sub_location_filter"
+          asCol={false}
+          noBottomMargin
+          defaultValue={partnerFilters.location || "all"}
+          setValue={setValue}
+          placeholder="All locations"
+          menuPortal
+          onChange={(e) => handlePartnerSubscriptionFilterChange({ location: e.target.value })}
         />
       </Col>
       <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
@@ -466,11 +506,12 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             handlePlanFilterChange(filter);
             setPlanSortBy([]);
           }}
-          isAddShow
-          addButtonLable="Add"
-          onAddClick={() => {
-            AddEditSubscriptionPlanDialog.show(true, null, () => refreshData());
-          }}
+          // isAddShow
+          // addButtonLable="Add"
+          // onAddClick={() => {
+          //   AddEditSubscriptionPlanDialog.show(true, null, () => refreshData());
+          // }}
+          isAddShow={false}
         />
 
         <CustomSummaryBox

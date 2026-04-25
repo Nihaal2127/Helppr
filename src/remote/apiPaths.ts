@@ -40,12 +40,16 @@ export const ApiPaths = {
   UPDATE_FRANCHISE: (id: string) => `/franchise/${id}`,
   DELETE_FRANCHISE: (id: string) => `/franchise/${id}`,
   EXPORT_FRANCHISE: `/export/franchise`,
-  GET_AREA: () => `/area`,
-  CREATE_AREA: `/area`,
-  UPDATE_AREA: (id: string) => `/area/${id}`,
-  DELETE_AREA: (id: string) => `/area/${id}`,
-  GET_AREA_DROP_DOWN: () => `/area/dropdown`,
-  EXPORT_AREA: `/area/export`,
+  /** List — GET with query: page, limit, sort, name, city_id, state_id, is_active, pincode */
+  GET_AREA: () => `/area/getAll`,
+  GET_AREA_BY_ID: (id: string) => `/area/get/${id}`,
+  CREATE_AREA: `/area/create`,
+  UPDATE_AREA: (id: string) => `/area/update/${id}`,
+  DELETE_AREA: (id: string) => `/area/delete/${id}`,
+  /** Optional query: city_id, state_id (comma-separated) */
+  GET_AREA_DROP_DOWN: () => `/area/getDropDown`,
+  /** POST — same pattern as `EXPORT_STATE` / `EXPORT_CITY` */
+  EXPORT_AREA: `/export/area`,
   GET_CATEGORY: () => `/category/getAll`,
   GET_CATEGORY_DROP_DOWN: () => `/category/getDropDown`,
   CREATE_CATEGORY: '/category/create',

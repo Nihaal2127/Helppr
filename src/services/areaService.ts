@@ -5,19 +5,28 @@ import { showLog } from "../helper/utility";
 import { fetchMockAreas } from "./areaMockService";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-const USE_MOCK_AREA_API = true;
+const USE_MOCK_AREA_API = false;
 
-export const fetchAreaDropDown = async (): Promise<{ value: string; label: string }[]> => {
+export const fetchAreaDropDown = async (
+  cityId?: string,
+  stateId?: string
+): Promise<{ value: string; label: string }[]> => {
+  const q = new URLSearchParams();
+  if (cityId?.trim()) q.set("city_id", cityId.trim());
+  if (stateId?.trim()) q.set("state_id", stateId.trim());
+  const qs = q.toString();
   const response = await apiRequest(
-    `${ApiPaths.GET_AREA_DROP_DOWN()}`,
+    `${ApiPaths.GET_AREA_DROP_DOWN()}${qs ? `?${qs}` : ""}`,
     "GET"
   );
 
-  if (response.success) {
-    return response.data.records.map((area: any) => ({
-      value: area._id,
-      label: area.name,
-    }));
+  const data = (response as any).data;
+  const records = data?.records ?? (Array.isArray(data) ? data : []);
+  if (response.success && Array.isArray(records)) {
+    return records.map((area: any) => ({
+      value: String(area._id ?? area.id ?? ""),
+      label: String(area.name ?? area.label ?? ""),
+    })).filter((o: { value: string; label: string }) => o.value);
   } else {
     showLog(response.message || "Failed to fetch area");
     return [];
@@ -55,10 +64,13 @@ export const fetchArea = async (
   );
 
   if (response.success) {
+    const d = (response as any).data ?? {};
+    const list = d.records ?? d.data?.records;
+    const pages = d.totalPages ?? d.data?.totalPages;
     return {
       response: true,
-      areas: response.data.records,
-      totalPages: response.data.totalPages,
+      areas: Array.isArray(list) ? list : [],
+      totalPages: typeof pages === "number" ? pages : 0,
     };
   } else {
     showLog(response.message || "Failed to fetch area");

@@ -6,7 +6,7 @@ import { Card, Col, Button } from "react-bootstrap";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { ROUTES } from "../../routes/Routes";
 import { login } from "../../services/adminService";
-import { mapWebUserTypeToSessionRole } from "../../services/userService";
+import { mapWebUserTypeToSessionRole, menuKeysFromUserAccess } from "../../services/userService";
 import { getLocalStorage, setLocalStorage } from "../../helper/localStorageHelper";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
@@ -28,6 +28,8 @@ const Login = () => {
     setLocalStorage(AppConstant.adminId, user?._id);
     setLocalStorage(AppConstant.createdById, user?._id);
     setLocalStorage(AppConstant.userRole, role);
+    const menuKeys = menuKeysFromUserAccess(user as unknown as Record<string, unknown>);
+    setLocalStorage(AppConstant.userAccessibleMenuKeys, JSON.stringify(menuKeys));
     navigate(ROUTES.DASHBOARD.path, { replace: true });
   };
 
