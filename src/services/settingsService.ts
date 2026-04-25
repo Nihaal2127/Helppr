@@ -243,7 +243,7 @@ export const createStaffUserWithApi = async (
     return false;
   }
 
-  const staffPermKeys = payload.screenPermissions ?? [];
+  const staffPermKeys = (payload.screenPermissions ?? []).filter((k) => k !== "my-franchise");
   const result = await createWebManagementUser({
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),

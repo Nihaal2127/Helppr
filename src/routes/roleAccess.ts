@@ -60,11 +60,10 @@ export function isAuthenticatedPathAllowed(
     return !isAdminDeniedPath(p);
   }
   if (r === UserRole.FRANCHISE_ADMIN) {
-    // Franchise admin access is fixed by role, not per-user screen payload.
-    return true;
+    return !isStaffDeniedPath(p);
   }
   if (r === UserRole.STAFF) {
-    return !isStaffDeniedPath(p);
+    if (isStaffDeniedPath(p)) return false;
   }
   if (r === UserRole.EMPLOYEE) {
     if (isEmployeeDeniedPath(p)) return false;

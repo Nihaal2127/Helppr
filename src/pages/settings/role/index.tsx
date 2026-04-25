@@ -57,6 +57,7 @@ const franchiseCatalogNames = franchiseMockSeed.map((f) => f.name);
 const STAFF_FRANCHISE_ALL = "__all__";
 
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
+const staffScreenPermissionMenuItems = mainMenuItems.filter(({ key }) => key !== "my-franchise");
 
 type StaffFranchiseOption = { value: string; label: string };
 
@@ -161,7 +162,9 @@ const RoleManagement = () => {
       phone_number: item.phone_number ?? "",
       profile_url: item.profile_url ?? "",
       status: item.status,
-      screenPermissions: item.screenPermissions?.length ? [...item.screenPermissions] : [],
+      screenPermissions: item.screenPermissions?.length
+        ? item.screenPermissions.filter((k) => k !== "my-franchise")
+        : [],
       allFranchises: item.allFranchises,
       franchisePermissions: item.franchisePermissions?.length ? [...item.franchisePermissions] : [],
     });
@@ -1120,7 +1123,7 @@ const RoleManagement = () => {
                   <div className="staff-permission-section__head">Screen Permissions</div>
                   <div className="staff-permission-section__body">
                     <div className="d-grid" style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, 1fr)" }}>
-                      {mainMenuItems.map(({ key, label }) => (
+                      {staffScreenPermissionMenuItems.map(({ key, label }) => (
                         <Form.Check
                           key={key}
                           type="checkbox"
@@ -1173,7 +1176,7 @@ const RoleManagement = () => {
                   phone_number: staffForm.phone_number.trim(),
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
-                  screenPermissions: [...staffForm.screenPermissions],
+                  screenPermissions: staffForm.screenPermissions.filter((k) => k !== "my-franchise"),
                   allFranchises: staffForm.allFranchises,
                   franchisePermissions: staffForm.allFranchises ? [] : [...staffForm.franchisePermissions],
                 };
