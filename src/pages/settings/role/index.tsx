@@ -205,6 +205,7 @@ const RoleManagement = () => {
   }, [refresh, refreshStaff]);
 
   useEffect(() => {
+    if (!initialLoadDone) return;
     let cancelled = false;
     (async () => {
       const type =
@@ -237,7 +238,7 @@ const RoleManagement = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedBox, refresh, refreshStaff]);
+  }, [initialLoadDone, selectedBox, refresh, refreshStaff]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
