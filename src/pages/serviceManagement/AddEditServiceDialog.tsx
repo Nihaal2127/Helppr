@@ -42,9 +42,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         register,
         handleSubmit,
         setValue,
-        
+        watch,
         formState: { errors },
-    } = useForm<ServiceModel>({
+    } = useForm<ServiceModel & { approval_status?: "approved" | "rejected"; rejection_reason?: string }>({
         defaultValues: {
             name: service?.name || "",
             desc: service?.desc || "",
@@ -54,6 +54,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
             min_deposit_value: ((service as any)?.min_deposit_value ?? "") as any,
             is_active: service?.is_active ?? true,
             category_id: service?.category_id || "",
+            approval_status: service?.is_active === false ? "rejected" : "approved",
+            rejection_reason: (service as any)?.rejection_reason ?? "",
         } as any,
     });
 
@@ -130,7 +132,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         }
     }, [isEditable, service, setValue]);
 
-    const onSubmitEvent = async (data: ServiceModel) => {
+    const approvalStatus = watch("approval_status");
+
+    const onSubmitEvent = async (data: ServiceModel & { approval_status?: "approved" | "rejected"; rejection_reason?: string }) => {
         let image_url = "";
 
         if (fileInputs.length > 0) {
@@ -164,7 +168,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 (data as any).min_deposit_type === "per_consultancy"
                     ? Number((data as any).min_deposit_value)
                     : 0,
-            is_active: data.is_active,
+            is_active: isEditable ? data.approval_status !== "rejected" : data.is_active,
+            ...(isEditable && {
+                rejection_reason:
+                    data.approval_status === "rejected"
+                        ? (data.rejection_reason ?? "").trim()
+                        : "",
+            }),
             category_id: data.category_id,
             ...(image_url !== "" && { image_url }),
         };
@@ -481,15 +491,49 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                          
 
                             <Col md={6} className="mb-3">
-                                <CustomRadioSelection
-                                    label="Status"
-                                    name="is_active"
-                                    options={getStatusOptions()}
-                                    defaultValue={isEditable ? service?.is_active?.toString() : "true"}
-                                    isEditable={isEditable}
-                                    setValue={setValue}
-                                />
+                                {isEditable ? (
+                                    <CustomRadioSelection
+                                        label="Approval Status"
+                                        name="approval_status"
+                                        options={[
+                                            { label: "Approved", value: "approved" },
+                                            { label: "Rejected", value: "rejected" },
+                                        ]}
+                                        defaultValue={service?.is_active === false ? "rejected" : "approved"}
+                                        isEditable={isEditable}
+                                        setValue={setValue}
+                                    />
+                                ) : (
+                                    <CustomRadioSelection
+                                        label="Status"
+                                        name="is_active"
+                                        options={getStatusOptions()}
+                                        defaultValue={isEditable ? service?.is_active?.toString() : "true"}
+                                        isEditable={isEditable}
+                                        setValue={setValue}
+                                    />
+                                )}
                             </Col>
+                            {isEditable && approvalStatus === "rejected" && (
+                                <Col md={12}>
+                                    <CustomFormInput
+                                        label="Rejection Reason"
+                                        controlId="rejection_reason"
+                                        placeholder="Enter reason for rejection"
+                                        register={register}
+                                        error={(errors as any).rejection_reason}
+                                        asCol={false}
+                                        validation={{
+                                            validate: (value: string) =>
+                                                value?.trim()
+                                                    ? true
+                                                    : "Rejection reason is required",
+                                        }}
+                                        as="textarea"
+                                        rows={3}
+                                    />
+                                </Col>
+                            )}
                             <Col md={12}>
                                 <CustomFormInput
                                     label="Description"

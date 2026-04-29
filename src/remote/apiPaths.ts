@@ -34,7 +34,7 @@ export const ApiPaths = {
   UPDATE_CITY: (id: string) => `/city/update/${id}`,
   DELETE_CITY: (id: string) => `/city/delete/${id}`,
   EXPORT_CITY: `/export/city`,
-  GET_FRANCHISE_DROP_DOWN: () => "/franchise/dropdown",
+  GET_FRANCHISE_DROP_DOWN: () => "/franchise/getDropDown",
   GET_FRANCHISE: () => "/franchise",
   CREATE_FRANCHISE: "/franchise",
   UPDATE_FRANCHISE: (id: string) => `/franchise/${id}`,
@@ -100,10 +100,18 @@ export const ApiPaths = {
   CREATE_USER_HOME_COUNTS: '/user_home_counts/create',
   UPDATE_USER_HOME_COUNTS: (id: string) => `/user_home_counts/update/${id}`,
   // Expenses management
-  GET_EXPENSES: () => `/expense/getAll`,
-  CREATE_EXPENSE: `/expense/create`,
-  UPDATE_EXPENSE: (id: string) => `/expense/update/${id}`,
+  GET_EXPENSES: () => `/expense-management/getAll`,
+  GET_EXPENSE_BY_ID: (id: string) => `/expense-management/get/${id}`,
+  CREATE_EXPENSE: `/expense-management/create`,
+  UPDATE_EXPENSE: (id: string) => `/expense-management/update/${id}`,
+  DELETE_EXPENSE: (id: string) => `/expense-management/delete/${id}`,
   EXPORT_EXPENSES: `/export/expenses`,
+  // Expense category management
+  GET_EXPENSE_CATEGORY: () => `/expense-category-management/getAll`,
+  GET_EXPENSE_CATEGORY_BY_ID: (id: string) => `/expense-category-management/get/${id}`,
+  CREATE_EXPENSE_CATEGORY: `/expense-category-management/create`,
+  UPDATE_EXPENSE_CATEGORY: (id: string) => `/expense-category-management/update/${id}`,
+  DELETE_EXPENSE_CATEGORY: (id: string) => `/expense-category-management/delete/${id}`,
   // Quotes management — GET query: page, limit, tab, keyword?, from_date?, to_date?, sort_by?, sort_order? (asc|desc)
   GET_QUOTES: () => `/quote/getAll`,
   // Partner management
@@ -135,4 +143,10 @@ export const ApiPaths = {
   GET_PARTNER_PORTFOLIOS: () => `/partner/portfolios`,
   VOID_PARTNER_PORTFOLIO: (id: string) => `/partner/portfolios/void/${id}`,
   GET_PARTNER_POSTS: () => `/partner/posts`,
+  // Content management
+  CONTENT_MANAGEMENT_GET_ALL: () => `/content-management/getAll`,
+  CONTENT_MANAGEMENT_GET: (id: string) => `/content-management/get/${id}`,
+  CONTENT_MANAGEMENT_CREATE: `/content-management/create`,
+  CONTENT_MANAGEMENT_UPDATE: (id: string) => `/content-management/update/${id}`,
+  CONTENT_MANAGEMENT_DELETE: (id: string) => `/content-management/delete/${id}`,
 };

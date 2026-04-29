@@ -12,6 +12,7 @@ import {
 import { formatDate } from "../helper/utility";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
+import { fetchFranchiseDropDown } from "../services/franchiseService";
 
 interface CustomHeaderProps {
     title: string;
@@ -34,21 +35,14 @@ const CustomHeader = ({
     const navigate = useNavigate();
     const currentUserRole = getLocalStorage(AppConstant.userRole);
     const isAdminUser = currentUserRole === UserRole.ADMIN;
-    const [selectedFranchise, setSelectedFranchise] = useState<string>("");
+    const [selectedFranchise, setSelectedFranchise] = useState<string>("all");
+    const [franchiseList, setFranchiseList] = useState<{ value: string; label: string }[]>([
+        { value: "all", label: "All Franchises" },
+    ]);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
     const notificationRef = useRef<HTMLDivElement | null>(null);
-
-    // Dummy franchise list (until API-driven data is wired)
-    const franchiseList = [
-        { value: "all", label: "All Franchises" },
-        { value: "franch-1", label: "Franchise Alpha" },
-        { value: "franch-2", label: "Franchise Beta" },
-        { value: "franch-3", label: "Franchise Gamma" },
-        { value: "franch-4", label: "Franchise Delta" },
-        { value: "franch-5", label: "Franchise Epsilon" },
-    ];
 
     const handleChange = (e: any) => {
         const value = e.target.value as string;
@@ -64,6 +58,13 @@ const CustomHeader = ({
     };
 
     useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const options = await fetchFranchiseDropDown();
+            if (cancelled) return;
+            setFranchiseList([{ value: "all", label: "All Franchises" }, ...options]);
+        })();
+
         refreshNotifications();
         const onUpdated = () => refreshNotifications();
         const onStorage = () => refreshNotifications();
@@ -79,6 +80,7 @@ const CustomHeader = ({
         document.addEventListener("mousedown", onClickOutside);
 
         return () => {
+            cancelled = true;
             window.removeEventListener("notifications-updated", onUpdated);
             window.removeEventListener("storage", onStorage);
             document.removeEventListener("mousedown", onClickOutside);

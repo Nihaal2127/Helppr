@@ -542,15 +542,17 @@ function AddEditUserDialogView({ role, isEditable, user, onClose, onRefreshData 
             }),
         };
 
+        const selectedImageFile = fileInputs.length > 0 ? fileInputs[0] : null;
+
         let responseUser;
         if (isEditable) {
             if (!user?._id) {
                 showErrorAlert("Unable to update. ID is missing.");
                 return;
             }
-            responseUser = await createOrUpdateUser(payload, true, user?._id);
+            responseUser = await createOrUpdateUser(payload, true, user?._id, selectedImageFile);
         } else {
-            responseUser = await createOrUpdateUser(payload, false,);
+            responseUser = await createOrUpdateUser(payload, false, undefined, selectedImageFile);
         }
 
         if (responseUser) {

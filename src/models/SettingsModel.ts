@@ -23,6 +23,9 @@ export interface RoleSettingsModel {
   roleName: string;
   roleType: "franchise_admin" | "employee";
   assignedFranchise?: string;
+  franchise_id?: string;
+  state_id?: string;
+  city_id?: string;
   /** Contact (settings / mock; optional for backward compatibility). */
   email?: string;
   phone_number?: string;
@@ -52,6 +55,12 @@ export interface StaffSettingsModel {
 
 export interface ExpenseCategoryModel {
   id: string;
+  /** Optional backend category table id (when returned separately from row id). */
+  categoryId?: string;
+  /** Optional backend sub-category / service id used by expense create payload. */
+  subCategoryId?: string;
+  franchiseId?: string;
+  franchiseName?: string;
   categoryName: string;
   subCategoryName: string;
   description?: string;

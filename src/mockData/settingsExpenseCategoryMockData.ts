@@ -4,7 +4,7 @@ export const expenseCategoriesMockSeed: Array<
   Omit<ExpenseCategoryModel, "id" | "createdDate">
 > = [
   {
-    categoryName: "Office Expense",
+    categoryName: "Office Expense1",
     subCategoryName: "Internet",
     description: "Monthly broadband charges",
   },

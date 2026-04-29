@@ -1,43 +1,79 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Col, Modal, Row } from "react-bootstrap";
+import { Button, Col, Form, Modal, Row } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomTable from "../../../components/CustomTable";
-import CustomUtilityBox from "../../../components/CustomUtilityBox";
+import searchIcon from "../../../assets/icons/search.svg";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { CustomFormInput } from "../../../components/CustomFormInput";
+import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
-import { capitalizeString, DetailsRow, formatDate, textUnderlineCell } from "../../../helper/utility";
+import { capitalizeString, DetailsRow, formatDate } from "../../../helper/utility";
 import { ExpenseCategoryModel } from "../../../models/SettingsModel";
 import SettingsNav from "../../../components/SettingsNav";
 import {
   ensureSettingsSeedData,
-  getExpenseCategories,
-  saveExpenseCategory,
-  voidExpenseCategory,
+  fetchExpenseCategoriesPage,
+  saveExpenseCategoryWithApi,
+  voidExpenseCategoryWithApi,
 } from "../../../services/settingsService";
+import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
+import { showErrorAlert } from "../../../helper/alertHelper";
+import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
 
 const emptyForm = {
+  franchiseId: "",
   categoryName: "",
   subCategoryName: "",
   description: "",
+};
+
+const TABLE_PAGE_SIZE = 10;
+
+const formatLocalDateYmd = (date: Date | null): string => {
+  if (!date) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
 const ExpenseCategoryManagement = () => {
   const { register, setValue } = useForm<any>();
   const [items, setItems] = useState<ExpenseCategoryModel[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ExpenseCategoryModel | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [isViewMode, setIsViewMode] = useState(false);
   const [selectedBox, setSelectedBox] = useState("box-expense-category");
+  const [isLoading, setIsLoading] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
+  const [tableTotalPages, setTableTotalPages] = useState(1);
+  const [tableTotalItems, setTableTotalItems] = useState(0);
+  const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
+  const [franchiseOptions, setFranchiseOptions] = useState<FranchiseDropDownOption[]>([]);
+
+  const closeFormModal = () => {
+    setShowForm(false);
+    setIsViewMode(false);
+    setEditing(null);
+    setForm(emptyForm);
+  };
+
+  const openAddForm = () => {
+    setEditing(null);
+    setIsViewMode(false);
+    setForm(emptyForm);
+    setShowForm(true);
+  };
 
   const openFormWithData = (item?: ExpenseCategoryModel, viewMode = false) => {
     if (!item) {
@@ -50,6 +86,7 @@ const ExpenseCategoryManagement = () => {
     setEditing(item);
     setIsViewMode(viewMode);
     setForm({
+      franchiseId: item.franchiseId || "",
       categoryName: item.categoryName,
       subCategoryName: item.subCategoryName,
       description: item.description || "",
@@ -57,48 +94,102 @@ const ExpenseCategoryManagement = () => {
     setShowForm(true);
   };
 
-  const refresh = useCallback(() => setItems(getExpenseCategories()), []);
+  useEffect(() => {
+    if (!showForm || isViewMode || !editing) return;
+    // Keep edit form always in sync with the latest selected table row.
+    setForm({
+      franchiseId: editing.franchiseId || "",
+      categoryName: editing.categoryName || "",
+      subCategoryName: editing.subCategoryName || "",
+      description: editing.description || "",
+    });
+  }, [editing, isViewMode, showForm]);
+
+  const refresh = useCallback(async () => {
+    const primarySort = sortBy[0];
+    const sortField =
+      primarySort?.id === "categoryName"
+        ? "category_name"
+        : primarySort?.id === "subCategoryName"
+          ? "sub_category_name"
+          : primarySort?.id === "franchiseName"
+            ? "franchise_name"
+          : primarySort?.id === "createdDate"
+            ? "created_at"
+            : undefined;
+    const trimmedStart = startDate.trim();
+    const trimmedEnd = endDate.trim();
+    const normalizedStartDate = trimmedStart
+      ? trimmedStart
+      : trimmedEnd
+        ? undefined
+        : undefined;
+    const normalizedEndDate = trimmedEnd
+      ? trimmedEnd
+      : trimmedStart
+        ? trimmedStart
+        : undefined;
+    setIsLoading(true);
+    const pageData = await fetchExpenseCategoriesPage(tablePage, TABLE_PAGE_SIZE, {
+      search: keyword.trim(),
+      sort: sortField,
+      sortOrder: primarySort ? (primarySort.desc ? "desc" : "asc") : undefined,
+      startDate: normalizedStartDate || undefined,
+      endDate: normalizedEndDate || undefined,
+    });
+    setIsLoading(false);
+    if (!pageData) return;
+    setItems(pageData.rows);
+    setTableTotalPages(Math.max(1, pageData.totalPages || 1));
+    setTableTotalItems(pageData.totalItems ?? pageData.rows.length);
+  }, [endDate, keyword, sortBy, startDate, tablePage]);
 
   useEffect(() => {
     ensureSettingsSeedData();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await fetchFranchiseDropDown();
+      if (!cancelled) setFranchiseOptions(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const filtered = useMemo(() => {
-    return items.filter((item) => {
-      const k = keyword.trim().toLowerCase();
-      const matchesKeyword =
-        !k ||
-        item.categoryName.toLowerCase().includes(k) ||
-        item.subCategoryName.toLowerCase().includes(k);
-      const date = new Date(item.createdDate).getTime();
-      const from = fromDate ? new Date(fromDate).getTime() : null;
-      const to = toDate ? new Date(toDate).getTime() : null;
-      const matchesDate = (from === null || date >= from) && (to === null || date <= to);
-      return matchesKeyword && matchesDate;
-    });
-  }, [items, keyword, fromDate, toDate]);
-
   const expenseSummaryData = useMemo(
     () => ({
-      Total: items.length,
+      Total: tableTotalItems,
     }),
-    [items]
+    [tableTotalItems]
   );
 
   const columns = React.useMemo(
     () => [
-      { Header: "SR No", accessor: "sr", Cell: ({ row }: any) => row.index + 1 },
+      {
+        Header: "SR No",
+        accessor: "sr",
+        Cell: ({ row }: any) => (Math.max(1, tablePage) - 1) * TABLE_PAGE_SIZE + row.index + 1,
+      },
       {
         Header: "Category Name",
         accessor: "categoryName",
-        Cell: textUnderlineCell("categoryName", (row) => openFormWithData(row, true)),
+        sort: true,
       },
-      { Header: "Sub Category Name", accessor: "subCategoryName" },
+      { Header: "Sub Category Name", accessor: "subCategoryName", sort: true },
+      { Header: "Franchise Name", accessor: "franchiseName", sort: true, Cell: ({ row }: any) => row.original.franchiseName || "-" },
       // { Header: "Description", accessor: "description" },
       {
         Header: "Created Date",
         accessor: "createdDate",
+        sort: true,
+        sortDescFirst: true,
         Cell: ({ row }: any) => formatDate(row.original.createdDate),
       },
       {
@@ -107,13 +198,16 @@ const ExpenseCategoryManagement = () => {
         Cell: ({ row }: any) => (
           <CustomActionColumn
             row={row}
+            onView={() => openFormWithData(row.original, true)}
+            onEdit={() => openFormWithData(row.original, false)}
             onDelete={() => {
               openConfirmDialog(
                 "Are you sure you want to void this expense category?",
                 "Void",
                 "Cancel",
-                () => {
-                  voidExpenseCategory(row.original.id);
+                async () => {
+                  const ok = await voidExpenseCategoryWithApi(row.original.id);
+                  if (!ok) return;
                   refresh();
                 }
               );
@@ -122,19 +216,26 @@ const ExpenseCategoryManagement = () => {
         ),
       },
     ],
-    [refresh]
+    [refresh, tablePage]
   );
 
+  const applySearch = () => {
+    setKeyword(searchDraft);
+    setTablePage(1);
+  };
+
   const filterControls = (
-    <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 gx-3 gy-1 mt-2 mb-3 align-items-end justify-content-end">
-      <Col>
+    <Row className="row-cols-1 row-cols-sm-2 row-cols-md-auto gx-3 gy-2 mt-3 mb-3 align-items-end justify-content-end">
+     
+      <Col xs={12} sm={6} md="auto">
         <CustomDatePicker
           label="Start Date"
           controlId="expense_category_start_date_filter"
-          selectedDate={fromDate || null}
+          selectedDate={startDate || null}
           onChange={(date) => {
-            const next = date ? date.toISOString().slice(0, 10) : "";
-            setFromDate(next);
+            const next = formatLocalDateYmd(date);
+            setStartDate(next);
+            setTablePage(1);
           }}
           register={register}
           setValue={setValue}
@@ -144,14 +245,15 @@ const ExpenseCategoryManagement = () => {
           filterDate={() => true}
         />
       </Col>
-      <Col>
+      <Col xs={12} sm={6} md="auto">
         <CustomDatePicker
           label="End Date"
           controlId="expense_category_end_date_filter"
-          selectedDate={toDate || null}
+          selectedDate={endDate || null}
           onChange={(date) => {
-            const next = date ? date.toISOString().slice(0, 10) : "";
-            setToDate(next);
+            const next = formatLocalDateYmd(date);
+            setEndDate(next);
+            setTablePage(1);
           }}
           register={register}
           setValue={setValue}
@@ -161,17 +263,57 @@ const ExpenseCategoryManagement = () => {
           filterDate={() => true}
         />
       </Col>
+       <Col xs={12} md="auto" className="order-0" style={{ minWidth: "min(100%, 16rem)" }}>
+        <div className="d-flex flex-column">
+          <label className="fw-medium" htmlFor="expense_category_search">
+            Search
+          </label>
+          <div className="custom-search-container">
+            <Form.Control
+              id="expense_category_search"
+              className="custom-form-input"
+              type="text"
+              placeholder="Category / Sub Category"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              style={{
+                width: "100%",
+                maxWidth: "24.25rem",
+                fontSize: "14px",
+                fontWeight: "normal",
+                fontFamily: "Inter",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applySearch();
+                }
+              }}
+            />
+            <img
+              src={searchIcon}
+              alt="search"
+              className="custom-search-icon"
+              onClick={() => {
+                applySearch();
+              }}
+            />
+          </div>
+        </div>
+      </Col>
       <Col xs="auto" className="d-flex align-items-end">
         <Button
           variant="outline-secondary"
           size="sm"
           className="custom-btn-secondary px-3"
           type="button"
-          disabled={!fromDate && !toDate && !keyword.trim()}
+          disabled={!keyword.trim() && !searchDraft.trim() && !startDate && !endDate}
           onClick={() => {
-            setFromDate("");
-            setToDate("");
             setKeyword("");
+            setSearchDraft("");
+            setStartDate("");
+            setEndDate("");
+            setTablePage(1);
             setValue("expense_category_start_date_filter", "", { shouldValidate: false });
             setValue("expense_category_end_date_filter", "", { shouldValidate: false });
           }}
@@ -200,30 +342,35 @@ const ExpenseCategoryManagement = () => {
           onFilterChange={() => {}}
           isAddShow={true}
           addButtonLable="Add Category"
-          onAddClick={() => openFormWithData()}
+          onAddClick={openAddForm}
         />
       </div>
 
-      <CustomUtilityBox
-        title="Expense Categories"
-        searchHint="Category / Sub Category"
-        searchOnlyToolbar
-        onSearch={(value) => setKeyword(value)}
-        onSortClick={() => {}}
-        onDownloadClick={() => {}}
-        onMoreClick={() => {}}
-      />
-
       {filterControls}
 
-      <CustomTable columns={columns} data={filtered} currentPage={1} totalPages={1} pageSize={filtered.length || 10} onPageChange={() => {}} isPagination={false} />
+      <CustomTable
+        columns={columns}
+        data={items}
+        currentPage={Math.max(1, tablePage)}
+        totalPages={tableTotalPages}
+        pageSize={TABLE_PAGE_SIZE}
+        onPageChange={(page) => setTablePage(page)}
+        isPagination={tableTotalItems > 0}
+        isLoading={isLoading}
+        manualSortBy
+        sortBy={sortBy}
+        onSortChange={(next) => {
+          setSortBy(next);
+          setTablePage(1);
+        }}
+      />
 
-      <Modal show={showForm} onHide={() => setShowForm(false)} centered size="lg">
+      <Modal show={showForm} onHide={closeFormModal} centered>
           <Modal.Header className="py-3 px-4 border-bottom-0">
             <Modal.Title as="h5" className="custom-modal-title">
               {editing ? (isViewMode ? "Expense Category Information" : "Edit Expense Category") : "Add Expense Category"}
             </Modal.Title>
-            <CustomCloseButton onClose={() => setShowForm(false)} />
+            <CustomCloseButton onClose={closeFormModal} />
           </Modal.Header>
           <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {isViewMode && editing ? (
@@ -233,15 +380,29 @@ const ExpenseCategoryManagement = () => {
                   <i
                     className="bi bi-pencil-fill fs-6 text-danger"
                     style={{ cursor: "pointer" }}
-                    onClick={() => setIsViewMode(false)}
+                    onClick={() => {
+                      setForm({
+                        franchiseId: editing.franchiseId || "",
+                        categoryName: editing.categoryName,
+                        subCategoryName: editing.subCategoryName,
+                        description: editing.description || "",
+                      });
+                      setIsViewMode(false);
+                    }}
                   />
                 </div>
                 <div className="row">
-                  <div className="col-md-6 custom-helper-column">
+                  <div className="custom-helper-column">
                     <DetailsRow title="Category Name" value={editing.categoryName} />
-                    <DetailsRow title="Sub Category Name" value={editing.subCategoryName} />
+                   
                   </div>
-                  <div className="col-md-6 custom-helper-column">
+                  <div className="custom-helper-column">
+                  <DetailsRow title="Sub Category Name" value={editing.subCategoryName} />
+                  </div>
+                  <div className="custom-helper-column">
+                    <DetailsRow title="Franchise Name" value={editing.franchiseName || "-"} />
+                  </div>
+                  <div className="custom-helper-column">
                     <DetailsRow title="Created Date" value={formatDate(editing.createdDate)} />
                   </div>
                 </div>
@@ -255,7 +416,27 @@ const ExpenseCategoryManagement = () => {
             ) : (
               <div className="row g-2">
                 <div className="col-md-12">
+                  <CustomFormSelect
+                    label="Franchise"
+                    controlId="expense_category_franchise_id"
+                    options={[
+                      { value: "", label: "Select Franchise" },
+                      ...franchiseOptions.map((item) => ({ value: item.value, label: item.label })),
+                    ]}
+                    register={register}
+                    fieldName="expense_category_franchise_id"
+                    asCol={false}
+                    defaultValue={form.franchiseId}
+                    setValue={setValue}
+                    onChange={(e) => {
+                      setForm((p: typeof emptyForm) => ({ ...p, franchiseId: e.target.value }));
+                    }}
+                    menuPortal
+                  />
+                </div>
+                <div className="col-md-12">
                   <CustomFormInput
+                    key={`expense-category-name-${editing?.id ?? "new"}`}
                     label="Category Name"
                     controlId="expense_category_name"
                     placeholder="Enter Category Name"
@@ -267,6 +448,7 @@ const ExpenseCategoryManagement = () => {
                 </div>
                 <div className="col-md-12">
                   <CustomFormInput
+                    key={`expense-sub-category-name-${editing?.id ?? "new"}`}
                     label="Sub Category Name"
                     controlId="expense_sub_category_name"
                     placeholder="Enter Sub Category Name"
@@ -278,6 +460,7 @@ const ExpenseCategoryManagement = () => {
                 </div>
                 <div className="col-md-12">
                   <CustomFormInput
+                    key={`expense-description-${editing?.id ?? "new"}`}
                     label="Description"
                     controlId="expense_category_description"
                     placeholder="Enter Description"
@@ -294,19 +477,29 @@ const ExpenseCategoryManagement = () => {
           </Modal.Body>
           {!isViewMode && (
             <Modal.Footer>
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={closeFormModal}>Cancel</Button>
               <Button
                 className="btn-danger"
-                onClick={() => {
-                  if (!form.categoryName.trim() || !form.subCategoryName.trim()) return;
-                  saveExpenseCategory(
+                onClick={async () => {
+                  if (!form.franchiseId.trim() || !form.categoryName.trim() || !form.subCategoryName.trim()) {
+                    showErrorAlert("Franchise, Category Name and Sub Category Name are required.");
+                    return;
+                  }
+                  const selectedFranchise = franchiseOptions.find((item) => item.value === form.franchiseId);
+                  const ok = await saveExpenseCategoryWithApi(
                     {
+                      franchiseId: form.franchiseId,
+                      franchiseName: selectedFranchise?.label || "",
                       categoryName: form.categoryName,
                       subCategoryName: form.subCategoryName,
                       description: form.description,
                     },
                     editing?.id
                   );
+                  if (!ok) return;
+                  setForm(emptyForm);
+                  setEditing(null);
+                  setIsViewMode(false);
                   setShowForm(false);
                   refresh();
                 }}

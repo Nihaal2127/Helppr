@@ -5,13 +5,22 @@ import { showLog } from "../helper/utility";
 import { franchiseMockSeed } from "../mockData/franchiseMockData";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-const USE_MOCK_FRANCHISE_API = true;
+const USE_MOCK_FRANCHISE_API = false;
 
-export const fetchFranchiseDropDown = async (): Promise<{ value: string; label: string }[]> => {
+export type FranchiseDropDownOption = {
+  value: string;
+  label: string;
+  state_id?: string;
+  city_id?: string;
+};
+
+export const fetchFranchiseDropDown = async (): Promise<FranchiseDropDownOption[]> => {
   if (USE_MOCK_FRANCHISE_API) {
     return mockFranchises.map((f: any) => ({
       value: f._id,
       label: f.name,
+      state_id: f.state_id ? String(f.state_id) : undefined,
+      city_id: f.city_id ? String(f.city_id) : undefined,
     }));
   }
 
@@ -24,6 +33,8 @@ export const fetchFranchiseDropDown = async (): Promise<{ value: string; label: 
     return response.data.records.map((franchise: any) => ({
       value: franchise._id,
       label: franchise.name,
+      state_id: franchise.state_id ? String(franchise.state_id) : undefined,
+      city_id: franchise.city_id ? String(franchise.city_id) : undefined,
     }));
   } else {
     showLog(response.message || "Failed to fetch franchise");

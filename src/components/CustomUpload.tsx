@@ -5,6 +5,7 @@ import CustomCloseButton from "./CustomCloseButton";
 import uploadIcon from '../assets/icons/upload.svg';
 import {showErrorAlert} from "../helper/alertHelper";
 import { AppConstant } from "../constant/AppConstant";
+import { getSupportedImageExtensions, getSupportedImageMaxSizeBytes, isSupportedImageFile } from "../helper/utility";
 
 type CustomUploadDialogProps = {
     onUploadSave: (files: File[], replaceUrls: string[]) => void;
@@ -82,10 +83,15 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
                         type="file"
                         ref={fileInputRef}
                         style={{ display: "none" }}
-                        accept="image/*"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
+                                if (!isSupportedImageFile(file)) {
+                                    showErrorAlert(`Only ${getSupportedImageExtensions().join(", ")} formats up to ${Math.floor(getSupportedImageMaxSizeBytes() / 1024)}KB are supported.`);
+                                    e.target.value = "";
+                                    return;
+                                }
                                 handleFileChange(file)
                             }
                         }}

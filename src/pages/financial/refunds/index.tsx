@@ -218,6 +218,11 @@ const RefundsPage = () => {
         Cell: ({ row }: { row: any }) => money(row.original.total_amount),
       },
       {
+        Header: "User Paid",
+        accessor: "user_paid",
+        Cell: ({ row }: { row: any }) => money(row.original.user_paid),
+      },
+      {
         Header: "Refund Amount",
         accessor: "refund_amount",
         Cell: ({ row }: { row: any }) =>

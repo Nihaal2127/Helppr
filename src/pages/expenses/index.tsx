@@ -10,19 +10,31 @@ import CustomActionColumn from "../../components/CustomActionColumn";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import { DetailsRow, capitalizeString, formatDate } from "../../helper/utility";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { ensureSettingsSeedData, getExpenseCategories } from "../../services/settingsService";
-import { createOrUpdateExpense, fetchAllExpensesMatching, fetchExpenses, ExpensesFilters } from "../../services/expensesService";
+import {
+  ensureSettingsSeedData,
+  fetchAllExpenseCategoriesWithApi,
+  getExpenseCategories,
+} from "../../services/settingsService";
+import {
+  createOrUpdateExpense,
+  deleteExpenseById,
+  fetchAllExpensesMatching,
+  fetchExpenseById,
+  fetchExpenses,
+  ExpensesFilters,
+} from "../../services/expensesService";
 import { ExpenseModel } from "../../models/ExpenseModel";
 import { ExpenseCategoryModel } from "../../models/SettingsModel";
 import { buildExpensesCsv, downloadExpensesCsv } from "../../helper/expensesExport";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import { fetchUserById } from "../../services/userService";
 
 const toDateInputValue = (iso?: string): string => {
   if (!iso) return "";
@@ -32,6 +44,9 @@ const toDateInputValue = (iso?: string): string => {
 };
 
 type ExpenseFormState = {
+  franchiseId: string;
+  categoryId: string;
+  subCategoryId: string;
   categoryName: string;
   subCategoryName: string;
   expenseName: string;
@@ -42,6 +57,9 @@ type ExpenseFormState = {
 };
 
 const emptyForm: ExpenseFormState = {
+  franchiseId: "",
+  categoryId: "",
+  subCategoryId: "",
   categoryName: "",
   subCategoryName: "",
   expenseName: "",
@@ -51,47 +69,17 @@ const emptyForm: ExpenseFormState = {
   paymentModeId: "1",
 };
 
-const DUMMY_EXPENSES: ExpenseModel[] = [
-  {
-    category_name: "Office Expense",
-    sub_category_name: "Internet",
-    expense_name: "Internet Bill",
-    description: "Monthly broadband charges",
-    expense_amount: 2500,
-    expense_date: "2026-03-01T00:00:00.000Z",
-    payment_mode_id: 2,
-    payment_done_by_name: "Admin",
-    created_by_name: "Admin",
-  },
-  {
-    category_name: "Office Expense",
-    sub_category_name: "Internet",
-    expense_name: "Internet - Maintenance",
-    description: "Monthly power consumption",
-    expense_amount: 1800,
-    expense_date: "2026-03-10T00:00:00.000Z",
-    payment_mode_id: 1,
-    payment_done_by_name: "Accounts",
-    created_by_name: "Accounts",
-  },
-  {
-    category_name: "Office Expense",
-    sub_category_name: "Internet",
-    expense_name: "Router Maintenance",
-    description: "Service & replacement",
-    expense_amount: 950,
-    expense_date: "2026-03-18T00:00:00.000Z",
-    payment_mode_id: 2,
-    payment_done_by_name: "Admin",
-    created_by_name: "Admin",
-  },
-];
-
 const ExpensesPage = () => {
   const { register, setValue } = useForm<any>();
+  const currentUserRole = getLocalStorage(AppConstant.userRole);
+  const isSuperAdminOrStaff =
+    currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
+  const isFranchiseScopedUser =
+    currentUserRole === UserRole.FRANCHISE_ADMIN || currentUserRole === UserRole.EMPLOYEE;
 
-  const [expenses, setExpenses] = useState<ExpenseModel[]>(DUMMY_EXPENSES);
+  const [expenses, setExpenses] = useState<ExpenseModel[]>([]);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -105,7 +93,8 @@ const ExpensesPage = () => {
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const [franchiseId, setFranchiseId] = useState("");
-  const [, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
+  const [sessionFranchiseId, setSessionFranchiseId] = useState("");
+  const [franchiseOptions, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
     { value: "", label: "All Franchises" },
   ]);
 
@@ -120,9 +109,41 @@ const ExpensesPage = () => {
   const listParamsRef = useRef<ExpensesFilters>({});
 
   useEffect(() => {
+    let cancelled = false;
     ensureSettingsSeedData();
-    setExpenseCategories(getExpenseCategories());
+    (async () => {
+      const categories = await fetchAllExpenseCategoriesWithApi();
+      if (cancelled) return;
+      if (categories && categories.length > 0) {
+        setExpenseCategories(categories);
+        return;
+      }
+      // Fallback only when API is unavailable, to keep page usable.
+      setExpenseCategories(getExpenseCategories());
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isFranchiseScopedUser) {
+      setSessionFranchiseId("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const currentUserId = String(getLocalStorage(AppConstant.createdById) ?? "").trim();
+      if (!currentUserId) return;
+      const res = await fetchUserById(currentUserId);
+      if (cancelled || !res.response || !res.user) return;
+      const fid = String((res.user as any).franchise_id ?? "").trim();
+      if (fid) setSessionFranchiseId(fid);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFranchiseScopedUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,21 +181,32 @@ const ExpensesPage = () => {
     [expenseCategories]
   );
 
+  const effectiveListFranchiseId = useMemo(() => {
+    if (isFranchiseScopedUser) {
+      return sessionFranchiseId || undefined;
+    }
+    if (!franchiseId || franchiseId === "all") {
+      return undefined;
+    }
+    return franchiseId;
+  }, [franchiseId, isFranchiseScopedUser, sessionFranchiseId]);
+
   const refreshListParams = useCallback(() => {
     listParamsRef.current = {
-      keyword: keyword?.trim() ? keyword.trim() : undefined,
+      search: keyword?.trim() ? keyword.trim() : undefined,
       category: filterCategory || undefined,
       subCategory: filterSubCategory || undefined,
-      franchiseId: franchiseId || undefined,
-      sort: sort || undefined,
+      franchiseId: effectiveListFranchiseId,
+      sortOrder: sort === "-1" ? "desc" : "asc",
     };
-  }, [filterCategory, filterSubCategory, franchiseId, keyword, sort]);
+  }, [effectiveListFranchiseId, filterCategory, filterSubCategory, keyword, sort]);
 
   useEffect(() => {
     refreshListParams();
   }, [refreshListParams]);
 
   const fetchData = useCallback(async () => {
+    if (isFranchiseScopedUser && !sessionFranchiseId) return;
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
@@ -182,14 +214,16 @@ const ExpensesPage = () => {
       if (res.response) {
         setExpenses(res.expenses);
         setTotalPages(Math.max(1, res.totalPages || 1));
+        setTotalItems(res.totalItems ?? res.expenses.length);
       } else {
         setExpenses([]);
         setTotalPages(0);
+        setTotalItems(0);
       }
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, pageSize, sortBy]);
+  }, [currentPage, isFranchiseScopedUser, pageSize, sessionFranchiseId, sortBy]);
 
   useEffect(() => {
     fetchData();
@@ -200,6 +234,9 @@ const ExpensesPage = () => {
     const subCategoryName = expense.sub_category_name ?? expense.subCategoryName ?? "";
 
     return {
+      franchiseId: String((expense as any).franchise_id ?? (expense as any).franchiseId ?? ""),
+      categoryId: String((expense as any).category_id ?? (expense as any).categoryId ?? ""),
+      subCategoryId: String((expense as any).subcategory_id ?? (expense as any).subCategoryId ?? ""),
       categoryName,
       subCategoryName,
       expenseName: expense.expense_name ?? expense.expenseName ?? "",
@@ -220,33 +257,56 @@ const ExpensesPage = () => {
     };
   }, []);
 
-  const handleOpenEdit = (expense?: ExpenseModel | null) => {
-    setIsViewMode(false);
-    if (!expense) {
-      setEditingExpense(null);
-      setForm(emptyForm);
-      setShowForm(true);
-      return;
-    }
+  const handleOpenEdit = useCallback(
+    async (expense?: ExpenseModel | null) => {
+      setIsViewMode(false);
+      if (!expense) {
+        setEditingExpense(null);
+        setForm({ ...emptyForm, franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId });
+        setShowForm(true);
+        return;
+      }
 
-    setEditingExpense(expense);
-    setForm(prefillFormFromExpense(expense));
-    setShowForm(true);
-  };
+      const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
+      if (expenseId) {
+        const latest = await fetchExpenseById(expenseId, { skipLoader: true });
+        if (latest.response && latest.expense) {
+          setEditingExpense(latest.expense);
+          setForm(prefillFormFromExpense(latest.expense));
+        } else {
+          setEditingExpense(expense);
+          setForm(prefillFormFromExpense(expense));
+        }
+      } else {
+        setEditingExpense(expense);
+        setForm(prefillFormFromExpense(expense));
+      }
+      setShowForm(true);
+    },
+    [isSuperAdminOrStaff, prefillFormFromExpense, sessionFranchiseId]
+  );
 
   const handleOpenView = useCallback(
-    (expense: ExpenseModel) => {
+    async (expense: ExpenseModel) => {
       setIsViewMode(true);
-      setEditingExpense(expense);
-      setForm(prefillFormFromExpense(expense));
+      const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
+      if (expenseId) {
+        const latest = await fetchExpenseById(expenseId, { skipLoader: true });
+        if (latest.response && latest.expense) {
+          setEditingExpense(latest.expense);
+          setForm(prefillFormFromExpense(latest.expense));
+        } else {
+          setEditingExpense(expense);
+          setForm(prefillFormFromExpense(expense));
+        }
+      } else {
+        setEditingExpense(expense);
+        setForm(prefillFormFromExpense(expense));
+      }
       setShowForm(true);
     },
     [prefillFormFromExpense]
   );
-
-  const selectedModalSubCategories = useMemo(() => {
-    return subCategoryOptionsFor(form.categoryName);
-  }, [form.categoryName, subCategoryOptionsFor]);
 
   const paymentModeOptions = useMemo(() => {
     return Array.from(PaymentEnum.entries()).map(([id, v]) => ({ value: String(id), label: v.label }));
@@ -277,6 +337,16 @@ const ExpensesPage = () => {
         sort: true,
         Cell: ({ row }: any) => row.original.expense_name ?? row.original.expenseName ?? "-",
       },
+      ...(isSuperAdminOrStaff
+        ? [
+            {
+              Header: "Franchise Name",
+              accessor: "franchiseName",
+              sort: true,
+              Cell: ({ row }: any) => row.original.franchise_name ?? row.original.franchiseName ?? "-",
+            },
+          ]
+        : []),
       {
         Header: "Description / Notes",
         accessor: "description",
@@ -327,6 +397,7 @@ const ExpensesPage = () => {
           <CustomActionColumn
             row={row}
             onView={() => handleOpenView(row.original as ExpenseModel)}
+            onEdit={() => handleOpenEdit(row.original as ExpenseModel)}
             onDelete={() => {
               openConfirmDialog(
                 "Are you sure you want to void this expense?",
@@ -337,17 +408,11 @@ const ExpensesPage = () => {
                     (row.original?._id ??
                       row.original?.id ??
                       (row.original as any)?.expense_id) as string | undefined;
-                  if (!rowId) {
-                    setExpenses((prev) => prev.filter((item) => item !== row.original));
-                  } else {
-                    setExpenses((prev) =>
-                      prev.filter(
-                        (item) =>
-                          (item._id ?? item.id ?? (item as any).expense_id) !== rowId
-                      )
-                    );
-                  }
-                  showSuccessAlert("Expense voided successfully");
+                  if (!rowId) return showErrorAlert("Invalid expense id.");
+                  const ok = await deleteExpenseById(rowId);
+                  if (!ok) return;
+                  refreshListParams();
+                  fetchData();
                 }
               );
             }}
@@ -355,7 +420,7 @@ const ExpensesPage = () => {
         ),
       },
     ],
-    [currentPage, pageSize, handleOpenView]
+    [currentPage, fetchData, handleOpenEdit, handleOpenView, isSuperAdminOrStaff, pageSize, refreshListParams]
   );
 
   const handleSaveExpense = async () => {
@@ -364,7 +429,7 @@ const ExpensesPage = () => {
     const expenseName = form.expenseName.trim();
     const description = form.description.trim();
     const expenseAmountNum = Number(form.expenseAmount);
-    const expenseDateIso = form.expenseDate ? new Date(form.expenseDate).toISOString() : "";
+    const expenseDateYmd = form.expenseDate || "";
     const paymentModeIdNum = Number(form.paymentModeId);
 
     if (!categoryName) return showErrorAlert("Please select Category");
@@ -379,15 +444,29 @@ const ExpensesPage = () => {
       return showErrorAlert("Invalid Payment Mode");
     }
 
+    const selectedCategory = expenseCategories.find(
+      (item) =>
+        item.categoryName === categoryName &&
+        item.subCategoryName === subCategoryName
+    );
+
+    const categoryId = form.categoryId || selectedCategory?.categoryId || selectedCategory?.id || "";
+    const subCategoryId = form.subCategoryId || selectedCategory?.subCategoryId || "";
+    const payloadFranchiseId = isSuperAdminOrStaff ? form.franchiseId.trim() : sessionFranchiseId.trim();
+
+    if (!categoryId) return showErrorAlert("Category id not found for selected category.");
+    if (!subCategoryId) return showErrorAlert("Sub category id not found for selected sub category.");
+    if (!payloadFranchiseId) return showErrorAlert("Franchise id not found.");
+
     const payload = {
-      category_name: categoryName,
-      sub_category_name: subCategoryName,
+      franchise_id: payloadFranchiseId,
+      category_id: categoryId,
+      subcategory_id: subCategoryId,
       expense_name: expenseName,
       description,
       expense_amount: expenseAmountNum,
-      expense_date: expenseDateIso,
-      payment_mode_id: paymentModeIdNum,
-      created_by_id: getLocalStorage(AppConstant.createdById),
+      expense_date: expenseDateYmd,
+      payment_mode: PaymentEnum.get(paymentModeIdNum)?.label ?? "COD",
     };
 
     const id = (editingExpense?._id ?? editingExpense?.id ?? (editingExpense as any)?.expense_id) as string | undefined;
@@ -399,6 +478,7 @@ const ExpensesPage = () => {
       // Force refresh even if currentPage/filters stay the same.
       setCurrentPage(1);
       setTotalPages(0);
+      setTotalItems(0);
       refreshListParams();
       fetchData();
     }
@@ -446,7 +526,7 @@ const ExpensesPage = () => {
         <CustomSummaryBox
           divId="box-expenses"
           title={capitalizeString("expenses")}
-          data={{ Total: expenses.length }}
+          data={{ Total: totalItems }}
           onSelect={() => {}}
           isSelected={true}
           onFilterChange={() => {}}
@@ -663,24 +743,57 @@ const ExpensesPage = () => {
             </section>
           ) : (
             <div className="row g-2">
+              {isSuperAdminOrStaff && (
+                <div className="col-md-6">
+                  <CustomFormSelect
+                    label="Franchise"
+                    controlId="expense_modal_franchise"
+                    options={[
+                      { value: "", label: "Select Franchise" },
+                      ...franchiseOptions
+                        .filter((item) => item.value !== "all")
+                        .map((item) => ({ value: item.value, label: item.label })),
+                    ]}
+                    register={register}
+                    fieldName="expense_modal_franchise"
+                    asCol={false}
+                    defaultValue={form.franchiseId}
+                    setValue={setValue}
+                    onChange={(e) => setForm((p) => ({ ...p, franchiseId: e.target.value }))}
+                    menuPortal
+                  />
+                </div>
+              )}
               <div className="col-md-6">
                 <CustomFormSelect
                   label="Category"
                   controlId="expense_modal_category"
                   options={[
                     { value: "", label: "Select Category" },
-                    ...categoryOptions.map((c) => ({ value: c, label: c })),
+                    ...Array.from(
+                      new Map(
+                        expenseCategories.map((c) => [
+                          c.categoryId || c.id,
+                          { value: c.categoryId || c.id, label: c.categoryName },
+                        ])
+                      ).values()
+                    ),
                   ]}
                   register={register}
                   fieldName="expense_modal_category"
                   asCol={false}
-                  defaultValue={form.categoryName}
+                  defaultValue={form.categoryId}
                   setValue={setValue}
                   onChange={(e) => {
-                    const newCategory = e.target.value;
+                    const newCategoryId = e.target.value;
+                    const pickedCategory = expenseCategories.find(
+                      (item) => (item.categoryId || item.id) === newCategoryId
+                    );
                     setForm((p) => ({
                       ...p,
-                      categoryName: newCategory,
+                      categoryId: newCategoryId,
+                      categoryName: pickedCategory?.categoryName || "",
+                      subCategoryId: "",
                       subCategoryName: "",
                     }));
                   }}
@@ -700,17 +813,33 @@ const ExpensesPage = () => {
                     options={[
                       {
                         value: "",
-                        label: form.categoryName ? "Select Sub Category" : "Select Category first",
+                        label: form.categoryId ? "Select Sub Category" : "Select Category first",
                       },
-                      ...selectedModalSubCategories.map((sc) => ({ value: sc, label: sc })),
+                      ...expenseCategories
+                        .filter((item) => (item.categoryId || item.id) === form.categoryId)
+                        .map((item) => ({
+                          value: item.subCategoryId || "",
+                          label: item.subCategoryName,
+                        }))
+                        .filter((item) => Boolean(item.value)),
                     ]}
                     register={register}
                     fieldName="expense_modal_sub_category"
                     asCol={false}
-                    defaultValue={form.subCategoryName}
+                    defaultValue={form.subCategoryId}
                     setValue={setValue}
                     onChange={(e) => {
-                      setForm((p) => ({ ...p, subCategoryName: e.target.value }));
+                      const newSubCategoryId = e.target.value;
+                      const pickedSubCategory = expenseCategories.find(
+                        (item) =>
+                          (item.categoryId || item.id) === form.categoryId &&
+                          (item.subCategoryId || "") === newSubCategoryId
+                      );
+                      setForm((p) => ({
+                        ...p,
+                        subCategoryId: newSubCategoryId,
+                        subCategoryName: pickedSubCategory?.subCategoryName || "",
+                      }));
                     }}
                   />
                 </div>

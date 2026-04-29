@@ -20,6 +20,7 @@ import {
   staffAvailablePagesFromMenuKeys,
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
+import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -141,6 +142,14 @@ type SettingsRoleStaffApiData = {
   staff: StaffSettingsModel[];
 };
 
+export type SettingsSectionPageResult = {
+  roles: RoleSettingsModel[];
+  staff: StaffSettingsModel[];
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+};
+
 function normalizeActiveStatus(raw: unknown): "active" | "inactive" {
   if (raw === true || raw === 1 || String(raw).toLowerCase() === "active") return "active";
   if (raw === false || raw === 0 || String(raw).toLowerCase() === "inactive") return "inactive";
@@ -158,6 +167,9 @@ function mapApiUserToRoleSettingsModel(raw: Record<string, unknown>, roleType: "
     roleName: name,
     roleType,
     assignedFranchise: String(raw.franchise_name ?? raw.assigned_franchise ?? "").trim() || undefined,
+    franchise_id: String(raw.franchise_id ?? "").trim() || undefined,
+    state_id: String(raw.state_id ?? "").trim() || undefined,
+    city_id: String(raw.city_id ?? "").trim() || undefined,
     email: String(raw.email ?? "").trim() || undefined,
     phone_number: String(raw.phone_number ?? "").trim() || undefined,
     profile_url: String(raw.profile_url ?? "").trim() || undefined,
@@ -184,6 +196,100 @@ function mapApiUserToStaffSettingsModel(raw: Record<string, unknown>): StaffSett
     franchisePermissions: [],
   };
 }
+
+function mapRowsByType(
+  type: number,
+  rows: Record<string, unknown>[]
+): { roles: RoleSettingsModel[]; staff: StaffSettingsModel[] } {
+  if (type === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN) {
+    return {
+      roles: rows.map((u) => mapApiUserToRoleSettingsModel(u, "franchise_admin")),
+      staff: [] as StaffSettingsModel[],
+    };
+  }
+  if (type === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE) {
+    return {
+      roles: rows.map((u) => mapApiUserToRoleSettingsModel(u, "employee")),
+      staff: [] as StaffSettingsModel[],
+    };
+  }
+  if (type === WEB_MANAGEMENT_USER_TYPE.STAFF) {
+    return {
+      roles: [] as RoleSettingsModel[],
+      staff: rows.map(mapApiUserToStaffSettingsModel),
+    };
+  }
+  return { roles: [] as RoleSettingsModel[], staff: [] as StaffSettingsModel[] };
+}
+
+export const fetchSettingsSectionPageByType = async (
+  type: number,
+  page: number,
+  limit: number,
+  filters?: { keyword?: string; status?: "all" | "active" | "inactive" },
+  sortBy: ServerTableSortBy = []
+): Promise<SettingsSectionPageResult | null> => {
+  const primarySort = sortBy[0];
+  const mappedSortField = (() => {
+    if (!primarySort?.id) return undefined;
+    if (primarySort.id === "roleName" || primarySort.id === "name") return "name";
+    if (primarySort.id === "email") return "email";
+    return undefined;
+  })();
+  const keyword = filters?.keyword?.trim();
+  const params = new URLSearchParams({
+    type: String(type),
+    page: String(page),
+    limit: String(limit),
+    _ts: String(Date.now()),
+    ...(keyword ? { keyword } : {}),
+    ...(keyword ? { search: keyword } : {}),
+    ...(keyword ? { name: keyword } : {}),
+    ...(filters?.status && filters.status !== "all"
+      ? { is_active: filters.status === "active" ? "true" : "false" }
+      : {}),
+    ...(mappedSortField ? { sort_by: mappedSortField } : {}),
+    ...(mappedSortField ? { sortBy: mappedSortField } : {}),
+    ...(primarySort ? { sort_order: primarySort.desc ? "desc" : "asc" } : {}),
+    ...(primarySort ? { sortOrder: primarySort.desc ? "desc" : "asc" } : {}),
+  });
+
+  const res = await apiRequest(
+    `${ApiPaths.GET_USER()}?${params.toString()}`,
+    "GET",
+    undefined,
+    false,
+    true,
+    true
+  );
+  if (!res.success) return null;
+
+  const d = (res.data ?? {}) as Record<string, unknown>;
+  const records =
+    (Array.isArray((d.data as Record<string, unknown> | undefined)?.records)
+      ? (d.data as Record<string, unknown>).records
+      : Array.isArray(d.records)
+        ? d.records
+        : []) as Record<string, unknown>[];
+
+  const totalItems = Number(
+    (d.data as Record<string, unknown> | undefined)?.totalItems ?? d.totalItems ?? records.length
+  );
+  const totalPages = Number(
+    (d.data as Record<string, unknown> | undefined)?.totalPages ?? d.totalPages ?? 1
+  );
+  const currentPage = Number(
+    (d.data as Record<string, unknown> | undefined)?.currentPage ?? d.currentPage ?? page
+  );
+
+  const mapped = mapRowsByType(type, records);
+  return {
+    ...mapped,
+    totalItems: Number.isFinite(totalItems) ? totalItems : records.length,
+    totalPages: Number.isFinite(totalPages) ? totalPages : 1,
+    currentPage: Number.isFinite(currentPage) ? currentPage : page,
+  };
+};
 
 async function fetchAllUsersByType(type: number): Promise<Record<string, unknown>[] | null> {
   const limit = 100;
@@ -252,31 +358,9 @@ export const fetchRoleAndStaffFromApi = async (): Promise<SettingsRoleStaffApiDa
 export const fetchSettingsSectionByType = async (
   type: number
 ): Promise<{ roles: RoleSettingsModel[]; staff: StaffSettingsModel[] } | null> => {
-  const mapRows = (rows: Record<string, unknown>[]) => {
-    if (type === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN) {
-      return {
-        roles: rows.map((u) => mapApiUserToRoleSettingsModel(u, "franchise_admin")),
-        staff: [] as StaffSettingsModel[],
-      };
-    }
-    if (type === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE) {
-      return {
-        roles: rows.map((u) => mapApiUserToRoleSettingsModel(u, "employee")),
-        staff: [] as StaffSettingsModel[],
-      };
-    }
-    if (type === WEB_MANAGEMENT_USER_TYPE.STAFF) {
-      return {
-        roles: [] as RoleSettingsModel[],
-        staff: rows.map(mapApiUserToStaffSettingsModel),
-      };
-    }
-    return { roles: [] as RoleSettingsModel[], staff: [] as StaffSettingsModel[] };
-  };
-
   const rows = await fetchAllUsersByType(type);
   if (rows && rows.length > 0) {
-    return mapRows(rows);
+    return mapRowsByType(type, rows);
   }
 
   // Fallback: some environments fail/empty on specific type calls but succeed on dashboard list type=4.
@@ -285,7 +369,7 @@ export const fetchSettingsSectionByType = async (
   const filtered = allDashboardMembers.filter(
     (u) => Number((u as Record<string, unknown>).type) === Number(type)
   );
-  return mapRows(filtered);
+  return mapRowsByType(type, filtered);
 };
 
 export const saveStaff = (
@@ -339,7 +423,8 @@ function normalizedPagesFromPermKeys(keys: string[]) {
  * then append to in-memory list for the settings UI.
  */
 export const createRoleUserWithApi = async (
-  payload: Omit<RoleSettingsModel, "id" | "createdDate">
+  payload: Omit<RoleSettingsModel, "id" | "createdDate">,
+  imageFile?: File
 ): Promise<boolean> => {
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
   if (!createdById) {
@@ -361,6 +446,9 @@ export const createRoleUserWithApi = async (
     status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
     created_by_id: createdById,
+    franchise_id: payload.franchise_id,
+    state_id: payload.state_id,
+    city_id: payload.city_id,
     profile_url: profileUrlForApi(payload.profile_url),
   };
   const result = await createWebManagementUser(
@@ -368,10 +456,12 @@ export const createRoleUserWithApi = async (
       ? {
           ...commonBody,
           // Franchise admin screens are fixed by role; do not send screen list payload.
+          imageFile,
         }
       : {
           ...commonBody,
           available_pages: mapMenuKeysToAvailablePages(permKeys),
+          imageFile,
         }
   );
 
@@ -401,7 +491,8 @@ export const createRoleUserWithApi = async (
 /** Update franchise admin / franchise employee via `PUT /user/update/:id`. */
 export const updateRoleUserWithApi = async (
   id: string,
-  payload: Omit<RoleSettingsModel, "id" | "createdDate">
+  payload: Omit<RoleSettingsModel, "id" | "createdDate">,
+  imageFile?: File
 ): Promise<boolean> => {
   const userId = String(id || "").trim();
   if (!userId) return false;
@@ -416,6 +507,9 @@ export const updateRoleUserWithApi = async (
     phone_number: (payload.phone_number ?? "").trim(),
     status: sanitizeStatus(payload.status),
     is_active: updateStatusPayloadValue(payload.status),
+    franchise_id: payload.franchise_id,
+    state_id: payload.state_id,
+    city_id: payload.city_id,
     profile_url: profileUrlForApi(payload.profile_url),
   };
   if (!isFranchiseAdmin) {
@@ -423,7 +517,23 @@ export const updateRoleUserWithApi = async (
     body.accessible_screens = availablePages;
   }
 
-  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", body);
+  const shouldSendMultipart = Boolean(imageFile);
+  let requestPayload: Record<string, unknown> | FormData = body;
+  if (shouldSendMultipart) {
+    const formData = new FormData();
+    Object.entries(body).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (typeof value === "object") {
+        formData.append(key, JSON.stringify(value));
+        return;
+      }
+      formData.append(key, String(value));
+    });
+    formData.append("image", imageFile as File);
+    requestPayload = formData;
+  }
+
+  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", requestPayload, shouldSendMultipart);
   if (!res.success) return false;
   return true;
 };
@@ -432,7 +542,8 @@ export const updateRoleUserWithApi = async (
  * Create staff (Postman `type: 6`) via `POST /user/create`, then append to in-memory list.
  */
 export const createStaffUserWithApi = async (
-  payload: Omit<StaffSettingsModel, "id" | "createdDate">
+  payload: Omit<StaffSettingsModel, "id" | "createdDate">,
+  imageFile?: File
 ): Promise<boolean> => {
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
   if (!createdById) {
@@ -451,6 +562,7 @@ export const createStaffUserWithApi = async (
     created_by_id: createdById,
     available_pages: staffAvailablePagesFromMenuKeys(staffPermKeys),
     profile_url: profileUrlForApi(payload.profile_url),
+    imageFile,
   });
 
   if (!result.ok) return false;
@@ -479,7 +591,8 @@ export const createStaffUserWithApi = async (
 /** Update staff via `PUT /user/update/:id`. */
 export const updateStaffUserWithApi = async (
   id: string,
-  payload: Omit<StaffSettingsModel, "id" | "createdDate">
+  payload: Omit<StaffSettingsModel, "id" | "createdDate">,
+  imageFile?: File
 ): Promise<boolean> => {
   const userId = String(id || "").trim();
   if (!userId) return false;
@@ -497,7 +610,23 @@ export const updateStaffUserWithApi = async (
     accessible_screens: pages,
   };
 
-  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", body);
+  const shouldSendMultipart = Boolean(imageFile);
+  let requestPayload: Record<string, unknown> | FormData = body;
+  if (shouldSendMultipart) {
+    const formData = new FormData();
+    Object.entries(body).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (typeof value === "object") {
+        formData.append(key, JSON.stringify(value));
+        return;
+      }
+      formData.append(key, String(value));
+    });
+    formData.append("image", imageFile as File);
+    requestPayload = formData;
+  }
+
+  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", requestPayload, shouldSendMultipart);
   if (!res.success) return false;
   return true;
 };
@@ -527,4 +656,161 @@ export const saveExpenseCategory = (
 
 export const voidExpenseCategory = (id: string) => {
   mockExpenseCategories = mockExpenseCategories.filter((item) => item.id !== id);
+};
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  return value as Record<string, unknown>;
+}
+
+function pickExpenseCategoryRows(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const data = toRecord(payload.data);
+  const records = data?.records;
+  if (Array.isArray(records)) return records as Record<string, unknown>[];
+  if (Array.isArray(payload.records)) return payload.records as Record<string, unknown>[];
+  const nestedData = data?.data;
+  if (Array.isArray(nestedData)) return nestedData as Record<string, unknown>[];
+  if (Array.isArray(payload.data)) return payload.data as Record<string, unknown>[];
+  return [];
+}
+
+function mapApiExpenseCategory(raw: Record<string, unknown>): ExpenseCategoryModel {
+  const rowId = String(raw._id ?? raw.id ?? raw.expense_category_id ?? generateId());
+  return {
+    id: rowId,
+    categoryId: String(raw.category_id ?? raw.categoryId ?? rowId).trim() || rowId,
+    subCategoryId:
+      String(
+        raw.subcategory_id ??
+          raw.sub_category_id ??
+          raw.subCategoryId ??
+          raw.service_id ??
+          raw.serviceId ??
+          ""
+      ).trim() || undefined,
+    franchiseId: String(raw.franchise_id ?? raw.franchiseId ?? "").trim() || undefined,
+    franchiseName: String(raw.franchise_name ?? raw.franchiseName ?? "").trim() || undefined,
+    categoryName: String(raw.category_name ?? raw.categoryName ?? "").trim(),
+    subCategoryName: String(raw.sub_category_name ?? raw.subCategoryName ?? "").trim(),
+    description: String(raw.description ?? "").trim(),
+    createdDate: String(raw.created_at ?? raw.createdDate ?? new Date().toISOString()),
+  };
+}
+
+/** Single page from `/expense-category-management/getAll?page=&limit=` (Postman contract). */
+export const fetchExpenseCategoriesPage = async (
+  page = 1,
+  limit = 100,
+  filters?: {
+    search?: string;
+    sort?: string;
+    sortOrder?: "asc" | "desc";
+    startDate?: string;
+    endDate?: string;
+  }
+): Promise<{ rows: ExpenseCategoryModel[]; totalPages: number; totalItems?: number } | null> => {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    ...(filters?.search ? { search: filters.search } : {}),
+    ...(filters?.sort ? { sort: filters.sort } : {}),
+    ...(filters?.sortOrder ? { sort_order: filters.sortOrder } : {}),
+    ...(filters?.startDate ? { startDate: filters.startDate } : {}),
+    ...(filters?.endDate ? { endDate: filters.endDate } : {}),
+    _ts: String(Date.now()),
+  });
+  const res = await apiRequest(
+    `${ApiPaths.GET_EXPENSE_CATEGORY()}?${params.toString()}`,
+    "GET",
+    undefined,
+    false,
+    true,
+    true
+  );
+  if (!res.success) return null;
+
+  const payload = toRecord(res.data) ?? {};
+  const rows = pickExpenseCategoryRows(payload).map(mapApiExpenseCategory);
+
+  const data = toRecord(payload.data);
+  const inner = data != null && typeof data === "object" && !Array.isArray(data) ? data : null;
+  const totalPagesRaw = inner?.totalPages ?? data?.totalPages ?? payload.totalPages ?? 0;
+  const totalItemsRaw = inner?.totalItems ?? data?.totalItems ?? payload.totalItems;
+  let totalPages = Number(totalPagesRaw);
+  const totalItemsParsed =
+    totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+      ? undefined
+      : Number(totalItemsRaw);
+  const totalItems = totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed) ? totalItemsParsed : undefined;
+
+  if (!Number.isFinite(totalPages) || totalPages < 1) {
+    if (totalItems !== undefined && limit > 0) {
+      totalPages = Math.max(1, Math.ceil(totalItems / limit));
+    } else if (rows.length < limit) {
+      totalPages = Math.max(1, page);
+    } else {
+      totalPages = Math.max(page + 1, 2);
+    }
+  } else {
+    totalPages = Math.max(1, totalPages);
+  }
+
+  return { rows, totalPages, totalItems };
+};
+
+const EXPENSE_CATEGORY_FETCH_BATCH = 100;
+
+/** Walks all API pages (page + limit) and refreshes local mock cache. */
+export const fetchAllExpenseCategoriesWithApi = async (): Promise<ExpenseCategoryModel[] | null> => {
+  let page = 1;
+  const all: ExpenseCategoryModel[] = [];
+  for (;;) {
+    // eslint-disable-next-line no-await-in-loop
+    const chunk = await fetchExpenseCategoriesPage(page, EXPENSE_CATEGORY_FETCH_BATCH);
+    if (!chunk) return null;
+    if (chunk.rows.length === 0) break;
+    all.push(...chunk.rows);
+    if (chunk.rows.length < EXPENSE_CATEGORY_FETCH_BATCH) break;
+    page += 1;
+    if (page > 500) break;
+  }
+  mockExpenseCategories = all.map((item) => ({ ...item }));
+  return all;
+};
+
+/** API create/update using Postman expense-category-management contract. */
+export const saveExpenseCategoryWithApi = async (
+  payload: Omit<ExpenseCategoryModel, "id" | "createdDate">,
+  id?: string
+): Promise<boolean> => {
+  const body = {
+    franchise_id: String(payload.franchiseId ?? "").trim(),
+    category_name: payload.categoryName.trim(),
+    sub_category_name: payload.subCategoryName.trim(),
+    description: (payload.description ?? "").trim(),
+  };
+  const isUpdate = Boolean(String(id ?? "").trim());
+  const endpoint = isUpdate
+    ? ApiPaths.UPDATE_EXPENSE_CATEGORY(String(id).trim())
+    : ApiPaths.CREATE_EXPENSE_CATEGORY;
+
+  const res = await apiRequest(endpoint, isUpdate ? "PUT" : "POST", body);
+  if (!res.success) return false;
+
+  // Refresh local cache from API after mutating operations.
+  await fetchAllExpenseCategoriesWithApi();
+  return true;
+};
+
+/** API delete via `/expense-category-management/delete/:id`. */
+export const voidExpenseCategoryWithApi = async (id: string): Promise<boolean> => {
+  const targetId = String(id ?? "").trim();
+  if (!targetId) {
+    showErrorAlert("Invalid expense category id.");
+    return false;
+  }
+  const res = await apiRequest(ApiPaths.DELETE_EXPENSE_CATEGORY(targetId), "DELETE");
+  if (!res.success) return false;
+  await fetchAllExpenseCategoriesWithApi();
+  return true;
 };

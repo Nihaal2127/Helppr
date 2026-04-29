@@ -28,6 +28,21 @@ export const getStatusOptions = () => [
     { label: "Inactive", value: "false" }
 ];
 
+const SUPPORTED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"];
+const SUPPORTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
+const SUPPORTED_IMAGE_MAX_SIZE_BYTES = 512 * 1024;
+
+export const getSupportedImageExtensions = (): string[] => [...SUPPORTED_IMAGE_EXTENSIONS];
+export const getSupportedImageMaxSizeBytes = (): number => SUPPORTED_IMAGE_MAX_SIZE_BYTES;
+
+export const isSupportedImageFile = (file: File): boolean => {
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const hasSupportedExtension = SUPPORTED_IMAGE_EXTENSIONS.includes(extension);
+    const hasSupportedMimeType = SUPPORTED_IMAGE_MIME_TYPES.includes((file.type || "").toLowerCase());
+    const isWithinSupportedSize = file.size <= SUPPORTED_IMAGE_MAX_SIZE_BYTES;
+    return hasSupportedExtension && hasSupportedMimeType && isWithinSupportedSize;
+};
+
 export const formatDate = (isoString: string): string => {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) {

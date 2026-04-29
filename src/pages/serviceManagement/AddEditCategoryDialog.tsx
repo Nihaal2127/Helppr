@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useForm, UseFormRegister } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CategoryModel } from "../../models/CategoryModel";
@@ -24,6 +24,11 @@ type AddEditCategoryDialogProps = {
     onRefreshData: () => void;
 };
 
+type CategoryFormValues = CategoryModel & {
+    approval_status?: "approved" | "rejected";
+    rejection_reason?: string;
+};
+
 const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     show: (
         isEditable: boolean,
@@ -42,7 +47,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         handleSubmit,
         setValue,
         formState: { errors },
-    } = useForm<CategoryModel>({
+        watch,
+    } = useForm<CategoryFormValues>({
         mode: "onSubmit",
         reValidateMode: "onSubmit",
         defaultValues: {
@@ -50,6 +56,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             desc: category?.desc || "",
             is_active: category?.is_active ?? true,
             franchise_id: category?.franchise_id || "",
+            approval_status: category?.is_active === false ? "rejected" : "approved",
+            rejection_reason: (category as any)?.rejection_reason ?? "",
         },
     });
 
@@ -153,7 +161,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             .filter(Boolean) as string[];
     }, [category, serviceOptions, serviceIds]);
 
-    const onSubmitEvent = async (data: CategoryModel) => {
+    const approvalStatus = watch("approval_status");
+
+    const onSubmitEvent = async (data: CategoryFormValues) => {
         if (!data.franchise_id) {
             showErrorAlert("Please select franchise");
             return;
@@ -189,7 +199,13 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         const payload = {
             name: data.name,
             desc: data.desc,
-            is_active: data.is_active,
+            is_active: isEditable ? data.approval_status !== "rejected" : data.is_active,
+            ...(isEditable && {
+                rejection_reason:
+                    data.approval_status === "rejected"
+                        ? (data.rejection_reason ?? "").trim()
+                        : "",
+            }),
             service_ids: serviceIds,
             franchise_id: data.franchise_id,
             ...(image_url !== "" && { image_url }),
@@ -321,20 +337,54 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                                 onFileChange={(files, replaceUrlsFromUploader) => {
                                     setFileInputs(files);
                                     setReplaceUrl(replaceUrlsFromUploader);
-                                }}
+                                }} 
                             />
                             <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
                         </Col>
                         <Col md={6}>
-                            <CustomRadioSelection
-                                label="Status"
-                                name="is_active"
-                                options={getStatusOptions()}
-                                defaultValue={isEditable ? category?.is_active?.toString() : "true"}
-                                isEditable={isEditable}
-                                setValue={setValue}
-                            />
+                            {isEditable ? (
+                                <CustomRadioSelection
+                                    label="Approval Status"
+                                    name="approval_status"
+                                    options={[
+                                        { label: "Approved", value: "approved" },
+                                        { label: "Rejected", value: "rejected" },
+                                    ]}
+                                    defaultValue={category?.is_active === false ? "rejected" : "approved"}
+                                    isEditable={isEditable}
+                                    setValue={setValue}
+                                />
+                            ) : (
+                                <CustomRadioSelection
+                                    label="Status"
+                                    name="is_active"
+                                    options={getStatusOptions()}
+                                    defaultValue={isEditable ? category?.is_active?.toString() : "true"}
+                                    isEditable={isEditable}
+                                    setValue={setValue}
+                                />
+                            )}
                         </Col>
+                        {isEditable && approvalStatus === "rejected" && (
+                            <Col md={12}>
+                                <CustomFormInput
+                                    label="Rejection Reason"
+                                    controlId="rejection_reason"
+                                    placeholder="Enter reason for rejection"
+                                    register={register}
+                                    error={(errors as any).rejection_reason}
+                                    asCol={false}
+                                    validation={{
+                                        validate: (value: string) =>
+                                            value?.trim()
+                                                ? true
+                                                : "Rejection reason is required",
+                                    }}
+                                    as="textarea"
+                                    rows={3}
+                                />
+                            </Col>
+                        )}
                         <Col md={12}>
                             <CustomFormInput
                                 label="Description"

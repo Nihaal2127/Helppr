@@ -3,6 +3,8 @@ import { Modal, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../components/CustomCloseButton";
 import { Link } from 'react-router-dom';
 import { showLog } from "../helper/utility";
+import { showErrorAlert } from "../helper/alertHelper";
+import { getSupportedImageExtensions, getSupportedImageMaxSizeBytes, isSupportedImageFile } from "../helper/utility";
 
 interface CustomPhotoUploadProps {
     isOpen?: boolean;
@@ -86,13 +88,18 @@ const CustomPhotoUpload = ({
                         Upload from Computer
                         <input
                             type="file"
-                            accept="image/*"
+                            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                             style={{
                                 display: "none",
                             }}
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
+                                    if (!isSupportedImageFile(file)) {
+                                        showErrorAlert(`Only ${getSupportedImageExtensions().join(", ")} formats up to ${Math.floor(getSupportedImageMaxSizeBytes() / 1024)}KB are supported.`);
+                                        e.target.value = "";
+                                        return;
+                                    }
                                     showLog("Selected file:", file);
                                     handleFileChange(file)
                                 }

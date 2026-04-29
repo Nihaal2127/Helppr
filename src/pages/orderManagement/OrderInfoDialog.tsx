@@ -385,15 +385,19 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                             </Col>
                             <Col md={6} className="custom-helper-column">
                                 <DetailsRow title="Email" value={primary?.partner_info?.email ?? "-"} />
-                            </Col>
-                        </Row>
-                        <Row className="mt-2">
-                            <Col xs={12} md={12}>
                                 <WideLabelValueBlock label="Address" whiteSpace="normal">
                                     {primary?.partner_info?.address}
                                 </WideLabelValueBlock>
                             </Col>
+                            {/* <Col xs={12} md={6}>
+                                {/* <WideLabelValueBlock label="Address" whiteSpace="normal">
+                                    {primary?.partner_info?.address}
+                                </WideLabelValueBlock> 
+                            </Col> */}
                         </Row>
+                        {/* <Row className="mt-2">
+                           
+                        </Row> */}
                     </section>
 
                     {/* Employee */}

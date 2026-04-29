@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import Select, { MultiValue } from "react-select";
+import CustomImageUploader from "../../../components/CustomImageUploader";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
 import CustomTable from "../../../components/CustomTable";
@@ -18,16 +19,10 @@ import {
   createStaffUserWithApi,
   updateRoleUserWithApi,
   updateStaffUserWithApi,
-  fetchRoleAndStaffFromApi,
-  fetchSettingsSectionByType,
-  getRoles,
-  getStaff,
-  saveRole,
-  saveStaff,
+  fetchSettingsSectionPageByType,
   voidRole,
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
-import CustomTextFieldUpload from "../../../components/CustomTextFieldUpload";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { showErrorAlert } from "../../../helper/alertHelper";
 import { mainMenuItems } from "../../../layout/menuItems";
@@ -36,11 +31,12 @@ import {
   isFranchiseEmployeeExcludedScreenKey,
   labelForFranchiseEmployeeScreenKey,
 } from "../../../layout/franchiseEmployeeScreenPermissions";
-import { franchiseMockSeed } from "../../../mockData/franchiseMockData";
 import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
 import { WEB_MANAGEMENT_USER_TYPE } from "../../../services/userService";
+import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
+import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 const emptyRoleForm = {
   roleName: "",
@@ -56,8 +52,10 @@ const emptyRoleForm = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_PATTERN.test(v.trim());
 const isValidPhone10 = (v: string) => /^\d{10}$/.test(v.trim());
-
-const franchiseCatalogNames = franchiseMockSeed.map((f) => f.name);
+const toLocalPhone10Digits = (phone?: string) => {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
 
 const STAFF_FRANCHISE_ALL = "__all__";
 
@@ -93,7 +91,53 @@ const staffFranchiseSummary = (s: StaffSettingsModel) =>
       ? s.franchisePermissions.join(", ")
       : "-";
 
+type SummaryCounts = {
+  total: number;
+  active: number;
+  inactive: number;
+};
+
+const EMPTY_SUMMARY_COUNTS: SummaryCounts = {
+  total: 0,
+  active: 0,
+  inactive: 0,
+};
+
+const compareNullableText = (a?: string, b?: string) =>
+  (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
+
+function applyRoleSortFallback(rows: RoleSettingsModel[], sortBy: ServerTableSortBy): RoleSettingsModel[] {
+  const primarySort = sortBy[0];
+  if (!primarySort) return rows;
+  if (primarySort.id !== "roleName" && primarySort.id !== "email") return rows;
+  const dir = primarySort.desc ? -1 : 1;
+  const sorted = [...rows].sort((left, right) => {
+    const base =
+      primarySort.id === "roleName"
+        ? compareNullableText(left.roleName, right.roleName)
+        : compareNullableText(left.email, right.email);
+    return base * dir;
+  });
+  return sorted;
+}
+
+function applyStaffSortFallback(rows: StaffSettingsModel[], sortBy: ServerTableSortBy): StaffSettingsModel[] {
+  const primarySort = sortBy[0];
+  if (!primarySort) return rows;
+  if (primarySort.id !== "name" && primarySort.id !== "email") return rows;
+  const dir = primarySort.desc ? -1 : 1;
+  const sorted = [...rows].sort((left, right) => {
+    const base =
+      primarySort.id === "name"
+        ? compareNullableText(left.name, right.name)
+        : compareNullableText(left.email, right.email);
+    return base * dir;
+  });
+  return sorted;
+}
+
 const RoleManagement = () => {
+  const SETTINGS_ROLE_PAGE_SIZE = 10;
   const { register, setValue } = useForm<any>();
   const isFranchiseAdminSession = getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
   const [items, setItems] = useState<RoleSettingsModel[]>([]);
@@ -124,11 +168,24 @@ const RoleManagement = () => {
   const [roleSavePending, setRoleSavePending] = useState(false);
   const [staffSavePending, setStaffSavePending] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [roleCurrentPage, setRoleCurrentPage] = useState(1);
+  const [roleTotalPages, setRoleTotalPages] = useState(1);
+  const [staffCurrentPage, setStaffCurrentPage] = useState(1);
+  const [staffTotalPages, setStaffTotalPages] = useState(1);
+  const [roleSortBy, setRoleSortBy] = useState<ServerTableSortBy>([]);
+  const [staffSortBy, setStaffSortBy] = useState<ServerTableSortBy>([]);
+  const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<FranchiseDropDownOption[]>([]);
+  const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
+  const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
+  const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+  const [employeeSummaryCounts, setEmployeeSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+  const [staffSummaryCounts, setStaffSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
 
   const openFormWithData = useCallback((item?: RoleSettingsModel, viewMode = false) => {
     if (!item) {
       setEditing(null);
       setForm(emptyRoleForm);
+      setRoleImageFile(null);
       setIsViewMode(false);
       setShowForm(true);
       return;
@@ -150,12 +207,14 @@ const RoleManagement = () => {
           : rawPerms,
     });
     setShowForm(true);
+    setRoleImageFile(null);
   }, []);
 
   const openStaffWithData = useCallback((item?: StaffSettingsModel, viewMode = false) => {
     if (!item) {
       setStaffEditing(null);
       setStaffForm({ ...emptyStaffForm });
+      setStaffImageFile(null);
       setStaffIsViewMode(false);
       setShowStaffModal(true);
       return;
@@ -175,10 +234,46 @@ const RoleManagement = () => {
       franchisePermissions: item.franchisePermissions?.length ? [...item.franchisePermissions] : [],
     });
     setShowStaffModal(true);
+    setStaffImageFile(null);
   }, []);
 
-  const refresh = useCallback(() => setItems(getRoles()), []);
-  const refreshStaff = useCallback(() => setStaffItems(getStaff()), []);
+  useEffect(() => {
+    if (!showForm || !editing) return;
+    const rawPerms = editing.screenPermissions?.length ? [...editing.screenPermissions] : [];
+    setForm({
+      roleName: editing.roleName,
+      email: editing.email ?? "",
+      phone_number: toLocalPhone10Digits(editing.phone_number),
+      profile_url: editing.profile_url ?? "",
+      roleType: editing.roleType,
+      assignedFranchise: editing.assignedFranchise || "",
+      status: editing.status,
+      screenPermissions:
+        editing.roleType === "employee"
+          ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
+          : rawPerms,
+    });
+    setRoleImageFile(null);
+  }, [showForm, editing?.id]);
+
+  useEffect(() => {
+    if (!showStaffModal || !staffEditing) return;
+    setStaffForm({
+      name: staffEditing.name,
+      email: staffEditing.email ?? "",
+      phone_number: toLocalPhone10Digits(staffEditing.phone_number),
+      profile_url: staffEditing.profile_url ?? "",
+      status: staffEditing.status,
+      screenPermissions: staffEditing.screenPermissions?.length
+        ? staffEditing.screenPermissions.filter((k) => k !== "my-franchise")
+        : [],
+      allFranchises: staffEditing.allFranchises,
+      franchisePermissions: staffEditing.franchisePermissions?.length ? [...staffEditing.franchisePermissions] : [],
+    });
+    setStaffImageFile(null);
+  }, [showStaffModal, staffEditing?.id]);
+
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     ensureSettingsSeedData();
@@ -187,125 +282,187 @@ const RoleManagement = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const apiData = await fetchRoleAndStaffFromApi();
+      const options = await fetchFranchiseDropDown();
       if (cancelled) return;
-      if (apiData) {
-        setItems(apiData.roles);
-        setStaffItems(apiData.staff);
-        setInitialLoadDone(true);
-        return;
-      }
-      refresh();
-      refreshStaff();
-      setInitialLoadDone(true);
+      setFranchiseDropdownOptions(options);
     })();
     return () => {
       cancelled = true;
     };
-  }, [refresh, refreshStaff]);
+  }, []);
+
+  useEffect(() => {
+    setInitialLoadDone(true);
+  }, []);
 
   useEffect(() => {
     if (!initialLoadDone) return;
     let cancelled = false;
-    (async () => {
+
+    const fetchCountsForType = async (
+      type: number,
+      setter: React.Dispatch<React.SetStateAction<SummaryCounts>>
+    ) => {
+      const [allRes, activeRes, inactiveRes] = await Promise.all([
+        fetchSettingsSectionPageByType(type, 1, 1, { status: "all" }),
+        fetchSettingsSectionPageByType(type, 1, 1, { status: "active" }),
+        fetchSettingsSectionPageByType(type, 1, 1, { status: "inactive" }),
+      ]);
+      if (cancelled) return;
+      setter({
+        total: allRes?.totalItems ?? 0,
+        active: activeRes?.totalItems ?? 0,
+        inactive: inactiveRes?.totalItems ?? 0,
+      });
+    };
+
+    void Promise.all([
+      fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN, setFranchiseAdminSummaryCounts),
+      fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE, setEmployeeSummaryCounts),
+      fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.STAFF, setStaffSummaryCounts),
+    ]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialLoadDone, reloadToken]);
+
+  const loadCurrentSectionPage = useCallback(async () => {
+    if (!initialLoadDone) return;
+    let cancelled = false;
+    await (async () => {
       const type =
         selectedBox === "box-staff"
           ? WEB_MANAGEMENT_USER_TYPE.STAFF
           : selectedBox === "box-franchise-admin"
             ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
             : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
-      const apiData = await fetchSettingsSectionByType(type);
+      const apiData = await fetchSettingsSectionPageByType(
+        type,
+        selectedBox === "box-staff" ? staffCurrentPage : roleCurrentPage,
+        SETTINGS_ROLE_PAGE_SIZE,
+        selectedBox === "box-staff"
+          ? { keyword: staffKeyword, status: staffStatus }
+          : { keyword, status },
+        selectedBox === "box-staff" ? staffSortBy : roleSortBy
+      );
       if (cancelled) return;
       if (!apiData) {
-        // Keep current table data; avoid replacing valid API state with local fallback empties.
+        if (selectedBox === "box-staff") {
+          setStaffItems([]);
+          setStaffTotalPages(1);
+        } else {
+          const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
+          setItems((prev) => prev.filter((r) => r.roleType !== targetRoleType));
+          setRoleTotalPages(1);
+        }
         return;
       }
       if (selectedBox === "box-staff") {
-        if (apiData.staff.length > 0) {
-          setStaffItems(apiData.staff);
-        }
+        setStaffItems(apiData.staff);
+        setStaffTotalPages(Math.max(1, apiData.totalPages || 1));
       } else {
-        if (apiData.roles.length > 0) {
-          const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
-          setItems((prev) => {
-            const other = prev.filter((r) => r.roleType !== targetRoleType);
-            const current = apiData.roles.filter((r) => r.roleType === targetRoleType);
-            return [...other, ...current];
-          });
-        }
+        const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
+        setItems((prev) => {
+          const other = prev.filter((r) => r.roleType !== targetRoleType);
+          const current = apiData.roles.filter((r) => r.roleType === targetRoleType);
+          return [...other, ...current];
+        });
+        setRoleTotalPages(Math.max(1, apiData.totalPages || 1));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [initialLoadDone, selectedBox, refresh, refreshStaff]);
+  }, [
+    initialLoadDone,
+    selectedBox,
+    roleCurrentPage,
+    staffCurrentPage,
+    keyword,
+    status,
+    staffKeyword,
+    staffStatus,
+    roleSortBy,
+    staffSortBy,
+  ]);
+
+  useEffect(() => {
+    void loadCurrentSectionPage();
+  }, [
+    loadCurrentSectionPage,
+    reloadToken,
+  ]);
+
+  const franchiseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    franchiseDropdownOptions.forEach((option) => {
+      map.set(String(option.value), option.label);
+    });
+    return map;
+  }, [franchiseDropdownOptions]);
+
+  const roleRows = useMemo(
+    () =>
+      applyRoleSortFallback(
+        items.map((item) => ({
+          ...item,
+          assignedFranchise:
+            item.assignedFranchise ||
+            (item.franchise_id ? franchiseNameById.get(String(item.franchise_id)) : undefined) ||
+            "",
+        })),
+        roleSortBy
+      ),
+    [items, franchiseNameById, roleSortBy]
+  );
 
   const filtered = useMemo(() => {
-    return items.filter((item) => {
-      const k = keyword.trim().toLowerCase();
-      const matchesKeyword =
-        !k ||
-        item.roleName.toLowerCase().includes(k) ||
-        (item.email ?? "").toLowerCase().includes(k) ||
-        (item.phone_number ?? "").includes(k);
+    return roleRows.filter((item) => {
+      // Keyword and status are already applied on backend (`/user/getAll` query params).
       const matchesType = roleType === "all" || item.roleType === roleType;
-      const matchesStatus = status === "all" || item.status === status;
       const matchesFranchise =
         franchiseFilter === "all" || (item.assignedFranchise || "") === franchiseFilter;
-      return matchesKeyword && matchesType && matchesStatus && matchesFranchise;
+      return matchesType && matchesFranchise;
     });
-  }, [items, keyword, roleType, status, franchiseFilter]);
+  }, [roleRows, roleType, franchiseFilter]);
 
   const isStaffSection = selectedBox === "box-staff";
 
   const staffFiltered = useMemo(() => {
-    return staffItems.filter((item) => {
-      const k = staffKeyword.trim().toLowerCase();
-      const matchesKeyword =
-        !k ||
-        item.name.toLowerCase().includes(k) ||
-        (item.email ?? "").toLowerCase().includes(k) ||
-        (item.phone_number ?? "").includes(k);
-      const matchesStatus = staffStatus === "all" || item.status === staffStatus;
-      return matchesKeyword && matchesStatus;
-    });
-  }, [staffItems, staffKeyword, staffStatus]);
+    // Keyword and status are already applied on backend (`/user/getAll` query params).
+    return applyStaffSortFallback(staffItems, staffSortBy);
+  }, [staffItems, staffSortBy]);
 
   const franchiseAdminSummaryData = useMemo(
     () => ({
-      Total: items.filter((item) => item.roleType === "franchise_admin").length,
-      Active: items.filter((item) => item.roleType === "franchise_admin" && item.status === "active").length,
-      Inactive: items.filter((item) => item.roleType === "franchise_admin" && item.status === "inactive").length,
+      Total: franchiseAdminSummaryCounts.total,
+      Active: franchiseAdminSummaryCounts.active,
+      Inactive: franchiseAdminSummaryCounts.inactive,
     }),
-    [items]
+    [franchiseAdminSummaryCounts]
   );
 
   const employeeSummaryData = useMemo(
     () => ({
-      Total: items.filter((item) => item.roleType === "employee").length,
-      Active: items.filter((item) => item.roleType === "employee" && item.status === "active").length,
-      Inactive: items.filter((item) => item.roleType === "employee" && item.status === "inactive").length,
+      Total: employeeSummaryCounts.total,
+      Active: employeeSummaryCounts.active,
+      Inactive: employeeSummaryCounts.inactive,
     }),
-    [items]
+    [employeeSummaryCounts]
   );
 
   const staffSummaryData = useMemo(
     () => ({
-      Total: staffItems.length,
-      Active: staffItems.filter((item) => item.status === "active").length,
-      Inactive: staffItems.filter((item) => item.status === "inactive").length,
+      Total: staffSummaryCounts.total,
+      Active: staffSummaryCounts.active,
+      Inactive: staffSummaryCounts.inactive,
     }),
-    [staffItems]
+    [staffSummaryCounts]
   );
 
   const assignedFranchiseOptions = useMemo(() => {
-    const uniqueFranchises = Array.from(
-      new Set(
-        items
-          .map((item) => item.assignedFranchise?.trim())
-          .filter((value): value is string => Boolean(value))
-      )
-    );
+    const uniqueFranchises = Array.from(new Set(franchiseDropdownOptions.map((option) => option.label)));
 
     const options = uniqueFranchises.map((franchise) => ({
       value: franchise,
@@ -320,15 +477,21 @@ const RoleManagement = () => {
     }
 
     return [{ value: "", label: "Select Franchise" }, ...options];
-  }, [items, form.assignedFranchise]);
+  }, [franchiseDropdownOptions, form.assignedFranchise]);
+
+  const franchiseMetaByName = useMemo(() => {
+    const map = new Map<string, FranchiseDropDownOption>();
+    franchiseDropdownOptions.forEach((option) => {
+      if (!map.has(option.label)) {
+        map.set(option.label, option);
+      }
+    });
+    return map;
+  }, [franchiseDropdownOptions]);
 
   const franchiseFilterOptions = useMemo(() => {
     const uniqueFranchises = Array.from(
-      new Set(
-        items
-          .map((item) => item.assignedFranchise?.trim())
-          .filter((value): value is string => Boolean(value))
-      )
+      new Set(franchiseDropdownOptions.map((option) => option.label))
     ).sort((a, b) => a.localeCompare(b));
 
     return [
@@ -338,7 +501,7 @@ const RoleManagement = () => {
         label: franchise,
       })),
     ];
-  }, [items]);
+  }, [franchiseDropdownOptions]);
 
   const columns = React.useMemo(
     () => [
@@ -348,10 +511,11 @@ const RoleManagement = () => {
       //   accessor: "roleId",
       //   Cell: textUnderlineCell("roleId", (row) => openFormWithData(row, true)),
       // },
-      { Header: "Name", accessor: "roleName" },
+      { Header: "Name", accessor: "roleName", sort: true },
       {
         Header: "Email",
         accessor: "email",
+        sort: true,
         Cell: ({ row }: any) => row.original.email || "-",
       },
       {
@@ -388,7 +552,7 @@ const RoleManagement = () => {
                 "Cancel",
                 () => {
                   voidRole(row.original.id);
-                  refresh();
+                  setReloadToken((v) => v + 1);
                 }
               );
             }}
@@ -396,7 +560,7 @@ const RoleManagement = () => {
         ),
       },
     ],
-    [refresh, openFormWithData]
+    [openFormWithData]
   );
 
   const staffColumns = React.useMemo(
@@ -407,10 +571,11 @@ const RoleManagement = () => {
       //   accessor: "staffId",
       //   Cell: textUnderlineCell("staffId", (row) => openStaffWithData(row, true)),
       // },
-      { Header: "Name", accessor: "name" },
+      { Header: "Name", accessor: "name", sort: true },
       {
         Header: "Email",
         accessor: "email",
+        sort: true,
         Cell: ({ row }: any) => row.original.email || "-",
       },
       {
@@ -449,6 +614,7 @@ const RoleManagement = () => {
     setKeyword("");
     setStatus("all");
     setFranchiseFilter("all");
+    setRoleCurrentPage(1);
     setUtilitySearchKey((k) => k + 1);
   };
 
@@ -457,6 +623,7 @@ const RoleManagement = () => {
   const clearStaffFilters = () => {
     setStaffKeyword("");
     setStaffStatus("all");
+    setStaffCurrentPage(1);
     setStaffUtilityKey((k) => k + 1);
   };
 
@@ -481,9 +648,9 @@ const RoleManagement = () => {
   const staffFranchiseMultiOptions = useMemo<StaffFranchiseOption[]>(
     () => [
       { value: STAFF_FRANCHISE_ALL, label: "All franchises" },
-      ...franchiseCatalogNames.map((name) => ({ value: name, label: name })),
+      ...franchiseDropdownOptions.map((option) => ({ value: option.label, label: option.label })),
     ],
-    []
+    [franchiseDropdownOptions]
   );
 
   const staffFranchiseSelectValue = useMemo<StaffFranchiseOption[]>(() => {
@@ -584,6 +751,7 @@ const RoleManagement = () => {
             onSelect={(divId) => {
               setSelectedBox(divId);
               setRoleType("franchise_admin");
+              setRoleCurrentPage(1);
             }}
             isSelected={selectedBox === "box-franchise-admin"}
             onFilterChange={(filter) => {
@@ -598,6 +766,7 @@ const RoleManagement = () => {
               setEditing(null);
               setIsViewMode(false);
               setForm({ ...emptyRoleForm, roleType: "franchise_admin" });
+              setRoleImageFile(null);
               setShowForm(true);
             }}
           />
@@ -610,6 +779,7 @@ const RoleManagement = () => {
           onSelect={(divId) => {
             setSelectedBox(divId);
             setRoleType("employee");
+              setRoleCurrentPage(1);
           }}
           isSelected={selectedBox === "box-employee"}
           onFilterChange={(filter) => {
@@ -624,6 +794,7 @@ const RoleManagement = () => {
             setEditing(null);
             setIsViewMode(false);
             setForm({ ...emptyRoleForm, roleType: "employee" });
+            setRoleImageFile(null);
             setShowForm(true);
           }}
         />
@@ -634,7 +805,10 @@ const RoleManagement = () => {
             divId="box-staff"
             title="Staff"
             data={staffSummaryData}
-            onSelect={(divId) => setSelectedBox(divId)}
+            onSelect={(divId) => {
+              setSelectedBox(divId);
+              setStaffCurrentPage(1);
+            }}
             isSelected={selectedBox === "box-staff"}
             onFilterChange={(filter) => {
               setSelectedBox("box-staff");
@@ -648,6 +822,7 @@ const RoleManagement = () => {
               setStaffEditing(null);
               setStaffIsViewMode(false);
               setStaffForm({ ...emptyStaffForm });
+              setStaffImageFile(null);
               setShowStaffModal(true);
             }}
           />
@@ -659,7 +834,7 @@ const RoleManagement = () => {
           <CustomUtilityBox
             key={`staff-utility-${staffUtilityKey}`}
             title="Staff"
-            searchHint="Search Name"
+            searchHint="Search Name, Email, Phone Number"
             toolsInlineRow
             afterSearchSlot={
               <Button
@@ -689,11 +864,17 @@ const RoleManagement = () => {
                   noBottomMargin
                   defaultValue={staffStatus}
                   setValue={setValue}
-                  onChange={(e) => setStaffStatus(e.target.value as "all" | "active" | "inactive")}
+                  onChange={(e) => {
+                    setStaffStatus(e.target.value as "all" | "active" | "inactive");
+                    setStaffCurrentPage(1);
+                  }}
                 />
               </div>
             }
-            onSearch={(value) => setStaffKeyword(value)}
+            onSearch={(value) => {
+              setStaffKeyword(value);
+              setStaffCurrentPage(1);
+            }}
             onSortClick={() => {}}
             onDownloadClick={() => {}}
             onMoreClick={() => {}}
@@ -704,7 +885,7 @@ const RoleManagement = () => {
         <CustomUtilityBox
           key={`role-utility-${utilitySearchKey}`}
           title={`${selectedBox === "box-franchise-admin" ? "Franchise Admin" : "Franchise Employee"}`}
-          searchHint="Search Name"
+          searchHint="Search Name, Email, Phone Number"
           toolsInlineRow
           afterSearchSlot={
             <Button
@@ -735,7 +916,10 @@ const RoleManagement = () => {
                   noBottomMargin
                   defaultValue={status}
                   setValue={setValue}
-                  onChange={(e) => setStatus(e.target.value as "all" | "active" | "inactive")}
+                  onChange={(e) => {
+                    setStatus(e.target.value as "all" | "active" | "inactive");
+                    setRoleCurrentPage(1);
+                  }}
                 />
               </div>
               <div style={{ width: "220px", minWidth: "220px" }}>
@@ -749,12 +933,18 @@ const RoleManagement = () => {
                   noBottomMargin
                   defaultValue={franchiseFilter}
                   setValue={setValue}
-                  onChange={(e) => setFranchiseFilter(e.target.value)}
+                  onChange={(e) => {
+                    setFranchiseFilter(e.target.value);
+                    setRoleCurrentPage(1);
+                  }}
                 />
               </div>
             </>
           }
-          onSearch={(value) => setKeyword(value)}
+          onSearch={(value) => {
+            setKeyword(value);
+            setRoleCurrentPage(1);
+          }}
           onSortClick={() => {}}
           onDownloadClick={() => {}}
           onMoreClick={() => {}}
@@ -769,15 +959,35 @@ const RoleManagement = () => {
           <CustomTable
             columns={staffColumns}
             data={staffFiltered}
-            currentPage={1}
-            totalPages={1}
-            pageSize={staffFiltered.length || 10}
-            onPageChange={() => {}}
-            isPagination={false}
+            currentPage={staffCurrentPage}
+            totalPages={staffTotalPages}
+            pageSize={SETTINGS_ROLE_PAGE_SIZE}
+            onPageChange={(page) => setStaffCurrentPage(page)}
+            manualSortBy
+            sortBy={staffSortBy}
+            onSortChange={(next) => {
+              setStaffSortBy(next);
+              setStaffCurrentPage(1);
+            }}
+            isPagination={true}
           />
         </div>
       ) : (
-        <CustomTable columns={columns} data={filtered} currentPage={1} totalPages={1} pageSize={filtered.length || 10} onPageChange={() => {}} isPagination={false} />
+        <CustomTable
+          columns={columns}
+          data={filtered}
+          currentPage={roleCurrentPage}
+          totalPages={roleTotalPages}
+          pageSize={SETTINGS_ROLE_PAGE_SIZE}
+          onPageChange={(page) => setRoleCurrentPage(page)}
+          manualSortBy
+          sortBy={roleSortBy}
+          onSortChange={(next) => {
+            setRoleSortBy(next);
+            setRoleCurrentPage(1);
+          }}
+          isPagination={true}
+        />
       )}
 
       <Modal show={showForm} onHide={() => setShowForm(false)} centered>
@@ -809,7 +1019,7 @@ const RoleManagement = () => {
                     onClick={() => setIsViewMode(false)}
                   />
                 </div>
-                <div className="text-center mb-4 pb-2">
+                <div className="text-center mb-3">
                   <img
                     src={franchiseRoleProfileImageSrc(editing.profile_url)}
                     alt=""
@@ -837,14 +1047,24 @@ const RoleManagement = () => {
                     
                     <DetailsRow title="Assigned Franchise" value={editing.assignedFranchise || "-"} />
                     <DetailsRow title="Status" value={editing.status === "active" ? "Active" : "Inactive"} />
-                    <FullDetailsRow
-                      title="Screen Permissions1"
-                      value={
-                        editing.screenPermissions?.length
-                          ? editing.screenPermissions.map(labelForFranchiseEmployeeScreenKey).join(", ")
-                          : "-"
-                      }
-                    />
+                    {editing.roleType !== "franchise_admin" ? (
+                      <FullDetailsRow
+                        title="Screen Permissions"
+                        value={
+                          editing.screenPermissions?.length
+                            ? (
+                              <ul className="mb-0 ps-3">
+                                {editing.screenPermissions.map((permissionKey) => (
+                                  <li key={permissionKey}>
+                                    {labelForFranchiseEmployeeScreenKey(permissionKey)}
+                                  </li>
+                                ))}
+                              </ul>
+                            )
+                            : "-"
+                        }
+                      />
+                    ) : null}
                   </div>
                 </div>
               </section>
@@ -892,11 +1112,13 @@ const RoleManagement = () => {
                   />
                 </div>
                 <div className="col-md-12">
-                  <CustomTextFieldUpload
+                  <CustomImageUploader
                     label="Profile photo"
-                    linkLable="Upload"
+                    maxFiles={1}
+                    isEditable={Boolean(editing)}
                     {...(form.profile_url ? { existingImages: [form.profile_url] } : {})}
                     onFileChange={(files) => {
+                      setRoleImageFile(files[0] ?? null);
                       setForm((p) => ({
                         ...p,
                         profile_url: files[0] ? `uploads/${files[0].name}` : p.profile_url,
@@ -998,6 +1220,18 @@ const RoleManagement = () => {
                     profile_url: form.profile_url.trim() || undefined,
                     roleType: form.roleType,
                     assignedFranchise: form.assignedFranchise || undefined,
+                    franchise_id:
+                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.value) ||
+                      editing?.franchise_id ||
+                      undefined,
+                    state_id:
+                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.state_id) ||
+                      editing?.state_id ||
+                      undefined,
+                    city_id:
+                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.city_id) ||
+                      editing?.city_id ||
+                      undefined,
                     status: form.status,
                     screenPermissions:
                       form.roleType === "employee"
@@ -1007,11 +1241,11 @@ const RoleManagement = () => {
                   if (editing?.id) {
                     setRoleSavePending(true);
                     try {
-                      const ok = await updateRoleUserWithApi(editing.id, rolePayload);
+                      const ok = await updateRoleUserWithApi(editing.id, rolePayload, roleImageFile ?? undefined);
                       if (ok) {
-                        saveRole(rolePayload, editing.id);
+                        setRoleImageFile(null);
                         setShowForm(false);
-                        refresh();
+                        setReloadToken((v) => v + 1);
                       }
                     } finally {
                       setRoleSavePending(false);
@@ -1020,10 +1254,12 @@ const RoleManagement = () => {
                   }
                   setRoleSavePending(true);
                   try {
-                    const ok = await createRoleUserWithApi(rolePayload);
+                    const ok = await createRoleUserWithApi(rolePayload, roleImageFile ?? undefined);
                     if (ok) {
+                      setRoleImageFile(null);
                       setShowForm(false);
-                      refresh();
+                      setRoleCurrentPage(1);
+                      setReloadToken((v) => v + 1);
                     }
                   } finally {
                     setRoleSavePending(false);
@@ -1069,7 +1305,7 @@ const RoleManagement = () => {
                   onClick={() => setStaffIsViewMode(false)}
                 />
               </div>
-              <div className="text-center mb-4 pb-2">
+              <div className="text-center mb-3">
                 <img
                   src={franchiseRoleProfileImageSrc(staffEditing.profile_url)}
                   alt=""
@@ -1098,7 +1334,15 @@ const RoleManagement = () => {
                     title="Screen Permissions"
                     value={
                       staffEditing.screenPermissions?.length
-                        ? staffEditing.screenPermissions.map(labelForFranchiseEmployeeScreenKey).join(", ")
+                        ? (
+                          <ul className="mb-0 ps-3">
+                            {staffEditing.screenPermissions.map((permissionKey) => (
+                              <li key={permissionKey}>
+                                {labelForFranchiseEmployeeScreenKey(permissionKey)}
+                              </li>
+                            ))}
+                          </ul>
+                        )
                         : "-"
                     }
                   />
@@ -1150,11 +1394,13 @@ const RoleManagement = () => {
                 />
               </div>
               <div className="col-md-12">
-                <CustomTextFieldUpload
+                <CustomImageUploader
                   label="Profile photo"
-                  linkLable="Upload"
+                  maxFiles={1}
+                  isEditable={Boolean(staffEditing)}
                   {...(staffForm.profile_url ? { existingImages: [staffForm.profile_url] } : {})}
                   onFileChange={(files) => {
+                    setStaffImageFile(files[0] ?? null);
                     setStaffForm((p) => ({
                       ...p,
                       profile_url: files[0] ? `uploads/${files[0].name}` : p.profile_url,
@@ -1253,11 +1499,11 @@ const RoleManagement = () => {
                 if (staffEditing?.id) {
                   setStaffSavePending(true);
                   try {
-                    const ok = await updateStaffUserWithApi(staffEditing.id, staffPayload);
+                    const ok = await updateStaffUserWithApi(staffEditing.id, staffPayload, staffImageFile ?? undefined);
                     if (ok) {
-                      saveStaff(staffPayload, staffEditing.id);
+                      setStaffImageFile(null);
                       setShowStaffModal(false);
-                      refreshStaff();
+                      setReloadToken((v) => v + 1);
                     }
                   } finally {
                     setStaffSavePending(false);
@@ -1266,10 +1512,12 @@ const RoleManagement = () => {
                 }
                 setStaffSavePending(true);
                 try {
-                  const ok = await createStaffUserWithApi(staffPayload);
+                  const ok = await createStaffUserWithApi(staffPayload, staffImageFile ?? undefined);
                   if (ok) {
+                    setStaffImageFile(null);
                     setShowStaffModal(false);
-                    refreshStaff();
+                    setStaffCurrentPage(1);
+                    setReloadToken((v) => v + 1);
                   }
                 } finally {
                   setStaffSavePending(false);

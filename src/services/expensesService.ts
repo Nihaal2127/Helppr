@@ -5,13 +5,14 @@ import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 export type ExpensesFilters = {
-  keyword?: string;
+  search?: string;
   category?: string;
   subCategory?: string;
   franchiseId?: string;
   fromDate?: string;
   toDate?: string;
   sort?: string;
+  sortOrder?: "asc" | "desc";
 };
 
 const parseExpensesResponse = (payload: any): { records: ExpenseModel[]; totalPages: number; totalItems?: number } => {
@@ -43,15 +44,32 @@ export const fetchExpenses = async (
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.keyword ? { keyword: filters.keyword } : {}),
+    ...(filters.search ? { search: filters.search } : {}),
     ...(filters.category ? { category: filters.category } : {}),
     ...(filters.subCategory ? { subCategory: filters.subCategory } : {}),
     ...(filters.franchiseId ? { franchise_id: filters.franchiseId } : {}),
     ...(filters.fromDate ? { fromDate: filters.fromDate } : {}),
     ...(filters.toDate ? { toDate: filters.toDate } : {}),
     ...(filters.sort ? { sort: filters.sort } : {}),
-    ...(primarySort?.id ? { sort_by: primarySort.id } : {}),
-    ...(primarySort ? { sort_order: primarySort.desc ? "desc" : "asc" } : {}),
+    ...(primarySort?.id
+      ? {
+          sort:
+            primarySort.id === "category"
+              ? "category_name"
+              : primarySort.id === "subCategory"
+                ? "sub_category_name"
+                : primarySort.id === "expenseName"
+                  ? "expense_name"
+                  : primarySort.id === "expenseAmount"
+                    ? "expense_amount"
+                    : primarySort.id === "expenseDate"
+                      ? "expense_date"
+                      : primarySort.id,
+        }
+      : {}),
+    ...(primarySort || filters.sortOrder
+      ? { sort_order: primarySort ? (primarySort.desc ? "desc" : "asc") : filters.sortOrder }
+      : {}),
   });
 
   const response = await apiRequest(
@@ -100,6 +118,30 @@ export const createOrUpdateExpense = async (
   const path = isEditable ? ApiPaths.UPDATE_EXPENSE(id!) : ApiPaths.CREATE_EXPENSE;
   const method = isEditable ? "PUT" : "POST";
   const response = await apiRequest(path, method, payload);
+  return Boolean(response?.success);
+};
+
+export const fetchExpenseById = async (
+  id: string,
+  requestOpts?: { skipLoader?: boolean }
+): Promise<{ response: boolean; expense?: ExpenseModel }> => {
+  const response = await apiRequest(
+    ApiPaths.GET_EXPENSE_BY_ID(id),
+    "GET",
+    undefined,
+    false,
+    requestOpts?.skipLoader ?? false
+  );
+
+  if (!response?.success) return { response: false };
+  const payload = response.data ?? {};
+  const d = payload.data ?? payload;
+  const expense = d.record ?? d.expense ?? d;
+  return { response: true, expense };
+};
+
+export const deleteExpenseById = async (id: string): Promise<boolean> => {
+  const response = await apiRequest(ApiPaths.DELETE_EXPENSE(id), "DELETE");
   return Boolean(response?.success);
 };
 

@@ -103,6 +103,9 @@ export type CreateWebManagementUserBody = {
   status?: string;
   is_from_web: boolean;
   created_by_id: string;
+  franchise_id?: string;
+  state_id?: string;
+  city_id?: string;
   available_pages?: AvailablePageEntry[];
   /**
    * Optional; if omitted, API payload `accessible_screens` mirrors `available_pages` (same shape).
@@ -113,6 +116,7 @@ export type CreateWebManagementUserBody = {
    * App-side name; request body sends `chat` (boolean).
    */
   chat_enabled?: boolean;
+  imageFile?: File; 
 };
 
 /**
@@ -153,12 +157,33 @@ export const createWebManagementUser = async (
   if (body.status) {
     requestBody.status = String(body.status).trim().toLowerCase();
   }
+  if (body.franchise_id) requestBody.franchise_id = body.franchise_id;
+  if (body.state_id) requestBody.state_id = body.state_id;
+  if (body.city_id) requestBody.city_id = body.city_id;
   if (body.profile_url) requestBody.profile_url = body.profile_url;
   if (body.chat_enabled !== undefined) {
     requestBody.chat = Boolean(body.chat_enabled);
   }
 
-  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", requestBody);
+  const imageFile = body.imageFile;
+  const shouldSendMultipart = Boolean(imageFile);
+
+  let requestPayload: Record<string, unknown> | FormData = requestBody;
+  if (shouldSendMultipart) {
+    const formData = new FormData();
+    Object.entries(requestBody).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (typeof value === "object") {
+        formData.append(key, JSON.stringify(value));
+        return;
+      }
+      formData.append(key, String(value));
+    });
+    formData.append("image", imageFile as File);
+    requestPayload = formData;
+  }
+
+  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", requestPayload, shouldSendMultipart);
 
   if (!response.success) {
     return { ok: false };
@@ -342,12 +367,30 @@ export const deleteUser = async (id: string): Promise<boolean> => {
 export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,
-  id?: string
+  id?: string,
+  imageFile?: File | null
 ): Promise<boolean> => {
   const path = isEditable ? ApiPaths.UPDATE_USER(id!) : ApiPaths.CREATE_USER;
   const method = isEditable ? "PUT" : "POST";
 
-  const response = await apiRequest(path, method, payload);
+  const shouldSendMultipart = Boolean(imageFile);
+  let bodyToSend: any = payload;
+
+  if (shouldSendMultipart) {
+    const formData = new FormData();
+    Object.entries(payload ?? {}).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (typeof value === "object") {
+        formData.append(key, JSON.stringify(value));
+        return;
+      }
+      formData.append(key, String(value));
+    });
+    formData.append("image", imageFile as File);
+    bodyToSend = formData;
+  }
+
+  const response = await apiRequest(path, method, bodyToSend, shouldSendMultipart);
   if (response.success) {
     return true;
   }
