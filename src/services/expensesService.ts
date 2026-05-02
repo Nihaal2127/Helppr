@@ -64,7 +64,9 @@ export const fetchExpenses = async (
                     ? "expense_amount"
                     : primarySort.id === "expenseDate"
                       ? "expense_date"
-                      : primarySort.id,
+                      : primarySort.id === "franchiseName"
+                        ? "franchise_name"
+                        : primarySort.id,
         }
       : {}),
     ...(primarySort || filters.sortOrder
@@ -123,10 +125,12 @@ export const createOrUpdateExpense = async (
 
 export const fetchExpenseById = async (
   id: string,
-  requestOpts?: { skipLoader?: boolean }
+  requestOpts?: { skipLoader?: boolean; franchiseId?: string }
 ): Promise<{ response: boolean; expense?: ExpenseModel }> => {
+  const franchiseId = requestOpts?.franchiseId?.trim();
+  const query = franchiseId ? `?${new URLSearchParams({ franchise_id: franchiseId }).toString()}` : "";
   const response = await apiRequest(
-    ApiPaths.GET_EXPENSE_BY_ID(id),
+    `${ApiPaths.GET_EXPENSE_BY_ID(id)}${query}`,
     "GET",
     undefined,
     false,
@@ -140,8 +144,10 @@ export const fetchExpenseById = async (
   return { response: true, expense };
 };
 
-export const deleteExpenseById = async (id: string): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.DELETE_EXPENSE(id), "DELETE");
+export const deleteExpenseById = async (id: string, franchiseId?: string): Promise<boolean> => {
+  const fid = franchiseId?.trim();
+  const query = fid ? `?${new URLSearchParams({ franchise_id: fid }).toString()}` : "";
+  const response = await apiRequest(`${ApiPaths.DELETE_EXPENSE(id)}${query}`, "DELETE");
   return Boolean(response?.success);
 };
 

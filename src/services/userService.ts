@@ -272,6 +272,7 @@ export type UserListFilters = {
   keyword?: string;
   status?: string;
   sort?: string;
+  franchise_id?: string;
   /** e.g. pending | cleared — sent when backend supports partner wallet filtering */
   wallet_status?: string;
   from_date?: string;
@@ -310,6 +311,7 @@ export const fetchUser = async (
     ...(filters.keyword && { partner_name: filters.keyword }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
+    ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
     ...(filters.wallet_status && filters.wallet_status !== "all" && { wallet_status: filters.wallet_status }),
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),

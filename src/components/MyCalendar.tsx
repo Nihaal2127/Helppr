@@ -386,9 +386,7 @@ const MyCalendar: React.FC = () => {
               Clear
             </Button>
           }
-          onDownloadClick={async () => {}}
-          onSortClick={() => {}}
-          onMoreClick={() => {}}
+          hideUtilityActions
           onSearch={(value) => {
             setSearchKeyword(value);
           }}

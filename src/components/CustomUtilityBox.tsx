@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import classNames from "classnames";
 import { Form } from "react-bootstrap";
 import searchIcon from "../assets/icons/search.svg";
+import downloadIcon from "../assets/icons/download.svg";
+import sortIcon from "../assets/icons/sort.svg";
+import actionIcon from "../assets/icons/3_dots.svg";
 
 type CustomUtilityBoxProps = {
     /** Shown when `titleSlot` is not provided. */
@@ -9,11 +12,13 @@ type CustomUtilityBoxProps = {
     /** When set, replaces the title text (e.g. primary action button). */
     titleSlot?: React.ReactNode;
     searchHint?: string;
-    onDownloadClick?: () => void;
+    onDownloadClick?: () => void | Promise<void>;
     onSortClick?: (sortValue: "-1" | "1") => void;
     onMoreClick?: () => void;
     onSearch?: (value: string) => void;
     hideMoreIcon?: boolean;
+    /** When true, download / sort / more icons are hidden (search + optional slots only). */
+    hideUtilityActions?: boolean;
     controlSlot?: React.ReactNode;
     /** Rendered after search box (same row when toolsInlineRow is true). */
     afterSearchSlot?: React.ReactNode;
@@ -30,19 +35,38 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
     titleSlot,
     searchHint = "",
     onSearch = () => {},
+    onDownloadClick,
+    onSortClick,
+    onMoreClick,
+    hideMoreIcon = false,
+    hideUtilityActions = false,
     controlSlot,
     afterSearchSlot,
     toolsInlineRow = false,
     hideToolbar = false,
+    searchOnlyToolbar = false,
 }) => {
     const [searchValue, setSearchValue] = useState("");
+    const [sortDirection, setSortDirection] = useState<"-1" | "1">("-1");
 
-    const handleEnterKey = (e: any) => {
+    const handleEnterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") {
             e.preventDefault();
             onSearch(searchValue);
         }
-    }
+    };
+
+    const handleUtilitySortClick = () => {
+        if (!onSortClick) return;
+        const next = sortDirection === "-1" ? "1" : "-1";
+        setSortDirection(next);
+        onSortClick(next);
+    };
+
+    const showIconRow =
+        !searchOnlyToolbar &&
+        !hideUtilityActions &&
+        (onDownloadClick != null || onSortClick != null || (onMoreClick != null && !hideMoreIcon));
 
     if (hideToolbar) {
         return (
@@ -70,29 +94,33 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
                     </div>
                 )}
                 <div className="d-flex flex-column">
-                <label className="fw-medium">Search</label>
-                <div className="custom-search-container">
-                    <Form.Control
-                        className="custom-form-input"
-                        type="text"
-                        placeholder={searchHint}
-                        value={searchValue}
-                        onChange={(e) => setSearchValue(e.target.value)}
-                        style={{
-                            width: toolsInlineRow ? "100%" : "24.25rem",
-                            maxWidth: toolsInlineRow ? "100%" : undefined,
-                            fontSize: "14px",
-                            fontWeight: "normal",
-                            fontFamily: "Inter",
-                        }}
-                        onKeyDown={(e) => { handleEnterKey(e) }}
-                    />
-                    <img src={searchIcon} alt="search" className="custom-search-icon"
-                        onClick={() => {
-                            onSearch(searchValue);
-                            setSearchValue("");
-                        }} />
-                </div>
+                    <label className="fw-medium">Search</label>
+                    <div className="custom-search-container">
+                        <Form.Control
+                            className="custom-form-input"
+                            type="text"
+                            placeholder={searchHint}
+                            value={searchValue}
+                            onChange={(e) => setSearchValue(e.target.value)}
+                            style={{
+                                width: toolsInlineRow ? "100%" : "24.25rem",
+                                maxWidth: toolsInlineRow ? "100%" : undefined,
+                                fontSize: "14px",
+                                fontWeight: "normal",
+                                fontFamily: "Inter",
+                            }}
+                            onKeyDown={handleEnterKey}
+                        />
+                        <img
+                            src={searchIcon}
+                            alt="search"
+                            className="custom-search-icon"
+                            onClick={() => {
+                                onSearch(searchValue);
+                                setSearchValue("");
+                            }}
+                        />
+                    </div>
                 </div>
                 {afterSearchSlot != null && (
                     <div className="d-flex align-items-end">
@@ -100,15 +128,19 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
                     </div>
                 )}
 
-                {/* {!searchOnlyToolbar && (
+                {showIconRow ? (
                     <div className="custom-icon-container">
-                        <img src={downloadIcon} alt="download" onClick={onDownloadClick} />
-                        <img src={sortIcon} alt="sort" onClick={handleSortClick} />
-                        {!hideMoreIcon && (
-                            <img src={actionIcon} alt="more options" onClick={onMoreClick} />
-                        )}
+                        {onDownloadClick != null ? (
+                            <img src={downloadIcon} alt="download" onClick={() => void onDownloadClick()} />
+                        ) : null}
+                        {onSortClick != null ? (
+                            <img src={sortIcon} alt="sort" onClick={handleUtilitySortClick} />
+                        ) : null}
+                        {onMoreClick != null && !hideMoreIcon ? (
+                            <img src={actionIcon} alt="more options" onClick={() => onMoreClick()} />
+                        ) : null}
                     </div>
-                )} */}
+                ) : null}
             </div>
         </div>
     );

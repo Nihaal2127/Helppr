@@ -344,9 +344,7 @@ const RefundsPage = () => {
             Clear
           </Button>
         }
-        onDownloadClick={async () => {}}
-        onSortClick={() => {}}
-        onMoreClick={() => {}}
+        hideUtilityActions
         onSearch={(value) => {
           setSearchValue(value);
           setCurrentPage(1);

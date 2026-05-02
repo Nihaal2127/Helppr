@@ -875,9 +875,7 @@ const RoleManagement = () => {
               setStaffKeyword(value);
               setStaffCurrentPage(1);
             }}
-            onSortClick={() => {}}
-            onDownloadClick={() => {}}
-            onMoreClick={() => {}}
+            hideUtilityActions
             hideMoreIcon={true}
           />
         </div>
@@ -945,9 +943,7 @@ const RoleManagement = () => {
             setKeyword(value);
             setRoleCurrentPage(1);
           }}
-          onSortClick={() => {}}
-          onDownloadClick={() => {}}
-          onMoreClick={() => {}}
+          hideUtilityActions
           hideMoreIcon={true}
         />
       )}

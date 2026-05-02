@@ -60,13 +60,13 @@ const CustomServiceUtilityBox: React.FC<CustomServiceUtilityBoxProps> = ({
                         }} />
                 </div>
             </div>
-            {showExtraActions ? (
+            {/* {showExtraActions ? (
                 <div className="custom-icon-container">
                     <img src={downloadIcon} alt="download" onClick={() => onDownloadClick?.()} />
                     <img src={sortIcon} alt="sort" onClick={handleSortClick} />
                     <img src={actionIcon} alt="more options" onClick={() => onMoreClick?.()} />
                 </div>
-            ) : null}
+            ) : null} */}
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -9,10 +9,13 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
-import { createOrUpdateFranchise } from "../../services/franchiseService";
+import { createOrUpdateFranchise, fetchFranchise } from "../../services/franchiseService";
 import { fetchAreaDropDown } from "../../services/areaService";
-import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchCategory, fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
+import { fetchStateDropDown } from "../../services/stateService";
+import { fetchCityDropDown } from "../../services/cityService";
+import { fetchUser, WEB_MANAGEMENT_USER_TYPE } from "../../services/userService";
 import {
     MOCK_FRANCHISE_CATEGORY_DROPDOWN,
     MOCK_FRANCHISE_SERVICES_LIST,
@@ -49,6 +52,45 @@ type ViewCategoryServicesGroup = {
 const UNCATEGORIZED_KEY = "__uncategorized__";
 /** Services with no resolvable category_id — single row, never labeled "Other". */
 const FLAT_SERVICES_KEY = "__services_flat__";
+const isMongoObjectId = (value: string) => /^[a-f\d]{24}$/i.test(String(value ?? "").trim());
+
+/** Each franchise has at most one `admin_id`; map admin user id -> franchise _id they manage. */
+async function loadFranchiseAdminOccupancy(): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    let page = 1;
+    const pageSize = 200;
+    for (;;) {
+        const res = await fetchFranchise(page, pageSize, {}, []);
+        if (!res.response) break;
+        for (const f of res.franchises) {
+            const aid = String(f.admin_id ?? "").trim();
+            const fid = String(f._id ?? "").trim();
+            if (aid && fid) map.set(aid, fid);
+        }
+        if (!res.totalPages || page >= res.totalPages) break;
+        page += 1;
+        if (page > 100) break;
+    }
+    return map;
+}
+
+function filterAdminsNotAssignedElsewhere(
+    options: OptionType[],
+    occupancy: Map<string, string>,
+    currentFranchiseId: string
+): OptionType[] {
+    return options.filter((opt) => {
+        const assignedToFranchiseId = occupancy.get(opt.value);
+        if (!assignedToFranchiseId) return true;
+        if (currentFranchiseId && assignedToFranchiseId === currentFranchiseId) return true;
+        return false;
+    });
+}
+
+function toStringArray(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((v) => String(v ?? "").trim()).filter(Boolean);
+}
 
 function parseMultiSelectIds(selectedOptions: OptionType[], allOptions: OptionType[]): string[] {
     const isSelectAllSelected = selectedOptions.some((o) => o.value === "select-all");
@@ -68,12 +110,12 @@ type FranchiseFormValues = Omit<FranchiseModel, "area_id"> & {
     desc2: string;
 };
 
-const stateOptions: OptionType[] = [
+const STATIC_STATE_OPTIONS: OptionType[] = [
     { value: "andhra_pradesh", label: "Andhra Pradesh" },
     { value: "telangana", label: "Telangana" },
 ];
 
-const cityOptionsMap: Record<string, OptionType[]> = {
+const STATIC_CITY_OPTIONS_MAP: Record<string, OptionType[]> = {
     andhra_pradesh: [
         { value: "vijayawada", label: "Vijayawada" },
         { value: "visakhapatnam", label: "Visakhapatnam" },
@@ -83,81 +125,6 @@ const cityOptionsMap: Record<string, OptionType[]> = {
         { value: "hyderabad", label: "Hyderabad" },
         { value: "warangal", label: "Warangal" },
         { value: "karimnagar", label: "Karimnagar" },
-    ],
-};
-
-const isMongoObjectId = (s: string) => /^[a-f\d]{24}$/i.test((s || "").trim());
-
-const areaOptionsMap: Record<string, OptionType[]> = {
-    vijayawada: [
-        { value: "benz_circle", label: "Benz Circle" },
-        { value: "patamata", label: "Patamata" },
-        { value: "governorpet", label: "Governorpet" },
-        { value: "kanuru", label: "Kanuru" },
-        { value: "poranki", label: "Poranki" },
-        { value: "penamaluru", label: "Penamaluru" },
-        { value: "one_town", label: "One Town" },
-        { value: "satyanarayanapuram", label: "Satyanarayanapuram" },
-        { value: "moghalrajpuram", label: "Moghalrajpuram" },
-        { value: "gunadala", label: "Gunadala" },
-    ],
-    visakhapatnam: [
-        { value: "mvp_colony", label: "MVP Colony" },
-        { value: "gajuwaka", label: "Gajuwaka" },
-        { value: "dwarka_nagar", label: "Dwarka Nagar" },
-        { value: "maddilapalem", label: "Maddilapalem" },
-        { value: "nad_junction", label: "NAD Junction" },
-        { value: "seethammadhara", label: "Seethammadhara" },
-        { value: "akkayyapalem", label: "Akkayyapalem" },
-        { value: "rushikonda", label: "Rushikonda" },
-        { value: "beach_road", label: "Beach Road" },
-        { value: "kancharapalem", label: "Kancharapalem" },
-    ],
-    guntur: [
-        { value: "brodipet", label: "Brodipet" },
-        { value: "arundelpet", label: "Arundelpet" },
-        { value: "lakshmipuram", label: "Lakshmipuram" },
-        { value: "nallapadu", label: "Nallapadu" },
-        { value: "vidyanagar", label: "Vidyanagar" },
-        { value: "kothapet", label: "Kothapet" },
-        { value: "gujjanagundla", label: "Gujjanagundla" },
-        { value: "svn_colony", label: "SVN Colony" },
-        { value: "ashok_nagar", label: "Ashok Nagar" },
-        { value: "pattabhipuram", label: "Pattabhipuram" },
-    ],
-    hyderabad: [
-        { value: "ameerpet", label: "Ameerpet" },
-        { value: "madhapur", label: "Madhapur" },
-        { value: "kukatpally", label: "Kukatpally" },
-        { value: "gachibowli", label: "Gachibowli" },
-        { value: "hitech_city", label: "Hitech City" },
-        { value: "begumpet", label: "Begumpet" },
-        { value: "sr_nagar", label: "SR Nagar" },
-        { value: "jubilee_hills", label: "Jubilee Hills" },
-        { value: "banjara_hills", label: "Banjara Hills" },
-        { value: "mehdipatnam", label: "Mehdipatnam" },
-        { value: "dilsukhnagar", label: "Dilsukhnagar" },
-        { value: "lb_nagar", label: "LB Nagar" },
-    ],
-    warangal: [
-        { value: "hanamkonda", label: "Hanamkonda" },
-        { value: "kazipet", label: "Kazipet" },
-        { value: "enumamula", label: "Enumamula" },
-        { value: "subedari", label: "Subedari" },
-        { value: "balasamudram", label: "Balasamudram" },
-        { value: "waddepally", label: "Waddepally" },
-        { value: "kakaji_colony", label: "Kakaji Colony" },
-        { value: "mattwada", label: "Mattwada" },
-    ],
-    karimnagar: [
-        { value: "mankammathota", label: "Mankammathota" },
-        { value: "rekurthi", label: "Rekurthi" },
-        { value: "kothirampur", label: "Kothirampur" },
-        { value: "mukarampura", label: "Mukarampura" },
-        { value: "ramnagar", label: "Ramnagar" },
-        { value: "vidyanagar", label: "Vidyanagar" },
-        { value: "saptagiri_colony", label: "Saptagiri Colony" },
-        { value: "algunur", label: "Algunur" },
     ],
 };
 
@@ -195,12 +162,9 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             : []
     );
 
-    const [adminOptions, setAdminOptions] = useState<OptionType[]>([
-        { value: "admin_1", label: "Admin 1" },
-        { value: "admin_2", label: "Admin 2" },
-        { value: "admin_3", label: "Admin 3" },
-        { value: "add_new_admin", label: "+ Add New Admin" },
-    ]);
+    const [adminOptions, setAdminOptions] = useState<OptionType[]>([]);
+    const [stateOptions, setStateOptions] = useState<OptionType[]>([]);
+    const [cityOptions, setCityOptions] = useState<OptionType[]>([]);
     const [localViewMode, setLocalViewMode] = useState(isViewMode);
 
     const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
@@ -208,34 +172,116 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     const [categoryIds, setCategoryIds] = useState<string[]>([]);
     const [serviceIds, setServiceIds] = useState<string[]>([]);
     const [fetchedAreaOptions, setFetchedAreaOptions] = useState<OptionType[] | null>(null);
+    const skipInitialStateResetRef = useRef(true);
+    const skipInitialCityResetRef = useRef(true);
 
     const selectedState = watch("state_id");
     const selectedCity = watch("city_id");
-    const selectedAdmin = watch("admin_id");
-
-    const cityOptions = useMemo(() => {
-        return cityOptionsMap[selectedState] || [];
-    }, [selectedState]);
 
     const areaOptions = useMemo(() => {
-        if (fetchedAreaOptions) return fetchedAreaOptions;
-        return areaOptionsMap[selectedCity] || [];
-    }, [fetchedAreaOptions, selectedCity]);
+        return fetchedAreaOptions ?? [];
+    }, [fetchedAreaOptions]);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            if (isMongoObjectId(selectedCity)) {
-                const opts = await fetchAreaDropDown(selectedCity);
-                if (!cancelled) setFetchedAreaOptions(opts);
-            } else {
+            if (!selectedCity?.trim()) {
                 setFetchedAreaOptions(null);
+                return;
+            }
+            setFetchedAreaOptions([]);
+            const opts = await fetchAreaDropDown(selectedCity, selectedState);
+            if (!cancelled) setFetchedAreaOptions(opts);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedCity, selectedState]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            try {
+                const loadAllFranchiseAdmins = async (): Promise<OptionType[]> => {
+                    const pageSize = 200;
+                    let page = 1;
+                    const allUsers: any[] = [];
+
+                    for (;;) {
+                        // Use /user/getAll only for Franchise dialog admin dropdown.
+                        // type=1 => Franchise Admin
+                        // eslint-disable-next-line no-await-in-loop
+                        const res = await fetchUser(
+                            false,
+                            WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
+                            page,
+                            pageSize,
+                            { status: "true" }
+                        );
+                        if (!res.response) break;
+
+                        allUsers.push(...(res.users ?? []));
+                        if (!res.totalPages || page >= res.totalPages) break;
+                        page += 1;
+                        if (page > 100) break;
+                    }
+
+                    const unique = new Map<string, OptionType>();
+                    allUsers.forEach((u: any) => {
+                        const value = String(u?._id ?? "").trim();
+                        if (!value) return;
+                        const label = String(u?.name ?? u?.email ?? u?.phone_number ?? "").trim();
+                        if (!label) return;
+                        if (!unique.has(value)) {
+                            unique.set(value, { value, label });
+                        }
+                    });
+
+                    return Array.from(unique.values()).sort((a, b) =>
+                        a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+                    );
+                };
+
+                const [states, usersResult, occupancy] = await Promise.all([
+                    fetchStateDropDown(),
+                    loadAllFranchiseAdmins(),
+                    loadFranchiseAdminOccupancy(),
+                ]);
+                if (cancelled) return;
+                const currentId = String(franchise?._id ?? "").trim();
+                setStateOptions(states);
+                setAdminOptions(filterAdminsNotAssignedElsewhere(usersResult, occupancy, currentId));
+            } catch {
+                if (cancelled) return;
+                setStateOptions(STATIC_STATE_OPTIONS);
+                setAdminOptions([]);
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [selectedCity]);
+    }, [franchise?._id]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            if (!selectedState?.trim()) {
+                setCityOptions([]);
+                return;
+            }
+            try {
+                const rows = await fetchCityDropDown([selectedState]);
+                if (!cancelled) {
+                    setCityOptions(rows.map((r) => ({ value: r.value, label: r.label })));
+                }
+            } catch {
+                if (!cancelled) setCityOptions(STATIC_CITY_OPTIONS_MAP[selectedState] || []);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedState]);
 
     const serviceOptions = useMemo(
         () => [{ value: "select-all", label: "Select All" }, ...allServices.map((s) => ({ value: s._id, label: s.name }))],
@@ -379,24 +425,67 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         let cancelled = false;
         void (async () => {
             try {
-                const [cats, svcRes] = await Promise.all([
-                    USE_MOCK_FRANCHISE_CATALOG
-                        ? Promise.resolve(MOCK_FRANCHISE_CATEGORY_DROPDOWN.map((c) => ({ ...c })))
-                        : fetchCategoryDropDown(),
-                    USE_MOCK_FRANCHISE_CATALOG
-                        ? Promise.resolve({
-                              response: true,
-                              services: MOCK_FRANCHISE_SERVICES_LIST,
-                              totalPages: 1,
-                          })
-                        : fetchService(1, 500, {}),
-                ]);
+                if (USE_MOCK_FRANCHISE_CATALOG) {
+                    const cats = MOCK_FRANCHISE_CATEGORY_DROPDOWN.map((c) => ({ ...c }));
+                    if (cancelled) return;
+                    const catList = Array.isArray(cats) ? cats.filter((c: any) => c?.value) : [];
+                    setCategoryOptions([{ value: "select-all", label: "Select All" }, ...catList]);
+                    setAllServices(
+                        MOCK_FRANCHISE_SERVICES_LIST.map((s: any) => ({
+                            _id: String(s._id),
+                            name: String(s.name ?? ""),
+                            category_id: String(s.category_id ?? ""),
+                            category_name: s.category_name ? String(s.category_name) : undefined,
+                        }))
+                    );
+                    return;
+                }
+
+                const catById = new Map<string, OptionType>();
+                let cpage = 1;
+                const climit = 200;
+                for (;;) {
+                    const cres = await fetchCategory(cpage, climit, {}, []);
+                    if (cancelled) return;
+                    if (!cres.response) break;
+                    for (const c of cres.categories) {
+                        const id = String((c as { _id?: string })._id ?? "").trim();
+                        if (id)
+                            catById.set(id, {
+                                value: id,
+                                label: String((c as { name?: string }).name ?? "").trim() || id,
+                            });
+                    }
+                    if (!cres.totalPages || cpage >= cres.totalPages) break;
+                    cpage += 1;
+                    if (cpage > 50) break;
+                }
+                const dropCats = await fetchCategoryDropDown();
                 if (cancelled) return;
-                const catList = Array.isArray(cats) ? cats.filter((c: any) => c?.value) : [];
+                for (const c of dropCats) {
+                    if (c.value && c.value !== "select-all" && !catById.has(c.value)) {
+                        catById.set(c.value, c);
+                    }
+                }
+                const catList = Array.from(catById.values()).sort((a, b) =>
+                    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+                );
                 setCategoryOptions([{ value: "select-all", label: "Select All" }, ...catList]);
-                const list = svcRes?.response && Array.isArray(svcRes.services) ? svcRes.services : [];
+
+                const mergedServices: unknown[] = [];
+                let spage = 1;
+                const slimit = 500;
+                for (;;) {
+                    const svcRes = await fetchService(spage, slimit, {});
+                    if (cancelled) return;
+                    if (!svcRes.response || !Array.isArray(svcRes.services)) break;
+                    mergedServices.push(...svcRes.services);
+                    if (!svcRes.totalPages || spage >= svcRes.totalPages) break;
+                    spage += 1;
+                    if (spage > 50) break;
+                }
                 setAllServices(
-                    list.map((s: any) => ({
+                    mergedServices.map((s: any) => ({
                         _id: String(s._id),
                         name: String(s.name ?? ""),
                         category_id: String(s.category_id ?? ""),
@@ -425,7 +514,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     useEffect(() => {
         if (isEditable && franchise) {
             setValue("name", franchise.name || "");
-            setValue("desc", (franchise as any)?.desc || "");
+            setValue("desc", (franchise as any)?.desc ?? (franchise as any)?.description ?? "");
             setValue("desc2", (franchise as any)?.desc2 || "");
             setValue("state_id", franchise.state_id || "");
             setValue("city_id", franchise.city_id || "");
@@ -441,25 +530,69 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             setAreaIds(editAreaIds);
             setValue("area_id", editAreaIds);
 
-            const c = franchise.category_ids ?? [];
-            const s = franchise.service_ids ?? [];
-            setCategoryIds(Array.isArray(c) ? c.map(String) : []);
-            setServiceIds(Array.isArray(s) ? s.map(String) : []);
+            const rawCategoryIds = toStringArray(
+                (franchise as any).category_ids ?? (franchise as any).categories ?? []
+            );
+            const rawServiceIds = toStringArray(
+                (franchise as any).service_ids ?? (franchise as any).services ?? []
+            );
+
+            const categoryIdsFromApi = rawCategoryIds.filter(isMongoObjectId);
+            const serviceIdsFromApi = rawServiceIds.filter(isMongoObjectId);
+
+            const categoryNames = toStringArray((franchise as any).category_names ?? []);
+            const serviceNames = toStringArray((franchise as any).service_names ?? []);
+
+            const categoryIdsFromNames =
+                categoryIdsFromApi.length > 0
+                    ? categoryIdsFromApi
+                    : categoryOptions
+                          .filter(
+                              (c) =>
+                                  c.value !== "select-all" &&
+                                  categoryNames.some(
+                                      (n) => n.toLowerCase() === String(c.label ?? "").trim().toLowerCase()
+                                  )
+                          )
+                          .map((c) => String(c.value));
+
+            const serviceIdsFromNames =
+                serviceIdsFromApi.length > 0
+                    ? serviceIdsFromApi
+                    : allServices
+                          .filter((s) =>
+                              serviceNames.some(
+                                  (n) => n.toLowerCase() === String(s.name ?? "").trim().toLowerCase()
+                              )
+                          )
+                          .map((s) => String(s._id));
+
+            const dedupCategoryIds = Array.from(new Set(categoryIdsFromNames));
+            const dedupServiceIds = Array.from(new Set(serviceIdsFromNames));
+
+            setCategoryIds(dedupCategoryIds);
+            setServiceIds(dedupServiceIds);
         }
-    }, [isEditable, franchise, setValue]);
+    }, [isEditable, franchise, setValue, categoryOptions, allServices]);
 
     useEffect(() => {
-        if (isEditable) return;
+        if (skipInitialStateResetRef.current) {
+            skipInitialStateResetRef.current = false;
+            return;
+        }
         setValue("city_id", "");
         setAreaIds([]);
         setValue("area_id", []);
-    }, [selectedState, isEditable, setValue]);
+    }, [selectedState, setValue]);
 
     useEffect(() => {
-        if (isEditable) return;
+        if (skipInitialCityResetRef.current) {
+            skipInitialCityResetRef.current = false;
+            return;
+        }
         setAreaIds([]);
         setValue("area_id", []);
-    }, [selectedCity, isEditable, setValue]);
+    }, [selectedCity, setValue]);
 
     const handleAreaSelection = (selectedOptions: OptionType[]) => {
         const selectedIds = selectedOptions.map((option) => option.value);
@@ -516,55 +649,25 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         );
     }, [serviceIds, allServices]);
 
-    const handleAddAdmin = useCallback(() => {
-        const adminName = window.prompt("Enter new admin name");
-        if (!adminName || !adminName.trim()) {
-            setValue("admin_id", "", { shouldValidate: true });
-            return;
-        }
-
-        const trimmedName = adminName.trim();
-        const adminValue = trimmedName.toLowerCase().replace(/\s+/g, "_");
-
-        const exists = adminOptions.some(
-            (item) =>
-                item.label.toLowerCase() === trimmedName.toLowerCase() ||
-                item.value.toLowerCase() === adminValue.toLowerCase()
-        );
-
-        if (exists) {
-            showErrorAlert("Admin already exists");
-            setValue("admin_id", "", { shouldValidate: true });
-            return;
-        }
-
-        const newAdmin = {
-            value: adminValue,
-            label: trimmedName,
-        };
-
-        setAdminOptions((prev) => {
-            const filtered = prev.filter((item) => item.value !== "add_new_admin");
-            return [...filtered, newAdmin, { value: "add_new_admin", label: "+ Add New Admin" }];
-        });
-
-        setValue("admin_id", newAdmin.value, { shouldValidate: true });
-    }, [adminOptions, setValue]);
-
-    useEffect(() => {
-        if (selectedAdmin === "add_new_admin") {
-            handleAddAdmin();
-        }
-    }, [selectedAdmin, handleAddAdmin]);
-
     const onSubmitEvent = async (data: FranchiseFormValues) => {
         if (areaIds.length === 0) {
             showErrorAlert("Please select area");
             return;
         }
 
+        if (categoryIds.some((id) => !isMongoObjectId(id))) {
+            showErrorAlert("Please select valid categories.");
+            return;
+        }
+        if (serviceIds.some((id) => !isMongoObjectId(id))) {
+            showErrorAlert("Please select valid services.");
+            return;
+        }
+
         const selectedStateLabel =
-            stateOptions.find((item) => item.value === data.state_id)?.label || "";
+            stateOptions.find((item) => item.value === data.state_id)?.label ||
+            STATIC_STATE_OPTIONS.find((item) => item.value === data.state_id)?.label ||
+            "";
 
         const selectedCityLabel =
             cityOptions.find((item) => item.value === data.city_id)?.label || "";
@@ -575,8 +678,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
         const selectedAdminLabel =
             adminOptions.find(
-                (item) =>
-                    item.value === data.admin_id && item.value !== "add_new_admin"
+                (item) => item.value === data.admin_id
             )?.label || "";
 
         const categoryOpts = categoryOptions.filter((c) => c.value !== "select-all");
@@ -587,8 +689,11 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             .filter((s) => serviceIds.includes(String(s._id)))
             .map((s) => s.name);
 
+        const contactValue = String((franchise as any)?.contact ?? "").trim();
+
         const payload = {
             name: data.name,
+            description: data.desc,
             desc: data.desc,
             state_id: data.state_id,
             state_name: selectedStateLabel,
@@ -598,9 +703,12 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             area_name: selectedAreaLabels,
             admin_id: data.admin_id,
             admin_name: selectedAdminLabel,
+            ...(contactValue ? { contact: contactValue } : {}),
             is_active: data.is_active,
+            categories: categoryIds,
             category_ids: categoryIds,
             category_names: selectedCategoryLabels,
+            services: serviceIds,
             service_ids: serviceIds,
             service_names: selectedServiceLabels,
         };
@@ -732,7 +840,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                                                                     className="text-wrap"
                                                                 >
                                                                     {g.services.length > 0 ? (
-                                                                        <span>{g.services.join(", ")}</span>
+                                                                        <ul className="mb-0 ps-3">
+                                                                            {g.services.map((svcName, si) => (
+                                                                                <li key={`${g.categoryId}-svc-${si}`}>
+                                                                                    {svcName}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
                                                                     ) : (
                                                                         <span className="text-muted">—</span>
                                                                     )}

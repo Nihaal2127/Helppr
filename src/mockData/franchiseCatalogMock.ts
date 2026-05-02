@@ -6,7 +6,7 @@
  * (avoids clashing with `franchiseMockSeed` ids). Other pages keep calling the real APIs.
  * Set false when backend ids match franchise payloads.
  */
-export const USE_MOCK_FRANCHISE_CATALOG = true;
+export const USE_MOCK_FRANCHISE_CATALOG = false;
 
 export const MOCK_FRANCHISE_CATEGORY_DROPDOWN: { value: string; label: string }[] = [
   { value: "cat_grocery", label: "Grocery" },

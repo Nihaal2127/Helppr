@@ -1,18 +1,13 @@
-import {
-  myFranchiseAreasSeed,
-  myFranchiseCategoriesSeed,
-  myFranchiseEmployeesSeed,
-  myFranchiseServicesSeed,
-} from "../mockData/myFranchiseMockData";
-import { myFranchiseRequestedServicesSeed } from "../mockData/myFranchiseRequestedServicesSeed";
-import { myFranchiseRequestedCategoriesSeed } from "../mockData/myFranchiseRequestedCategoriesSeed";
 import { fetchArea } from "./areaService";
 import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
 import { showErrorAlert } from "../helper/alertHelper";
 import { getLocalStorage } from "../helper/localStorageHelper";
-import { AppConstant } from "../constant/AppConstant";
+import { AppConstant, UserRole } from "../constant/AppConstant";
 import {
   createWebManagementUser,
+  fetchUser,
+  fetchUserById,
+  menuKeysFromUserAccess,
   mapMenuKeysToAvailablePages,
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
@@ -93,19 +88,6 @@ type MyFranchiseBoxData = {
   requested_categories: RequestedCategoryRow[];
 };
 
-let mockEmployees: EmployeeRow[] = myFranchiseEmployeesSeed.map((item) => ({ ...item }));
-let mockAreas: AreaRow[] = myFranchiseAreasSeed.map((item) => ({ ...item }));
-let mockServices: ServiceRow[] = myFranchiseServicesSeed.map((item) => ({ ...item }));
-let mockCategories: CategoryRow[] = myFranchiseCategoriesSeed.map((item) => ({ ...item }));
-let mockRequestedServices: RequestedServiceRow[] = myFranchiseRequestedServicesSeed.map((item) => ({
-  ...item,
-}));
-let mockRequestedCategories: RequestedCategoryRow[] = myFranchiseRequestedCategoriesSeed.map((item) => ({
-  ...item,
-}));
-
-const USE_MOCK_MY_FRANCHISE_API = true;
-
 /**
  * Map `/area/getAll` (or mock) record into the my-franchise table shape. API uses `name`;
  * the grid expects `area_name` (and optional city/state/pincodes).
@@ -153,16 +135,40 @@ function mapApiAreaToFranchiseAreaRow(raw: any): AreaRow {
   };
 }
 
-function franchiseIdForAreaQuery(): string | undefined {
-  const p = (getLocalStorage(AppConstant.partnerId) || "").trim();
-  if (p) return p;
-  // Only the partner list uses `franchise_id` on the server; avoid sending `adminId` and hiding all rows.
-  return undefined;
+let cachedSessionFranchiseId: string | null = null;
+let sessionFranchiseIdInFlight: Promise<string | undefined> | null = null;
+
+async function resolveSessionFranchiseId(): Promise<string | undefined> {
+  if (cachedSessionFranchiseId) return cachedSessionFranchiseId;
+
+  const fromStorage = (getLocalStorage(AppConstant.partnerId) || "").trim();
+  if (fromStorage) {
+    cachedSessionFranchiseId = fromStorage;
+    return fromStorage;
+  }
+
+  if (sessionFranchiseIdInFlight) return sessionFranchiseIdInFlight;
+
+  sessionFranchiseIdInFlight = (async () => {
+    const currentUserId = (getLocalStorage(AppConstant.createdById) || "").trim();
+    if (!currentUserId) return undefined;
+    const userRes = await fetchUserById(currentUserId);
+    const franchiseId = String((userRes.user as any)?.franchise_id ?? "").trim();
+    if (!franchiseId) return undefined;
+    cachedSessionFranchiseId = franchiseId;
+    return franchiseId;
+  })();
+
+  try {
+    return await sessionFranchiseIdInFlight;
+  } finally {
+    sessionFranchiseIdInFlight = null;
+  }
 }
 
 async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   const filters: { franchise_id?: string } = {};
-  const fid = franchiseIdForAreaQuery();
+  const fid = await resolveSessionFranchiseId();
   if (fid) filters.franchise_id = fid;
 
   const limit = 100;
@@ -189,69 +195,104 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   return all.map(mapApiAreaToFranchiseAreaRow);
 }
 
-function categoryNameById(categoryId: string): string {
-  const c = mockCategories.find((x) => x.category_id === categoryId);
-  return c?.name ?? categoryId;
+function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
+  const id = String(raw?._id ?? raw?.id ?? "").trim();
+  const phone = String(raw?.phone_number ?? raw?.phone ?? "").trim();
+  const role = String(raw?.role ?? raw?.designation ?? "-").trim() || "-";
+  const employeeId = String(raw?.employee_id ?? raw?.user_id ?? "").trim();
+  const areaName = String(raw?.area_name ?? raw?.area ?? "-").trim() || "-";
+  const isActiveRaw = raw?.is_active;
+  const isActive =
+    typeof isActiveRaw === "boolean"
+      ? isActiveRaw
+      : String(isActiveRaw).toLowerCase() === "true" || String(isActiveRaw) === "1";
+  const screenPermissionKeys = menuKeysFromUserAccess(raw as Record<string, unknown>);
+  const accessible_screens = mapMenuKeysToAvailablePages(screenPermissionKeys);
+
+  return {
+    _id: id,
+    employee_id: employeeId || `FE-${id.slice(-6) || "000000"}`,
+    name: String(raw?.name ?? "").trim() || "-",
+    role,
+    phone: phone || "-",
+    email: String(raw?.email ?? "").trim() || "-",
+    area_name: areaName,
+    is_active: isActive,
+    chat_enabled: isActive ? Boolean(raw?.chat ?? raw?.chat_enabled ?? true) : false,
+    accessible_screens,
+    screenPermissionKeys,
+  };
 }
 
-function serviceNamesFromIds(serviceIds: string[]): string[] {
-  return serviceIds
-    .map((id) => {
-      const s = mockServices.find((m) => m._id === id || m.service_id === id);
-      return s?.name;
-    })
-    .filter(Boolean) as string[];
+async function fetchEmployeeRowsForMyFranchise(): Promise<EmployeeRow[] | null> {
+  const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  const isFranchiseScopedByAuth =
+    currentUserRole === UserRole.FRANCHISE_ADMIN || currentUserRole === UserRole.EMPLOYEE;
+  const franchiseId = isFranchiseScopedByAuth ? "" : (await resolveSessionFranchiseId()) ?? "";
+  if (!isFranchiseScopedByAuth && !franchiseId) return [];
+
+  const pageSize = 200;
+  const maxPages = 50;
+  const all: any[] = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    // type=3 => franchise employee
+    // franchise_id ensures only current franchise employees are listed.
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetchUser(
+      false,
+      WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE,
+      page,
+      pageSize,
+      franchiseId ? { franchise_id: franchiseId } : {},
+      []
+    );
+    if (!res.response) return null;
+    all.push(...(res.users ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+  }
+
+  return all.map(mapApiEmployeeToFranchiseEmployeeRow);
+}
+
+function categoryNameById(categoryId: string): string {
+  return categoryId;
+}
+
+function serviceNamesFromIds(_serviceIds: string[]): string[] {
+  return [];
 }
 
 export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
+  const apiEmployeeRows = await fetchEmployeeRowsForMyFranchise();
   // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
   const apiAreaRows = await fetchAreaRowsForMyFranchise();
-  const areas: AreaRow[] =
-    apiAreaRows === null
-      ? [...mockAreas]
-      : apiAreaRows.length > 0
-        ? apiAreaRows
-        : USE_MOCK_MY_FRANCHISE_API
-          ? [...mockAreas]
-          : [];
 
   return {
-    employees: [...mockEmployees],
-    areas,
-    services: [...mockServices],
-    categories: [...mockCategories],
-    requested_services: [...mockRequestedServices],
-    requested_categories: [...mockRequestedCategories],
+    employees: apiEmployeeRows ?? [],
+    areas: apiAreaRows ?? [],
+    services: [],
+    categories: [],
+    requested_services: [],
+    requested_categories: [],
   };
 }
 
 export async function setEmployeeChatEnabled(id: string, chat_enabled: boolean): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockEmployees = mockEmployees.map((e) =>
-      e._id === id && e.is_active ? { ...e, chat_enabled } : e
-    );
-    return true;
-  }
+  void id;
+  void chat_enabled;
   return false;
 }
 
 export async function setServiceActive(id: string, is_active: boolean): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockServices = mockServices.map((s) =>
-      s._id === id ? { ...s, is_active } : s
-    );
-    return true;
-  }
+  void id;
+  void is_active;
   return false;
 }
 
 export async function setCategoryActive(id: string, is_active: boolean): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockCategories = mockCategories.map((c) =>
-      c._id === id ? { ...c, is_active } : c
-    );
-    return true;
-  }
+  void id;
+  void is_active;
   return false;
 }
 
@@ -265,15 +306,7 @@ type FranchiseEmployeeInput = {
 };
 
 function nextEmployeeId(): string {
-  let maxNum = 1000;
-  for (const e of mockEmployees) {
-    const m = /^FE-(\d+)$/i.exec(e.employee_id.trim());
-    if (m) {
-      const n = parseInt(m[1], 10);
-      if (!Number.isNaN(n)) maxNum = Math.max(maxNum, n);
-    }
-  }
-  return `FE-${maxNum + 1}`;
+  return `FE-${Date.now()}`;
 }
 
 export async function createFranchiseEmployee(input: FranchiseEmployeeInput): Promise<boolean> {
@@ -281,26 +314,8 @@ export async function createFranchiseEmployee(input: FranchiseEmployeeInput): Pr
   const accessible_screens = mapMenuKeysToAvailablePages(keys);
 
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
+  const franchiseId = await resolveSessionFranchiseId();
   const useRealCreate = Boolean(createdById);
-
-  /** Offline / no session: in-memory only. */
-  if (USE_MOCK_MY_FRANCHISE_API && !useRealCreate) {
-    const row: EmployeeRow = {
-      _id: `e${Date.now()}`,
-      employee_id: nextEmployeeId(),
-      name: input.name.trim(),
-      role: "-",
-      phone: input.phone.trim(),
-      email: input.email.trim(),
-      area_name: "-",
-      is_active: input.is_active,
-      chat_enabled: input.is_active ? input.chat_enabled : false,
-      accessible_screens,
-      screenPermissionKeys: keys,
-    };
-    mockEmployees = [...mockEmployees, row];
-    return true;
-  }
 
   if (!useRealCreate) {
     showErrorAlert("Missing session. Please log in again.");
@@ -315,27 +330,11 @@ export async function createFranchiseEmployee(input: FranchiseEmployeeInput): Pr
     status: input.is_active ? "active" : "inactive",
     is_from_web: true,
     created_by_id: createdById,
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
     available_pages: accessible_screens,
     chat_enabled: input.is_active ? input.chat_enabled : false,
   });
   if (!res.ok) return false;
-
-  const raw = res.record as Record<string, unknown> | null;
-  const serverId = String(raw?._id ?? raw?.id ?? `e${Date.now()}`);
-  const row: EmployeeRow = {
-    _id: serverId,
-    employee_id: nextEmployeeId(),
-    name: input.name.trim(),
-    role: "-",
-    phone: input.phone.trim(),
-    email: input.email.trim(),
-    area_name: "-",
-    is_active: input.is_active,
-    chat_enabled: input.is_active ? input.chat_enabled : false,
-    accessible_screens,
-    screenPermissionKeys: keys,
-  };
-  mockEmployees = [...mockEmployees, row];
   return true;
 }
 
@@ -343,34 +342,13 @@ export async function updateFranchiseEmployee(
   id: string,
   input: FranchiseEmployeeInput
 ): Promise<boolean> {
-  const keys = (input.screenPermissionKeys ?? []).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
-  const accessible_screens = mapMenuKeysToAvailablePages(keys);
-
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockEmployees = mockEmployees.map((e) =>
-      e._id === id
-        ? {
-            ...e,
-            name: input.name.trim(),
-            phone: input.phone.trim(),
-            email: input.email.trim(),
-            is_active: input.is_active,
-            chat_enabled: input.is_active ? input.chat_enabled : false,
-            accessible_screens,
-            screenPermissionKeys: keys,
-          }
-        : e
-    );
-    return true;
-  }
+  void id;
+  void input;
   return false;
 }
 
 export async function voidFranchiseEmployee(id: string): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockEmployees = mockEmployees.filter((e) => e._id !== id);
-    return true;
-  }
+  void id;
   return false;
 }
 
@@ -382,46 +360,18 @@ export type RequestedServiceInput = {
 };
 
 export async function createRequestedService(input: RequestedServiceInput): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    const row: RequestedServiceRow = {
-      _id: `rs${Date.now()}`,
-      name: input.name.trim(),
-      category_id: input.category_id,
-      category_name: categoryNameById(input.category_id),
-      description: input.description.trim(),
-      image_url: input.image_url?.trim() || undefined,
-      status: "pending",
-    };
-    mockRequestedServices = [...mockRequestedServices, row];
-    return true;
-  }
+  void input;
   return false;
 }
 
 export async function updateRequestedService(id: string, input: RequestedServiceInput): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockRequestedServices = mockRequestedServices.map((r) =>
-      r._id === id
-        ? {
-            ...r,
-            name: input.name.trim(),
-            category_id: input.category_id,
-            category_name: categoryNameById(input.category_id),
-            description: input.description.trim(),
-            image_url: input.image_url?.trim() || undefined,
-          }
-        : r
-    );
-    return true;
-  }
+  void id;
+  void input;
   return false;
 }
 
 export async function voidRequestedService(id: string): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockRequestedServices = mockRequestedServices.filter((r) => r._id !== id);
-    return true;
-  }
+  void id;
   return false;
 }
 
@@ -433,48 +383,18 @@ export type RequestedCategoryInput = {
 };
 
 export async function createRequestedCategory(input: RequestedCategoryInput): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    const ids = input.service_ids.map(String);
-    const row: RequestedCategoryRow = {
-      _id: `rc${Date.now()}`,
-      name: input.name.trim(),
-      service_ids: ids,
-      service_names: serviceNamesFromIds(ids),
-      description: input.description.trim(),
-      image_url: input.image_url?.trim() || undefined,
-      status: "pending",
-    };
-    mockRequestedCategories = [...mockRequestedCategories, row];
-    return true;
-  }
+  void input;
   return false;
 }
 
 export async function updateRequestedCategory(id: string, input: RequestedCategoryInput): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    const ids = input.service_ids.map(String);
-    mockRequestedCategories = mockRequestedCategories.map((r) =>
-      r._id === id
-        ? {
-            ...r,
-            name: input.name.trim(),
-            service_ids: ids,
-            service_names: serviceNamesFromIds(ids),
-            description: input.description.trim(),
-            image_url: input.image_url?.trim() || undefined,
-          }
-        : r
-    );
-    return true;
-  }
+  void id;
+  void input;
   return false;
 }
 
 export async function voidRequestedCategory(id: string): Promise<boolean> {
-  if (USE_MOCK_MY_FRANCHISE_API) {
-    mockRequestedCategories = mockRequestedCategories.filter((r) => r._id !== id);
-    return true;
-  }
+  void id;
   return false;
 }
 

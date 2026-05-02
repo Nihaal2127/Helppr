@@ -469,9 +469,7 @@ const QuoteManagement = () => {
             Clear
           </Button>
         }
-        onDownloadClick={async () => {}}
-        onSortClick={() => {}}
-        onMoreClick={() => {}}
+        hideUtilityActions
         onSearch={(value) => {
           setSearchKeyword(value);
           setCurrentPage(1);

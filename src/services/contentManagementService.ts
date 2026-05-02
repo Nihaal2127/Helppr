@@ -81,11 +81,16 @@ export function normalizeEditorHtml(value: string): string {
 
 export async function fetchContentList(
   page: number,
-  limit: number
+  limit: number,
+  filters?: { search?: string; sort?: string; sortOrder?: "asc" | "desc" }
 ): Promise<FetchContentListResult | null> {
+  const trimmedSearch = String(filters?.search ?? "").trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
+    ...(trimmedSearch ? { search: trimmedSearch } : {}),
+    ...(filters?.sort ? { sort: filters.sort } : {}),
+    ...(filters?.sortOrder ? { sort_order: filters.sortOrder } : {}),
     _ts: String(Date.now()),
   });
   const res = await apiRequest(

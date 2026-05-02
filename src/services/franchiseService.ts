@@ -4,6 +4,8 @@ import { FranchiseModel } from "../models/FranchiseModels";
 import { showLog } from "../helper/utility";
 import { franchiseMockSeed } from "../mockData/franchiseMockData";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { AppConstant, UserRole } from "../constant/AppConstant";
+import { getLocalStorage } from "../helper/localStorageHelper";
 
 const USE_MOCK_FRANCHISE_API = false;
 
@@ -14,7 +16,118 @@ export type FranchiseDropDownOption = {
   city_id?: string;
 };
 
+type AdminContact = { email?: string; phone_number?: string };
+
+function mapAdminContactsById(rows: any[]): Map<string, AdminContact> {
+  const out = new Map<string, AdminContact>();
+  rows.forEach((u: any) => {
+    const id = String(u?._id ?? u?.id ?? "").trim();
+    if (!id) return;
+    const email = String(u?.email ?? "").trim();
+    const phone = String(u?.phone_number ?? u?.phone ?? "").trim();
+    out.set(id, {
+      ...(email ? { email } : {}),
+      ...(phone ? { phone_number: phone } : {}),
+    });
+  });
+  return out;
+}
+
+async function fetchAllFranchiseAdmins(): Promise<Map<string, AdminContact>> {
+  const pageSize = 200;
+  let page = 1;
+  const all: any[] = [];
+  for (;;) {
+    // /user/getAll, only for enriching franchise table admin contact info
+    // type=1 => franchise admin
+    // eslint-disable-next-line no-await-in-loop
+    const res = await apiRequest(
+      `${ApiPaths.GET_USER()}?${new URLSearchParams({
+        type: "1",
+        page: String(page),
+        limit: String(pageSize),
+      }).toString()}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true
+    );
+    if (!res.success) break;
+    const payload = (res as any).data ?? {};
+    const inner =
+      payload && typeof payload.data === "object" && !Array.isArray(payload.data)
+        ? payload.data
+        : payload;
+    const records = Array.isArray(inner.records)
+      ? inner.records
+      : Array.isArray(payload.records)
+        ? payload.records
+        : [];
+    all.push(...records);
+    const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
+    if (!totalPages || page >= totalPages) break;
+    page += 1;
+    if (page > 100) break;
+  }
+  return mapAdminContactsById(all);
+}
+
+function toIdArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x ?? "").trim()).filter(Boolean);
+}
+
+function mapFranchiseRow(raw: any, adminContacts?: Map<string, AdminContact>): FranchiseModel {
+  const admin = raw?.admin && typeof raw.admin === "object" ? raw.admin : null;
+  const adminInfo = raw?.admin_info && typeof raw.admin_info === "object" ? raw.admin_info : null;
+  const adminId = String(raw?.admin_id ?? admin?._id ?? adminInfo?._id ?? "").trim();
+  const fromAdminList = adminId ? adminContacts?.get(adminId) : undefined;
+  const mappedEmail = String(
+    raw?.email ??
+      raw?.admin_email ??
+      fromAdminList?.email ??
+      admin?.email ??
+      adminInfo?.email ??
+      ""
+  ).trim();
+  const mappedPhone = String(
+    raw?.phone_number ??
+      raw?.phone ??
+      raw?.admin_phone ??
+      fromAdminList?.phone_number ??
+      admin?.phone_number ??
+      admin?.phone ??
+      adminInfo?.phone_number ??
+      adminInfo?.phone ??
+      ""
+  ).trim();
+
+  const categoryIdsMerged = Array.from(
+    new Set([...toIdArray(raw?.category_ids), ...toIdArray(raw?.categories)])
+  );
+  const serviceIdsMerged = Array.from(
+    new Set([...toIdArray(raw?.service_ids), ...toIdArray(raw?.services)])
+  );
+
+  return {
+    ...raw,
+    email: mappedEmail || undefined,
+    phone_number: mappedPhone || undefined,
+    ...(categoryIdsMerged.length ? { category_ids: categoryIdsMerged } : {}),
+    ...(serviceIdsMerged.length ? { service_ids: serviceIdsMerged } : {}),
+  } as FranchiseModel;
+}
+
 export const fetchFranchiseDropDown = async (): Promise<FranchiseDropDownOption[]> => {
+  const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  if (
+    currentUserRole === UserRole.FRANCHISE_ADMIN ||
+    currentUserRole === UserRole.EMPLOYEE
+  ) {
+    return [];
+  }
+
   if (USE_MOCK_FRANCHISE_API) {
     return mockFranchises.map((f: any) => ({
       value: f._id,
@@ -42,19 +155,66 @@ export const fetchFranchiseDropDown = async (): Promise<FranchiseDropDownOption[
   }
 };
 
+/** Single franchise by id (GET /franchise/get/:id). Used when header filters to one franchise. */
+export const fetchFranchiseById = async (id: string): Promise<FranchiseModel | null> => {
+  const targetId = String(id ?? "").trim();
+  if (!targetId) return null;
+  if (USE_MOCK_FRANCHISE_API) {
+    const raw = mockFranchises.find((f: any) => String(f._id) === targetId);
+    if (!raw) return null;
+    const adminContacts = await fetchAllFranchiseAdmins();
+    return mapFranchiseRow(raw, adminContacts);
+  }
+  const response = await apiRequest(
+    ApiPaths.GET_FRANCHISE_BY_ID(targetId),
+    "GET",
+    undefined,
+    false,
+    false,
+    true
+  );
+  if (!response.success) return null;
+  const payload = (response as any).data ?? {};
+  const d =
+    payload.data !== undefined && typeof payload.data === "object" && !Array.isArray(payload.data)
+      ? payload.data
+      : payload;
+  const raw = d?.record ?? d?.franchise ?? (d && typeof d === "object" && d._id ? d : null);
+  if (!raw || typeof raw !== "object") return null;
+  const adminContacts = await fetchAllFranchiseAdmins();
+  return mapFranchiseRow(raw, adminContacts);
+};
+
 export const fetchFranchise = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string; sort?: string },
+  filters: {
+    search?: string;
+    name?: string;
+    status?: string;
+    sort?: string;
+    sort_by?: string;
+    sort_order?: "asc" | "desc";
+    state_id?: string;
+    city_id?: string;
+    admin_id?: string;
+    /** When set, list is scoped to this franchise (header dropdown). */
+    franchise_id?: string;
+  },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean; franchises: FranchiseModel[]; totalPages: number }> => {
+): Promise<{ response: boolean; franchises: FranchiseModel[]; totalPages: number; totalItems?: number }> => {
   const primarySort = sortBy[0];
   if (USE_MOCK_FRANCHISE_API) {
-    const keyword = (filters.name ?? "").trim().toLowerCase();
+    const keyword = (filters.search ?? filters.name ?? "").trim().toLowerCase();
     const statusRaw = filters.status ?? "";
     const sortRaw = filters.sort ?? "";
 
     let data = [...mockFranchises];
+
+    const fid = String(filters.franchise_id ?? "").trim();
+    if (fid) {
+      data = data.filter((item: any) => String(item._id ?? "") === fid);
+    }
 
     if (statusRaw && statusRaw !== "All") {
       const wantActive = statusRaw.toLowerCase() === "true";
@@ -85,36 +245,59 @@ export const fetchFranchise = async (
       });
     }
 
-    const sort = primarySort ? (primarySort.desc ? "desc" : "asc") : String(sortRaw).toLowerCase();
+    const sort = primarySort
+      ? (primarySort.desc ? "desc" : "asc")
+      : String(filters.sort_order ?? sortRaw).toLowerCase();
     if (sort) {
       const ascending = sort === "asc" || sort === "1";
+      const sortByField = primarySort?.id || filters.sort_by || "name";
       data.sort((a: any, b: any) => {
-        const av = String(a.name ?? "");
-        const bv = String(b.name ?? "");
+        const av = String(a?.[sortByField] ?? a?.name ?? "");
+        const bv = String(b?.[sortByField] ?? b?.name ?? "");
         return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
       });
     }
 
     const totalPages = Math.ceil(data.length / pageSize) || 0;
     const start = (page - 1) * pageSize;
-    const records = data.slice(start, start + pageSize);
+    const adminContacts = await fetchAllFranchiseAdmins();
+    const records = data.slice(start, start + pageSize).map((r) => mapFranchiseRow(r, adminContacts));
 
     return {
       response: true,
       franchises: records as FranchiseModel[],
       totalPages,
+      totalItems: data.length,
     };
   }
+
+  const searchValue = String(filters.search ?? filters.name ?? "").trim();
+  const primarySortId = primarySort?.id ? String(primarySort.id).trim() : "";
+  /** Column id from the table (matches API sort_by per franchise/getAll docs). */
+  const sortByParam =
+    primarySortId ||
+    (filters.sort_by ? String(filters.sort_by).trim() : "");
 
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.name && { name: filters.name }),
-    ...(filters.name && { keyword: filters.name }),
+    ...(searchValue && { search: searchValue }),
+    ...(searchValue && { name: searchValue }),
     ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
-    ...(filters.sort && { sort: filters.sort }),
-    ...(primarySort?.id && { sort_by: primarySort.id }),
-    ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(filters.state_id && { state_id: filters.state_id }),
+    ...(filters.city_id && { city_id: filters.city_id }),
+    ...(filters.admin_id && { admin_id: filters.admin_id }),
+    ...(String(filters.franchise_id ?? "").trim() && {
+      franchise_id: String(filters.franchise_id).trim(),
+    }),
+    ...(sortByParam && { sort_by: sortByParam }),
+    ...(primarySort
+      ? { sort_order: primarySort.desc ? "desc" : "asc" }
+      : filters.sort_order
+        ? { sort_order: filters.sort_order }
+        : filters.sort
+          ? { sort_order: filters.sort === "-1" ? "desc" : "asc" }
+          : {}),
   });
 
   const response = await apiRequest(
@@ -123,10 +306,46 @@ export const fetchFranchise = async (
   );
 
   if (response.success) {
+    const payload = response.data ?? {};
+    const inner =
+      payload && typeof payload.data === "object" && !Array.isArray(payload.data)
+        ? payload.data
+        : payload;
+    const records = Array.isArray(inner.records)
+      ? inner.records
+      : Array.isArray(payload.records)
+        ? payload.records
+        : [];
+    const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
+    const totalItemsRaw = inner.totalItems ?? payload.totalItems ?? inner.totalCount ?? payload.totalCount;
+    const totalItemsParsed =
+      totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+        ? undefined
+        : Number(totalItemsRaw);
+    const adminContacts = await fetchAllFranchiseAdmins();
+    const fidFilter = String(filters.franchise_id ?? "").trim();
+    let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
+    if (fidFilter) {
+      franchises = franchises.filter(
+        (r: FranchiseModel) => String(r._id ?? "") === fidFilter
+      );
+      const totalItemsFiltered = franchises.length;
+      const totalPagesFiltered =
+        totalItemsFiltered === 0 ? 0 : Math.max(1, Math.ceil(totalItemsFiltered / pageSize));
+      const start = (page - 1) * pageSize;
+      franchises = franchises.slice(start, start + pageSize);
+      return {
+        response: true,
+        franchises,
+        totalPages: totalPagesFiltered,
+        totalItems: totalItemsFiltered,
+      };
+    }
     return {
       response: true,
-      franchises: response.data.records,
-      totalPages: response.data.totalPages,
+      franchises,
+      totalPages,
+      totalItems: totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed) ? totalItemsParsed : undefined,
     };
   } else {
     showLog(response.message || "Failed to fetch franchise");
@@ -134,6 +353,7 @@ export const fetchFranchise = async (
       response: false,
       franchises: [],
       totalPages: 0,
+      totalItems: 0,
     };
   }
 };

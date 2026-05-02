@@ -307,12 +307,13 @@ const ExpenseCategoryManagement = () => {
           size="sm"
           className="custom-btn-secondary px-3"
           type="button"
-          disabled={!keyword.trim() && !searchDraft.trim() && !startDate && !endDate}
+          disabled={!keyword.trim() && !searchDraft.trim() && !startDate && !endDate && sortBy.length === 0}
           onClick={() => {
             setKeyword("");
             setSearchDraft("");
             setStartDate("");
             setEndDate("");
+            setSortBy([]);
             setTablePage(1);
             setValue("expense_category_start_date_filter", "", { shouldValidate: false });
             setValue("expense_category_end_date_filter", "", { shouldValidate: false });

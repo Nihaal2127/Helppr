@@ -2,6 +2,12 @@ export interface ExpenseModel {
   _id?: string;
   id?: string;
 
+  /** Franchise scope (list/detail responses; required for get/delete by id on the API). */
+  franchise_id?: string;
+  franchiseId?: string;
+  franchise_name?: string;
+  franchiseName?: string;
+
   category_name?: string;
   categoryName?: string;
 

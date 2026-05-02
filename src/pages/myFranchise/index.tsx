@@ -9,6 +9,7 @@ import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showSuccessAlert } from "../../helper/alertHelper";
 import { statusCell } from "../../helper/utility";
 import { useForm } from "react-hook-form";
+import type { ServerTableSortBy } from "../../helper/serverTableSort";
 import type {
   AreaRow,
   CategoryRow,
@@ -48,6 +49,10 @@ type FranchiseBoxConfig = {
 const pendingRequestedStatusCell = () => (
   <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
 );
+
+function normalizeAreaValue(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
 
 function normalizeAreaPinCodesFromRow(original: any): string[] {
   const rawPinCodes = original?.pincodes ?? original?.pincode ?? original?.pin_codes ?? [];
@@ -131,6 +136,7 @@ const MyFranchise = () => {
   const [categoriesViewMode, setCategoriesViewMode] = useState<CategoriesViewMode>("catalog");
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [areaSortBy, setAreaSortBy] = useState<ServerTableSortBy>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -236,6 +242,7 @@ const MyFranchise = () => {
     setCategoriesViewMode("catalog");
     setStatusFilter(undefined);
     setSearchKeyword("");
+    setAreaSortBy([]);
     setCurrentPage(1);
   };
 
@@ -269,11 +276,49 @@ const MyFranchise = () => {
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
       const pins = normalizeAreaPinCodesFromRow(row);
-      const hay = [row.area_name, row.city_name, row.state_name, ...pins].join(" ").toLowerCase();
+      const hay = [
+        row.area_name,
+        (row as any).name,
+        row.city_name,
+        (row as any).city,
+        row.state_name,
+        (row as any).state,
+        row.pincode,
+        ...pins,
+      ]
+        .join(" ")
+        .toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
     });
   }, [areas, statusFilter, keyword]);
+
+  const sortedFilteredAreas = useMemo(() => {
+    const primarySort = areaSortBy[0];
+    if (!primarySort?.id) return filteredAreas;
+
+    const areaFieldForSort = (row: AreaRow): string => {
+      if (primarySort.id === "area_name") {
+        return normalizeAreaValue(row.area_name || (row as any).name);
+      }
+      if (primarySort.id === "city_name") {
+        return normalizeAreaValue(row.city_name || (row as any).city);
+      }
+      if (primarySort.id === "state_name") {
+        return normalizeAreaValue(row.state_name || (row as any).state);
+      }
+      return "";
+    };
+
+    const direction = primarySort.desc ? -1 : 1;
+    return [...filteredAreas].sort((a, b) => {
+      const left = areaFieldForSort(a);
+      const right = areaFieldForSort(b);
+      if (left < right) return -1 * direction;
+      if (left > right) return 1 * direction;
+      return 0;
+    });
+  }, [filteredAreas, areaSortBy]);
 
   const filteredServices = useMemo(() => {
     return services.filter((row) => {
@@ -319,7 +364,7 @@ const MyFranchise = () => {
       case "box-employees":
         return filteredEmployees;
       case "box-areas":
-        return filteredAreas;
+        return sortedFilteredAreas;
       case "box-services":
         return servicesViewMode === "requested" ? filteredRequestedServices : filteredServices;
       case "box-categories":
@@ -332,7 +377,7 @@ const MyFranchise = () => {
     servicesViewMode,
     categoriesViewMode,
     filteredEmployees,
-    filteredAreas,
+    sortedFilteredAreas,
     filteredServices,
     filteredRequestedServices,
     filteredCategories,
@@ -435,7 +480,7 @@ const MyFranchise = () => {
       case "box-employees":
         return "Search employee name";
       case "box-areas":
-        return "Search area or pin code";
+        return "Search area, city, state, pin code";
       case "box-services":
         return "Search service";
       case "box-categories":
@@ -521,6 +566,7 @@ const MyFranchise = () => {
       {
         Header: "Area Name",
         accessor: "area_name",
+        sort: true,
         Cell: ({ row }: { row: any }) => {
           const r = row?.original as AreaRow;
           return r?.area_name || (r as any)?.name || "—";
@@ -529,6 +575,7 @@ const MyFranchise = () => {
       {
         Header: "City",
         accessor: "city_name",
+        sort: true,
         Cell: ({ row }: { row: any }) => {
           const r = row?.original as AreaRow;
           return r?.city_name || (r as any)?.city || "—";
@@ -537,6 +584,7 @@ const MyFranchise = () => {
       {
         Header: "State",
         accessor: "state_name",
+        sort: true,
         Cell: ({ row }: { row: any }) => {
           const r = row?.original as AreaRow;
           return r?.state_name || (r as any)?.state || "—";
@@ -837,11 +885,8 @@ const MyFranchise = () => {
       <CustomUtilityBox
         title={utilityTitle}
         searchHint={utilitySearchHint}
-        hideMoreIcon
+        hideUtilityActions
         toolsInlineRow
-        onDownloadClick={async () => {}}
-        onSortClick={() => {}}
-        onMoreClick={() => {}}
         onSearch={(value) => {
           setSearchKeyword(value);
           setCurrentPage(1);
@@ -865,6 +910,13 @@ const MyFranchise = () => {
             setPageSize(limit);
             setCurrentPage(1);
           }}
+        manualSortBy={selectedBox === "box-areas"}
+        sortBy={selectedBox === "box-areas" ? areaSortBy : []}
+        onSortChange={(next) => {
+          if (selectedBox !== "box-areas") return;
+          setAreaSortBy(next);
+          setCurrentPage(1);
+        }}
           theadClass="table-light"
         />
       </div>

@@ -27,6 +27,7 @@ const Login = () => {
     setLocalStorage(AppConstant.isAdmin, true);
     setLocalStorage(AppConstant.adminId, user?._id);
     setLocalStorage(AppConstant.createdById, user?._id);
+    setLocalStorage(AppConstant.partnerId, (user as any)?.franchise_id ?? "");
     setLocalStorage(AppConstant.userRole, role);
     const menuKeys = menuKeysFromUserAccess(user as unknown as Record<string, unknown>);
     setLocalStorage(AppConstant.userAccessibleMenuKeys, JSON.stringify(menuKeys));

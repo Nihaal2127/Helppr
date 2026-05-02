@@ -233,9 +233,7 @@ const NotificationsPage: React.FC = () => {
             Clear
           </Button>
         }
-        onDownloadClick={async () => {}}
-        onSortClick={() => {}}
-        onMoreClick={() => {}}
+        hideUtilityActions
         onSearch={(value) => {
           setFilters((prev) => ({ ...prev, keyword: value }));
         }}

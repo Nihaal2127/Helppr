@@ -93,7 +93,12 @@ const ExpensesPage = () => {
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const [franchiseId, setFranchiseId] = useState("");
-  const [sessionFranchiseId, setSessionFranchiseId] = useState("");
+  /** Same franchise as login `partnerId` (API `franchise_id`); used to scope list + detail/delete calls for franchise admin & employee. */
+  const [sessionFranchiseId, setSessionFranchiseId] = useState(() => {
+    const role = getLocalStorage(AppConstant.userRole);
+    if (role !== UserRole.FRANCHISE_ADMIN && role !== UserRole.EMPLOYEE) return "";
+    return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+  });
   const [franchiseOptions, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
     { value: "", label: "All Franchises" },
   ]);
@@ -166,6 +171,16 @@ const ExpensesPage = () => {
     return unique.sort((a, b) => a.localeCompare(b));
   }, [expenseCategories]);
 
+  const franchiseIdToName = useMemo(() => {
+    const map = new Map<string, string>();
+    franchiseOptions.forEach((opt) => {
+      const id = String(opt.value ?? "").trim();
+      if (!id) return;
+      map.set(id, opt.label);
+    });
+    return map;
+  }, [franchiseOptions]);
+
   const subCategoryOptionsFor = useCallback(
     (categoryName: string) => {
       const unique = Array.from(
@@ -181,9 +196,25 @@ const ExpensesPage = () => {
     [expenseCategories]
   );
 
+  /** `GET/DELETE` expense by id require `franchise_id` query (see expense-management Postman). */
+  const franchiseIdForExpenseApi = useCallback(
+    (expense: ExpenseModel) => {
+      const fromRow = String(expense.franchise_id ?? expense.franchiseId ?? "").trim();
+      if (fromRow) return fromRow;
+      if (isFranchiseScopedUser) {
+        const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+        return (sessionFranchiseId || fromLogin).trim();
+      }
+      return "";
+    },
+    [isFranchiseScopedUser, sessionFranchiseId]
+  );
+
   const effectiveListFranchiseId = useMemo(() => {
     if (isFranchiseScopedUser) {
-      return sessionFranchiseId || undefined;
+      const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+      const scopedId = sessionFranchiseId || fromLogin;
+      return scopedId ? scopedId : undefined;
     }
     if (!franchiseId || franchiseId === "all") {
       return undefined;
@@ -206,7 +237,12 @@ const ExpensesPage = () => {
   }, [refreshListParams]);
 
   const fetchData = useCallback(async () => {
-    if (isFranchiseScopedUser && !sessionFranchiseId) return;
+    if (isFranchiseScopedUser) {
+      const hasScope =
+        Boolean(sessionFranchiseId?.trim()) ||
+        Boolean(String(getLocalStorage(AppConstant.partnerId) ?? "").trim());
+      if (!hasScope) return;
+    }
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
@@ -269,7 +305,11 @@ const ExpensesPage = () => {
 
       const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
       if (expenseId) {
-        const latest = await fetchExpenseById(expenseId, { skipLoader: true });
+        const fid = franchiseIdForExpenseApi(expense);
+        const latest = await fetchExpenseById(expenseId, {
+          skipLoader: true,
+          franchiseId: fid || undefined,
+        });
         if (latest.response && latest.expense) {
           setEditingExpense(latest.expense);
           setForm(prefillFormFromExpense(latest.expense));
@@ -283,7 +323,7 @@ const ExpensesPage = () => {
       }
       setShowForm(true);
     },
-    [isSuperAdminOrStaff, prefillFormFromExpense, sessionFranchiseId]
+    [franchiseIdForExpenseApi, isSuperAdminOrStaff, prefillFormFromExpense, sessionFranchiseId]
   );
 
   const handleOpenView = useCallback(
@@ -291,7 +331,11 @@ const ExpensesPage = () => {
       setIsViewMode(true);
       const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
       if (expenseId) {
-        const latest = await fetchExpenseById(expenseId, { skipLoader: true });
+        const fid = franchiseIdForExpenseApi(expense);
+        const latest = await fetchExpenseById(expenseId, {
+          skipLoader: true,
+          franchiseId: fid || undefined,
+        });
         if (latest.response && latest.expense) {
           setEditingExpense(latest.expense);
           setForm(prefillFormFromExpense(latest.expense));
@@ -305,7 +349,7 @@ const ExpensesPage = () => {
       }
       setShowForm(true);
     },
-    [prefillFormFromExpense]
+    [franchiseIdForExpenseApi, prefillFormFromExpense]
   );
 
   const paymentModeOptions = useMemo(() => {
@@ -343,15 +387,23 @@ const ExpensesPage = () => {
               Header: "Franchise Name",
               accessor: "franchiseName",
               sort: true,
-              Cell: ({ row }: any) => row.original.franchise_name ?? row.original.franchiseName ?? "-",
+              Cell: ({ row }: any) => {
+                const fromApi =
+                  row.original.franchise_name ?? row.original.franchiseName;
+                if (fromApi) return fromApi;
+                const fid = String(
+                  row.original.franchise_id ?? row.original.franchiseId ?? ""
+                ).trim();
+                return (fid && franchiseIdToName.get(fid)) || "-";
+              },
             },
           ]
         : []),
-      {
-        Header: "Description / Notes",
-        accessor: "description",
-        Cell: ({ row }: any) => row.original.description ?? (row.original as any).expense_description ?? "-",
-      },
+      // {
+      //   Header: "Description / Notes",
+      //   accessor: "description",
+      //   Cell: ({ row }: any) => row.original.description ?? (row.original as any).expense_description ?? "-",
+      // },
       {
         Header: "Expense Amount",
         accessor: "expenseAmount",
@@ -368,19 +420,19 @@ const ExpensesPage = () => {
         Cell: ({ row }: any) =>
           row.original.expense_date ?? row.original.expenseDate ? formatDate(row.original.expense_date ?? row.original.expenseDate) : "-",
       },
-      {
-        Header: "Payment done by",
-        accessor: "paymentDoneBy",
-        Cell: ({ row }: any) => {
-          return (
-            row.original.payment_done_by_name ??
-            row.original.created_by_name ??
-            row.original.payment_done_by ??
-            row.original.created_by ??
-            "-"
-          );
-        },
-      },
+      // {
+      //   Header: "Payment done by",
+      //   accessor: "paymentDoneBy",
+      //   Cell: ({ row }: any) => {
+      //     return (
+      //       row.original.payment_done_by_name ??
+      //       row.original.created_by_name ??
+      //       row.original.payment_done_by ??
+      //       row.original.created_by ??
+      //       "-"
+      //     );
+      //   },
+      // },
       {
         Header: "Payment mode",
         accessor: "paymentMode",
@@ -409,7 +461,8 @@ const ExpensesPage = () => {
                       row.original?.id ??
                       (row.original as any)?.expense_id) as string | undefined;
                   if (!rowId) return showErrorAlert("Invalid expense id.");
-                  const ok = await deleteExpenseById(rowId);
+                  const fid = franchiseIdForExpenseApi(row.original as ExpenseModel);
+                  const ok = await deleteExpenseById(rowId, fid || undefined);
                   if (!ok) return;
                   refreshListParams();
                   fetchData();
@@ -420,7 +473,17 @@ const ExpensesPage = () => {
         ),
       },
     ],
-    [currentPage, fetchData, handleOpenEdit, handleOpenView, isSuperAdminOrStaff, pageSize, refreshListParams]
+    [
+      currentPage,
+      fetchData,
+      franchiseIdForExpenseApi,
+      franchiseIdToName,
+      handleOpenEdit,
+      handleOpenView,
+      isSuperAdminOrStaff,
+      pageSize,
+      refreshListParams,
+    ]
   );
 
   const handleSaveExpense = async () => {
@@ -539,7 +602,7 @@ const ExpensesPage = () => {
       <CustomUtilityBox
         key={`expenses-utility-${utilitySearchKey}`}
         title="Expenses"
-        searchHint="Search Expense Name"
+        searchHint="Search expense name, category, franchise…"
         toolsInlineRow
         hideMoreIcon
         afterSearchSlot={
@@ -622,14 +685,7 @@ const ExpensesPage = () => {
           setCurrentPage(1);
           setFilterEpoch((k) => k + 1);
         }}
-        onSortClick={(value) => {
-          setSort(value);
-          setSortBy([{ id: "expenseDate", desc: value === "-1" }]);
-          setCurrentPage(1);
-          setFilterEpoch((k) => k + 1);
-        }}
-        onDownloadClick={handleDownload}
-        onMoreClick={() => {}}
+    
       />
 
       <CustomTable
@@ -742,6 +798,7 @@ const ExpensesPage = () => {
               </div>
             </section>
           ) : (
+            <>
             <div className="row g-2">
               {isSuperAdminOrStaff && (
                 <div className="col-md-6">
@@ -764,9 +821,11 @@ const ExpensesPage = () => {
                   />
                 </div>
               )}
+             </div>
+             <div className="row g-2">
               <div className="col-md-6">
                 <CustomFormSelect
-                  label="Category"
+                  label="Category1"
                   controlId="expense_modal_category"
                   options={[
                     { value: "", label: "Select Category" },
@@ -919,6 +978,7 @@ const ExpensesPage = () => {
                 />
               </div>
             </div>
+            </>
           )}
         </Modal.Body>
 
