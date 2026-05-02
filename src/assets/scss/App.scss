@@ -2477,6 +2477,16 @@ body:has(.modal.show ~ .modal.show) {
   overflow: visible;
 }
 
+/** Table cells: fill column width so flex + text-truncate can stay on one line */
+.pin-code-hover-wrapper--fill {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+}
+
 .pin-code-hover-trigger {
   white-space: nowrap;
 }
@@ -2505,6 +2515,22 @@ body:has(.modal.show ~ .modal.show) {
 
 .pin-code-hover-wrapper:hover .pin-code-hover-card {
   display: block;
+}
+
+/* Portaled franchise-table hover list — fixed to viewport, draws above scroll areas */
+.pin-code-hover-portal-card {
+  position: fixed;
+  z-index: 100000;
+  background-color: var(--bg-color);
+  border: 1px solid var(--lb1-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+  padding: 8px 10px;
+  min-width: 130px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(400px, 70vh);
+  overflow-y: auto;
+  text-align: left;
 }
 
 .pin-code-hover-item {

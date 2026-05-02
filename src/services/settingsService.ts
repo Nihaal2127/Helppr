@@ -15,6 +15,7 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import {
   createWebManagementUser,
+  fetchUserById,
   menuKeysFromUserAccess,
   mapMenuKeysToAvailablePages,
   staffAvailablePagesFromMenuKeys,
@@ -492,7 +493,8 @@ export const createRoleUserWithApi = async (
 export const updateRoleUserWithApi = async (
   id: string,
   payload: Omit<RoleSettingsModel, "id" | "createdDate">,
-  imageFile?: File
+  imageFile?: File,
+  options?: { suppressSuccessAlert?: boolean }
 ): Promise<boolean> => {
   const userId = String(id || "").trim();
   if (!userId) return false;
@@ -533,9 +535,73 @@ export const updateRoleUserWithApi = async (
     requestPayload = formData;
   }
 
-  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", requestPayload, shouldSendMultipart);
+  const res = await apiRequest(
+    ApiPaths.UPDATE_USER(userId),
+    "PUT",
+    requestPayload,
+    shouldSendMultipart,
+    false,
+    false,
+    Boolean(options?.suppressSuccessAlert)
+  );
   if (!res.success) return false;
   return true;
+};
+
+/**
+ * Link a franchise admin user to a franchise using the same fields as Settings → Role
+ * (`franchise_id`, `state_id`, `city_id` on `PUT /user/update`). Saving a franchise with
+ * `admin_id` alone often does not update the user record, so logins miss franchise scope.
+ */
+export const assignFranchiseToAdminUser = async (params: {
+  adminUserId: string;
+  franchiseId: string;
+  stateId: string;
+  cityId: string;
+}): Promise<boolean> => {
+  const adminUserId = String(params.adminUserId ?? "").trim();
+  const franchiseId = String(params.franchiseId ?? "").trim();
+  if (!adminUserId || !franchiseId) return true;
+
+  const { response, user } = await fetchUserById(adminUserId);
+  if (!response || !user) {
+    showErrorAlert(
+      "Franchise saved, but the admin user could not be loaded to link this franchise. Assign the franchise under Settings → Role if needed."
+    );
+    return false;
+  }
+
+  const record = user as unknown as Record<string, unknown>;
+  const userType = Number(record.type);
+  const roleType: "franchise_admin" | "employee" =
+    userType === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE ? "employee" : "franchise_admin";
+
+  const mapped = mapApiUserToRoleSettingsModel(record, roleType);
+  const stateId = String(params.stateId ?? "").trim() || mapped.state_id || "";
+  const cityId = String(params.cityId ?? "").trim() || mapped.city_id || "";
+
+  const payload: Omit<RoleSettingsModel, "id" | "createdDate"> = {
+    roleId: mapped.roleId,
+    roleName: mapped.roleName,
+    roleType: mapped.roleType,
+    assignedFranchise: mapped.assignedFranchise,
+    email: mapped.email,
+    phone_number: mapped.phone_number,
+    profile_url: mapped.profile_url,
+    status: mapped.status,
+    screenPermissions: mapped.screenPermissions ?? [],
+    franchise_id: franchiseId,
+    state_id: stateId,
+    city_id: cityId,
+  };
+
+  const ok = await updateRoleUserWithApi(adminUserId, payload, undefined, { suppressSuccessAlert: true });
+  if (!ok) {
+    showErrorAlert(
+      "Franchise saved, but linking this admin to the franchise failed. Assign the franchise under Settings → Role."
+    );
+  }
+  return ok;
 };
 
 /**

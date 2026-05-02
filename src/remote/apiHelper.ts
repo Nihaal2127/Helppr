@@ -14,7 +14,9 @@ export const apiRequest = async (
   payload?: any,
   isMultipart: boolean = false,
   skipLoader: boolean = false,
-  suppressErrorAlert: boolean = false
+  suppressErrorAlert: boolean = false,
+  /** When true, non-GET success responses do not show the global “Operation successful” toast. */
+  suppressSuccessAlert: boolean = false
 ) => {
   try {
     if (!skipLoader) showLoader();
@@ -59,7 +61,7 @@ export const apiRequest = async (
     showLog("API Response:", data);
 
     if (response.ok) {
-      if (method !== "GET") {
+      if (method !== "GET" && !suppressSuccessAlert) {
         if (
           endpoint !== ApiPaths.LOGOUT() &&
           endpoint !== ApiPaths.LOGIN() &&

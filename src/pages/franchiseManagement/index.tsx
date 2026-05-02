@@ -7,6 +7,7 @@ import { capitalizeString, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditFranchiseDialog from "./AddEditFranchiseDialog";
 import CustomActionColumn from "../../components/CustomActionColumn";
+import { PinCodeHoverPortal } from "../../components/PinCodeHoverPortal";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";
 import { deleteFranchise, fetchFranchise, fetchFranchiseById } from "../../services/franchiseService";
@@ -60,24 +61,21 @@ function categoriesTableCell(idToLabel: Map<string, string>) {
         }
         const more = items.length - 1;
         return (
-            <div className="pin-code-hover-wrapper franchise-catalog-ellipsis-cell">
-                <span className="pin-code-hover-trigger d-inline-flex align-items-baseline flex-wrap gap-1">
-                    <span className="text-truncate" style={{ maxWidth: 140 }} title={items[0]}>
+            <PinCodeHoverPortal items={items} listStyle="ul">
+                <span className="pin-code-hover-trigger d-flex align-items-center flex-nowrap gap-1 w-100 min-w-0">
+                    <span
+                        className="text-truncate min-w-0"
+                        style={{ flex: "1 1 0%" }}
+                        title={items[0]}
+                    >
                         {items[0]}
                     </span>
-                    <span aria-hidden style={{ letterSpacing: "0.02em" }}>
-                        ......
+                  
+                    <span className="flex-shrink-0" style={{ color: "red", fontWeight: 600 }}>
+                        +{more}
                     </span>
-                    <span style={{ color: "red", fontWeight: 600 }}>+{more}</span>
                 </span>
-                <div className="pin-code-hover-card">
-                    <ul className="mb-0 ps-3" style={{ margin: 0 }}>
-                        {items.map((label, idx) => (
-                            <li key={`${label}-${idx}`}>{label}</li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
+            </PinCodeHoverPortal>
         );
     };
 }
@@ -89,31 +87,28 @@ function servicesTableCell(idToLabel: Map<string, string>) {
         if (items.length === 0) return <>-</>;
         if (items.length === 1) {
             return (
-                <span className="d-inline-block text-truncate" style={{ maxWidth: 180 }} title={items[0]}>
+                <span className="d-inline-block text-truncate" style={{ maxWidth: 150 }} title={items[0]}>
                     {items[0]}
                 </span>
             );
         }
         const more = items.length - 1;
         return (
-            <div className="pin-code-hover-wrapper franchise-catalog-ellipsis-cell">
-                <span className="pin-code-hover-trigger d-inline-flex align-items-baseline flex-wrap gap-1">
-                    <span className="text-truncate" style={{ maxWidth: 140 }} title={items[0]}>
+            <PinCodeHoverPortal items={items} listStyle="ul">
+                <span className="pin-code-hover-trigger d-flex align-items-center flex-nowrap gap-1 w-100 min-w-0">
+                    <span
+                        className="text-truncate min-w-0"
+                        style={{ flex: "1 1 0%" }}
+                        title={items[0]}
+                    >
                         {items[0]}
                     </span>
-                    <span aria-hidden style={{ letterSpacing: "0.02em" }}>
-                        ......
+                 
+                    <span className="flex-shrink-0" style={{ color: "red", fontWeight: 600 }}>
+                        +{more}
                     </span>
-                    <span style={{ color: "red", fontWeight: 600 }}>+{more}</span>
                 </span>
-                <div className="pin-code-hover-card">
-                    <ul className="mb-0 ps-3" style={{ margin: 0 }}>
-                        {items.map((label, idx) => (
-                            <li key={`${label}-${idx}`}>{label}</li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
+            </PinCodeHoverPortal>
         );
     };
 }
@@ -129,19 +124,18 @@ function multiNamesHoverCell(primaryKey: string, fallbackKey?: string) {
         if (items.length === 1) return <>{items[0]}</>;
 
         return (
-            <div className="pin-code-hover-wrapper">
-                <span className="pin-code-hover-trigger">
-                    {items[0]}...
-                    <span className="pin-code-more-count"> +{items.length - 1}</span>
+            <PinCodeHoverPortal items={items} listStyle="div">
+                <span className="pin-code-hover-trigger d-flex align-items-center flex-nowrap gap-1 w-100 min-w-0">
+                    <span
+                        className="min-w-0"
+                        style={{ flex: "1 1 0%" }}
+                        title={items[0]}
+                    >
+                        {items[0]}...
+                    </span>
+                    <span className="pin-code-more-count flex-shrink-0">+{items.length - 1}</span>
                 </span>
-                <div className="pin-code-hover-card">
-                    {items.map((label: string, idx: number) => (
-                        <div key={`${label}-${idx}`} className="pin-code-hover-item">
-                            {label}
-                        </div>
-                    ))}
-                </div>
-            </div>
+            </PinCodeHoverPortal>
         );
     };
 }

@@ -10,6 +10,7 @@ import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { createOrUpdateFranchise, fetchFranchise } from "../../services/franchiseService";
+import { assignFranchiseToAdminUser } from "../../services/settingsService";
 import { fetchAreaDropDown } from "../../services/areaService";
 import { fetchCategory, fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
@@ -713,23 +714,36 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             service_names: selectedServiceLabels,
         };
 
-        let response;
-
-        if (isEditable) {
-            if (!franchise?._id) {
-                showErrorAlert("Unable to update. ID is missing.");
-                return;
-            }
-
-            response = await createOrUpdateFranchise(payload, true, franchise._id);
-        } else {
-            response = await createOrUpdateFranchise(payload, false);
+        if (isEditable && !franchise?._id) {
+            showErrorAlert("Unable to update. ID is missing.");
+            return;
         }
 
-        if (response) {
-            onClose && onClose();
-            onRefreshData();
+        const saveResult = isEditable
+            ? await createOrUpdateFranchise(payload, true, franchise!._id)
+            : await createOrUpdateFranchise(payload, false);
+
+        if (!saveResult.ok) return;
+
+        const franchiseIdForUser =
+            isEditable && franchise?._id ? String(franchise._id) : saveResult.franchiseId;
+        const adminId = String(data.admin_id ?? "").trim();
+
+        if (adminId && franchiseIdForUser) {
+            await assignFranchiseToAdminUser({
+                adminUserId: adminId,
+                franchiseId: franchiseIdForUser,
+                stateId: String(data.state_id ?? "").trim(),
+                cityId: String(data.city_id ?? "").trim(),
+            });
+        } else if (adminId && !franchiseIdForUser) {
+            showErrorAlert(
+                "Franchise was saved, but the server did not return the franchise id. Assign this admin to the franchise under Settings → Role."
+            );
         }
+
+        onClose && onClose();
+        onRefreshData();
     };
 
     return (

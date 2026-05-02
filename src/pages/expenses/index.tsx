@@ -259,7 +259,7 @@ const ExpensesPage = () => {
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, isFranchiseScopedUser, pageSize, sessionFranchiseId, sortBy]);
+  }, [currentPage, effectiveListFranchiseId, isFranchiseScopedUser, pageSize, sessionFranchiseId, sortBy]);
 
   useEffect(() => {
     fetchData();
@@ -450,25 +450,25 @@ const ExpensesPage = () => {
             row={row}
             onView={() => handleOpenView(row.original as ExpenseModel)}
             onEdit={() => handleOpenEdit(row.original as ExpenseModel)}
-            onDelete={() => {
-              openConfirmDialog(
-                "Are you sure you want to void this expense?",
-                "Void",
-                "Cancel",
-                async () => {
-                  const rowId =
-                    (row.original?._id ??
-                      row.original?.id ??
-                      (row.original as any)?.expense_id) as string | undefined;
-                  if (!rowId) return showErrorAlert("Invalid expense id.");
-                  const fid = franchiseIdForExpenseApi(row.original as ExpenseModel);
-                  const ok = await deleteExpenseById(rowId, fid || undefined);
-                  if (!ok) return;
-                  refreshListParams();
-                  fetchData();
-                }
-              );
-            }}
+            // onDelete={() => {
+            //   openConfirmDialog(
+            //     "Are you sure you want to void this expense?",
+            //     "Void",
+            //     "Cancel",
+            //     async () => {
+            //       const rowId =
+            //         (row.original?._id ??
+            //           row.original?.id ??
+            //           (row.original as any)?.expense_id) as string | undefined;
+            //       if (!rowId) return showErrorAlert("Invalid expense id.");
+            //       const fid = franchiseIdForExpenseApi(row.original as ExpenseModel);
+            //       const ok = await deleteExpenseById(rowId, fid || undefined);
+            //       if (!ok) return;
+            //       refreshListParams();
+            //       fetchData();
+            //     }
+            //   );
+            // }}
           />
         ),
       },

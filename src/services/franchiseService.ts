@@ -375,22 +375,39 @@ export const deleteFranchise = async (id: string): Promise<boolean> => {
   }
 };
 
+function parseFranchiseIdFromMutationResponse(apiData: unknown): string | undefined {
+  if (!apiData || typeof apiData !== "object") return undefined;
+  const root = apiData as Record<string, unknown>;
+  const nested =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : root;
+  const rec = (nested.record ?? nested.franchise ?? root.record) as Record<string, unknown> | undefined;
+  if (rec && typeof rec === "object") {
+    const rid = rec._id ?? rec.id;
+    if (rid != null && String(rid).trim()) return String(rid).trim();
+  }
+  return undefined;
+}
+
+export type CreateOrUpdateFranchiseResult = { ok: boolean; franchiseId?: string };
+
 export const createOrUpdateFranchise = async (
   payload: any,
   isEditable: boolean,
   id?: string
-): Promise<boolean> => {
+): Promise<CreateOrUpdateFranchiseResult> => {
   if (USE_MOCK_FRANCHISE_API) {
     if (isEditable) {
       const idx = mockFranchises.findIndex((f: any) => String(f._id) === String(id));
-      if (idx === -1) return false;
+      if (idx === -1) return { ok: false };
 
       mockFranchises[idx] = {
         ...mockFranchises[idx],
         ...payload,
         _id: mockFranchises[idx]._id,
       };
-      return true;
+      return { ok: true, franchiseId: String(mockFranchises[idx]._id) };
     }
 
     const newId = String(Date.now());
@@ -401,7 +418,7 @@ export const createOrUpdateFranchise = async (
       },
       ...mockFranchises,
     ];
-    return true;
+    return { ok: true, franchiseId: newId };
   }
 
   const path = isEditable ? ApiPaths.UPDATE_FRANCHISE(id!) : ApiPaths.CREATE_FRANCHISE;
@@ -410,9 +427,12 @@ export const createOrUpdateFranchise = async (
   const response = await apiRequest(path, method, payload);
 
   if (response.success) {
-    return true;
+    const franchiseId = isEditable
+      ? String(id ?? "").trim() || undefined
+      : parseFranchiseIdFromMutationResponse(response.data);
+    return { ok: true, franchiseId };
   }
-  return false;
+  return { ok: false };
 };
 
 // ----------------------------
