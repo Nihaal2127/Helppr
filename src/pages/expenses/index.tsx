@@ -685,7 +685,6 @@ const ExpensesPage = () => {
           setCurrentPage(1);
           setFilterEpoch((k) => k + 1);
         }}
-    
       />
 
       <CustomTable

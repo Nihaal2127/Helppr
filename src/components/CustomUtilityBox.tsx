@@ -24,6 +24,8 @@ type CustomUtilityBoxProps = {
     afterSearchSlot?: React.ReactNode;
     /** When true, category/subcategory (controlSlot), search, download, and sort sit on one row (wraps on small screens). */
     toolsInlineRow?: boolean;
+    /** Extra class on the inline tools row (e.g. wider search on Expenses). */
+    toolsInlineClassName?: string;
     /** Title row only — no search, download, sort, or more. */
     hideToolbar?: boolean;
     /** Title + search only (same layout as full toolbar, no download / sort / more). */
@@ -43,6 +45,7 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
     controlSlot,
     afterSearchSlot,
     toolsInlineRow = false,
+    toolsInlineClassName,
     hideToolbar = false,
     searchOnlyToolbar = false,
 }) => {
@@ -87,7 +90,13 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
             ) : (
                 <span className="custom-utilty-box-title">{title}</span>
             )}
-            <div className={toolsInlineRow ? "custom-utilty-tools-inline" : undefined}>
+            <div
+                className={
+                    toolsInlineRow
+                        ? classNames("custom-utilty-tools-inline", toolsInlineClassName)
+                        : undefined
+                }
+            >
                 {controlSlot != null && (
                     <div className="custom-utility-control-slot">
                         {controlSlot}

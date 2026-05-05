@@ -413,17 +413,24 @@ const LocationManagement = () => {
     const utilityColumnLayout =
         selectedBox === "box-city" || selectedBox === "box-area";
 
+    const utilityTitle =
+        selectedBox === "box-state"
+            ? "States"
+            : selectedBox === "box-city"
+              ? "Cities"
+              : "Areas";
+    const utilitySearchLabel =
+        selectedBox === "box-state"
+            ? "State"
+            : selectedBox === "box-city"
+              ? "City"
+              : "Area";
+
     const locationUtilityBox = UtilityBoxComponent ? (
         <UtilityBoxComponent
             key={`location-utility-${selectedBox}-${utilitySearchKey}`}
-            title={
-                selectedBox === "box-state"
-                    ? "States"
-                    : selectedBox === "box-city"
-                      ? "Cities"
-                      : "Areas"
-            }
-            searchHint={`Search ${selectedBox === "box-state" ? "State" : selectedBox === "box-city" ? "City" : "Area"} Name`}
+            title={utilityTitle}
+            searchHint={`Search ${utilitySearchLabel} Name`}
             toolsInlineRow={selectedBox === "box-city" || selectedBox === "box-area"}
             controlSlot={
                 selectedBox === "box-city" ? (
