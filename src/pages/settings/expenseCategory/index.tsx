@@ -9,11 +9,7 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
-import {
-  capitalizeString,
-  DetailsRow,
-  formatDate,
-} from "../../../helper/utility";
+import { capitalizeString, DetailsRow, formatDate } from "../../../helper/utility";
 import { ExpenseCategoryModel } from "../../../models/SettingsModel";
 import SettingsNav from "../../../components/SettingsNav";
 import {
@@ -26,10 +22,7 @@ import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { showErrorAlert } from "../../../helper/alertHelper";
-import {
-  fetchFranchiseDropDown,
-  FranchiseDropDownOption,
-} from "../../../services/franchiseService";
+import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
 
 const emptyForm = {
   franchiseId: "",
@@ -66,9 +59,7 @@ const ExpenseCategoryManagement = () => {
   const [tableTotalPages, setTableTotalPages] = useState(1);
   const [tableTotalItems, setTableTotalItems] = useState(0);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const [franchiseOptions, setFranchiseOptions] = useState<
-    FranchiseDropDownOption[]
-  >([]);
+  const [franchiseOptions, setFranchiseOptions] = useState<FranchiseDropDownOption[]>([]);
 
   const closeFormModal = () => {
     setShowForm(false);
@@ -120,40 +111,32 @@ const ExpenseCategoryManagement = () => {
       primarySort?.id === "categoryName"
         ? "category_name"
         : primarySort?.id === "subCategoryName"
-        ? "sub_category_name"
-        : primarySort?.id === "franchiseName"
-        ? "franchise_name"
-        : primarySort?.id === "createdDate"
-        ? "created_at"
-        : undefined;
+          ? "sub_category_name"
+          : primarySort?.id === "franchiseName"
+            ? "franchise_name"
+          : primarySort?.id === "createdDate"
+            ? "created_at"
+            : undefined;
     const trimmedStart = startDate.trim();
     const trimmedEnd = endDate.trim();
     const normalizedStartDate = trimmedStart
       ? trimmedStart
       : trimmedEnd
-      ? undefined
-      : undefined;
+        ? undefined
+        : undefined;
     const normalizedEndDate = trimmedEnd
       ? trimmedEnd
       : trimmedStart
-      ? trimmedStart
-      : undefined;
+        ? trimmedStart
+        : undefined;
     setIsLoading(true);
-    const pageData = await fetchExpenseCategoriesPage(
-      tablePage,
-      TABLE_PAGE_SIZE,
-      {
-        search: keyword.trim(),
-        sort: sortField,
-        sortOrder: primarySort
-          ? primarySort.desc
-            ? "desc"
-            : "asc"
-          : undefined,
-        startDate: normalizedStartDate || undefined,
-        endDate: normalizedEndDate || undefined,
-      }
-    );
+    const pageData = await fetchExpenseCategoriesPage(tablePage, TABLE_PAGE_SIZE, {
+      search: keyword.trim(),
+      sort: sortField,
+      sortOrder: primarySort ? (primarySort.desc ? "desc" : "asc") : undefined,
+      startDate: normalizedStartDate || undefined,
+      endDate: normalizedEndDate || undefined,
+    });
     setIsLoading(false);
     if (!pageData) return;
     setItems(pageData.rows);
@@ -187,13 +170,22 @@ const ExpenseCategoryManagement = () => {
     [tableTotalItems]
   );
 
+  const franchiseIdToName = useMemo(() => {
+    const map = new Map<string, string>();
+    franchiseOptions.forEach((opt) => {
+      const id = String(opt.value ?? "").trim();
+      if (!id) return;
+      map.set(id, opt.label);
+    });
+    return map;
+  }, [franchiseOptions]);
+
   const columns = React.useMemo(
     () => [
       {
         Header: "SR No",
         accessor: "sr",
-        Cell: ({ row }: any) =>
-          (Math.max(1, tablePage) - 1) * TABLE_PAGE_SIZE + row.index + 1,
+        Cell: ({ row }: any) => (Math.max(1, tablePage) - 1) * TABLE_PAGE_SIZE + row.index + 1,
       },
       {
         Header: "Category Name",
@@ -205,7 +197,13 @@ const ExpenseCategoryManagement = () => {
         Header: "Franchise Name",
         accessor: "franchiseName",
         sort: true,
-        Cell: ({ row }: any) => row.original.franchiseName || "-",
+        Cell: ({ row }: any) => {
+          const o = row.original;
+          const fromApi = String(o.franchiseName ?? "").trim();
+          if (fromApi) return fromApi;
+          const fid = String(o.franchiseId ?? "").trim();
+          return (fid && franchiseIdToName.get(fid)) || "-";
+        },
       },
       // { Header: "Description", accessor: "description" },
       {
@@ -239,7 +237,7 @@ const ExpenseCategoryManagement = () => {
         ),
       },
     ],
-    [refresh, tablePage]
+    [franchiseIdToName, refresh, tablePage]
   );
 
   const applySearch = () => {
@@ -249,6 +247,7 @@ const ExpenseCategoryManagement = () => {
 
   const filterControls = (
     <Row className="row-cols-1 row-cols-sm-2 row-cols-md-auto gx-3 gy-2 mt-3 mb-3 align-items-end justify-content-end">
+     
       <Col xs={12} sm={6} md="auto">
         <CustomDatePicker
           label="Start Date"
@@ -285,12 +284,7 @@ const ExpenseCategoryManagement = () => {
           filterDate={() => true}
         />
       </Col>
-      <Col
-        xs={12}
-        md="auto"
-        className="order-0"
-        style={{ minWidth: "min(100%, 16rem)" }}
-      >
+       <Col xs={12} md="auto" className="order-0" style={{ minWidth: "min(100%, 16rem)" }}>
         <div className="d-flex flex-column">
           <label className="fw-medium" htmlFor="expense_category_search">
             Search
@@ -334,13 +328,7 @@ const ExpenseCategoryManagement = () => {
           size="sm"
           className="custom-btn-secondary px-3"
           type="button"
-          disabled={
-            !keyword.trim() &&
-            !searchDraft.trim() &&
-            !startDate &&
-            !endDate &&
-            sortBy.length === 0
-          }
+          disabled={!keyword.trim() && !searchDraft.trim() && !startDate && !endDate && sortBy.length === 0}
           onClick={() => {
             setKeyword("");
             setSearchDraft("");
@@ -348,12 +336,8 @@ const ExpenseCategoryManagement = () => {
             setEndDate("");
             setSortBy([]);
             setTablePage(1);
-            setValue("expense_category_start_date_filter", "", {
-              shouldValidate: false,
-            });
-            setValue("expense_category_end_date_filter", "", {
-              shouldValidate: false,
-            });
+            setValue("expense_category_start_date_filter", "", { shouldValidate: false });
+            setValue("expense_category_end_date_filter", "", { shouldValidate: false });
           }}
         >
           Clear
@@ -364,12 +348,11 @@ const ExpenseCategoryManagement = () => {
 
   return (
     <div className="main-page-content">
-      <CustomHeader
-        title="Expense Category Management"
-        titlePrefix={<SettingsNav />}
-        register={register}
-        setValue={setValue}
-      />
+      <CustomHeader title="Expense Category Management"
+       titlePrefix={<SettingsNav />}
+       register={register}
+       setValue={setValue}
+        />
 
       <div className="box-container">
         <CustomSummaryBox
@@ -405,199 +388,148 @@ const ExpenseCategoryManagement = () => {
       />
 
       <Modal show={showForm} onHide={closeFormModal} centered>
-        <Modal.Header className="py-3 px-4 border-bottom-0">
-          <Modal.Title as="h5" className="custom-modal-title">
-            {editing
-              ? isViewMode
-                ? "Expense Category Information"
-                : "Edit Expense Category"
-              : "Add Expense Category"}
-          </Modal.Title>
-          <CustomCloseButton onClose={closeFormModal} />
-        </Modal.Header>
-        <Modal.Body
-          className="px-4 pb-4 pt-0"
-          style={{ maxHeight: "70vh", overflowY: "auto" }}
-        >
-          {isViewMode && editing ? (
-            <section
-              className="custom-other-details"
-              style={{ padding: "10px" }}
-            >
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <h3 className="mb-0">Expense Category</h3>
-                <i
-                  className="bi bi-pencil-fill fs-6 text-danger"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => {
-                    setForm({
-                      franchiseId: editing.franchiseId || "",
-                      categoryName: editing.categoryName,
-                      subCategoryName: editing.subCategoryName,
-                      description: editing.description || "",
-                    });
-                    setIsViewMode(false);
-                  }}
-                />
-              </div>
-              <div className="row">
-                <div className="custom-helper-column">
-                  <DetailsRow
-                    title="Category Name"
-                    value={editing.categoryName}
+          <Modal.Header className="py-3 px-4 border-bottom-0">
+            <Modal.Title as="h5" className="custom-modal-title">
+              {editing ? (isViewMode ? "Expense Category Information" : "Edit Expense Category") : "Add Expense Category"}
+            </Modal.Title>
+            <CustomCloseButton onClose={closeFormModal} />
+          </Modal.Header>
+          <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            {isViewMode && editing ? (
+              <section className="custom-other-details" style={{ padding: "10px" }}>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h3 className="mb-0">Expense Category</h3>
+                  <i
+                    className="bi bi-pencil-fill fs-6 text-danger"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      setForm({
+                        franchiseId: editing.franchiseId || "",
+                        categoryName: editing.categoryName,
+                        subCategoryName: editing.subCategoryName,
+                        description: editing.description || "",
+                      });
+                      setIsViewMode(false);
+                    }}
                   />
                 </div>
-                <div className="custom-helper-column">
-                  <DetailsRow
-                    title="Sub Category Name"
-                    value={editing.subCategoryName}
+                <div className="row">
+                  <div className="custom-helper-column">
+                    <DetailsRow title="Category Name" value={editing.categoryName} />
+                   
+                  </div>
+                  <div className="custom-helper-column">
+                  <DetailsRow title="Sub Category Name" value={editing.subCategoryName} />
+                  </div>
+                  <div className="custom-helper-column">
+                    <DetailsRow title="Franchise Name" value={editing.franchiseName || "-"} />
+                  </div>
+                  <div className="custom-helper-column">
+                    <DetailsRow title="Created Date" value={formatDate(editing.createdDate)} />
+                  </div>
+                </div>
+                <div className="mt-3 p-3 border rounded">
+                  <div className="custom-personal-row-title mb-2">Description</div>
+                  <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--txt-color)" }}>
+                    {editing.description?.trim() || "-"}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <div className="row g-2">
+                <div className="col-md-12">
+                  <CustomFormSelect
+                    label="Franchise"
+                    controlId="expense_category_franchise_id"
+                    options={[
+                      { value: "", label: "Select Franchise" },
+                      ...franchiseOptions.map((item) => ({ value: item.value, label: item.label })),
+                    ]}
+                    register={register}
+                    fieldName="expense_category_franchise_id"
+                    asCol={false}
+                    defaultValue={form.franchiseId}
+                    setValue={setValue}
+                    onChange={(e) => {
+                      setForm((p: typeof emptyForm) => ({ ...p, franchiseId: e.target.value }));
+                    }}
+                    menuPortal
                   />
                 </div>
-                <div className="custom-helper-column">
-                  <DetailsRow
-                    title="Franchise Name"
-                    value={editing.franchiseName || "-"}
+                <div className="col-md-12">
+                  <CustomFormInput
+                    key={`expense-category-name-${editing?.id ?? "new"}`}
+                    label="Category Name"
+                    controlId="expense_category_name"
+                    placeholder="Enter Category Name"
+                    register={register}
+                    asCol={false}
+                    value={form.categoryName}
+                    onChange={(value: string) => setForm((p) => ({ ...p, categoryName: value }))}
                   />
                 </div>
-                <div className="custom-helper-column">
-                  <DetailsRow
-                    title="Created Date"
-                    value={formatDate(editing.createdDate)}
+                <div className="col-md-12">
+                  <CustomFormInput
+                    key={`expense-sub-category-name-${editing?.id ?? "new"}`}
+                    label="Sub Category Name"
+                    controlId="expense_sub_category_name"
+                    placeholder="Enter Sub Category Name"
+                    register={register}
+                    asCol={false}
+                    value={form.subCategoryName}
+                    onChange={(value: string) => setForm((p) => ({ ...p, subCategoryName: value }))}
+                  />
+                </div>
+                <div className="col-md-12">
+                  <CustomFormInput
+                    key={`expense-description-${editing?.id ?? "new"}`}
+                    label="Description"
+                    controlId="expense_category_description"
+                    placeholder="Enter Description"
+                    register={register}
+                    asCol={false}
+                    as="textarea"
+                    rows={3}
+                    value={form.description}
+                    onChange={(value: string) => setForm((p) => ({ ...p, description: value }))}
                   />
                 </div>
               </div>
-              <div className="mt-3 p-3 border rounded">
-                <div className="custom-personal-row-title mb-2">
-                  Description
-                </div>
-                <div
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    color: "var(--txt-color)",
-                  }}
-                >
-                  {editing.description?.trim() || "-"}
-                </div>
-              </div>
-            </section>
-          ) : (
-            <div className="row g-2">
-              <div className="col-md-12">
-                <CustomFormSelect
-                  label="Franchise"
-                  controlId="expense_category_franchise_id"
-                  options={[
-                    { value: "", label: "Select Franchise" },
-                    ...franchiseOptions.map((item) => ({
-                      value: item.value,
-                      label: item.label,
-                    })),
-                  ]}
-                  register={register}
-                  fieldName="expense_category_franchise_id"
-                  asCol={false}
-                  defaultValue={form.franchiseId}
-                  setValue={setValue}
-                  onChange={(e) => {
-                    setForm((p: typeof emptyForm) => ({
-                      ...p,
-                      franchiseId: e.target.value,
-                    }));
-                  }}
-                  menuPortal
-                />
-              </div>
-              <div className="col-md-12">
-                <CustomFormInput
-                  key={`expense-category-name-${editing?.id ?? "new"}`}
-                  label="Category Name"
-                  controlId="expense_category_name"
-                  placeholder="Enter Category Name"
-                  register={register}
-                  asCol={false}
-                  value={form.categoryName}
-                  onChange={(value: string) =>
-                    setForm((p) => ({ ...p, categoryName: value }))
+            )}
+          </Modal.Body>
+          {!isViewMode && (
+            <Modal.Footer>
+              <Button variant="secondary" onClick={closeFormModal}>Cancel</Button>
+              <Button
+                className="btn-danger"
+                onClick={async () => {
+                  if (!form.franchiseId.trim() || !form.categoryName.trim() || !form.subCategoryName.trim()) {
+                    showErrorAlert("Franchise, Category Name and Sub Category Name are required.");
+                    return;
                   }
-                />
-              </div>
-              <div className="col-md-12">
-                <CustomFormInput
-                  key={`expense-sub-category-name-${editing?.id ?? "new"}`}
-                  label="Sub Category Name"
-                  controlId="expense_sub_category_name"
-                  placeholder="Enter Sub Category Name"
-                  register={register}
-                  asCol={false}
-                  value={form.subCategoryName}
-                  onChange={(value: string) =>
-                    setForm((p) => ({ ...p, subCategoryName: value }))
-                  }
-                />
-              </div>
-              <div className="col-md-12">
-                <CustomFormInput
-                  key={`expense-description-${editing?.id ?? "new"}`}
-                  label="Description"
-                  controlId="expense_category_description"
-                  placeholder="Enter Description"
-                  register={register}
-                  asCol={false}
-                  as="textarea"
-                  rows={3}
-                  value={form.description}
-                  onChange={(value: string) =>
-                    setForm((p) => ({ ...p, description: value }))
-                  }
-                />
-              </div>
-            </div>
-          )}
-        </Modal.Body>
-        {!isViewMode && (
-          <Modal.Footer>
-            <Button variant="secondary" onClick={closeFormModal}>
-              Cancel
-            </Button>
-            <Button
-              className="btn-danger"
-              onClick={async () => {
-                if (
-                  !form.franchiseId.trim() ||
-                  !form.categoryName.trim() ||
-                  !form.subCategoryName.trim()
-                ) {
-                  showErrorAlert(
-                    "Franchise, Category Name and Sub Category Name are required."
+                  const selectedFranchise = franchiseOptions.find((item) => item.value === form.franchiseId);
+                  const ok = await saveExpenseCategoryWithApi(
+                    {
+                      franchiseId: form.franchiseId,
+                      franchiseName: selectedFranchise?.label || "",
+                      categoryName: form.categoryName,
+                      subCategoryName: form.subCategoryName,
+                      description: form.description,
+                    },
+                    editing?.id
                   );
-                  return;
-                }
-                const selectedFranchise = franchiseOptions.find(
-                  (item) => item.value === form.franchiseId
-                );
-                const ok = await saveExpenseCategoryWithApi(
-                  {
-                    franchiseId: form.franchiseId,
-                    franchiseName: selectedFranchise?.label || "",
-                    categoryName: form.categoryName,
-                    subCategoryName: form.subCategoryName,
-                    description: form.description,
-                  },
-                  editing?.id
-                );
-                if (!ok) return;
-                setForm(emptyForm);
-                setEditing(null);
-                setIsViewMode(false);
-                setShowForm(false);
-                refresh();
-              }}
-            >
-              {editing ? "Update" : "Save"}
-            </Button>
-          </Modal.Footer>
-        )}
+                  if (!ok) return;
+                  setForm(emptyForm);
+                  setEditing(null);
+                  setIsViewMode(false);
+                  setShowForm(false);
+                  refresh();
+                }}
+              >
+                {editing ? "Update" : "Save"}
+              </Button>
+            </Modal.Footer>
+          )}
       </Modal>
     </div>
   );

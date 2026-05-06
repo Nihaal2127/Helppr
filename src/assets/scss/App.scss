@@ -1730,6 +1730,12 @@ body:has(.modal.show ~ .modal.show) {
   flex-shrink: 0;
 }
 
+/* Expenses list: no category filters — give search a bit more room */
+.custom-utilty-tools-inline.custom-utilty-tools-inline--expenses-wide-search .custom-search-container {
+  width: 20rem;
+  min-width: 16rem;
+}
+
 /* Full-width filter bar — avoids tools-inline flex-end + .custom-utilty-box div flex breaking Row/Col */
 .financial-toolbar-filters {
   width: 100%;

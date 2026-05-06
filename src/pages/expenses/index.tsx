@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
@@ -20,6 +14,7 @@ import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { PaymentEnum } from "../../constant/PaymentEnum";
 import { DetailsRow, capitalizeString, formatDate } from "../../helper/utility";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import {
   ensureSettingsSeedData,
   fetchAllExpenseCategoriesWithApi,
@@ -27,6 +22,7 @@ import {
 } from "../../services/settingsService";
 import {
   createOrUpdateExpense,
+  deleteExpenseById,
   fetchAllExpensesMatching,
   fetchExpenseById,
   fetchExpenses,
@@ -34,10 +30,7 @@ import {
 } from "../../services/expensesService";
 import { ExpenseModel } from "../../models/ExpenseModel";
 import { ExpenseCategoryModel } from "../../models/SettingsModel";
-import {
-  buildExpensesCsv,
-  downloadExpensesCsv,
-} from "../../helper/expensesExport";
+import { buildExpensesCsv, downloadExpensesCsv } from "../../helper/expensesExport";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
@@ -82,8 +75,7 @@ const ExpensesPage = () => {
   const isSuperAdminOrStaff =
     currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
   const isFranchiseScopedUser =
-    currentUserRole === UserRole.FRANCHISE_ADMIN ||
-    currentUserRole === UserRole.EMPLOYEE;
+    currentUserRole === UserRole.FRANCHISE_ADMIN || currentUserRole === UserRole.EMPLOYEE;
 
   const [expenses, setExpenses] = useState<ExpenseModel[]>([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -92,8 +84,6 @@ const ExpensesPage = () => {
   const [pageSize, setPageSize] = useState(10);
 
   const [keyword, setKeyword] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterSubCategory, setFilterSubCategory] = useState("");
   const [sort, setSort] = useState<"-1" | "1">("-1");
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const [filterEpoch, setFilterEpoch] = useState(0);
@@ -104,22 +94,17 @@ const ExpensesPage = () => {
   /** Same franchise as login `partnerId` (API `franchise_id`); used to scope list + detail/delete calls for franchise admin & employee. */
   const [sessionFranchiseId, setSessionFranchiseId] = useState(() => {
     const role = getLocalStorage(AppConstant.userRole);
-    if (role !== UserRole.FRANCHISE_ADMIN && role !== UserRole.EMPLOYEE)
-      return "";
+    if (role !== UserRole.FRANCHISE_ADMIN && role !== UserRole.EMPLOYEE) return "";
     return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
   });
-  const [franchiseOptions, setFranchiseOptions] = useState<
-    { value: string; label: string }[]
-  >([{ value: "", label: "All Franchises" }]);
+  const [franchiseOptions, setFranchiseOptions] = useState<{ value: string; label: string }[]>([
+    { value: "", label: "All Franchises" },
+  ]);
 
-  const [expenseCategories, setExpenseCategories] = useState<
-    ExpenseCategoryModel[]
-  >([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryModel[]>([]);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<ExpenseModel | null>(
-    null
-  );
+  const [editingExpense, setEditingExpense] = useState<ExpenseModel | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [form, setForm] = useState<ExpenseFormState>(emptyForm);
   const fetchRef = useRef(false);
@@ -151,9 +136,7 @@ const ExpensesPage = () => {
     }
     let cancelled = false;
     (async () => {
-      const currentUserId = String(
-        getLocalStorage(AppConstant.createdById) ?? ""
-      ).trim();
+      const currentUserId = String(getLocalStorage(AppConstant.createdById) ?? "").trim();
       if (!currentUserId) return;
       const res = await fetchUserById(currentUserId);
       if (cancelled || !res.response || !res.user) return;
@@ -171,10 +154,7 @@ const ExpensesPage = () => {
       try {
         const franchises = await fetchFranchiseDropDown();
         if (cancelled) return;
-        setFranchiseOptions([
-          { value: "", label: "All Franchises" },
-          ...franchises,
-        ]);
+        setFranchiseOptions([{ value: "", label: "All Franchises" }, ...franchises]);
       } catch {
         // Fallback to the initial static "All Franchises" option.
       }
@@ -183,13 +163,6 @@ const ExpensesPage = () => {
       cancelled = true;
     };
   }, []);
-
-  const categoryOptions = useMemo(() => {
-    const unique = Array.from(
-      new Set(expenseCategories.map((c) => c.categoryName).filter(Boolean))
-    );
-    return unique.sort((a, b) => a.localeCompare(b));
-  }, [expenseCategories]);
 
   const franchiseIdToName = useMemo(() => {
     const map = new Map<string, string>();
@@ -201,32 +174,13 @@ const ExpensesPage = () => {
     return map;
   }, [franchiseOptions]);
 
-  const subCategoryOptionsFor = useCallback(
-    (categoryName: string) => {
-      const unique = Array.from(
-        new Set(
-          expenseCategories
-            .filter((c) => c.categoryName === categoryName)
-            .map((c) => c.subCategoryName)
-            .filter(Boolean)
-        )
-      );
-      return unique.sort((a, b) => a.localeCompare(b));
-    },
-    [expenseCategories]
-  );
-
   /** `GET/DELETE` expense by id require `franchise_id` query (see expense-management Postman). */
   const franchiseIdForExpenseApi = useCallback(
     (expense: ExpenseModel) => {
-      const fromRow = String(
-        expense.franchise_id ?? expense.franchiseId ?? ""
-      ).trim();
+      const fromRow = String(expense.franchise_id ?? expense.franchiseId ?? "").trim();
       if (fromRow) return fromRow;
       if (isFranchiseScopedUser) {
-        const fromLogin = String(
-          getLocalStorage(AppConstant.partnerId) ?? ""
-        ).trim();
+        const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
         return (sessionFranchiseId || fromLogin).trim();
       }
       return "";
@@ -236,9 +190,7 @@ const ExpensesPage = () => {
 
   const effectiveListFranchiseId = useMemo(() => {
     if (isFranchiseScopedUser) {
-      const fromLogin = String(
-        getLocalStorage(AppConstant.partnerId) ?? ""
-      ).trim();
+      const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
       const scopedId = sessionFranchiseId || fromLogin;
       return scopedId ? scopedId : undefined;
     }
@@ -251,18 +203,10 @@ const ExpensesPage = () => {
   const refreshListParams = useCallback(() => {
     listParamsRef.current = {
       search: keyword?.trim() ? keyword.trim() : undefined,
-      category: filterCategory || undefined,
-      subCategory: filterSubCategory || undefined,
       franchiseId: effectiveListFranchiseId,
       sortOrder: sort === "-1" ? "desc" : "asc",
     };
-  }, [
-    effectiveListFranchiseId,
-    filterCategory,
-    filterSubCategory,
-    keyword,
-    sort,
-  ]);
+  }, [effectiveListFranchiseId, keyword, sort]);
 
   useEffect(() => {
     refreshListParams();
@@ -278,13 +222,7 @@ const ExpensesPage = () => {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
-      const res = await fetchExpenses(
-        currentPage,
-        pageSize,
-        listParamsRef.current,
-        { skipLoader: false },
-        sortBy
-      );
+      const res = await fetchExpenses(currentPage, pageSize, listParamsRef.current, { skipLoader: false }, sortBy);
       if (res.response) {
         setExpenses(res.expenses);
         setTotalPages(Math.max(1, res.totalPages || 1));
@@ -297,81 +235,51 @@ const ExpensesPage = () => {
     } finally {
       fetchRef.current = false;
     }
-  }, [
-    currentPage,
-    isFranchiseScopedUser,
-    pageSize,
-    sessionFranchiseId,
-    sortBy,
-  ]);
+  }, [currentPage, effectiveListFranchiseId, isFranchiseScopedUser, pageSize, sessionFranchiseId, sortBy]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData, filterEpoch]);
 
-  const prefillFormFromExpense = useCallback(
-    (expense: ExpenseModel): ExpenseFormState => {
-      const categoryName = expense.category_name ?? expense.categoryName ?? "";
-      const subCategoryName =
-        expense.sub_category_name ?? expense.subCategoryName ?? "";
+  const prefillFormFromExpense = useCallback((expense: ExpenseModel): ExpenseFormState => {
+    const categoryName = expense.category_name ?? expense.categoryName ?? "";
+    const subCategoryName = expense.sub_category_name ?? expense.subCategoryName ?? "";
 
-      return {
-        franchiseId: String(
-          (expense as any).franchise_id ?? (expense as any).franchiseId ?? ""
-        ),
-        categoryId: String(
-          (expense as any).category_id ?? (expense as any).categoryId ?? ""
-        ),
-        subCategoryId: String(
-          (expense as any).subcategory_id ??
-            (expense as any).subCategoryId ??
-            ""
-        ),
-        categoryName,
-        subCategoryName,
-        expenseName: expense.expense_name ?? expense.expenseName ?? "",
-        description:
-          expense.description ?? (expense as any).expense_description ?? "",
-        expenseAmount:
-          expense.expense_amount !== undefined &&
-          expense.expense_amount !== null
-            ? String(expense.expense_amount)
-            : expense.expenseAmount !== undefined &&
-              expense.expenseAmount !== null
+    return {
+      franchiseId: String((expense as any).franchise_id ?? (expense as any).franchiseId ?? ""),
+      categoryId: String((expense as any).category_id ?? (expense as any).categoryId ?? ""),
+      subCategoryId: String((expense as any).subcategory_id ?? (expense as any).subCategoryId ?? ""),
+      categoryName,
+      subCategoryName,
+      expenseName: expense.expense_name ?? expense.expenseName ?? "",
+      description: expense.description ?? (expense as any).expense_description ?? "",
+      expenseAmount:
+        expense.expense_amount !== undefined && expense.expense_amount !== null
+          ? String(expense.expense_amount)
+          : expense.expenseAmount !== undefined && expense.expenseAmount !== null
             ? String(expense.expenseAmount)
             : "",
-        expenseDate: toDateInputValue(
-          expense.expense_date ?? expense.expenseDate
-        ),
-        paymentModeId:
-          expense.payment_mode_id !== undefined &&
-          expense.payment_mode_id !== null
-            ? String(expense.payment_mode_id)
-            : expense.paymentModeId !== undefined &&
-              expense.paymentModeId !== null
+      expenseDate: toDateInputValue(expense.expense_date ?? expense.expenseDate),
+      paymentModeId:
+        expense.payment_mode_id !== undefined && expense.payment_mode_id !== null
+          ? String(expense.payment_mode_id)
+          : expense.paymentModeId !== undefined && expense.paymentModeId !== null
             ? String(expense.paymentModeId)
             : "1",
-      };
-    },
-    []
-  );
+    };
+  }, []);
 
   const handleOpenEdit = useCallback(
     async (expense?: ExpenseModel | null) => {
       setIsViewMode(false);
       if (!expense) {
         setEditingExpense(null);
-        setForm({
-          ...emptyForm,
-          franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId,
-        });
+        setForm({ ...emptyForm, franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId });
         setShowForm(true);
         return;
       }
 
-      const expenseId = (expense._id ??
-        expense.id ??
-        (expense as any).expense_id) as string | undefined;
+      const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
       if (expenseId) {
         const fid = franchiseIdForExpenseApi(expense);
         const latest = await fetchExpenseById(expenseId, {
@@ -391,20 +299,13 @@ const ExpensesPage = () => {
       }
       setShowForm(true);
     },
-    [
-      franchiseIdForExpenseApi,
-      isSuperAdminOrStaff,
-      prefillFormFromExpense,
-      sessionFranchiseId,
-    ]
+    [franchiseIdForExpenseApi, isSuperAdminOrStaff, prefillFormFromExpense, sessionFranchiseId]
   );
 
   const handleOpenView = useCallback(
     async (expense: ExpenseModel) => {
       setIsViewMode(true);
-      const expenseId = (expense._id ??
-        expense.id ??
-        (expense as any).expense_id) as string | undefined;
+      const expenseId = (expense._id ?? expense.id ?? (expense as any).expense_id) as string | undefined;
       if (expenseId) {
         const fid = franchiseIdForExpenseApi(expense);
         const latest = await fetchExpenseById(expenseId, {
@@ -428,10 +329,7 @@ const ExpensesPage = () => {
   );
 
   const paymentModeOptions = useMemo(() => {
-    return Array.from(PaymentEnum.entries()).map(([id, v]) => ({
-      value: String(id),
-      label: v.label,
-    }));
+    return Array.from(PaymentEnum.entries()).map(([id, v]) => ({ value: String(id), label: v.label }));
   }, []);
 
   const expensesColumns = useMemo(
@@ -445,22 +343,19 @@ const ExpensesPage = () => {
         Header: "Category",
         accessor: "category",
         sort: true,
-        Cell: ({ row }: any) =>
-          row.original.category_name ?? row.original.categoryName ?? "-",
+        Cell: ({ row }: any) => row.original.category_name ?? row.original.categoryName ?? "-",
       },
       {
         Header: "Sub Category",
         accessor: "subCategory",
         sort: true,
-        Cell: ({ row }: any) =>
-          row.original.sub_category_name ?? row.original.subCategoryName ?? "-",
+        Cell: ({ row }: any) => row.original.sub_category_name ?? row.original.subCategoryName ?? "-",
       },
       {
         Header: "Expense Name",
         accessor: "expenseName",
         sort: true,
-        Cell: ({ row }: any) =>
-          row.original.expense_name ?? row.original.expenseName ?? "-",
+        Cell: ({ row }: any) => row.original.expense_name ?? row.original.expenseName ?? "-",
       },
       ...(isSuperAdminOrStaff
         ? [
@@ -491,9 +386,7 @@ const ExpensesPage = () => {
         sort: true,
         Cell: ({ row }: any) => {
           const v = row.original.expense_amount ?? row.original.expenseAmount;
-          return v !== undefined && v !== null
-            ? `${AppConstant.currencySymbol}${v}`
-            : "-";
+          return v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-";
         },
       },
       {
@@ -501,9 +394,7 @@ const ExpensesPage = () => {
         accessor: "expenseDate",
         sort: true,
         Cell: ({ row }: any) =>
-          row.original.expense_date ?? row.original.expenseDate
-            ? formatDate(row.original.expense_date ?? row.original.expenseDate)
-            : "-",
+          row.original.expense_date ?? row.original.expenseDate ? formatDate(row.original.expense_date ?? row.original.expenseDate) : "-",
       },
       // {
       //   Header: "Payment done by",
@@ -523,16 +414,8 @@ const ExpensesPage = () => {
         accessor: "paymentMode",
         Cell: ({ row }: any) => {
           const id = row.original.payment_mode_id ?? row.original.paymentModeId;
-          const mapped =
-            id !== undefined && id !== null && id !== ""
-              ? PaymentEnum.get(Number(id))
-              : undefined;
-          return (
-            mapped?.label ??
-            row.original.payment_mode ??
-            row.original.paymentMode ??
-            "-"
-          );
+          const mapped = id !== undefined && id !== null && id !== "" ? PaymentEnum.get(Number(id)) : undefined;
+          return mapped?.label ?? row.original.payment_mode ?? row.original.paymentMode ?? "-";
         },
       },
       {
@@ -568,11 +451,14 @@ const ExpensesPage = () => {
     ],
     [
       currentPage,
+      fetchData,
+      franchiseIdForExpenseApi,
       franchiseIdToName,
       handleOpenEdit,
       handleOpenView,
       isSuperAdminOrStaff,
       pageSize,
+      refreshListParams,
     ]
   );
 
@@ -589,8 +475,7 @@ const ExpensesPage = () => {
     if (!subCategoryName) return showErrorAlert("Please select Sub Category");
     if (!expenseName) return showErrorAlert("Please enter Expense Name");
     if (!form.expenseDate) return showErrorAlert("Please select Expense Date");
-    if (!form.paymentModeId)
-      return showErrorAlert("Please select Payment Mode");
+    if (!form.paymentModeId) return showErrorAlert("Please select Payment Mode");
     if (Number.isNaN(expenseAmountNum) || expenseAmountNum <= 0) {
       return showErrorAlert("Expense Amount must be greater than 0");
     }
@@ -604,23 +489,12 @@ const ExpensesPage = () => {
         item.subCategoryName === subCategoryName
     );
 
-    const categoryId =
-      form.categoryId ||
-      selectedCategory?.categoryId ||
-      selectedCategory?.id ||
-      "";
-    const subCategoryId =
-      form.subCategoryId || selectedCategory?.subCategoryId || "";
-    const payloadFranchiseId = isSuperAdminOrStaff
-      ? form.franchiseId.trim()
-      : sessionFranchiseId.trim();
+    const categoryId = form.categoryId || selectedCategory?.categoryId || selectedCategory?.id || "";
+    const subCategoryId = form.subCategoryId || selectedCategory?.subCategoryId || "";
+    const payloadFranchiseId = isSuperAdminOrStaff ? form.franchiseId.trim() : sessionFranchiseId.trim();
 
-    if (!categoryId)
-      return showErrorAlert("Category id not found for selected category.");
-    if (!subCategoryId)
-      return showErrorAlert(
-        "Sub category id not found for selected sub category."
-      );
+    if (!categoryId) return showErrorAlert("Category id not found for selected category.");
+    if (!subCategoryId) return showErrorAlert("Sub category id not found for selected sub category.");
     if (!payloadFranchiseId) return showErrorAlert("Franchise id not found.");
 
     const payload = {
@@ -634,14 +508,8 @@ const ExpensesPage = () => {
       payment_mode: PaymentEnum.get(paymentModeIdNum)?.label ?? "COD",
     };
 
-    const id = (editingExpense?._id ??
-      editingExpense?.id ??
-      (editingExpense as any)?.expense_id) as string | undefined;
-    const ok = await createOrUpdateExpense(
-      payload,
-      Boolean(editingExpense),
-      id
-    );
+    const id = (editingExpense?._id ?? editingExpense?.id ?? (editingExpense as any)?.expense_id) as string | undefined;
+    const ok = await createOrUpdateExpense(payload, Boolean(editingExpense), id);
     if (ok) {
       setShowForm(false);
       setIsViewMode(false);
@@ -655,13 +523,10 @@ const ExpensesPage = () => {
     }
   };
 
-  const clearExpensesDisabled =
-    !keyword?.trim() && !filterCategory && !filterSubCategory && sort === "-1";
+  const clearExpensesDisabled = !keyword?.trim() && sort === "-1";
 
   const clearExpensesFilters = () => {
     setKeyword("");
-    setFilterCategory("");
-    setFilterSubCategory("");
     setSort("-1");
     setSortBy([]);
     setCurrentPage(1);
@@ -672,9 +537,7 @@ const ExpensesPage = () => {
   const handleDownload = async () => {
     try {
       const filters = listParamsRef.current;
-      const rows = await fetchAllExpensesMatching(filters, 250, {
-        skipLoader: true,
-      });
+      const rows = await fetchAllExpensesMatching(filters, 250, { skipLoader: true });
       if (!rows) return;
       const csv = buildExpensesCsv(rows);
       downloadExpensesCsv("Expenses.csv", csv);
@@ -693,7 +556,6 @@ const ExpensesPage = () => {
         onLocationChange={(selectedFranchiseId) => {
           setFranchiseId(selectedFranchiseId);
           setCurrentPage(1);
-          setFilterEpoch((k) => k + 1);
         }}
       />
 
@@ -716,6 +578,7 @@ const ExpensesPage = () => {
         title="Expenses"
         searchHint="Search expense name, category, franchise…"
         toolsInlineRow
+        toolsInlineClassName="custom-utilty-tools-inline--expenses-wide-search"
         hideMoreIcon
         afterSearchSlot={
           <Button
@@ -729,75 +592,12 @@ const ExpensesPage = () => {
             Clear
           </Button>
         }
-        controlSlot={
-          <>
-            <div style={{ minWidth: "11rem" }}>
-              <CustomFormSelect
-                label="Category"
-                controlId="expense_filter_category"
-                options={[
-                  { value: "", label: "All" },
-                  ...categoryOptions.map((c) => ({ value: c, label: c })),
-                ]}
-                register={register}
-                fieldName="expense_filter_category"
-                asCol={false}
-                selectWidth="11rem"
-                noBottomMargin
-                defaultValue={filterCategory}
-                setValue={setValue}
-                onChange={(e) => {
-                  setFilterCategory(e.target.value);
-                  setFilterSubCategory("");
-                  setCurrentPage(1);
-                  setFilterEpoch((k) => k + 1);
-                }}
-              />
-            </div>
-            <div
-              style={{
-                minWidth: "11rem",
-                pointerEvents: filterCategory ? "auto" : "none",
-                opacity: filterCategory ? 1 : 0.65,
-              }}
-            >
-              <CustomFormSelect
-                label="Sub Category"
-                controlId="expense_filter_sub_category"
-                options={[
-                  {
-                    value: "",
-                    label: filterCategory ? "All" : "Select Category first",
-                  },
-                  ...(filterCategory
-                    ? subCategoryOptionsFor(filterCategory).map((sc) => ({
-                        value: sc,
-                        label: sc,
-                      }))
-                    : []),
-                ]}
-                register={register}
-                fieldName="expense_filter_sub_category"
-                asCol={false}
-                selectWidth="11rem"
-                noBottomMargin
-                defaultValue={filterSubCategory}
-                setValue={setValue}
-                onChange={(e) => {
-                  setFilterSubCategory(e.target.value);
-                  setCurrentPage(1);
-                  setFilterEpoch((k) => k + 1);
-                }}
-              />
-            </div>
-          </>
-        }
         onSearch={(value) => {
           setKeyword(value);
           setCurrentPage(1);
           setFilterEpoch((k) => k + 1);
         }}
-        onDownloadClick={() => void handleDownload()}
+    
       />
 
       <CustomTable
@@ -832,11 +632,7 @@ const ExpensesPage = () => {
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title">
-            {isViewMode
-              ? "Expense Details"
-              : editingExpense
-              ? "Edit Expense"
-              : "Add Expense"}
+            {isViewMode ? "Expense Details" : editingExpense ? "Edit Expense" : "Add Expense"}
           </Modal.Title>
           <CustomCloseButton
             onClose={() => {
@@ -846,15 +642,9 @@ const ExpensesPage = () => {
           />
         </Modal.Header>
 
-        <Modal.Body
-          className="px-4 pb-4 pt-0"
-          style={{ maxHeight: "70vh", overflowY: "auto" }}
-        >
+        <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
           {isViewMode && editingExpense ? (
-            <section
-              className="custom-other-details"
-              style={{ padding: "10px" }}
-            >
+            <section className="custom-other-details" style={{ padding: "10px" }}>
               <div className="d-flex justify-content-between align-items-center mb-2">
                 <h3 className="mb-0">Expense Information</h3>
                 <i
@@ -866,51 +656,26 @@ const ExpensesPage = () => {
 
               <div className="row">
                 <div className="col-md-6 custom-helper-column">
-                  <DetailsRow
-                    title="Category"
-                    value={
-                      editingExpense.category_name ??
-                      editingExpense.categoryName ??
-                      "-"
-                    }
-                  />
-                  <DetailsRow
-                    title="Sub Category"
-                    value={
-                      editingExpense.sub_category_name ??
-                      editingExpense.subCategoryName ??
-                      "-"
-                    }
-                  />
-                  <DetailsRow
-                    title="Expense Name"
-                    value={
-                      editingExpense.expense_name ??
-                      editingExpense.expenseName ??
-                      "-"
-                    }
-                  />
+                  <DetailsRow title="Category" value={editingExpense.category_name ?? editingExpense.categoryName ?? "-"} />
+                  <DetailsRow title="Sub Category" value={editingExpense.sub_category_name ?? editingExpense.subCategoryName ?? "-"} />
+                  <DetailsRow title="Expense Name" value={editingExpense.expense_name ?? editingExpense.expenseName ?? "-"} />
                 </div>
 
                 <div className="col-md-6 custom-helper-column">
                   <DetailsRow
                     title="Expense Amount"
-                    value={(() => {
-                      const amt =
-                        editingExpense.expense_amount ??
-                        editingExpense.expenseAmount;
-                      return amt !== undefined && amt !== null
-                        ? `${AppConstant.currencySymbol}${amt}`
-                        : "-";
-                    })()}
+                    value={
+                      (() => {
+                        const amt = editingExpense.expense_amount ?? editingExpense.expenseAmount;
+                        return amt !== undefined && amt !== null
+                          ? `${AppConstant.currencySymbol}${amt}`
+                          : "-";
+                      })()
+                    }
                   />
                   <DetailsRow
                     title="Expense Date"
-                    value={formatDate(
-                      editingExpense.expense_date ??
-                        (editingExpense as any).expenseDate ??
-                        ""
-                    )}
+                    value={formatDate(editingExpense.expense_date ?? (editingExpense as any).expenseDate ?? "")}
                   />
                   <DetailsRow
                     title="Payment done by"
@@ -924,243 +689,207 @@ const ExpensesPage = () => {
                   />
                   <DetailsRow
                     title="Payment mode"
-                    value={(() => {
-                      const id =
-                        editingExpense.payment_mode_id ??
-                        editingExpense.paymentModeId;
-                      if (id !== undefined && id !== null && id !== "") {
-                        return PaymentEnum.get(Number(id))?.label ?? "-";
-                      }
-                      return (
-                        editingExpense.payment_mode ??
-                        editingExpense.paymentMode ??
-                        "-"
-                      );
-                    })()}
+                    value={
+                      (() => {
+                        const id = editingExpense.payment_mode_id ?? editingExpense.paymentModeId;
+                        if (id !== undefined && id !== null && id !== "") {
+                          return PaymentEnum.get(Number(id))?.label ?? "-";
+                        }
+                        return editingExpense.payment_mode ?? editingExpense.paymentMode ?? "-";
+                      })()
+                    }
                   />
                 </div>
               </div>
 
               <div className="mt-3 p-3 border rounded">
-                <div className="custom-personal-row-title mb-2">
-                  Description / Notes
-                </div>
-                <div
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    color: "var(--txt-color)",
-                  }}
-                >
-                  {editingExpense.description ??
-                    (editingExpense as any).expense_description ??
-                    "-"}
+                <div className="custom-personal-row-title mb-2">Description / Notes</div>
+                <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--txt-color)" }}>
+                  {editingExpense.description ?? (editingExpense as any).expense_description ?? "-" }
                 </div>
               </div>
             </section>
           ) : (
             <>
-              <div className="row g-2">
-                {isSuperAdminOrStaff && (
-                  <div className="col-md-6">
-                    <CustomFormSelect
-                      label="Franchise"
-                      controlId="expense_modal_franchise"
-                      options={[
-                        { value: "", label: "Select Franchise" },
-                        ...franchiseOptions
-                          .filter((item) => item.value !== "all")
-                          .map((item) => ({
-                            value: item.value,
-                            label: item.label,
-                          })),
-                      ]}
-                      register={register}
-                      fieldName="expense_modal_franchise"
-                      asCol={false}
-                      defaultValue={form.franchiseId}
-                      setValue={setValue}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, franchiseId: e.target.value }))
-                      }
-                      menuPortal
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="row g-2">
+            <div className="row g-2">
+              {isSuperAdminOrStaff && (
                 <div className="col-md-6">
                   <CustomFormSelect
-                    label="Category1"
-                    controlId="expense_modal_category"
+                    label="Franchise"
+                    controlId="expense_modal_franchise"
                     options={[
-                      { value: "", label: "Select Category" },
-                      ...Array.from(
-                        new Map(
-                          expenseCategories.map((c) => [
-                            c.categoryId || c.id,
-                            {
-                              value: c.categoryId || c.id,
-                              label: c.categoryName,
-                            },
-                          ])
-                        ).values()
-                      ),
+                      { value: "", label: "Select Franchise" },
+                      ...franchiseOptions
+                        .filter((item) => item.value !== "all")
+                        .map((item) => ({ value: item.value, label: item.label })),
                     ]}
                     register={register}
-                    fieldName="expense_modal_category"
+                    fieldName="expense_modal_franchise"
                     asCol={false}
-                    defaultValue={form.categoryId}
+                    defaultValue={form.franchiseId}
+                    setValue={setValue}
+                    onChange={(e) => setForm((p) => ({ ...p, franchiseId: e.target.value }))}
+                    menuPortal
+                  />
+                </div>
+              )}
+             </div>
+             <div className="row g-2">
+              <div className="col-md-6">
+                <CustomFormSelect
+                  label="Category1"
+                  controlId="expense_modal_category"
+                  options={[
+                    { value: "", label: "Select Category" },
+                    ...Array.from(
+                      new Map(
+                        expenseCategories.map((c) => [
+                          c.categoryId || c.id,
+                          { value: c.categoryId || c.id, label: c.categoryName },
+                        ])
+                      ).values()
+                    ),
+                  ]}
+                  register={register}
+                  fieldName="expense_modal_category"
+                  asCol={false}
+                  defaultValue={form.categoryId}
+                  setValue={setValue}
+                  onChange={(e) => {
+                    const newCategoryId = e.target.value;
+                    const pickedCategory = expenseCategories.find(
+                      (item) => (item.categoryId || item.id) === newCategoryId
+                    );
+                    setForm((p) => ({
+                      ...p,
+                      categoryId: newCategoryId,
+                      categoryName: pickedCategory?.categoryName || "",
+                      subCategoryId: "",
+                      subCategoryName: "",
+                    }));
+                  }}
+                />
+              </div>
+
+              <div className="col-md-6">
+                <div
+                  style={{
+                    pointerEvents: form.categoryName ? "auto" : "none",
+                    opacity: form.categoryName ? 1 : 0.65,
+                  }}
+                >
+                  <CustomFormSelect
+                    label="Sub Category"
+                    controlId="expense_modal_sub_category"
+                    options={[
+                      {
+                        value: "",
+                        label: form.categoryId ? "Select Sub Category" : "Select Category first",
+                      },
+                      ...expenseCategories
+                        .filter((item) => (item.categoryId || item.id) === form.categoryId)
+                        .map((item) => ({
+                          value: item.subCategoryId || "",
+                          label: item.subCategoryName,
+                        }))
+                        .filter((item) => Boolean(item.value)),
+                    ]}
+                    register={register}
+                    fieldName="expense_modal_sub_category"
+                    asCol={false}
+                    defaultValue={form.subCategoryId}
                     setValue={setValue}
                     onChange={(e) => {
-                      const newCategoryId = e.target.value;
-                      const pickedCategory = expenseCategories.find(
-                        (item) => (item.categoryId || item.id) === newCategoryId
+                      const newSubCategoryId = e.target.value;
+                      const pickedSubCategory = expenseCategories.find(
+                        (item) =>
+                          (item.categoryId || item.id) === form.categoryId &&
+                          (item.subCategoryId || "") === newSubCategoryId
                       );
                       setForm((p) => ({
                         ...p,
-                        categoryId: newCategoryId,
-                        categoryName: pickedCategory?.categoryName || "",
-                        subCategoryId: "",
-                        subCategoryName: "",
+                        subCategoryId: newSubCategoryId,
+                        subCategoryName: pickedSubCategory?.subCategoryName || "",
                       }));
                     }}
                   />
                 </div>
-
-                <div className="col-md-6">
-                  <div
-                    style={{
-                      pointerEvents: form.categoryName ? "auto" : "none",
-                      opacity: form.categoryName ? 1 : 0.65,
-                    }}
-                  >
-                    <CustomFormSelect
-                      label="Sub Category"
-                      controlId="expense_modal_sub_category"
-                      options={[
-                        {
-                          value: "",
-                          label: form.categoryId
-                            ? "Select Sub Category"
-                            : "Select Category first",
-                        },
-                        ...expenseCategories
-                          .filter(
-                            (item) =>
-                              (item.categoryId || item.id) === form.categoryId
-                          )
-                          .map((item) => ({
-                            value: item.subCategoryId || "",
-                            label: item.subCategoryName,
-                          }))
-                          .filter((item) => Boolean(item.value)),
-                      ]}
-                      register={register}
-                      fieldName="expense_modal_sub_category"
-                      asCol={false}
-                      defaultValue={form.subCategoryId}
-                      setValue={setValue}
-                      onChange={(e) => {
-                        const newSubCategoryId = e.target.value;
-                        const pickedSubCategory = expenseCategories.find(
-                          (item) =>
-                            (item.categoryId || item.id) === form.categoryId &&
-                            (item.subCategoryId || "") === newSubCategoryId
-                        );
-                        setForm((p) => ({
-                          ...p,
-                          subCategoryId: newSubCategoryId,
-                          subCategoryName:
-                            pickedSubCategory?.subCategoryName || "",
-                        }));
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="col-md-12">
-                  <CustomFormInput
-                    label="Expense Name"
-                    controlId="expense_modal_expense_name"
-                    placeholder="Enter Expense Name"
-                    register={register}
-                    asCol={false}
-                    value={form.expenseName}
-                    onChange={(value) =>
-                      setForm((p) => ({ ...p, expenseName: value }))
-                    }
-                  />
-                </div>
-
-                <div className="col-md-12">
-                  <CustomFormInput
-                    label="Description / Notes"
-                    controlId="expense_modal_description"
-                    placeholder="Enter Description / Notes"
-                    register={register}
-                    asCol={false}
-                    value={form.description}
-                    as="textarea"
-                    rows={4}
-                    onChange={(value) =>
-                      setForm((p) => ({ ...p, description: value }))
-                    }
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <CustomFormInput
-                    label="Expense Amount"
-                    controlId="expense_modal_expense_amount"
-                    placeholder="Enter Expense Amount"
-                    register={register}
-                    asCol={false}
-                    inputType="number"
-                    value={form.expenseAmount}
-                    onChange={(value) =>
-                      setForm((p) => ({ ...p, expenseAmount: value }))
-                    }
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <Form.Label className="mb-1 fw-medium">
-                    Expense Date
-                  </Form.Label>
-                  <CustomDatePicker
-                    label=""
-                    controlId="expense_modal_expense_date"
-                    selectedDate={form.expenseDate || null}
-                    onChange={(date) => {
-                      const value = date ? date.toISOString().slice(0, 10) : "";
-                      setForm((p) => ({ ...p, expenseDate: value }));
-                    }}
-                    register={register}
-                    setValue={setValue}
-                    asCol={false}
-                    groupClassName="mb-0 w-100"
-                    placeholderText="Expense Date"
-                    filterDate={() => true}
-                  />
-                </div>
-
-                <div className="col-md-12">
-                  <CustomFormSelect
-                    label="Payment Mode"
-                    controlId="expense_modal_payment_mode"
-                    options={paymentModeOptions}
-                    register={register}
-                    fieldName="expense_modal_payment_mode"
-                    asCol={false}
-                    defaultValue={form.paymentModeId}
-                    setValue={setValue}
-                    onChange={(e) => {
-                      setForm((p) => ({ ...p, paymentModeId: e.target.value }));
-                    }}
-                  />
-                </div>
               </div>
+
+              <div className="col-md-12">
+                <CustomFormInput
+                  label="Expense Name"
+                  controlId="expense_modal_expense_name"
+                  placeholder="Enter Expense Name"
+                  register={register}
+                  asCol={false}
+                  value={form.expenseName}
+                  onChange={(value) => setForm((p) => ({ ...p, expenseName: value }))}
+                />
+              </div>
+
+              <div className="col-md-12">
+                <CustomFormInput
+                  label="Description / Notes"
+                  controlId="expense_modal_description"
+                  placeholder="Enter Description / Notes"
+                  register={register}
+                  asCol={false}
+                  value={form.description}
+                  as="textarea"
+                  rows={4}
+                  onChange={(value) => setForm((p) => ({ ...p, description: value }))}
+                />
+              </div>
+
+              <div className="col-md-6">
+                <CustomFormInput
+                  label="Expense Amount"
+                  controlId="expense_modal_expense_amount"
+                  placeholder="Enter Expense Amount"
+                  register={register}
+                  asCol={false}
+                  inputType="number"
+                  value={form.expenseAmount}
+                  onChange={(value) => setForm((p) => ({ ...p, expenseAmount: value }))}
+                />
+              </div>
+
+              <div className="col-md-6">
+                <Form.Label className="mb-1 fw-medium">Expense Date</Form.Label>
+                <CustomDatePicker
+                  label=""
+                  controlId="expense_modal_expense_date"
+                  selectedDate={form.expenseDate || null}
+                  onChange={(date) => {
+                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    setForm((p) => ({ ...p, expenseDate: value }));
+                  }}
+                  register={register}
+                  setValue={setValue}
+                  asCol={false}
+                  groupClassName="mb-0 w-100"
+                  placeholderText="Expense Date"
+                  filterDate={() => true}
+                />
+              </div>
+
+              <div className="col-md-12">
+                <CustomFormSelect
+                  label="Payment Mode"
+                  controlId="expense_modal_payment_mode"
+                  options={paymentModeOptions}
+                  register={register}
+                  fieldName="expense_modal_payment_mode"
+                  asCol={false}
+                  defaultValue={form.paymentModeId}
+                  setValue={setValue}
+                  onChange={(e) => {
+                    setForm((p) => ({ ...p, paymentModeId: e.target.value }));
+                  }}
+                />
+              </div>
+            </div>
             </>
           )}
         </Modal.Body>
@@ -1181,3 +910,4 @@ const ExpensesPage = () => {
 };
 
 export default ExpensesPage;
+

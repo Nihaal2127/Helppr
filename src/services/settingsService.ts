@@ -22,6 +22,7 @@ import {
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { fetchFranchiseById } from "./franchiseService";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -616,6 +617,21 @@ export const assignFranchiseToAdminUser = async (params: {
   const franchiseId = String(params.franchiseId ?? "").trim();
   if (!adminUserId || !franchiseId) return true;
 
+  /**
+   * Franchise form may use static fallback state/city slugs when dropdown APIs fail.
+   * `PUT /user/update` expects the same ids the franchise and Settings → Role use (usually DB ids).
+   * Load the saved franchise so we send canonical `state_id` / `city_id` with `franchise_id`.
+   */
+  let resolvedStateId = String(params.stateId ?? "").trim();
+  let resolvedCityId = String(params.cityId ?? "").trim();
+  const franchiseRecord = await fetchFranchiseById(franchiseId);
+  if (franchiseRecord) {
+    const fs = String(franchiseRecord.state_id ?? "").trim();
+    const fc = String(franchiseRecord.city_id ?? "").trim();
+    if (fs) resolvedStateId = fs;
+    if (fc) resolvedCityId = fc;
+  }
+
   const { response, user } = await fetchUserById(adminUserId);
   if (!response || !user) {
     showErrorAlert(
@@ -632,8 +648,8 @@ export const assignFranchiseToAdminUser = async (params: {
       : "franchise_admin";
 
   const mapped = mapApiUserToRoleSettingsModel(record, roleType);
-  const stateId = String(params.stateId ?? "").trim() || mapped.state_id || "";
-  const cityId = String(params.cityId ?? "").trim() || mapped.city_id || "";
+  const stateId = resolvedStateId || mapped.state_id || "";
+  const cityId = resolvedCityId || mapped.city_id || "";
 
   const payload: Omit<RoleSettingsModel, "id" | "createdDate"> = {
     roleId: mapped.roleId,
