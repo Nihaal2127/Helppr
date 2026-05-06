@@ -270,17 +270,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
           );
         };
 
-        const [states, usersResult, occupancy] = await Promise.all([
+        const [states, usersResult] = await Promise.all([
           fetchStateDropDown(),
           loadAllFranchiseAdmins(),
-          loadFranchiseAdminOccupancy(),
         ]);
         if (cancelled) return;
-        const currentId = String(franchise?._id ?? "").trim();
         setStateOptions(states);
-        setAdminOptions(
-          filterAdminsNotAssignedElsewhere(usersResult, occupancy, currentId)
-        );
+        setAdminOptions(usersResult);
       } catch {
         if (cancelled) return;
         setStateOptions(STATIC_STATE_OPTIONS);
@@ -1029,7 +1025,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   fieldName="admin_id"
                   error={errors.admin_id}
                   asCol={false}
-                  requiredMessage="Please select admin"
+                  // requiredMessage="Please select admin"
                   defaultValue={isEditable ? franchise?.admin_id : ""}
                   setValue={setValue as (name: string, value: any) => void}
                 />
