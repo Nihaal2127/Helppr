@@ -54,7 +54,9 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
     defaultValues: { employee_id: defaultEmployeeId ?? "" },
   });
 
-  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [options, setOptions] = useState<{ value: string; label: string }[]>(
+    []
+  );
   const [records, setRecords] = useState<UserModel[]>([]);
   const fetchRef = useRef(false);
 
@@ -72,7 +74,8 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
         mapped.unshift({
           value: currentId,
           label:
-            (defaultEmployeeName && String(defaultEmployeeName).trim()) || "Current assignee",
+            (defaultEmployeeName && String(defaultEmployeeName).trim()) ||
+            "Current assignee",
         });
       }
       setRecords(users);
@@ -96,8 +99,10 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
     const opt = options.find((o) => o.value === id);
     const fromApi = records.find((u) => u._id === id);
     const fromOpt = (opt?.label ?? "").trim();
-    const fromApiName = fromApi?.name != null ? String(fromApi.name).trim() : "";
-    const fromDefault = defaultEmployeeName != null ? String(defaultEmployeeName).trim() : "";
+    const fromApiName =
+      fromApi?.name != null ? String(fromApi.name).trim() : "";
+    const fromDefault =
+      defaultEmployeeName != null ? String(defaultEmployeeName).trim() : "";
     const resolvedName = fromOpt || fromApiName || fromDefault || "";
     const phoneFromApi =
       fromApi?.phone_number != null ? String(fromApi.phone_number).trim() : "";
@@ -115,7 +120,13 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
   };
 
   return (
-    <Modal show onHide={onClose} centered dialogClassName="custom-big-modal" enforceFocus={false}>
+    <Modal
+      show
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+      enforceFocus={false}
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           Change employee
@@ -140,11 +151,18 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
             />
           </Row>
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
               </Button>
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

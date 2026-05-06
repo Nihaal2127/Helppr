@@ -3,7 +3,10 @@ import { ApiPaths } from "../remote/apiPaths";
 import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
-import { shouldUseRealVerificationApi, getMockVerificationListPage } from "../mockData/verificationTableMock";
+import {
+  shouldUseRealVerificationApi,
+  getMockVerificationListPage,
+} from "../mockData/verificationTableMock";
 import { mapAccessibleScreenSlugsToMenuKeys } from "../layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../layout/menuItems";
 import { UserRole } from "../constant/AppConstant";
@@ -29,8 +32,10 @@ export function mapWebUserTypeToSessionRole(
   const t = Number(type);
   if (!Number.isFinite(t)) return null;
   if (t === WEB_MANAGEMENT_USER_TYPE.SUPER_ADMIN) return UserRole.ADMIN;
-  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN) return UserRole.FRANCHISE_ADMIN;
-  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE) return UserRole.EMPLOYEE;
+  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN)
+    return UserRole.FRANCHISE_ADMIN;
+  if (t === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE)
+    return UserRole.EMPLOYEE;
   if (t === WEB_MANAGEMENT_USER_TYPE.STAFF) return UserRole.STAFF;
   return null;
 }
@@ -46,7 +51,9 @@ function normalizeAppPath(path: string): string {
 /**
  * Maps selected `mainMenuItems` keys to `available_pages` entries (`page` = menu label, `url` = route path).
  */
-export const mapMenuKeysToAvailablePages = (keys: string[]): AvailablePageEntry[] => {
+export const mapMenuKeysToAvailablePages = (
+  keys: string[]
+): AvailablePageEntry[] => {
   const keySet = new Set(keys ?? []);
   const pages: AvailablePageEntry[] = [];
   for (const item of mainMenuItems) {
@@ -64,10 +71,14 @@ export const mapMenuKeysToAvailablePages = (keys: string[]): AvailablePageEntry[
 };
 
 /** Reconstruct menu keys from stored `{ page, url }` rows (e.g. when editing a user). */
-export const menuKeysFromAvailablePages = (pages: AvailablePageEntry[] | null | undefined): string[] => {
+export const menuKeysFromAvailablePages = (
+  pages: AvailablePageEntry[] | null | undefined
+): string[] => {
   if (!pages?.length) return [];
   const byUrl = new Map(
-    mainMenuItems.map((i) => [normalizeAppPath(i.path), i.key] as [string, string])
+    mainMenuItems.map(
+      (i) => [normalizeAppPath(i.path), i.key] as [string, string]
+    )
   );
   const keys: string[] = [];
   for (const p of pages) {
@@ -78,7 +89,9 @@ export const menuKeysFromAvailablePages = (pages: AvailablePageEntry[] | null | 
 };
 
 /** Staff users always get Profile; order follows selected menu keys then Profile when added. */
-export function staffAvailablePagesFromMenuKeys(menuKeys: string[]): AvailablePageEntry[] {
+export function staffAvailablePagesFromMenuKeys(
+  menuKeys: string[]
+): AvailablePageEntry[] {
   const pages = mapMenuKeysToAvailablePages(menuKeys);
   const hasProfile = pages.some((p) => normalizeAppPath(p.url) === "/profile");
   if (hasProfile) return pages;
@@ -116,7 +129,7 @@ export type CreateWebManagementUserBody = {
    * App-side name; request body sends `chat` (boolean).
    */
   chat_enabled?: boolean;
-  imageFile?: File; 
+  imageFile?: File;
 };
 
 /**
@@ -126,7 +139,9 @@ export type CreateWebManagementUserBody = {
 export const createWebManagementUser = async (
   body: CreateWebManagementUserBody
 ): Promise<{ ok: true; record: unknown } | { ok: false }> => {
-  const availablePages = Array.isArray(body.available_pages) ? body.available_pages : [];
+  const availablePages = Array.isArray(body.available_pages)
+    ? body.available_pages
+    : [];
   const pageRows: AvailablePageEntry[] = availablePages.map((p) => ({
     page: p.page,
     url: normalizeAppPath(p.url),
@@ -151,7 +166,10 @@ export const createWebManagementUser = async (
     requestBody.available_pages = pageRows;
     // Same as `available_pages` — server expects the same structure for `accessible_screens`.
     requestBody.accessible_screens = accessibleScreensRows;
-  } else if (Array.isArray(body.accessible_screens) && body.accessible_screens.length) {
+  } else if (
+    Array.isArray(body.accessible_screens) &&
+    body.accessible_screens.length
+  ) {
     requestBody.accessible_screens = accessibleScreensRows;
   }
   if (body.status) {
@@ -183,7 +201,12 @@ export const createWebManagementUser = async (
     requestPayload = formData;
   }
 
-  const response = await apiRequest(ApiPaths.CREATE_USER, "POST", requestPayload, shouldSendMultipart);
+  const response = await apiRequest(
+    ApiPaths.CREATE_USER,
+    "POST",
+    requestPayload,
+    shouldSendMultipart
+  );
 
   if (!response.success) {
     return { ok: false };
@@ -203,7 +226,9 @@ type UserAccessLike = {
  * Build allowed sidebar menu keys from login `record` access fields.
  * Supports `available_pages` and/or `accessible_screens` as `[{page,url}]` (mirrored) or legacy `accessible_screens` as string[] slugs.
  */
-export function menuKeysFromUserAccess(record: UserAccessLike | null | undefined): string[] {
+export function menuKeysFromUserAccess(
+  record: UserAccessLike | null | undefined
+): string[] {
   if (!record) return [];
 
   const available = Array.isArray(record.available_pages)
@@ -211,12 +236,14 @@ export function menuKeysFromUserAccess(record: UserAccessLike | null | undefined
     : [];
 
   const rawScreens = record.accessible_screens;
-  const fromSlugs = Array.isArray(rawScreens) && rawScreens.every((x) => typeof x === "string")
-    ? mapAccessibleScreenSlugsToMenuKeys(rawScreens as string[])
-    : [];
+  const fromSlugs =
+    Array.isArray(rawScreens) && rawScreens.every((x) => typeof x === "string")
+      ? mapAccessibleScreenSlugsToMenuKeys(rawScreens as string[])
+      : [];
 
   const fromRows =
-    Array.isArray(rawScreens) && rawScreens.some((x) => typeof x === "object" && x != null)
+    Array.isArray(rawScreens) &&
+    rawScreens.some((x) => typeof x === "object" && x != null)
       ? menuKeysFromAvailablePages(rawScreens as AvailablePageEntry[])
       : [];
 
@@ -227,8 +254,10 @@ export function menuKeysFromUserAccess(record: UserAccessLike | null | undefined
 /** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
 export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
 
-export const fetchUserDropDown = async (type: number, serviceId?: string
-): Promise<{ users: UserModel[]; }> => {
+export const fetchUserDropDown = async (
+  type: number,
+  serviceId?: string
+): Promise<{ users: UserModel[] }> => {
   const params = new URLSearchParams({
     type: String(type),
     ...(serviceId && { service_id: serviceId }),
@@ -248,8 +277,9 @@ export const fetchUserDropDown = async (type: number, serviceId?: string
   }
 };
 
-export const fetchPartnerDropDown = async (serviceId?: string
-): Promise<{ partners: UserModel[]; }> => {
+export const fetchPartnerDropDown = async (
+  serviceId?: string
+): Promise<{ partners: UserModel[] }> => {
   const params = new URLSearchParams({
     ...(serviceId && { service_id: serviceId }),
   });
@@ -286,7 +316,7 @@ export const fetchUser = async (
   pageSize: number,
   filters: UserListFilters,
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, users: UserModel[]; totalPages: number }> => {
+): Promise<{ response: boolean; users: UserModel[]; totalPages: number }> => {
   if (isVerification && !shouldUseRealVerificationApi()) {
     return getMockVerificationListPage(page, pageSize, filters);
   }
@@ -309,10 +339,14 @@ export const fetchUser = async (
     ...(filters.keyword && { search: filters.keyword }),
     ...(filters.keyword && { user_name: filters.keyword }),
     ...(filters.keyword && { partner_name: filters.keyword }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
-    ...(filters.wallet_status && filters.wallet_status !== "all" && { wallet_status: filters.wallet_status }),
+    ...(filters.wallet_status &&
+      filters.wallet_status !== "all" && {
+        wallet_status: filters.wallet_status,
+      }),
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),
     ...(mappedSortField && { sort_by: mappedSortField }),
@@ -321,7 +355,9 @@ export const fetchUser = async (
   });
 
   const response = await apiRequest(
-    `${isVerification ? ApiPaths.GET_VERIFICATION() : ApiPaths.GET_USER()}?${params.toString()}`,
+    `${
+      isVerification ? ApiPaths.GET_VERIFICATION() : ApiPaths.GET_USER()
+    }?${params.toString()}`,
     "GET"
   );
 
@@ -341,8 +377,13 @@ export const fetchUser = async (
   }
 };
 
-export const fetchUserById = async (id: string): Promise<{ response: boolean, user: UserModel | null; }> => {
-  const response = await apiRequest(`${ApiPaths.GET_USER_BY_ID()}/${id}`, "GET");
+export const fetchUserById = async (
+  id: string
+): Promise<{ response: boolean; user: UserModel | null }> => {
+  const response = await apiRequest(
+    `${ApiPaths.GET_USER_BY_ID()}/${id}`,
+    "GET"
+  );
   if (response.success) {
     return {
       response: true,
@@ -392,7 +433,12 @@ export const createOrUpdateUser = async (
     bodyToSend = formData;
   }
 
-  const response = await apiRequest(path, method, bodyToSend, shouldSendMultipart);
+  const response = await apiRequest(
+    path,
+    method,
+    bodyToSend,
+    shouldSendMultipart
+  );
   if (response.success) {
     return true;
   }

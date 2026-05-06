@@ -45,7 +45,8 @@ const GroupChatConversationPage = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
 
   const selectedChat =
-    groupChatConversations.find((chat) => chat.id === chatId) || groupChatConversations[0];
+    groupChatConversations.find((chat) => chat.id === chatId) ||
+    groupChatConversations[0];
 
   const fallbackDetail = {
     chatId: selectedChat.id,
@@ -64,7 +65,11 @@ const GroupChatConversationPage = () => {
       },
     ],
     attachments: [] as { id: string; fileName: string; imageUrl: string }[],
-    transferHistory: [] as { employeeName: string; date: string; note?: string }[],
+    transferHistory: [] as {
+      employeeName: string;
+      date: string;
+      note?: string;
+    }[],
     currentEmployeeName: "Assigned Employee",
   };
 
@@ -76,10 +81,10 @@ const GroupChatConversationPage = () => {
       sender === "admin"
         ? detail.participants.admin
         : sender === "employee"
-          ? detail.participants.employee
-          : sender === "partner"
-            ? detail.participants.partner
-            : detail.participants.user;
+        ? detail.participants.employee
+        : sender === "partner"
+        ? detail.participants.partner
+        : detail.participants.user;
 
     const letter = (participant?.name || "U").charAt(0);
 
@@ -88,10 +93,10 @@ const GroupChatConversationPage = () => {
       sender === "admin"
         ? "#b91c1c"
         : sender === "employee"
-          ? "#991b1b"
-          : sender === "partner"
-            ? "#15803d"
-            : "#7f1d1d";
+        ? "#991b1b"
+        : sender === "partner"
+        ? "#15803d"
+        : "#7f1d1d";
 
     return { letter, bg };
   };
@@ -108,7 +113,8 @@ const GroupChatConversationPage = () => {
   );
 
   const [messages, setMessages] = useState<ChatMessage[]>(baseMessages);
-  const isSendDisabled = messageDraft.trim().length === 0 && selectedFiles.length === 0;
+  const isSendDisabled =
+    messageDraft.trim().length === 0 && selectedFiles.length === 0;
 
   const transferAssigneeOptions = useMemo(
     () => [
@@ -141,7 +147,8 @@ const GroupChatConversationPage = () => {
     const mappedFiles: DraftAttachment[] = files.map((file, index) => {
       const isImage = file.type.startsWith("image/");
       const isVideo = file.type.startsWith("video/");
-      const previewUrl = isImage || isVideo ? URL.createObjectURL(file) : undefined;
+      const previewUrl =
+        isImage || isVideo ? URL.createObjectURL(file) : undefined;
       return {
         id: `${Date.now()}-${index}-${file.name}`,
         file,
@@ -164,7 +171,9 @@ const GroupChatConversationPage = () => {
   };
 
   const updateAttachmentCaption = (id: string, caption: string) => {
-    setSelectedFiles((prev) => prev.map((item) => (item.id === id ? { ...item, caption } : item)));
+    setSelectedFiles((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, caption } : item))
+    );
   };
 
   const formatNow = () =>
@@ -185,7 +194,8 @@ const GroupChatConversationPage = () => {
     }));
 
     const text = messageDraft.trim();
-    const outgoingText = text || (outgoingAttachments.length > 0 ? "Shared attachments" : "");
+    const outgoingText =
+      text || (outgoingAttachments.length > 0 ? "Shared attachments" : "");
 
     setMessages((prev) => [
       ...prev,
@@ -208,7 +218,7 @@ const GroupChatConversationPage = () => {
         <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-             className="financial-subpage-back text-danger"
+            className="financial-subpage-back text-danger"
             onClick={() => navigate(ROUTES.TICKET_MANAGEMENT_GROUP_CHAT.path)}
             aria-label="Back to group chat list"
           >
@@ -216,7 +226,11 @@ const GroupChatConversationPage = () => {
           </button>
           <h4 className="m-0 p-0">Group Chat</h4>
         </div>
-        <button type="button" className="btn p-0 border-0 bg-transparent" aria-label="Notifications">
+        <button
+          type="button"
+          className="btn p-0 border-0 bg-transparent"
+          aria-label="Notifications"
+        >
           <i className="bi bi-bell-fill text-danger fs-5" />
         </button>
       </div>
@@ -224,21 +238,6 @@ const GroupChatConversationPage = () => {
       <div className="row g-3">
         <div className="col-lg-8">
           <div className="border rounded-3 bg-white">
-            <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
-              <div className="d-flex align-items-center gap-2">
-                <div
-                  className="normal-chat-avatar d-inline-flex align-items-center justify-content-center position-relative flex-shrink-0"
-                  style={{ backgroundColor: selectedChat.avatarColor }}
-                >
-                  {selectedChat.groupName.charAt(0)}
-                </div>
-                <div>
-                  <h6 className="normal-chat-user-name mb-0">{selectedChat.groupName}</h6>
-                  <small className="normal-chat-time">{selectedChat.groupId}</small>
-                </div>
-              </div>
-            </div>
-
             <div className="normal-chat-message-area" ref={messageAreaRef}>
               {messages.map((msg) => {
                 // WhatsApp-style: messages from the logged-in user (employee) appear on the right.
@@ -247,43 +246,58 @@ const GroupChatConversationPage = () => {
                 return (
                   <div
                     key={msg.id}
-                    className={`d-flex mb-2 ${isLeft ? "justify-content-start" : "justify-content-end"}`}
-                    
+                    className={`d-flex mb-2 ${
+                      isLeft ? "justify-content-start" : "justify-content-end"
+                    }`}
                   >
                     {isLeft && (
                       <div
-                        className="group-chat-sender-icon"
-                        style={{ backgroundColor: senderProfile.bg, marginRight: 8 }}
+                        className="normal-chat-message-avatar"
+                        style={{
+                          backgroundColor: senderProfile.bg,
+                          marginRight: 8,
+                        }}
                         aria-label="sender avatar"
                       >
                         {senderProfile.letter}
                       </div>
                     )}
 
-                    <div className={`normal-chat-bubble ${isLeft ? "user" : "employee"}`}>
+                    <div
+                      className={`normal-chat-bubble ${
+                        isLeft ? "user" : "employee"
+                      }`}
+                    >
                       <p className="mb-1">{msg.text}</p>
                       {msg.attachments && msg.attachments.length > 0 && (
                         <div
                           className={`normal-chat-bubble-attachments ${
-                            msg.attachments.length > 1 ? "normal-chat-bubble-attachments-grid" : ""
+                            msg.attachments.length > 1
+                              ? "normal-chat-bubble-attachments-grid"
+                              : ""
                           }`}
                         >
                           {msg.attachments.map((attachment) => (
-                            <div key={attachment.id} className="normal-chat-bubble-attachment-item">
-                              {attachment.kind === "image" && attachment.previewUrl && (
-                                <img
-                                  src={attachment.previewUrl}
-                                  alt={attachment.fileName}
-                                  className="normal-chat-bubble-attachment-preview"
-                                />
-                              )}
-                              {attachment.kind === "video" && attachment.previewUrl && (
-                                <video
-                                  className="normal-chat-bubble-attachment-preview"
-                                  controls
-                                  src={attachment.previewUrl}
-                                />
-                              )}
+                            <div
+                              key={attachment.id}
+                              className="normal-chat-bubble-attachment-item"
+                            >
+                              {attachment.kind === "image" &&
+                                attachment.previewUrl && (
+                                  <img
+                                    src={attachment.previewUrl}
+                                    alt={attachment.fileName}
+                                    className="normal-chat-bubble-attachment-preview"
+                                  />
+                                )}
+                              {attachment.kind === "video" &&
+                                attachment.previewUrl && (
+                                  <video
+                                    className="normal-chat-bubble-attachment-preview"
+                                    controls
+                                    src={attachment.previewUrl}
+                                  />
+                                )}
                               {attachment.kind === "file" && (
                                 <div className="normal-chat-bubble-file">
                                   <i className="bi bi-file-earmark-text" />
@@ -291,7 +305,9 @@ const GroupChatConversationPage = () => {
                                 </div>
                               )}
                               {attachment.caption && (
-                                <div className="normal-chat-attachment-caption">{attachment.caption}</div>
+                                <div className="normal-chat-attachment-caption">
+                                  {attachment.caption}
+                                </div>
                               )}
                             </div>
                           ))}
@@ -302,8 +318,11 @@ const GroupChatConversationPage = () => {
 
                     {!isLeft && (
                       <div
-                        className="group-chat-sender-icon"
-                        style={{ backgroundColor: senderProfile.bg, marginLeft: 8 }}
+                        className="normal-chat-message-avatar"
+                        style={{
+                          backgroundColor: senderProfile.bg,
+                          marginLeft: 8,
+                        }}
                         aria-label="sender avatar"
                       >
                         {senderProfile.letter}
@@ -318,7 +337,8 @@ const GroupChatConversationPage = () => {
               <div className="px-3 pt-2">
                 <div className="d-flex align-items-center justify-content-between gap-2">
                   <div className="text-muted" style={{ fontSize: 12 }}>
-                    {selectedFiles.length} attachment{selectedFiles.length > 1 ? "s" : ""} selected
+                    {selectedFiles.length} attachment
+                    {selectedFiles.length > 1 ? "s" : ""} selected
                   </div>
                   <button
                     type="button"
@@ -337,7 +357,8 @@ const GroupChatConversationPage = () => {
                       tabIndex={0}
                       onClick={() => setShowAttachmentModal(true)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") setShowAttachmentModal(true);
+                        if (e.key === "Enter" || e.key === " ")
+                          setShowAttachmentModal(true);
                       }}
                     >
                       <div className="normal-chat-selected-file-header">
@@ -347,11 +368,13 @@ const GroupChatConversationPage = () => {
                               file.kind === "image"
                                 ? "bi-image"
                                 : file.kind === "video"
-                                  ? "bi-film"
-                                  : "bi-file-earmark-text"
+                                ? "bi-film"
+                                : "bi-file-earmark-text"
                             }`}
                           />
-                          <span className="text-truncate">{file.file.name}</span>
+                          <span className="text-truncate">
+                            {file.file.name}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -365,13 +388,21 @@ const GroupChatConversationPage = () => {
                           <i className="bi bi-x-circle-fill" />
                         </button>
                       </div>
-                      {file.kind !== "file" && file.previewUrl && (
-                        file.kind === "image" ? (
-                          <img src={file.previewUrl} alt={file.file.name} className="normal-chat-selected-preview" />
+                      {file.kind !== "file" &&
+                        file.previewUrl &&
+                        (file.kind === "image" ? (
+                          <img
+                            src={file.previewUrl}
+                            alt={file.file.name}
+                            className="normal-chat-selected-preview"
+                          />
                         ) : (
-                          <video src={file.previewUrl} className="normal-chat-selected-preview" controls />
-                        )
-                      )}
+                          <video
+                            src={file.previewUrl}
+                            className="normal-chat-selected-preview"
+                            controls
+                          />
+                        ))}
                     </div>
                   ))}
                 </div>
@@ -444,13 +475,17 @@ const GroupChatConversationPage = () => {
                     <li key={`${t.employeeName}-${idx}`} className="mb-2">
                       <span className="fw-semibold">{t.employeeName}</span>
                       <span className="text-muted"> · {t.date}</span>
-                      {t.note ? <span className="d-block text-muted">({t.note})</span> : null}
+                      {t.note ? (
+                        <span className="d-block text-muted">({t.note})</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               )}
               <div className="fw-semibold">
-                Current employee — {detail.currentEmployeeName ?? detail.participants.employee.name}
+                Current employee —{" "}
+                {detail.currentEmployeeName ??
+                  detail.participants.employee.name}
               </div>
             </div>
 
@@ -458,28 +493,36 @@ const GroupChatConversationPage = () => {
             <div className="small mb-3">
               <div className="mb-2">
                 <span className="text-muted">Admin: </span>
-                <span className="fw-semibold">{detail.participants.admin.name}</span>
+                <span className="fw-semibold">
+                  {detail.participants.admin.name}
+                </span>
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   {detail.participants.admin.email}
                 </div>
               </div>
               <div className="mb-2">
                 <span className="text-muted">Employee: </span>
-                <span className="fw-semibold">{detail.participants.employee.name}</span>
+                <span className="fw-semibold">
+                  {detail.participants.employee.name}
+                </span>
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   {detail.participants.employee.email}
                 </div>
               </div>
               <div className="mb-2">
                 <span className="text-muted">Partner: </span>
-                <span className="fw-semibold">{detail.participants.partner.name}</span>
+                <span className="fw-semibold">
+                  {detail.participants.partner.name}
+                </span>
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   {detail.participants.partner.email}
                 </div>
               </div>
               <div className="mb-2">
                 <span className="text-muted">User: </span>
-                <span className="fw-semibold">{detail.participants.user.name}</span>
+                <span className="fw-semibold">
+                  {detail.participants.user.name}
+                </span>
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   {detail.participants.user.email}
                 </div>
@@ -507,7 +550,9 @@ const GroupChatConversationPage = () => {
                           loading="lazy"
                         />
                         <div className="p-2">
-                          <div className="normal-chat-attachment-name">{att.fileName}</div>
+                          <div className="normal-chat-attachment-name">
+                            {att.fileName}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -532,19 +577,28 @@ const GroupChatConversationPage = () => {
           <CustomCloseButton onClose={() => setShowAttachmentModal(false)} />
         </Modal.Header>
 
-        <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        <Modal.Body
+          className="px-4 pb-4 pt-0"
+          style={{ maxHeight: "70vh", overflowY: "auto" }}
+        >
           <div className="d-flex justify-content-between align-items-center mb-3">
             <div className="text-muted" style={{ fontSize: 14 }}>
               Preview and add captions before sending
             </div>
-            <button type="button" className="btn custom-add-button" onClick={openAttachmentPicker}>
+            <button
+              type="button"
+              className="btn custom-add-button"
+              onClick={openAttachmentPicker}
+            >
               <i className="bi bi-plus-lg me-2" />
               Add files
             </button>
           </div>
 
           {selectedFiles.length === 0 ? (
-            <div className="normal-chat-empty-state">No attachments selected.</div>
+            <div className="normal-chat-empty-state">
+              No attachments selected.
+            </div>
           ) : (
             <div className="row g-3">
               {selectedFiles.map((file) => (
@@ -574,15 +628,26 @@ const GroupChatConversationPage = () => {
 
                     {file.previewUrl && file.kind !== "file" ? (
                       file.kind === "image" ? (
-                        <img src={file.previewUrl} alt={file.file.name} className="normal-chat-modal-preview" />
+                        <img
+                          src={file.previewUrl}
+                          alt={file.file.name}
+                          className="normal-chat-modal-preview"
+                        />
                       ) : (
-                        <video src={file.previewUrl} className="normal-chat-modal-preview" controls />
+                        <video
+                          src={file.previewUrl}
+                          className="normal-chat-modal-preview"
+                          controls
+                        />
                       )
                     ) : (
                       <div className="border rounded-3 p-3 text-center">
                         <i
                           className="bi bi-file-earmark-text"
-                          style={{ fontSize: 24, color: "var(--primary-txt-color)" }}
+                          style={{
+                            fontSize: 24,
+                            color: "var(--primary-txt-color)",
+                          }}
                         />
                       </div>
                     )}
@@ -592,7 +657,9 @@ const GroupChatConversationPage = () => {
                       rows={2}
                       placeholder="Caption"
                       value={file.caption}
-                      onChange={(e) => updateAttachmentCaption(file.id, e.target.value)}
+                      onChange={(e) =>
+                        updateAttachmentCaption(file.id, e.target.value)
+                      }
                     />
                   </div>
                 </div>
@@ -638,4 +705,3 @@ const GroupChatConversationPage = () => {
 };
 
 export default GroupChatConversationPage;
-

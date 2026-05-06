@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button, Col } from "react-bootstrap";
 import { AppConstant } from "../constant/AppConstant";
 import { showErrorAlert } from "../helper/alertHelper";
-import { getSupportedImageExtensions, getSupportedImageMaxSizeBytes, isSupportedImageFile } from "../helper/utility";
+import {
+  getSupportedImageExtensions,
+  getSupportedImageMaxSizeBytes,
+  isSupportedImageFile,
+} from "../helper/utility";
 
 interface CustomImageUploaderProps {
   label: string;
@@ -15,7 +19,11 @@ interface CustomImageUploaderProps {
 function resolveExistingImageSrc(url?: string): string {
   const u = (url ?? "").trim();
   if (!u) return "";
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:")) {
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:")
+  ) {
     return `${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
   }
   return `${AppConstant.IMAGE_BASE_URL}${u}?t=${Date.now()}`;
@@ -62,10 +70,14 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     initKeyRef.current = initKey;
 
     const initialFileInputs = isEditable
-      ? (existingImages.length > 0 ? existingImages.map(() => null) : [null])
+      ? existingImages.length > 0
+        ? existingImages.map(() => null)
+        : [null]
       : [null];
     setFileInputs(initialFileInputs);
     setReplaceUrls([]);
+    // existingImagesKey tracks URL contents; omitting `existingImages` avoids resets when parent passes unstable array refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditable, existingImages.length, existingImagesKey]);
 
   const handleFileChange = (index: number, file: File | null) => {
@@ -88,7 +100,10 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     setFileInputs(updatedFiles);
     setReplaceUrls(updatedReplaceUrls);
 
-    onFileChange(updatedFiles.filter((f) => f !== null) as File[], updatedReplaceUrls);
+    onFileChange(
+      updatedFiles.filter((f) => f !== null) as File[],
+      updatedReplaceUrls
+    );
   };
 
   const addFileInput = () => {
@@ -107,51 +122,64 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
               const statusMeta = uploadStatusMeta(file, existingImages[index]);
               return (
                 <>
-            {isEditable && existingImages[index] && !file ? (
-              <div className="me-2">
-                <img
-                  alt=""
-                  src={resolveExistingImageSrc(existingImages[index])}
-                  style={{ width: "50px", height: "50px", objectFit: "cover" }}
-                />
-              </div>
-            ) : null}
-            <div className="form-control d-flex align-items-center gap-2 py-1">
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => inputRefs.current[index]?.click()}
-              >
-                Choose File
-              </button>
-              <span
-                className="small text-truncate"
-                style={{
-                  color: statusMeta.color,
-                  maxWidth: "280px",
-                }}
-                title={statusMeta.title}
-              >
-                {statusMeta.text}
-              </span>
-              <input
-                type="file"
-                ref={(el) => {
-                  inputRefs.current[index] = el;
-                }}
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const selectedFile = e.target.files?.[0] || null;
-                  if (selectedFile && !isSupportedImageFile(selectedFile)) {
-                    showErrorAlert(`Only ${getSupportedImageExtensions().join(", ")} formats up to ${Math.floor(getSupportedImageMaxSizeBytes() / 1024)}KB are supported.`);
-                    e.target.value = "";
-                    return;
-                  }
-                  handleFileChange(index, selectedFile);
-                }}
-              />
-            </div>
+                  {isEditable && existingImages[index] && !file ? (
+                    <div className="me-2">
+                      <img
+                        alt=""
+                        src={resolveExistingImageSrc(existingImages[index])}
+                        style={{
+                          width: "50px",
+                          height: "50px",
+                          objectFit: "cover",
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="form-control d-flex align-items-center gap-2 py-1">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => inputRefs.current[index]?.click()}
+                    >
+                      Choose File
+                    </button>
+                    <span
+                      className="small text-truncate"
+                      style={{
+                        color: statusMeta.color,
+                        maxWidth: "280px",
+                      }}
+                      title={statusMeta.title}
+                    >
+                      {statusMeta.text}
+                    </span>
+                    <input
+                      type="file"
+                      ref={(el) => {
+                        inputRefs.current[index] = el;
+                      }}
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const selectedFile = e.target.files?.[0] || null;
+                        if (
+                          selectedFile &&
+                          !isSupportedImageFile(selectedFile)
+                        ) {
+                          showErrorAlert(
+                            `Only ${getSupportedImageExtensions().join(
+                              ", "
+                            )} formats up to ${Math.floor(
+                              getSupportedImageMaxSizeBytes() / 1024
+                            )}KB are supported.`
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        handleFileChange(index, selectedFile);
+                      }}
+                    />
+                  </div>
                 </>
               );
             })()}

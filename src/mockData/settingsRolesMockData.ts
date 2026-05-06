@@ -25,4 +25,3 @@ export const rolesMockSeed: Array<
     screenPermissions: ["dashboards", "user-management", "quote-management"],
   },
 ];
-

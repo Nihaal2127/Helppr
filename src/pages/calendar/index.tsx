@@ -9,7 +9,6 @@ const CalendarPage: React.FC = () => {
 
   return (
     <div className="main-page-content">
-      
       <CustomHeader title="Calendar" register={register} setValue={setValue} />
 
       <div className="custom-dashboard-card d-flex justify-content-between align-items-center">
@@ -23,7 +22,6 @@ const CalendarPage: React.FC = () => {
           </div>
         </Col>
       </Row>
-
     </div>
   );
 };

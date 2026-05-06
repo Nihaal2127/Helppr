@@ -14,4 +14,3 @@ export const expenseCategoriesMockSeed: Array<
     description: "Local travel fuel reimbursement",
   },
 ];
-

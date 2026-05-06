@@ -60,7 +60,9 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
+      {label?.trim() && (
+        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      )}
       <InputGroup className="mb-0">
         <Form.Control
           className="custom-form-input"
@@ -91,7 +93,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
             backgroundColor: "var(--bg-color)",
             fontFamily: "'Inter'",
             color: "var(--content-txt-color)",
-            marginBottom: "10px"
+            marginBottom: "10px",
           }}
         />
         <div
@@ -114,14 +116,18 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
             className="password-eye"
             onClick={() => {
               setShowPassword(!showPassword);
-            }} >
+            }}
+          >
             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
           </span>
         </div>
 
-        {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}
+        {error && (
+          <Form.Control.Feedback type="invalid">
+            {error.message}
+          </Form.Control.Feedback>
+        )}
       </InputGroup>
-
     </Form.Group>
   ) : (
     <Form.Group
@@ -129,7 +135,9 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
+      {label?.trim() && (
+        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      )}
       <Form.Control
         className={classNames("custom-form-input", inputClassName)}
         type={inputType}
@@ -164,7 +172,11 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           ...inputStyle,
         }}
       />
-      {error && <Form.Control.Feedback type="invalid">{error.message}</Form.Control.Feedback>}
+      {error && (
+        <Form.Control.Feedback type="invalid">
+          {error.message}
+        </Form.Control.Feedback>
+      )}
     </Form.Group>
   );
 };

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
@@ -73,7 +79,8 @@ const DisputeChatListPage = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Ticket ID",
@@ -109,12 +116,14 @@ const DisputeChatListPage = () => {
       {
         Header: "Resolved Name",
         accessor: "resolved_by_name",
-        Cell: ({ row }: { row: any }) => (row.original.resolved_by_name ? row.original.resolved_by_name : "-"),
+        Cell: ({ row }: { row: any }) =>
+          row.original.resolved_by_name ? row.original.resolved_by_name : "-",
       },
       {
         Header: "Close Date",
         accessor: "close_date",
-        Cell: ({ row }: { row: any }) => formatDate(row.original.close_date ? row.original.close_date : ""),
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.close_date ? row.original.close_date : ""),
       },
       {
         Header: "Resolve Status",
@@ -155,7 +164,11 @@ const DisputeChatListPage = () => {
         Header: "Status",
         accessor: "status",
         Cell: ({ row }: { row: any }) => (
-          <span className={`custom-${row.original.status === 1 ? "active" : "inactive"}`}>
+          <span
+            className={`custom-${
+              row.original.status === 1 ? "active" : "inactive"
+            }`}
+          >
             {row.original.status === 1 ? "Open" : "Close"}
           </span>
         ),
@@ -163,7 +176,8 @@ const DisputeChatListPage = () => {
       {
         Header: "Created Date",
         accessor: "created_at",
-        Cell: ({ row }: { row: any }) => formatDate(row.original.created_at ? row.original.created_at : ""),
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.created_at ? row.original.created_at : ""),
       },
       {
         Header: "Action",
@@ -172,12 +186,16 @@ const DisputeChatListPage = () => {
           <CustomActionColumn
             row={row}
             onChat={() => {
-              navigate(`${ROUTES.TICKET_MANAGEMENT_DISPUTE_CHAT_VIEW.path}?ticketId=${row.original._id}`);
+              navigate(
+                `${ROUTES.TICKET_MANAGEMENT_DISPUTE_CHAT_VIEW.path}?ticketId=${row.original._id}`
+              );
             }}
             onEdit={
               row.original.status === 1
                 ? () => {
-                    EditTicketDialog.show(true, row.original, () => fetchData({}));
+                    EditTicketDialog.show(true, row.original, () =>
+                      fetchData({})
+                    );
                   }
                 : undefined
             }
@@ -207,7 +225,7 @@ const DisputeChatListPage = () => {
         <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-             className="financial-subpage-back text-danger"
+            className="financial-subpage-back text-danger"
             onClick={() => navigate(ROUTES.TICKET_MANAGEMENT.path)}
             aria-label="Back to ticket management"
           >
@@ -215,7 +233,11 @@ const DisputeChatListPage = () => {
           </button>
           <h4 className="m-0 p-0">Dispute Chats</h4>
         </div>
-        <button type="button" className="btn p-0 border-0 bg-transparent" aria-label="Notifications">
+        <button
+          type="button"
+          className="btn p-0 border-0 bg-transparent"
+          aria-label="Notifications"
+        >
           <i className="bi bi-bell-fill text-danger fs-5" />
         </button>
       </div>
@@ -251,4 +273,3 @@ const DisputeChatListPage = () => {
 };
 
 export default DisputeChatListPage;
-

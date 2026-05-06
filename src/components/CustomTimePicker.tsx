@@ -58,7 +58,10 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={groupControlId ?? controlId} className={groupClassName ?? "mb-3 w-100"}>
+      <Form.Group
+        controlId={groupControlId ?? controlId}
+        className={groupClassName ?? "mb-3 w-100"}
+      >
         {label?.trim() ? <Form.Label>{label}</Form.Label> : null}
         <div className="position-relative w-100">
           <DatePicker
@@ -70,7 +73,9 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             timeIntervals={timeIntervals}
             dateFormat="h:mm aa"
             placeholderText={placeholderText}
-            className={`form-control ${error ? "is-invalid" : ""} full-width-date-picker`}
+            className={`form-control ${
+              error ? "is-invalid" : ""
+            } full-width-date-picker`}
             showPopperArrow={false}
             {...(filterTime && { filterTime })}
           />
@@ -84,7 +89,9 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
         </div>
         {error && (
           <Form.Control.Feedback type="invalid" className="d-block">
-            {typeof error === "string" ? error : error.message || "This field is required."}
+            {typeof error === "string"
+              ? error
+              : error.message || "This field is required."}
           </Form.Control.Feedback>
         )}
       </Form.Group>

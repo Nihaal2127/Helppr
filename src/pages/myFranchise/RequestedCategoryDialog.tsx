@@ -42,7 +42,10 @@ function resolveImageSrc(url?: string): string | null {
 }
 
 const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
-  showAdd: (franchiseServiceOptions: ServiceOption[], onRefreshData: () => void) => void;
+  showAdd: (
+    franchiseServiceOptions: ServiceOption[],
+    onRefreshData: () => void
+  ) => void;
   showView: (
     request: RequestedCategoryRow,
     franchiseServiceOptions: ServiceOption[],
@@ -61,12 +64,20 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const base = franchiseServiceOptions.filter((o) => o.value !== "select-all");
-      const withSelectAll = [{ value: "select-all", label: "Select All" }, ...base];
+      const base = franchiseServiceOptions.filter(
+        (o) => o.value !== "select-all"
+      );
+      const withSelectAll = [
+        { value: "select-all", label: "Select All" },
+        ...base,
+      ];
       try {
         const fromApi = await fetchServiceDropDown();
         if (!cancelled && Array.isArray(fromApi) && fromApi.length > 0) {
-          setServiceOptions([{ value: "select-all", label: "Select All" }, ...fromApi]);
+          setServiceOptions([
+            { value: "select-all", label: "Select All" },
+            ...fromApi,
+          ]);
           return;
         }
       } catch {
@@ -87,7 +98,7 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
     } else if (request) {
       setServiceIds((request.service_ids ?? []).map(String));
     }
-  }, [isAdd, request?._id]);
+  }, [isAdd, request]);
 
   const {
     register,
@@ -113,15 +124,21 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   }, [isAdd, request, isEditing, reset]);
 
   const handleServiceSelection = (selectedOptions: ServiceOption[]) => {
-    const isSelectAllSelected = selectedOptions.some((option) => option.value === "select-all");
+    const isSelectAllSelected = selectedOptions.some(
+      (option) => option.value === "select-all"
+    );
 
     let selectedIds: string[] = [];
 
     if (isSelectAllSelected) {
-      const allServices = serviceOptions.filter((s) => s.value !== "select-all");
+      const allServices = serviceOptions.filter(
+        (s) => s.value !== "select-all"
+      );
       const isAllSelected =
         selectedOptions.length - 1 === allServices.length &&
-        allServices.every((svc) => selectedOptions.some((selected) => selected.value === svc.value));
+        allServices.every((svc) =>
+          selectedOptions.some((selected) => selected.value === svc.value)
+        );
 
       selectedIds = isAllSelected ? [] : allServices.map((svc) => svc.value);
     } else {
@@ -140,7 +157,8 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
     if (!files.length) return Promise.resolve(undefined);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
+      reader.onload = () =>
+        resolve(typeof reader.result === "string" ? reader.result : undefined);
       reader.onerror = () => reject(new Error("read failed"));
       reader.readAsDataURL(files[0]);
     });
@@ -213,11 +231,12 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   const modalTitle = isAdd
     ? "Add category request"
     : isEditing
-      ? "Edit category request"
-      : "Category request details";
+    ? "Edit category request"
+    : "Category request details";
 
   const servicesDisplayView =
-    request && (request.service_names?.length ? request.service_names.join(", ") : "-");
+    request &&
+    (request.service_names?.length ? request.service_names.join(", ") : "-");
 
   const renderViewBody = () => {
     if (!request) return null;
@@ -242,22 +261,38 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
         <div className="row">
           <div className="col-md-12 custom-helper-column">
             <DetailsRow title="Category name" value={request.name} />
-            <FullDetailsRow title="Services" value={servicesDisplayView ?? "-"} />
-            <FullDetailsRow title="Description" value={request.description || "-"} />
+            <FullDetailsRow
+              title="Services"
+              value={servicesDisplayView ?? "-"}
+            />
+            <FullDetailsRow
+              title="Description"
+              value={request.description || "-"}
+            />
             <Row className="row custom-personal-row">
               <label className="col custom-personal-row-title">Status</label>
               <label className="col custom-personal-row-value text-truncate">
-                <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
+                <span style={{ color: "orange", fontWeight: 600 }}>
+                  Pending
+                </span>
               </label>
             </Row>
             <div className="mt-2">
-              <p className="mb-1" style={{ color: "var(--primary-color)", fontWeight: 600 }}>
+              <p
+                className="mb-1"
+                style={{ color: "var(--primary-color)", fontWeight: 600 }}
+              >
                 Category image
               </p>
               <img
                 alt=""
                 src={displayImg}
-                style={{ maxWidth: 160, maxHeight: 160, borderRadius: 8, objectFit: "cover" }}
+                style={{
+                  maxWidth: 160,
+                  maxHeight: 160,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                }}
               />
             </div>
           </div>
@@ -319,14 +354,22 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
               setFileInputs(files);
             }}
           />
-          <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
-          {request?.image_url && String(request.image_url).startsWith("data:") ? (
+          <label style={{ color: "var(--primary-color)" }}>
+            Image size should be 512*512
+          </label>
+          {request?.image_url &&
+          String(request.image_url).startsWith("data:") ? (
             <div className="mt-2">
               <p className="small text-muted mb-1">Current image</p>
               <img
                 alt=""
                 src={request.image_url}
-                style={{ maxWidth: 120, maxHeight: 120, borderRadius: 8, objectFit: "cover" }}
+                style={{
+                  maxWidth: 120,
+                  maxHeight: 120,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                }}
               />
             </div>
           ) : null}

@@ -31,12 +31,15 @@ function pickArray(raw: Record<string, unknown>): Record<string, unknown>[] {
   if (Array.isArray(records)) return records as Record<string, unknown>[];
   const nestedData = data?.data;
   if (Array.isArray(nestedData)) return nestedData as Record<string, unknown>[];
-  if (Array.isArray(raw.records)) return raw.records as Record<string, unknown>[];
+  if (Array.isArray(raw.records))
+    return raw.records as Record<string, unknown>[];
   if (Array.isArray(raw.data)) return raw.data as Record<string, unknown>[];
   return [];
 }
 
-function pickSingle(raw: Record<string, unknown>): Record<string, unknown> | null {
+function pickSingle(
+  raw: Record<string, unknown>
+): Record<string, unknown> | null {
   const data = asRecord(raw.data);
   const recordFromData = asRecord(data?.record);
   if (recordFromData) return recordFromData;
@@ -58,7 +61,9 @@ function mapContentItem(raw: Record<string, unknown>): ContentItem {
     id: String(raw._id ?? raw.id ?? ""),
     title: String(raw.title ?? "").trim(),
     description: String(raw.description ?? "").trim(),
-    last_updated: toIsoLike(raw.updated_at ?? raw.last_updated ?? raw.created_at),
+    last_updated: toIsoLike(
+      raw.updated_at ?? raw.last_updated ?? raw.created_at
+    ),
   };
 }
 
@@ -108,13 +113,16 @@ export async function fetchContentList(
   const data = asRecord(root.data);
   return {
     items: rows.map(mapContentItem),
-    totalItems: Number(data?.totalItems ?? root.totalItems ?? rows.length) || rows.length,
+    totalItems:
+      Number(data?.totalItems ?? root.totalItems ?? rows.length) || rows.length,
     totalPages: Number(data?.totalPages ?? root.totalPages ?? 1) || 1,
     currentPage: Number(data?.currentPage ?? root.currentPage ?? page) || page,
   };
 }
 
-export async function fetchContentById(id: string): Promise<ContentItem | null> {
+export async function fetchContentById(
+  id: string
+): Promise<ContentItem | null> {
   const targetId = String(id ?? "").trim();
   if (!targetId) return null;
   const res = await apiRequest(

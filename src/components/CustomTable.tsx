@@ -12,7 +12,10 @@ import {
 
 import classNames from "classnames";
 import CustomPagination from "./CustomPagination";
-import { nextServerSortState, ServerTableSortBy } from "../helper/serverTableSort";
+import {
+  nextServerSortState,
+  ServerTableSortBy,
+} from "../helper/serverTableSort";
 
 export type { ServerTableSortBy };
 
@@ -27,9 +30,12 @@ const isSrNoColumn = (column: { id?: string; Header?: unknown }) => {
   return t === "SR No" || t === "S.No";
 };
 
-const isCompactColumn = (column: { compact?: boolean }) => column.compact === true;
+const isCompactColumn = (column: { compact?: boolean }) =>
+  column.compact === true;
 
-function columnExplicitWidth(column: { width?: string | number }): string | undefined {
+function columnExplicitWidth(column: {
+  width?: string | number;
+}): string | undefined {
   const w = column.width;
   if (w == null) return undefined;
   if (typeof w === "number" && Number.isFinite(w)) return `${w}px`;
@@ -101,7 +107,8 @@ const CustomTable = (props: CustomTableProps) => {
   const onSortChange = props.onSortChange;
 
   const tableOptions = useMemo((): CustomTableOptions => {
-    const canonicalSortBy = serverSortBy.length > 0 ? serverSortBy : EMPTY_SERVER_SORT;
+    const canonicalSortBy =
+      serverSortBy.length > 0 ? serverSortBy : EMPTY_SERVER_SORT;
 
     const base: CustomTableOptions = {
       columns: props.columns,
@@ -113,7 +120,9 @@ const CustomTable = (props: CustomTableProps) => {
       manualPagination: true,
       /** Parent owns page; avoids usePagination resetting page when sort/filter deps change. */
       autoResetPage: false,
-      pageCount: props.totalPages || Math.ceil(props.data.length / (props.pageSize || 10)),
+      pageCount:
+        props.totalPages ||
+        Math.ceil(props.data.length / (props.pageSize || 10)),
     };
 
     if (manualSortBy && onSortChange) {
@@ -126,7 +135,9 @@ const CustomTable = (props: CustomTableProps) => {
          * useMountedLayoutEffect([..., sortBy]) runs every time → resetPage dispatch → infinite updates.
          */
         useControlledState: (state: TableState<object>) => {
-          const s = state as TableState<object> & { sortBy?: { id: string; desc: boolean }[] };
+          const s = state as TableState<object> & {
+            sortBy?: { id: string; desc: boolean }[];
+          };
           if (s.sortBy === canonicalSortBy) return state;
           return { ...state, sortBy: canonicalSortBy };
         },
@@ -156,7 +167,8 @@ const CustomTable = (props: CustomTableProps) => {
   const layoutFixed = props.layoutFixed === true;
   const useTableLayoutFixed = layoutFixed || needsHorizontalScroll;
   const tableMinWidthPx =
-    typeof props.tableMinWidthPx === "number" && Number.isFinite(props.tableMinWidthPx)
+    typeof props.tableMinWidthPx === "number" &&
+    Number.isFinite(props.tableMinWidthPx)
       ? props.tableMinWidthPx
       : Math.max(720, props.columns.length * 104);
   const serverSortEnabled = manualSortBy && typeof onSortChange === "function";
@@ -181,267 +193,314 @@ const CustomTable = (props: CustomTableProps) => {
         }}
       >
         <table
-    {...dataTable.getTableProps()}
-    className={classNames(
-      "table table-centered react-table table-hover table-bordered mb-0",
-      props["tableClass"]
-    )}
-    style={{
-      borderCollapse: "collapse",
-      width: "100%",
-      ...(useTableLayoutFixed ? { tableLayout: "fixed" as const } : { tableLayout: "auto" as const }),
-      ...(needsHorizontalScroll ? { minWidth: `${tableMinWidthPx}px` } : {}),
-    }}
-  >
-    <thead className={props.theadClass}>
-      {(dataTable.headerGroups || []).map((headerGroup: any) => {
-        const { key: groupKey, ...groupProps } = headerGroup.getHeaderGroupProps();
-        return (
-          <tr key={groupKey} {...groupProps}>
-            {(headerGroup.headers || []).map((column: any) => {
-              const srNo = isSrNoColumn(column);
-              const compactCol = isCompactColumn(column);
-              const explicitW = columnExplicitWidth(column);
-              const sortToggleProps =
-                column.sort &&
-                (serverSortEnabled
-                  ? {
-                      onClick: (e: React.MouseEvent) => {
-                        if (
-                          (e.target as HTMLElement).closest(
-                            ".bi-caret-up-fill, .bi-caret-down-fill"
-                          )
-                        ) {
-                          return;
-                        }
-                        e.preventDefault();
-                        onSortChange!(
-                          nextServerSortState(
-                            serverSortBy,
-                            column.id,
-                            column.sortDescFirst ?? false
-                          )
-                        );
-                      },
-                      style: { cursor: "pointer" as const },
-                      title: "Toggle SortBy",
-                    }
-                  : column.getSortByToggleProps());
-              const headerProps = column.getHeaderProps([
-                sortToggleProps || {},
-                { className: column.className },
-              ]);
-              const { key: thKey, className: thClassName, ...thRest } = headerProps;
-
+          {...dataTable.getTableProps()}
+          className={classNames(
+            "table table-centered react-table table-hover table-bordered mb-0",
+            props["tableClass"]
+          )}
+          style={{
+            borderCollapse: "collapse",
+            width: "100%",
+            ...(useTableLayoutFixed
+              ? { tableLayout: "fixed" as const }
+              : { tableLayout: "auto" as const }),
+            ...(needsHorizontalScroll
+              ? { minWidth: `${tableMinWidthPx}px` }
+              : {}),
+          }}
+        >
+          <thead className={props.theadClass}>
+            {(dataTable.headerGroups || []).map((headerGroup: any) => {
+              const { key: groupKey, ...groupProps } =
+                headerGroup.getHeaderGroupProps();
               return (
-                <th
-                  key={thKey}
-                  {...thRest}
-                  className={classNames(thClassName, {
-                    sorting_desc: column.isSortedDesc === true,
-                    sorting_asc: column.isSortedDesc === false,
-                    sortable: column.sort === true,
-                  })}
-                  style={{
-                    backgroundColor: "var(--th-color)",
-                    color: "var(--th-txt-color)",
-                    fontFamily: "Inter",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textAlign: "center",
-                    verticalAlign: "top",
-                    whiteSpace: layoutFixed || srNo ? "nowrap" : "normal",
-                    wordBreak: layoutFixed || srNo ? "normal" : "break-word",
-                    lineHeight: "1.4",
-                    padding: srNo ? "12px 6px" : "12px 10px",
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 2,
-                    ...(srNo
-                      ? { width: "64px", minWidth: "56px", maxWidth: "80px" }
-                      : explicitW
-                        ? { width: explicitW }
-                        : { width: undefined }),
-                    ...(!srNo && explicitW
-                      ? {}
-                      : !srNo
+                <tr key={groupKey} {...groupProps}>
+                  {(headerGroup.headers || []).map((column: any) => {
+                    const srNo = isSrNoColumn(column);
+                    const compactCol = isCompactColumn(column);
+                    const explicitW = columnExplicitWidth(column);
+                    const sortToggleProps =
+                      column.sort &&
+                      (serverSortEnabled
                         ? {
-                            minWidth: compactCol ? "88px" : "120px",
-                            maxWidth: compactCol ? "168px" : undefined,
+                            onClick: (e: React.MouseEvent) => {
+                              if (
+                                (e.target as HTMLElement).closest(
+                                  ".bi-caret-up-fill, .bi-caret-down-fill"
+                                )
+                              ) {
+                                return;
+                              }
+                              e.preventDefault();
+                              onSortChange!(
+                                nextServerSortState(
+                                  serverSortBy,
+                                  column.id,
+                                  column.sortDescFirst ?? false
+                                )
+                              );
+                            },
+                            style: { cursor: "pointer" as const },
+                            title: "Toggle SortBy",
                           }
-                        : {}),
-                    cursor: column.sort ? "pointer" : "default",
-                    ...(layoutFixed ? { overflow: "hidden" as const } : {}),
-                  }}
-                >
-                <span
-                  className={classNames("d-flex flex-row align-items-center min-w-0", {
-                    "justify-content-center": srNo,
-                    "justify-content-between": !srNo,
+                        : column.getSortByToggleProps());
+                    const headerProps = column.getHeaderProps([
+                      sortToggleProps || {},
+                      { className: column.className },
+                    ]);
+                    const {
+                      key: thKey,
+                      className: thClassName,
+                      ...thRest
+                    } = headerProps;
+
+                    return (
+                      <th
+                        key={thKey}
+                        {...thRest}
+                        className={classNames(thClassName, {
+                          sorting_desc: column.isSortedDesc === true,
+                          sorting_asc: column.isSortedDesc === false,
+                          sortable: column.sort === true,
+                        })}
+                        style={{
+                          backgroundColor: "var(--th-color)",
+                          color: "var(--th-txt-color)",
+                          fontFamily: "Inter",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          textAlign: "center",
+                          verticalAlign: "top",
+                          whiteSpace: layoutFixed || srNo ? "nowrap" : "normal",
+                          wordBreak:
+                            layoutFixed || srNo ? "normal" : "break-word",
+                          lineHeight: "1.4",
+                          padding: srNo ? "12px 6px" : "12px 10px",
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 2,
+                          ...(srNo
+                            ? {
+                                width: "64px",
+                                minWidth: "56px",
+                                maxWidth: "80px",
+                              }
+                            : explicitW
+                            ? { width: explicitW }
+                            : { width: undefined }),
+                          ...(!srNo && explicitW
+                            ? {}
+                            : !srNo
+                            ? {
+                                minWidth: compactCol ? "88px" : "120px",
+                                maxWidth: compactCol ? "168px" : undefined,
+                              }
+                            : {}),
+                          cursor: column.sort ? "pointer" : "default",
+                          ...(layoutFixed
+                            ? { overflow: "hidden" as const }
+                            : {}),
+                        }}
+                      >
+                        <span
+                          className={classNames(
+                            "d-flex flex-row align-items-center min-w-0",
+                            {
+                              "justify-content-center": srNo,
+                              "justify-content-between": !srNo,
+                            }
+                          )}
+                        >
+                          <span
+                            className={classNames({
+                              "text-truncate": layoutFixed,
+                              "flex-grow-1": layoutFixed && column.sort,
+                              "w-100": layoutFixed && !column.sort,
+                            })}
+                            style={layoutFixed ? { minWidth: 0 } : undefined}
+                          >
+                            {column.render("Header")}
+                          </span>
+
+                          {column.sort && (
+                            <span className="d-flex flex-column">
+                              <i
+                                className="bi bi-caret-up-fill"
+                                style={{
+                                  cursor: "pointer",
+                                  color:
+                                    column.isSorted && !column.isSortedDesc
+                                      ? "white"
+                                      : "#aaa",
+                                  height: "11px",
+                                  fontSize: "11px",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (serverSortEnabled) {
+                                    onSortChange!([
+                                      { id: column.id, desc: false },
+                                    ]);
+                                  } else {
+                                    column.toggleSortBy(false);
+                                  }
+                                }}
+                              />
+
+                              <i
+                                className="bi bi-caret-down-fill"
+                                style={{
+                                  cursor: "pointer",
+                                  color:
+                                    column.isSorted && column.isSortedDesc
+                                      ? "white"
+                                      : "#aaa",
+                                  height: "11px",
+                                  fontSize: "11px",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (serverSortEnabled) {
+                                    onSortChange!([
+                                      { id: column.id, desc: true },
+                                    ]);
+                                  } else {
+                                    column.toggleSortBy(true);
+                                  }
+                                }}
+                              />
+                            </span>
+                          )}
+                        </span>
+                      </th>
+                    );
                   })}
-                >
-                    <span
-                      className={classNames({
-                        "text-truncate": layoutFixed,
-                        "flex-grow-1": layoutFixed && column.sort,
-                        "w-100": layoutFixed && !column.sort,
-                      })}
-                      style={layoutFixed ? { minWidth: 0 } : undefined}
-                    >
-                      {column.render("Header")}
-                    </span>
-
-                    {column.sort && (
-                      <span className="d-flex flex-column">
-                        
-                        <i
-                          className="bi bi-caret-up-fill"
-                          style={{
-                            cursor: "pointer",
-                            color: column.isSorted && !column.isSortedDesc ? "white" : "#aaa",
-                            height: "11px",
-                            fontSize: "11px",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (serverSortEnabled) {
-                              onSortChange!([{ id: column.id, desc: false }]);
-                            } else {
-                              column.toggleSortBy(false);
-                            }
-                          }}
-                        />
-
-                        <i
-                          className="bi bi-caret-down-fill"
-                          style={{
-                            cursor: "pointer",
-                            color: column.isSorted && column.isSortedDesc ? "white" : "#aaa",
-                            height: "11px",
-                            fontSize: "11px",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (serverSortEnabled) {
-                              onSortChange!([{ id: column.id, desc: true }]);
-                            } else {
-                              column.toggleSortBy(true);
-                            }
-                          }}
-                        />
-                      </span>
-                    )}
-                  </span>
-                </th>
+                </tr>
               );
             })}
-          </tr>
-        );
-      })}
-    </thead>
+          </thead>
 
-    <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
-      {isLoading ? (
-        <tr>
-          <td colSpan={props.columns.length} className="text-center">
-            {loadingText}
-          </td>
-        </tr>
-      ) : rows && rows.length > 0 ? (
-        rows.map((row: any, i: number) => {
-          dataTable.prepareRow(row);
-          const { key, ...rowProps } = row.getRowProps();
-          const rowExtraClass = props.getRowClassName?.(row);
-          const { className: trClass, ...trRest } = rowProps as { className?: string; [k: string]: unknown };
-
-          return (
-            <tr key={key} {...trRest} className={classNames(trClass, rowExtraClass)}>
-              {row.cells.map((cell: any) => {
-                const { key: cellKey, ...cellProps } = cell.getCellProps([
-                  { className: cell.column.className },
-                ]);
-                const srNoCell = isSrNoColumn(cell.column);
-                const compactCell = isCompactColumn(cell.column);
-                const explicitWCell = columnExplicitWidth(cell.column);
+          <tbody
+            {...dataTable.getTableBodyProps()}
+            style={{ textAlign: "center" }}
+          >
+            {isLoading ? (
+              <tr>
+                <td colSpan={props.columns.length} className="text-center">
+                  {loadingText}
+                </td>
+              </tr>
+            ) : rows && rows.length > 0 ? (
+              rows.map((row: any, i: number) => {
+                dataTable.prepareRow(row);
+                const { key, ...rowProps } = row.getRowProps();
+                const rowExtraClass = props.getRowClassName?.(row);
+                const { className: trClass, ...trRest } = rowProps as {
+                  className?: string;
+                  [k: string]: unknown;
+                };
 
                 return (
-                  <td
-                    key={cellKey}
-                    {...cellProps}
-                    style={{
-                      ...(dynamicRowBackground
-                        ? {
-                            backgroundColor:
-                              i % 2 === 0
-                                ? "var(--tr1-txt-color)"
-                                : "var(--tr2-txt-color)",
-                          }
-                        : {}),
-                      color: "var(--content-txt-color)",
-                      fontFamily: "Inter",
-                      fontSize: "12px",
-                      fontWeight: "normal",
-                      textAlign: "center",
-                      verticalAlign: "middle",
-                      whiteSpace: layoutFixed || srNoCell ? "nowrap" : "normal",
-                      wordBreak: layoutFixed || srNoCell ? "normal" : "break-word",
-                      lineHeight: "1.4",
-                      padding: srNoCell ? "10px 6px" : "10px",
-                      ...(srNoCell
-                        ? { width: "64px", minWidth: "56px", maxWidth: "80px" }
-                        : explicitWCell
-                          ? { width: explicitWCell }
-                          : { width: undefined }),
-                      ...(!srNoCell && explicitWCell
-                        ? {}
-                        : !srNoCell
-                          ? {
-                              minWidth: compactCell ? "88px" : "120px",
-                              maxWidth: compactCell ? "168px" : undefined,
-                            }
-                          : {}),
-                      ...(layoutFixed
-                        ? {
-                            overflow: "hidden" as const,
-                            textOverflow: "ellipsis" as const,
-                          }
-                        : {}),
-                    }}
+                  <tr
+                    key={key}
+                    {...trRest}
+                    className={classNames(trClass, rowExtraClass)}
                   >
-                    {cell.render("Cell")}
-                  </td>
+                    {row.cells.map((cell: any) => {
+                      const { key: cellKey, ...cellProps } = cell.getCellProps([
+                        { className: cell.column.className },
+                      ]);
+                      const srNoCell = isSrNoColumn(cell.column);
+                      const compactCell = isCompactColumn(cell.column);
+                      const explicitWCell = columnExplicitWidth(cell.column);
+
+                      return (
+                        <td
+                          key={cellKey}
+                          {...cellProps}
+                          style={{
+                            ...(dynamicRowBackground
+                              ? {
+                                  backgroundColor:
+                                    i % 2 === 0
+                                      ? "var(--tr1-txt-color)"
+                                      : "var(--tr2-txt-color)",
+                                }
+                              : {}),
+                            color: "var(--content-txt-color)",
+                            fontFamily: "Inter",
+                            fontSize: "12px",
+                            fontWeight: "normal",
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                            whiteSpace:
+                              layoutFixed || srNoCell ? "nowrap" : "normal",
+                            wordBreak:
+                              layoutFixed || srNoCell ? "normal" : "break-word",
+                            lineHeight: "1.4",
+                            padding: srNoCell ? "10px 6px" : "10px",
+                            ...(srNoCell
+                              ? {
+                                  width: "64px",
+                                  minWidth: "56px",
+                                  maxWidth: "80px",
+                                }
+                              : explicitWCell
+                              ? { width: explicitWCell }
+                              : { width: undefined }),
+                            ...(!srNoCell && explicitWCell
+                              ? {}
+                              : !srNoCell
+                              ? {
+                                  minWidth: compactCell ? "88px" : "120px",
+                                  maxWidth: compactCell ? "168px" : undefined,
+                                }
+                              : {}),
+                            ...(layoutFixed
+                              ? {
+                                  overflow: "hidden" as const,
+                                  textOverflow: "ellipsis" as const,
+                                }
+                              : {}),
+                          }}
+                        >
+                          {cell.render("Cell")}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 );
-              })}
-            </tr>
-          );
-        })
-      ) : (
-        <tr>
-          <td colSpan={props.columns.length} className="text-center">
-            No records found
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-</div>
-      {(isPagination) && (<div id="pagination_container" style={{
-        height: "40px",
-        justifyContent: "center",
-        display: "flex",
-        flex: "0 0 auto",
-        paddingTop: "20px",
-        paddingBottom: "10px",
-        boxShadow: "0 -5px 5px -5px rgba(0, 0, 0, 0.1)",
-      }}>
-        <CustomPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-        />
+              })
+            ) : (
+              <tr>
+                <td colSpan={props.columns.length} className="text-center">
+                  No records found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-      )
-      }
+      {isPagination && (
+        <div
+          id="pagination_container"
+          style={{
+            height: "40px",
+            justifyContent: "center",
+            display: "flex",
+            flex: "0 0 auto",
+            paddingTop: "20px",
+            paddingBottom: "10px",
+            boxShadow: "0 -5px 5px -5px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <CustomPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+        </div>
+      )}
       {/* {(isPagination) && (<Pagination
         tableProps={{
           state: {

@@ -6,14 +6,14 @@ import { AppConstant } from "./constant/AppConstant";
 import { useViewport } from "./helper/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { requestPermission } from './NotificationService';
+import { requestPermission } from "./NotificationService";
 import { setNavigate } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "./assets/scss/App.scss";
 import "./assets/scss/loader.scss";
 import "./assets/scss/Sidebar.scss";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import "bootstrap/dist/css/bootstrap.min.css";
 import { routes } from "./routes/Routes";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
@@ -26,7 +26,9 @@ function App() {
   const is500Page = location.pathname === "/500";
   const isAuthRoute = location.pathname.includes("/auth");
   const [isRouteProtected, setIsRouteProtected] = useState<boolean>(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getLocalStorage(AppConstant.authToken));
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    !!getLocalStorage(AppConstant.authToken)
+  );
 
   useEffect(() => {
     const fetchPermission = async () => {
@@ -69,8 +71,13 @@ function App() {
   }, [location.pathname, navigate]);
 
   return (
-
-    <div className={`custom-app-layout ${!isAuthRoute && !is404Page && !is500Page && isRouteProtected ? "with-sidebar" : "without-sidebar"}`}>
+    <div
+      className={`custom-app-layout ${
+        !isAuthRoute && !is404Page && !is500Page && isRouteProtected
+          ? "with-sidebar"
+          : "without-sidebar"
+      }`}
+    >
       {!isAuthRoute && !is404Page && !is500Page && isRouteProtected && (
         <aside className="custom-sidebar">
           <Suspense fallback={null}>
@@ -85,10 +92,8 @@ function App() {
           <ToastContainer />
         </Suspense>
       </main>
-
-
     </div>
   );
 }
 
-export default App
+export default App;

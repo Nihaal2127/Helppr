@@ -24,7 +24,9 @@ export function reportToIsoCalendarDate(date: Date | null): string {
   return `${y}-${m}-${d}`;
 }
 
-export async function loadAllPartnerOptionsForDropdown(): Promise<ReportOptionType[]> {
+export async function loadAllPartnerOptionsForDropdown(): Promise<
+  ReportOptionType[]
+> {
   const pageSize = 250;
   const first = await fetchUser(false, PARTNER_USER_TYPE, 1, pageSize, {
     status: "true",
@@ -50,7 +52,7 @@ export async function loadAllPartnerOptionsForDropdown(): Promise<ReportOptionTy
     })
     .filter((x): x is ReportOptionType => x != null);
   opts.sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
   );
   return opts;
 }

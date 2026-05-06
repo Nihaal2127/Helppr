@@ -113,25 +113,46 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
             </div>
             <div className="row">
               <div className="col-md-6 custom-helper-column">
-                <DetailsRow title="Plan Name" value={capitalizeString(viewData.plan_name) || "-"} />
+                <DetailsRow
+                  title="Plan Name"
+                  value={capitalizeString(viewData.plan_name) || "-"}
+                />
                 <DetailsRow title="Price" value={viewData.price || "-"} />
                 <DetailsRow title="Duration" value={viewData.duration || "-"} />
               </div>
               <div className="col-md-6 custom-helper-column">
-                <DetailsRow title="Duration Type" value={capitalizeString(viewData.duration_type) || "-"} />
+                <DetailsRow
+                  title="Duration Type"
+                  value={capitalizeString(viewData.duration_type) || "-"}
+                />
                 <DetailsRow title="Priority" value={viewData.priority || "-"} />
-                <DetailsRow title="Status" value={viewData.is_active ? "Active" : "Inactive"} />
+                <DetailsRow
+                  title="Status"
+                  value={viewData.is_active ? "Active" : "Inactive"}
+                />
               </div>
             </div>
             <div className="mt-3 p-3 border rounded">
-              <div className="custom-personal-row-title mb-2">Plan Description</div>
-              <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--txt-color)" }}>
+              <div className="custom-personal-row-title mb-2">
+                Plan Description
+              </div>
+              <div
+                style={{
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  color: "var(--txt-color)",
+                }}
+              >
                 {viewData.plan_description || "-"}
               </div>
             </div>
           </section>
         ) : (
-          <Form noValidate id="subscription-plan-form" onSubmit={handleSubmit(onSubmitEvent)}>
+          <Form
+            noValidate
+            id="subscription-plan-form"
+            onSubmit={handleSubmit(onSubmitEvent)}
+          >
             <Row className="gx-3 gy-2">
               <Col md={6}>
                 <CustomFormInput
@@ -143,7 +164,9 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                   asCol={false}
                   validation={{ required: "Plan name is required" }}
                   isEditable={!plan}
-                  inputStyle={plan ? { borderColor: "var(--txtfld-border)" } : undefined}
+                  inputStyle={
+                    plan ? { borderColor: "var(--txtfld-border)" } : undefined
+                  }
                 />
               </Col>
 
@@ -200,7 +223,10 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
               <Col md={6}>
                 <Form.Group>
                   <Form.Label className="fw-medium mb-1">Status</Form.Label>
-                  <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
+                  <div
+                    className="d-flex"
+                    style={{ flexDirection: "row", gap: "8px" }}
+                  >
                     <Form.Check
                       type="radio"
                       id="subscription_plan_status_active"
@@ -208,7 +234,9 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                       value="true"
                       checked={!!viewData.is_active}
                       onChange={() => {
-                        setValue("is_active", true as any, { shouldValidate: true });
+                        setValue("is_active", true as any, {
+                          shouldValidate: true,
+                        });
                         setViewData((prev) => ({ ...prev, is_active: true }));
                       }}
                       className="custom-radio-check"
@@ -216,11 +244,15 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                     <Form.Check
                       type="radio"
                       id="subscription_plan_status_inactive"
-                      label={<span className="custom-radio-text">Inactive</span>}
+                      label={
+                        <span className="custom-radio-text">Inactive</span>
+                      }
                       value="false"
                       checked={!viewData.is_active}
                       onChange={() => {
-                        setValue("is_active", false as any, { shouldValidate: true });
+                        setValue("is_active", false as any, {
+                          shouldValidate: true,
+                        });
                         setViewData((prev) => ({ ...prev, is_active: false }));
                       }}
                       className="custom-radio-check"
@@ -228,7 +260,7 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                   </div>
                 </Form.Group>
               </Col>
-              
+
               <Col md={12}>
                 <CustomFormInput
                   label="Plan Description"
@@ -242,15 +274,20 @@ const AddEditSubscriptionPlanDialog: React.FC<AddEditSubscriptionPlanDialogProps
                   rows={3}
                 />
               </Col>
-
             </Row>
           </Form>
         )}
       </Modal.Body>
       {isEditable && (
         <Modal.Footer>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button className="btn-danger" type="submit" form="subscription-plan-form">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="btn-danger"
+            type="submit"
+            form="subscription-plan-form"
+          >
             {plan ? "Update" : "Save"}
           </Button>
         </Modal.Footer>

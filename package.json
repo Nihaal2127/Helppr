@@ -8,7 +8,8 @@
     "build-demo": "react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
-    "format": "prettier --write 'src/**/*.{ts,tsx}'"
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.tsx\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"src/**/*.tsx\""
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.20",

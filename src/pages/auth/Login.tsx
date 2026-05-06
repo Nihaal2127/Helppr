@@ -6,8 +6,14 @@ import { Card, Col, Button } from "react-bootstrap";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { ROUTES } from "../../routes/Routes";
 import { login } from "../../services/adminService";
-import { mapWebUserTypeToSessionRole, menuKeysFromUserAccess } from "../../services/userService";
-import { getLocalStorage, setLocalStorage } from "../../helper/localStorageHelper";
+import {
+  mapWebUserTypeToSessionRole,
+  menuKeysFromUserAccess,
+} from "../../services/userService";
+import {
+  getLocalStorage,
+  setLocalStorage,
+} from "../../helper/localStorageHelper";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
 import type { UserModel } from "../../models/UserModel";
@@ -29,8 +35,13 @@ const Login = () => {
     setLocalStorage(AppConstant.createdById, user?._id);
     setLocalStorage(AppConstant.partnerId, (user as any)?.franchise_id ?? "");
     setLocalStorage(AppConstant.userRole, role);
-    const menuKeys = menuKeysFromUserAccess(user as unknown as Record<string, unknown>);
-    setLocalStorage(AppConstant.userAccessibleMenuKeys, JSON.stringify(menuKeys));
+    const menuKeys = menuKeysFromUserAccess(
+      user as unknown as Record<string, unknown>
+    );
+    setLocalStorage(
+      AppConstant.userAccessibleMenuKeys,
+      JSON.stringify(menuKeys)
+    );
     navigate(ROUTES.DASHBOARD.path, { replace: true });
   };
 
@@ -53,7 +64,14 @@ const Login = () => {
   };
 
   return (
-    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
       <Col>
         <img src={loginBGLogo} className="img-fluid" alt="Background Logo" />
       </Col>

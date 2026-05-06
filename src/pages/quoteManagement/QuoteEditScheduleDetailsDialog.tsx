@@ -44,7 +44,9 @@ function toIsoCalendarDate(date: Date | null): string {
   return `${y}-${m}-${d}`;
 }
 
-function quoteScheduledDateToPickerString(iso: string | undefined): string | null {
+function quoteScheduledDateToPickerString(
+  iso: string | undefined
+): string | null {
   if (!iso?.trim()) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -55,7 +57,10 @@ function calendarDateToQuoteIso(yMd: string | null): string {
   if (!yMd?.trim()) return "";
   const [y, m, d] = yMd.split("-").map((x) => parseInt(x, 10));
   if (!y || !m || !d) return "";
-  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T00:00:00.000Z`;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(
+    2,
+    "0"
+  )}T00:00:00.000Z`;
 }
 
 function parseTimeDisplay(str: string | undefined): Date | null {
@@ -86,7 +91,10 @@ function timeDisplayToPickerStr(display: string | undefined): string | null {
   if (!d) return null;
   const h = d.getHours();
   const m = d.getMinutes();
-  return `2000-01-01T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  return `2000-01-01T${String(h).padStart(2, "0")}:${String(m).padStart(
+    2,
+    "0"
+  )}:00`;
 }
 
 function pickerStrToTimeDisplay(s: string | null): string {
@@ -124,14 +132,23 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
   const [timeToStr, setTimeToStr] = useState<string | null>(() =>
     timeDisplayToPickerStr(defaults.scheduled_time_to)
   );
-  const [quoteStatus, setQuoteStatus] = useState<string>(defaults.status ?? "accepted");
+  const [quoteStatus, setQuoteStatus] = useState<string>(
+    defaults.status ?? "accepted"
+  );
 
   useEffect(() => {
-    setScheduledDateStr(quoteScheduledDateToPickerString(defaults.scheduled_date));
+    setScheduledDateStr(
+      quoteScheduledDateToPickerString(defaults.scheduled_date)
+    );
     setTimeFromStr(timeDisplayToPickerStr(defaults.scheduled_time_from));
     setTimeToStr(timeDisplayToPickerStr(defaults.scheduled_time_to));
     setQuoteStatus(defaults.status ?? "accepted");
-  }, [defaults.scheduled_date, defaults.scheduled_time_from, defaults.scheduled_time_to, defaults.status]);
+  }, [
+    defaults.scheduled_date,
+    defaults.scheduled_time_from,
+    defaults.scheduled_time_to,
+    defaults.status,
+  ]);
 
   const runSave = () => {
     if (!scheduledDateStr?.trim()) {
@@ -165,7 +182,12 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
   };
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           Edit schedule
@@ -191,7 +213,9 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
                 label=""
                 controlId="scheduled_date"
                 selectedDate={scheduledDateStr}
-                onChange={(date) => setScheduledDateStr(date ? toIsoCalendarDate(date) : null)}
+                onChange={(date) =>
+                  setScheduledDateStr(date ? toIsoCalendarDate(date) : null)
+                }
                 register={registerPicker}
                 setValue={setValuePicker}
                 asCol={false}
@@ -213,9 +237,10 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
                 onChange={(date) =>
                   setTimeFromStr(
                     date
-                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(
-                          date.getMinutes()
-                        ).padStart(2, "0")}:00`
+                      ? `2000-01-01T${String(date.getHours()).padStart(
+                          2,
+                          "0"
+                        )}:${String(date.getMinutes()).padStart(2, "0")}:00`
                       : null
                   )
                 }
@@ -240,9 +265,10 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
                 onChange={(date) =>
                   setTimeToStr(
                     date
-                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(
-                          date.getMinutes()
-                        ).padStart(2, "0")}:00`
+                      ? `2000-01-01T${String(date.getHours()).padStart(
+                          2,
+                          "0"
+                        )}:${String(date.getMinutes()).padStart(2, "0")}:00`
                       : null
                   )
                 }
@@ -280,12 +306,19 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
             </Col>
           </Row>
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
               </Button>
-           
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

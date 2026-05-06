@@ -43,7 +43,9 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
         pageIndex: (props.currentPage || 1) - 1,
       } as Partial<TableState<object>> & Partial<UsePaginationState<object>>,
       manualPagination: true,
-      pageCount: props.totalPages || Math.ceil(props.data.length / (props.pageSize || 10)),
+      pageCount:
+        props.totalPages ||
+        Math.ceil(props.data.length / (props.pageSize || 10)),
     } as UseTableOptions<object>,
     usePagination
   );
@@ -52,7 +54,7 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
 
   return (
     <>
-      <div className="table-responsive" style={{ height: "50vh", }}>
+      <div className="table-responsive" style={{ height: "50vh" }}>
         <table
           {...dataTable.getTableProps()}
           className={classNames(
@@ -64,7 +66,10 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
             borderCollapse: "collapse",
           }}
         >
-          <thead className={props["theadClass"]} style={{ textAlign: "center", verticalAlign: "top"}}>
+          <thead
+            className={props["theadClass"]}
+            style={{ textAlign: "center", verticalAlign: "top" }}
+          >
             {(dataTable.headerGroups || []).map((headerGroup: any) => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {(headerGroup.headers || []).map((column: any) => (
@@ -91,8 +96,11 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
               </tr>
             ))}
           </thead>
-          <tbody {...dataTable.getTableBodyProps()} style={{ textAlign: "center" }}>
-            {(rows && rows.length > 0) ? (
+          <tbody
+            {...dataTable.getTableBodyProps()}
+            style={{ textAlign: "center" }}
+          >
+            {rows && rows.length > 0 ? (
               (rows || []).map((row: any, i: number) => {
                 dataTable.prepareRow(row);
                 return (
@@ -106,7 +114,10 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
                             },
                           ])}
                           style={{
-                            backgroundColor: i % 2 === 0 ? "var(--tr2-txt-color)" : "var(--tr1-txt-color)",
+                            backgroundColor:
+                              i % 2 === 0
+                                ? "var(--tr2-txt-color)"
+                                : "var(--tr1-txt-color)",
                             color: "var(--content-txt-color)",
                             fontFamily: "Inter",
                             fontSize: "14px",
@@ -130,23 +141,26 @@ const CustomServiceTable = (props: CustomServiceTableProps) => {
           </tbody>
         </table>
       </div>
-      {(isPagination) && (<div id="pagination_container" style={{
-        height: "40px",
-        justifyContent: "center",
-        display: "flex",
-        flex: "0 0 auto",
-        paddingTop: "20px",
-        paddingBottom: "10px",
-        boxShadow: "0 -5px 5px -5px rgba(0, 0, 0, 0.1)",
-      }}>
-        <CustomPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-        />
-      </div>
-      )
-      }
+      {isPagination && (
+        <div
+          id="pagination_container"
+          style={{
+            height: "40px",
+            justifyContent: "center",
+            display: "flex",
+            flex: "0 0 auto",
+            paddingTop: "20px",
+            paddingBottom: "10px",
+            boxShadow: "0 -5px 5px -5px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <CustomPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+        </div>
+      )}
       {/* {(isPagination) && (<Pagination
         tableProps={{
           state: {

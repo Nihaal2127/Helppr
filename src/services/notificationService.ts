@@ -30,11 +30,13 @@ export const seedNotificationData = () => {
   if (existing.length > 0) return;
 
   const now = Date.now();
-  const sample: NotificationModel[] = notificationsMockSeed.map((item, index) => ({
-    ...item,
-    id: generateId(),
-    createdAt: new Date(now - index * 60_000).toISOString(),
-  }));
+  const sample: NotificationModel[] = notificationsMockSeed.map(
+    (item, index) => ({
+      ...item,
+      id: generateId(),
+      createdAt: new Date(now - index * 60_000).toISOString(),
+    })
+  );
 
   saveAll(sample);
 };
@@ -83,7 +85,10 @@ export const markNotificationAsRead = (id: string) => {
 };
 
 export const markAllNotificationsAsRead = () => {
-  const updated = readAll().map((item) => ({ ...item, status: "read" as const }));
+  const updated = readAll().map((item) => ({
+    ...item,
+    status: "read" as const,
+  }));
   saveAll(updated);
 };
 
@@ -112,7 +117,8 @@ const inferModule = (eventType?: string): NotificationModule => {
 export const storeForegroundNotification = (payload: any) => {
   const title = payload?.notification?.title || "Notification";
   const message = payload?.notification?.body || "You received a new update.";
-  const eventType = payload?.data?.eventType || payload?.data?.type || "general";
+  const eventType =
+    payload?.data?.eventType || payload?.data?.type || "general";
   const module = inferModule(eventType);
 
   addNotification({

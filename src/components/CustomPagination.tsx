@@ -105,7 +105,9 @@ const CustomPagination = ({
 
       <li
         className={classNames({ disabled: currentPage === totalPages })}
-        onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+        onClick={() =>
+          currentPage < totalPages && onPageChange(currentPage + 1)
+        }
       >
         <img src={nextIcon} alt="Next" />
       </li>

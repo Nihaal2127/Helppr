@@ -61,13 +61,21 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     },
     onSaved: (patch: QuoteQuoteFieldsPatch) => void
   ) => void;
-} = ({ defaultPrice, defaultStatus, showPrice, showStatus, onClose, onSaved }) => {
-  const { register, setValue, control, handleSubmit, reset } = useForm<FormValues>({
-    defaultValues: {
-      service_price: String(defaultPrice ?? 0),
-      status: normalizeStatus(defaultStatus) || "new",
-    },
-  });
+} = ({
+  defaultPrice,
+  defaultStatus,
+  showPrice,
+  showStatus,
+  onClose,
+  onSaved,
+}) => {
+  const { register, setValue, control, handleSubmit, reset } =
+    useForm<FormValues>({
+      defaultValues: {
+        service_price: String(defaultPrice ?? 0),
+        status: normalizeStatus(defaultStatus) || "new",
+      },
+    });
 
   useEffect(() => {
     reset({
@@ -105,7 +113,12 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
   };
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           Edit quote
@@ -113,7 +126,11 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
-        <form noValidate name="quote-edit-quote-fields-form" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          noValidate
+          name="quote-edit-quote-fields-form"
+          onSubmit={handleSubmit(onSubmit)}
+        >
           {showPrice && (
             <Controller
               name="service_price"
@@ -172,11 +189,18 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
           )}
 
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
               </Button>
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

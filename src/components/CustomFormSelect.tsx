@@ -13,7 +13,11 @@ interface CustomFormSelectProps {
   requiredMessage?: string;
   defaultValue?: string;
   isValue?: boolean;
-  setValue?: (name: string, value: any, options?: { shouldValidate?: boolean }) => void;
+  setValue?: (
+    name: string,
+    value: any,
+    options?: { shouldValidate?: boolean }
+  ) => void;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   asCol?: boolean;
   noBottomMargin?: boolean;
@@ -43,8 +47,10 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   menuPortal = false,
   placeholder,
 }) => {
-
-  const [selectedOption, setSelectedOption] = useState<{ value: string; label: string } | null>(null);
+  const [selectedOption, setSelectedOption] = useState<{
+    value: string;
+    label: string;
+  } | null>(null);
 
   // Parents often pass inline `setValue` / `options` — new references each render would re-run the
   // sync effect and reset the controlled value (e.g. clear selection when defaultValue is "").
@@ -54,7 +60,9 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   const optionsSyncKey = useMemo(
     () =>
       JSON.stringify(
-        [...options].sort((a, b) => a.value.localeCompare(b.value)).map((o) => [o.value, o.label])
+        [...options]
+          .sort((a, b) => a.value.localeCompare(b.value))
+          .map((o) => [o.value, o.label])
       ),
     [options]
   );
@@ -68,7 +76,9 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
     const sync = setValueRef.current;
     if (sync && defaultOption) {
       if (isValue) {
-        sync(`${fieldName}_label`, defaultOption.label, { shouldValidate: false });
+        sync(`${fieldName}_label`, defaultOption.label, {
+          shouldValidate: false,
+        });
         sync(fieldName, defaultOption.label, { shouldValidate: false });
       } else {
         sync(fieldName, defaultOption.value, { shouldValidate: false });
@@ -91,7 +101,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       }
     }
 
-    const fakeEvent = { target: { value, }, };
+    const fakeEvent = { target: { value } };
     onChange?.(fakeEvent as React.ChangeEvent<HTMLSelectElement>);
   };
 
@@ -165,8 +175,16 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       },
       option: (provided: any, state: any) => ({
         ...provided,
-        backgroundColor: state.isSelected ? "var(--txtfld-border)" : state.isFocused ? "var(--primary-color)" : "",
-        color: state.isSelected ? "var(--bg-color)" : state.isFocused ? "var(--bg-color)" : "var(--primary-color)",
+        backgroundColor: state.isSelected
+          ? "var(--txtfld-border)"
+          : state.isFocused
+          ? "var(--primary-color)"
+          : "",
+        color: state.isSelected
+          ? "var(--bg-color)"
+          : state.isFocused
+          ? "var(--bg-color)"
+          : "var(--primary-color)",
         "&:hover": {
           backgroundColor: "var(--primary-color)",
           color: "var(--bg-color)",
@@ -208,7 +226,12 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   );
 
   const formGroupStyle = selectWidth
-    ? { width: selectWidth, maxWidth: "100%", flex: "0 0 auto" as const, minWidth: 0 }
+    ? {
+        width: selectWidth,
+        maxWidth: "100%",
+        flex: "0 0 auto" as const,
+        minWidth: 0,
+      }
     : undefined;
 
   return (
@@ -218,7 +241,9 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       controlId={controlId}
       style={formGroupStyle}
     >
-       {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
+      {label?.trim() && (
+        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      )}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"

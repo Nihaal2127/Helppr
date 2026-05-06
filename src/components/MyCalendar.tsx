@@ -1,4 +1,10 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -55,7 +61,9 @@ const MyCalendar: React.FC = () => {
     toTime: "",
   });
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | CalendarEvent["status"]>("All");
+  const [statusFilter, setStatusFilter] = useState<
+    "All" | CalendarEvent["status"]
+  >("All");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
   const calendarWrapperRef = useRef<HTMLDivElement | null>(null);
   const calendarRef = useRef<FullCalendar | null>(null);
@@ -137,7 +145,13 @@ const MyCalendar: React.FC = () => {
     setFromTime("");
     setToTime("");
     setStatus("Scheduled");
-    setErrors({ title: "", orderId: "", serviceDate: "", fromTime: "", toTime: "" });
+    setErrors({
+      title: "",
+      orderId: "",
+      serviceDate: "",
+      fromTime: "",
+      toTime: "",
+    });
     setSelectedDate(info.dateStr);
     setShowModal(true);
   };
@@ -154,7 +168,13 @@ const MyCalendar: React.FC = () => {
     setFromTime("");
     setToTime("");
     setStatus("Scheduled");
-    setErrors({ title: "", orderId: "", serviceDate: "", fromTime: "", toTime: "" });
+    setErrors({
+      title: "",
+      orderId: "",
+      serviceDate: "",
+      fromTime: "",
+      toTime: "",
+    });
     setSelectedDate(today);
     setShowModal(true);
   };
@@ -178,13 +198,14 @@ const MyCalendar: React.FC = () => {
 
     const firstService = order.service_items?.[0];
     const resolvedPartner =
-      firstService?.partner_info?.name ||
-      order.created_by_name ||
-      "";
-    const resolvedServiceName =
-      firstService?.service_info?.name || "Service";
-    const resolvedDate = firstService?.service_date?.split("T")[0] || selectedDate;
-    const resolvedFromTime = (firstService?.service_from_time || "").slice(0, 5);
+      firstService?.partner_info?.name || order.created_by_name || "";
+    const resolvedServiceName = firstService?.service_info?.name || "Service";
+    const resolvedDate =
+      firstService?.service_date?.split("T")[0] || selectedDate;
+    const resolvedFromTime = (firstService?.service_from_time || "").slice(
+      0,
+      5
+    );
     const resolvedToTime = (firstService?.service_to_time || "").slice(0, 5);
 
     setPartner(resolvedPartner);
@@ -208,7 +229,14 @@ const MyCalendar: React.FC = () => {
     };
     setErrors(nextErrors);
 
-    if (nextErrors.title || nextErrors.orderId || nextErrors.serviceDate || nextErrors.fromTime || nextErrors.toTime) return;
+    if (
+      nextErrors.title ||
+      nextErrors.orderId ||
+      nextErrors.serviceDate ||
+      nextErrors.fromTime ||
+      nextErrors.toTime
+    )
+      return;
 
     if (fromTime >= toTime) {
       setErrors((prev) => ({
@@ -267,7 +295,13 @@ const MyCalendar: React.FC = () => {
     setFromTime("");
     setToTime("");
     setStatus("Scheduled");
-    setErrors({ title: "", orderId: "", serviceDate: "", fromTime: "", toTime: "" });
+    setErrors({
+      title: "",
+      orderId: "",
+      serviceDate: "",
+      fromTime: "",
+      toTime: "",
+    });
   };
 
   const handleEditEvent = (eventId: string) => {
@@ -284,7 +318,13 @@ const MyCalendar: React.FC = () => {
     setFromTime(event.start.split("T")[1] || "");
     setToTime(event.end.split("T")[1] || "");
     setStatus(event.status || "Scheduled");
-    setErrors({ title: "", orderId: "", serviceDate: "", fromTime: "", toTime: "" });
+    setErrors({
+      title: "",
+      orderId: "",
+      serviceDate: "",
+      fromTime: "",
+      toTime: "",
+    });
     setShowModal(true);
   };
 
@@ -306,13 +346,13 @@ const MyCalendar: React.FC = () => {
         !keyword ||
         event.orderId.toLowerCase().includes(keyword) ||
         event.partner.toLowerCase().includes(keyword);
-      const matchesStatus = statusFilter === "All" || event.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "All" || event.status === statusFilter;
       return matchesKeyword && matchesStatus;
     });
   }, [events, searchKeyword, statusFilter]);
 
-  const clearFiltersDisabled =
-    !searchKeyword.trim() && statusFilter === "All";
+  const clearFiltersDisabled = !searchKeyword.trim() && statusFilter === "All";
 
   const clearCalendarFilters = () => {
     setSearchKeyword("");
@@ -324,7 +364,11 @@ const MyCalendar: React.FC = () => {
   const buildEventTooltip = (event: any) => {
     const formatTime = (value?: string) => (value || "").slice(0, 5);
     const { extendedProps } = event;
-    const startDate = (extendedProps?.serviceDate || event.startStr || "").split("T")[0];
+    const startDate = (
+      extendedProps?.serviceDate ||
+      event.startStr ||
+      ""
+    ).split("T")[0];
     const startTime = formatTime((event.startStr || "").split("T")[1]);
     const endTime = formatTime((event.endStr || "").split("T")[1]);
 
@@ -368,7 +412,9 @@ const MyCalendar: React.FC = () => {
                 defaultValue={statusFilter}
                 setValue={setValue}
                 onChange={(e) =>
-                  setStatusFilter(e.target.value as "All" | CalendarEvent["status"])
+                  setStatusFilter(
+                    e.target.value as "All" | CalendarEvent["status"]
+                  )
                 }
                 placeholder="All"
               />
@@ -396,7 +442,7 @@ const MyCalendar: React.FC = () => {
       <FullCalendar
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="timeGridWeek"   // 🔥 important for time slots
+        initialView="timeGridWeek" // 🔥 important for time slots
         selectable
         editable
         scrollTimeReset={false}
@@ -432,11 +478,28 @@ const MyCalendar: React.FC = () => {
             </div>
 
             <div className="d-flex flex-column calendar-event-left">
-              <span className="calendar-event-title">{eventInfo.event.title}</span>
+              <span className="calendar-event-title">
+                {eventInfo.event.title}
+              </span>
               <div className="calendar-event-meta calendar-event-meta-lines">
-                <small><span className="calendar-event-label">Order ID:</span> <span className="calendar-event-value">{eventInfo.event.extendedProps.orderId || "-"}</span></small>
-                <small><span className="calendar-event-label">Status:</span> <span className="calendar-event-value">{eventInfo.event.extendedProps.status || "-"}</span></small>
-                <small><span className="calendar-event-label">Partner:</span> <span className="calendar-event-value">{eventInfo.event.extendedProps.partner || "-"}</span></small>
+                <small>
+                  <span className="calendar-event-label">Order ID:</span>{" "}
+                  <span className="calendar-event-value">
+                    {eventInfo.event.extendedProps.orderId || "-"}
+                  </span>
+                </small>
+                <small>
+                  <span className="calendar-event-label">Status:</span>{" "}
+                  <span className="calendar-event-value">
+                    {eventInfo.event.extendedProps.status || "-"}
+                  </span>
+                </small>
+                <small>
+                  <span className="calendar-event-label">Partner:</span>{" "}
+                  <span className="calendar-event-value">
+                    {eventInfo.event.extendedProps.partner || "-"}
+                  </span>
+                </small>
               </div>
             </div>
           </div>
@@ -444,7 +507,7 @@ const MyCalendar: React.FC = () => {
         headerToolbar={{
           left: "prev,next today",
           center: "title",
-          right: "dayGridMonth,timeGridWeek,timeGridDay"
+          right: "dayGridMonth,timeGridWeek,timeGridDay",
         }}
         height="auto"
       />
@@ -507,7 +570,9 @@ const MyCalendar: React.FC = () => {
                 placeholder="Select order id"
               />
               {errors.orderId && (
-                <Form.Text className="text-danger d-block">{errors.orderId}</Form.Text>
+                <Form.Text className="text-danger d-block">
+                  {errors.orderId}
+                </Form.Text>
               )}
             </div>
           </div>
@@ -598,7 +663,9 @@ const MyCalendar: React.FC = () => {
                   if (errors.fromTime) {
                     setErrors((prev) => ({ ...prev, fromTime: "" }));
                   }
-                  if (errors.toTime === "To time must be greater than From time") {
+                  if (
+                    errors.toTime === "To time must be greater than From time"
+                  ) {
                     setErrors((prev) => ({ ...prev, toTime: "" }));
                   }
                 }}
@@ -628,7 +695,6 @@ const MyCalendar: React.FC = () => {
               )}
             </div>
           </div>
-
         </Modal.Body>
 
         <Modal.Footer>
@@ -642,7 +708,11 @@ const MyCalendar: React.FC = () => {
       </Modal>
 
       {/* Hidden trigger for parent */}
-      <button style={{ display: "none" }} onClick={openScheduleModal} id="openScheduleModalBtn" />
+      <button
+        style={{ display: "none" }}
+        onClick={openScheduleModal}
+        id="openScheduleModalBtn"
+      />
     </div>
   );
 };

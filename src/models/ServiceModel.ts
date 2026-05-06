@@ -1,4 +1,3 @@
-
 export interface ServiceModel {
   _id: string;
   service_id: string;
@@ -13,12 +12,10 @@ export interface ServiceModel {
   image_url: string;
   is_active: boolean;
   deleted_at: string | null;
-  created_at: string| null;
-  updated_at: string| null;
+  created_at: string | null;
+  updated_at: string | null;
   tax: number;
   commission: number;
   min_deposit_type: string;
   min_deposit_value: number;
 }
-
-

@@ -10,14 +10,16 @@ const AboutUs = () => {
         flexDirection: "column",
       }}
     >
-      <div style={{
-        width: "100%",
-        border: "none",
-        borderRadius: "0",
-        backgroundColor: "var(--theme-color)",
-        textAlign: "center",
-        padding: "20px 0",
-      }}>
+      <div
+        style={{
+          width: "100%",
+          border: "none",
+          borderRadius: "0",
+          backgroundColor: "var(--theme-color)",
+          textAlign: "center",
+          padding: "20px 0",
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -42,7 +44,11 @@ const AboutUs = () => {
         }}
       >
         <p>
-          We are committed to protecting your privacy in accordance with the Australian Privacy Principles under the Privacy Act 1988 (Cth). This Privacy Policy outlines how we collect, use, disclose, and store your personal information when you visit our website, make a booking, or use our services.
+          We are committed to protecting your privacy in accordance with the
+          Australian Privacy Principles under the Privacy Act 1988 (Cth). This
+          Privacy Policy outlines how we collect, use, disclose, and store your
+          personal information when you visit our website, make a booking, or
+          use our services.
         </p>
 
         <h2>1. What Personal Information We Collect</h2>
@@ -69,7 +75,10 @@ const AboutUs = () => {
           <li>To provide our tyre products and vehicle services</li>
           <li>To confirm bookings and service appointments</li>
           <li>To process payments and issue receipts/invoices</li>
-          <li>To send service reminders, promotions, and updates (with your consent)</li>
+          <li>
+            To send service reminders, promotions, and updates (with your
+            consent)
+          </li>
           <li>To comply with legal obligations</li>
         </ul>
 
@@ -93,18 +102,27 @@ const AboutUs = () => {
         <p>You have the right to access and correct your data...</p>
 
         <h2>7. Cookies and Analytics</h2>
-        <p>Our website uses cookies and third-party tools such as Google Analytics...</p>
+        <p>
+          Our website uses cookies and third-party tools such as Google
+          Analytics...
+        </p>
 
         <h2>8. Direct Marketing</h2>
-        <p>We may send promotional materials or reminders if you have opted in...</p>
+        <p>
+          We may send promotional materials or reminders if you have opted in...
+        </p>
 
         <h2>9. Contact Us</h2>
         <p>
           For questions or complaints, contact: <br />
-          <strong>SOS Tyres & Wheels</strong><br />
-          8/41 Lensworth St, Coopers Plains QLD 4108, Australia<br />
-          Phone: <a href="tel:+61434380737">+61 434 380 737</a><br />
-          Email: <a href="mailto:info@sostyres.com.au">info@sostyres.com.au</a><br />
+          <strong>SOS Tyres & Wheels</strong>
+          <br />
+          8/41 Lensworth St, Coopers Plains QLD 4108, Australia
+          <br />
+          Phone: <a href="tel:+61434380737">+61 434 380 737</a>
+          <br />
+          Email: <a href="mailto:info@sostyres.com.au">info@sostyres.com.au</a>
+          <br />
           Website: <a href="https://sostyres.com.au">sostyres.com.au</a>
         </p>
 

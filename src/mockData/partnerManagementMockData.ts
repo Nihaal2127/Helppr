@@ -30,7 +30,8 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     subscription_start_date: "2026-03-01",
     subscription_end_date: "2026-03-31",
     rating: "4.2",
-    address: "Flat 402, Sri Sai Residency, Road No. 10, Banjara Hills, Hyderabad, Telangana 500034, India",
+    address:
+      "Flat 402, Sri Sai Residency, Road No. 10, Banjara Hills, Hyderabad, Telangana 500034, India",
     is_active: false,
   },
   {
@@ -41,7 +42,8 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     subscription_start_date: "2026-03-05",
     subscription_end_date: "2026-06-05",
     rating: "4.6",
-    address: "Door No. 29-14-55, Prakasam Road, Suryaraopeta, Vijayawada, Andhra Pradesh 520002, India",
+    address:
+      "Door No. 29-14-55, Prakasam Road, Suryaraopeta, Vijayawada, Andhra Pradesh 520002, India",
     is_active: true,
   },
   {
@@ -53,7 +55,8 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     subscription_start_date: "2026-02-01",
     subscription_end_date: "2026-08-01",
     rating: "4.0",
-    address: "Plot 18, Sector 5, MVP Colony, Near MVP Double Road, Visakhapatnam, Andhra Pradesh 530017, India",
+    address:
+      "Plot 18, Sector 5, MVP Colony, Near MVP Double Road, Visakhapatnam, Andhra Pradesh 530017, India",
     is_active: false,
   },
   {
@@ -65,8 +68,10 @@ export const partnerSubscriptionsSeed: PartnerSubscriptionModel[] = [
     subscription_start_date: "2026-01-01",
     subscription_end_date: "2027-01-01",
     rating: "4.9",
-    address: "H.No. 2-3-111, Hanamkonda Main Road, Balasamudram, Warangal, Telangana 506001, India",
-    banner_image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
+    address:
+      "H.No. 2-3-111, Hanamkonda Main Road, Balasamudram, Warangal, Telangana 506001, India",
+    banner_image:
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
     is_active: true,
   },
   /** Design demo row: “7 days” in red in Remaining Days column (mock only). */
@@ -193,4 +198,3 @@ export const partnerPostsSeed: PostModel[] = [
     status: "pending",
   },
 ];
-

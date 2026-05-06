@@ -44,7 +44,9 @@ const defaultNotificationFilters: NotificationFilters = {
 const NotificationsPage: React.FC = () => {
   const { register, setValue } = useForm<any>();
   const [items, setItems] = useState<NotificationModel[]>([]);
-  const [filters, setFilters] = useState<NotificationFilters>(defaultNotificationFilters);
+  const [filters, setFilters] = useState<NotificationFilters>(
+    defaultNotificationFilters
+  );
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const refresh = useCallback(() => {
@@ -147,7 +149,11 @@ const NotificationsPage: React.FC = () => {
 
   return (
     <div className="main-page-content">
-      <CustomHeader title="Notifications" register={register} setValue={setValue} />
+      <CustomHeader
+        title="Notifications"
+        register={register}
+        setValue={setValue}
+      />
 
       <div className="custom-dashboard-card m-0">
         <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">

@@ -14,7 +14,6 @@ const CustomActionColumn = ({
   onChat?: (partner: any) => void;
   onView?: (partner: any) => void;
 }) => {
-
   return (
     <>
       {onChat && (
@@ -26,14 +25,14 @@ const CustomActionColumn = ({
         />
       )}
       {onView && (
-         <img
-         src={eyeIcon}
-         alt="view"
-         width={24}
-         height={24}
-         className="custom-table-action-view me-2"
-         onClick={() => onView(row)}
-       />
+        <img
+          src={eyeIcon}
+          alt="view"
+          width={24}
+          height={24}
+          className="custom-table-action-view me-2"
+          onClick={() => onView(row)}
+        />
       )}
       {onEdit && (
         // <img
@@ -43,10 +42,10 @@ const CustomActionColumn = ({
         //   onClick={() => onEdit(row)}
         // />
         <i
-    className="bi bi-pencil-fill fs-6 custom-table-action-edit me-2"
-    onClick={() => onEdit(row)}
-    style={{ cursor: "pointer" }}
-  ></i>
+          className="bi bi-pencil-fill fs-6 custom-table-action-edit me-2"
+          onClick={() => onEdit(row)}
+          style={{ cursor: "pointer" }}
+        ></i>
       )}
 
       {onDelete && (
@@ -56,7 +55,11 @@ const CustomActionColumn = ({
         //   className="custom-table-action-delete"
         //   onClick={() => onDelete(row)}
         // />
-        <i className="bi bi-ban fs-6 custom-table-action-delete" onClick={() => onDelete(row)} style={{ cursor: "pointer" }}></i>
+        <i
+          className="bi bi-ban fs-6 custom-table-action-delete"
+          onClick={() => onDelete(row)}
+          style={{ cursor: "pointer" }}
+        ></i>
       )}
     </>
   );

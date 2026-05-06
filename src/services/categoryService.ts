@@ -4,7 +4,8 @@ import { CategoryModel } from "../models/CategoryModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-export const fetchCategoryDropDown = async (cityId?: string
+export const fetchCategoryDropDown = async (
+  cityId?: string
 ): Promise<{ value: string; label: string }[]> => {
   const params = new URLSearchParams({
     ...(cityId && { city_id: cityId }),
@@ -28,15 +29,20 @@ export const fetchCategoryDropDown = async (cityId?: string
 export const fetchCategory = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string; sort?: string; },
+  filters: { keyword?: string; status?: string; sort?: string },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, categories: CategoryModel[]; totalPages: number }> => {
+): Promise<{
+  response: boolean;
+  categories: CategoryModel[];
+  totalPages: number;
+}> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { keyword: filters.keyword }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
@@ -78,7 +84,9 @@ export const createOrUpdateCategory = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_CATEGORY(id!) : ApiPaths.CREATE_CATEGORY;
+  const path = isEditable
+    ? ApiPaths.UPDATE_CATEGORY(id!)
+    : ApiPaths.CREATE_CATEGORY;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

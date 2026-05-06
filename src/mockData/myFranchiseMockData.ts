@@ -90,4 +90,3 @@ export const myFranchiseCategoriesSeed = [
   { _id: "c2", category_id: "CAT-02", name: "Appliances", is_active: true },
   { _id: "c3", category_id: "CAT-03", name: "Electrical", is_active: false },
 ];
-

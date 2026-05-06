@@ -6,4 +6,4 @@ const Index = () => {
   return <ContentManagement register={register} setValue={setValue} />;
 };
 
-export default Index; 
+export default Index;

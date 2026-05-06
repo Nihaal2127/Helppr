@@ -34,7 +34,11 @@ export const franchiseMockSeed = [
     category_ids: ["cat_grocery", "cat_bakery"] as string[],
     category_names: ["Grocery", "Bakery"] as string[],
     service_ids: ["svc_1", "svc_6", "svc_4"] as string[],
-    service_names: ["Home delivery", "Express checkout", "Cake order"] as string[],
+    service_names: [
+      "Home delivery",
+      "Express checkout",
+      "Cake order",
+    ] as string[],
     description: "Grocery franchise outlet",
     desc: "Grocery franchise outlet",
     desc2: "—",
@@ -55,7 +59,11 @@ export const franchiseMockSeed = [
     category_ids: ["cat_grocery", "cat_produce"] as string[],
     category_names: ["Grocery", "Fresh produce"] as string[],
     service_ids: ["svc_2", "svc_5", "svc_6"] as string[],
-    service_names: ["Store pickup", "Organic box subscription", "Express checkout"] as string[],
+    service_names: [
+      "Store pickup",
+      "Organic box subscription",
+      "Express checkout",
+    ] as string[],
     description: "Healthy food franchise",
     desc: "Healthy food franchise",
     desc2: "—",
@@ -63,4 +71,3 @@ export const franchiseMockSeed = [
     is_active: true,
   },
 ];
-

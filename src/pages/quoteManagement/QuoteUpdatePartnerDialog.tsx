@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -25,7 +31,9 @@ type QuoteUpdatePartnerDialogProps = {
   onAssigned: (partnerId: string, partnerName: string) => void;
 };
 
-function displayPartnerCategories(p: Record<string, unknown> | undefined): string {
+function displayPartnerCategories(
+  p: Record<string, unknown> | undefined
+): string {
   if (!p) return "-";
   const c = p.category_name ?? p.categories;
   if (typeof c === "string" && c.trim()) return c;
@@ -33,7 +41,9 @@ function displayPartnerCategories(p: Record<string, unknown> | undefined): strin
   return "-";
 }
 
-function displayPartnerServices(p: Record<string, unknown> | undefined): string {
+function displayPartnerServices(
+  p: Record<string, unknown> | undefined
+): string {
   if (!p) return "-";
   const s = p.services ?? p.partner_services ?? p.my_services;
   if (typeof s === "string" && s.trim()) return s;
@@ -49,7 +59,14 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     context?: QuoteUpdatePartnerContext,
     partnerOnly?: boolean
   ) => void;
-} = ({ serviceId, defaultPartnerId, context, partnerOnly, onClose, onAssigned }) => {
+} = ({
+  serviceId,
+  defaultPartnerId,
+  context,
+  partnerOnly,
+  onClose,
+  onAssigned,
+}) => {
   const {
     register,
     handleSubmit,
@@ -58,8 +75,12 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     formState: { errors },
   } = useForm();
 
-  const [partners, setPartners] = useState<{ value: string; label: string }[]>([]);
-  const [partnerRecords, setPartnerRecords] = useState<Record<string, unknown>[]>([]);
+  const [partners, setPartners] = useState<{ value: string; label: string }[]>(
+    []
+  );
+  const [partnerRecords, setPartnerRecords] = useState<
+    Record<string, unknown>[]
+  >([]);
   const fetchRef = useRef(false);
 
   const selectedPartnerId = watch("partner_id") as string | undefined;
@@ -74,7 +95,9 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     [partnerRecords, selectedPartnerId]
   );
 
-  const bank = selectedPartner?.bank_account as Record<string, string | null | undefined> | undefined;
+  const bank = selectedPartner?.bank_account as
+    | Record<string, string | null | undefined>
+    | undefined;
 
   const loadPartners = useCallback(async () => {
     if (fetchRef.current) return;
@@ -119,7 +142,12 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     "-";
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           {partnerOnly ? "Change partner" : "Update Partner"}
@@ -127,7 +155,11 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
-        <form noValidate name="quote-update-partner-form" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          noValidate
+          name="quote-update-partner-form"
+          onSubmit={handleSubmit(onSubmit)}
+        >
           <Row>
             <CustomTextFieldSelect
               label="Partner"
@@ -144,7 +176,10 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
           </Row>
 
           {!partnerOnly && (
-            <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+            <section
+              className="custom-other-details mt-3"
+              style={{ padding: "10px" }}
+            >
               <h3 className="mb-2">Service & category</h3>
               <Row>
                 <Col className="custom-helper-column">
@@ -158,7 +193,10 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
           )}
 
           {!partnerOnly && (
-            <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+            <section
+              className="custom-other-details mt-3"
+              style={{ padding: "10px" }}
+            >
               <h3 className="mb-2">Bank information</h3>
               {!selectedPartner ? (
                 <p className="mb-0 text-muted" style={{ fontSize: "14px" }}>
@@ -167,13 +205,28 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
               ) : bank ? (
                 <Row>
                   <Col className="custom-helper-column">
-                    <DetailsRow title="Account Name" value={bank.account_holder_name ?? "-"} />
-                    <DetailsRow title="Account Number" value={bank.account_number ?? "-"} />
-                    <DetailsRow title="IFSC Code" value={bank.ifsc_code ?? "-"} />
+                    <DetailsRow
+                      title="Account Name"
+                      value={bank.account_holder_name ?? "-"}
+                    />
+                    <DetailsRow
+                      title="Account Number"
+                      value={bank.account_number ?? "-"}
+                    />
+                    <DetailsRow
+                      title="IFSC Code"
+                      value={bank.ifsc_code ?? "-"}
+                    />
                   </Col>
                   <Col className="custom-helper-column">
-                    <DetailsRow title="Bank Name" value={bank.bank_name ?? "-"} />
-                    <DetailsRow title="Branch Name" value={bank.branch_name ?? "-"} />
+                    <DetailsRow
+                      title="Bank Name"
+                      value={bank.bank_name ?? "-"}
+                    />
+                    <DetailsRow
+                      title="Branch Name"
+                      value={bank.branch_name ?? "-"}
+                    />
                   </Col>
                 </Row>
               ) : (
@@ -185,11 +238,18 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
           )}
 
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Update
               </Button>
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

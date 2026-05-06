@@ -42,8 +42,15 @@ function resolveImageSrc(url?: string): string | null {
 }
 
 const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
-  showAdd: (categoryOptions: CategoryOption[], onRefreshData: () => void) => void;
-  showView: (request: RequestedServiceRow, categoryOptions: CategoryOption[], onRefreshData: () => void) => void;
+  showAdd: (
+    categoryOptions: CategoryOption[],
+    onRefreshData: () => void
+  ) => void;
+  showView: (
+    request: RequestedServiceRow,
+    categoryOptions: CategoryOption[],
+    onRefreshData: () => void
+  ) => void;
 } = (props) => {
   const { onClose, onRefreshData, categoryOptions } = props;
   const isAdd = props.mode === "add";
@@ -51,7 +58,8 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
 
   const [isEditing, setIsEditing] = useState(isAdd);
   const [fileInputs, setFileInputs] = useState<File[]>([]);
-  const [effectiveCategoryOptions, setEffectiveCategoryOptions] = useState<CategoryOption[]>(categoryOptions);
+  const [effectiveCategoryOptions, setEffectiveCategoryOptions] =
+    useState<CategoryOption[]>(categoryOptions);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +119,8 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
     if (!files.length) return Promise.resolve(undefined);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
+      reader.onload = () =>
+        resolve(typeof reader.result === "string" ? reader.result : undefined);
       reader.onerror = () => reject(new Error("read failed"));
       reader.readAsDataURL(files[0]);
     });
@@ -185,8 +194,8 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   const modalTitle = isAdd
     ? "Add service request"
     : isEditing
-      ? "Edit service request"
-      : "Service request details";
+    ? "Edit service request"
+    : "Service request details";
 
   const renderViewBody = () => {
     if (!request) return null;
@@ -210,21 +219,34 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
           <div className="col-md-12 custom-helper-column">
             <DetailsRow title="Service name" value={request.name} />
             <DetailsRow title="Category" value={request.category_name} />
-            <FullDetailsRow title="Description" value={request.description || "-"} />
+            <FullDetailsRow
+              title="Description"
+              value={request.description || "-"}
+            />
             <Row className="row custom-personal-row">
               <label className="col custom-personal-row-title">Status</label>
               <label className="col custom-personal-row-value text-truncate">
-                <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
+                <span style={{ color: "orange", fontWeight: 600 }}>
+                  Pending
+                </span>
               </label>
             </Row>
             <div className="mt-2">
-              <p className="mb-1" style={{ color: "var(--primary-color)", fontWeight: 600 }}>
+              <p
+                className="mb-1"
+                style={{ color: "var(--primary-color)", fontWeight: 600 }}
+              >
                 Service image
               </p>
               <img
                 alt=""
                 src={displayImg}
-                style={{ maxWidth: 160, maxHeight: 160, borderRadius: 8, objectFit: "cover" }}
+                style={{
+                  maxWidth: 160,
+                  maxHeight: 160,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                }}
               />
             </div>
           </div>
@@ -294,14 +316,22 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
               setFileInputs(files);
             }}
           />
-          <label style={{ color: "var(--primary-color)" }}>Image size should be 512*512</label>
-          {request?.image_url && String(request.image_url).startsWith("data:") ? (
+          <label style={{ color: "var(--primary-color)" }}>
+            Image size should be 512*512
+          </label>
+          {request?.image_url &&
+          String(request.image_url).startsWith("data:") ? (
             <div className="mt-2">
               <p className="small text-muted mb-1">Current image</p>
               <img
                 alt=""
                 src={request.image_url}
-                style={{ maxWidth: 120, maxHeight: 120, borderRadius: 8, objectFit: "cover" }}
+                style={{
+                  maxWidth: 120,
+                  maxHeight: 120,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                }}
               />
             </div>
           ) : null}
@@ -344,7 +374,12 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   );
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           {modalTitle}
@@ -359,7 +394,10 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   );
 };
 
-RequestedServiceDialog.showAdd = (categoryOptions: CategoryOption[], onRefreshData: () => void) => {
+RequestedServiceDialog.showAdd = (
+  categoryOptions: CategoryOption[],
+  onRefreshData: () => void
+) => {
   openDialog("franchise-requested-service-modal", (close) => (
     <RequestedServiceDialog
       mode="add"

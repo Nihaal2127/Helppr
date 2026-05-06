@@ -12,6 +12,8 @@ export const OrderPaymentModeEnum = new Map<number, { label: string }>([
   [5, { label: "Partially refund" }],
 ]);
 
-export const orderPaymentModeSelectOptions: { value: string; label: string }[] = Array.from(
-  OrderPaymentModeEnum.entries()
-).map(([id, v]) => ({ value: String(id), label: v.label }));
+export const orderPaymentModeSelectOptions: { value: string; label: string }[] =
+  Array.from(OrderPaymentModeEnum.entries()).map(([id, v]) => ({
+    value: String(id),
+    label: v.label,
+  }));

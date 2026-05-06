@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Col, Form, Row } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
@@ -8,7 +14,11 @@ import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import CustomActionColumn from "../../../components/CustomActionColumn";
-import { formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
+import {
+  formatDate,
+  priceCell,
+  textUnderlineCell,
+} from "../../../helper/utility";
 import { AppConstant } from "../../../constant/AppConstant";
 import CustomTable from "../../../components/CustomTable";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
@@ -148,15 +158,40 @@ const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
   },
 ];
 
-function applyMockFilters(rows: FinancialModel[], filters: FinancialListFilters): FinancialModel[] {
+function applyMockFilters(
+  rows: FinancialModel[],
+  filters: FinancialListFilters
+): FinancialModel[] {
   return rows.filter((r) => {
-    if (filters.service_status && String(r.service_status) !== String(filters.service_status)) return false;
-    if (filters.customer_payment_status === "paid" && (Number(r.customer_pending_amount) || 0) > 0) return false;
-    if (filters.customer_payment_status === "pending" && (Number(r.customer_pending_amount) || 0) <= 0) return false;
-    if (filters.partner_payment_status === "paid" && (Number(r.pending_to_partner) || 0) > 0) return false;
-    if (filters.partner_payment_status === "pending" && (Number(r.pending_to_partner) || 0) <= 0) return false;
-    if (filters.from_date && (r.service_date ?? "") < filters.from_date) return false;
-    if (filters.to_date && (r.service_date ?? "") > filters.to_date) return false;
+    if (
+      filters.service_status &&
+      String(r.service_status) !== String(filters.service_status)
+    )
+      return false;
+    if (
+      filters.customer_payment_status === "paid" &&
+      (Number(r.customer_pending_amount) || 0) > 0
+    )
+      return false;
+    if (
+      filters.customer_payment_status === "pending" &&
+      (Number(r.customer_pending_amount) || 0) <= 0
+    )
+      return false;
+    if (
+      filters.partner_payment_status === "paid" &&
+      (Number(r.pending_to_partner) || 0) > 0
+    )
+      return false;
+    if (
+      filters.partner_payment_status === "pending" &&
+      (Number(r.pending_to_partner) || 0) <= 0
+    )
+      return false;
+    if (filters.from_date && (r.service_date ?? "") < filters.from_date)
+      return false;
+    if (filters.to_date && (r.service_date ?? "") > filters.to_date)
+      return false;
     if (filters.keyword) {
       const k = filters.keyword.toLowerCase();
       const hay = [
@@ -236,13 +271,18 @@ const ORDER_PAYMENTS_STAT_CARD_STYLE: React.CSSProperties = {
 
 function formatInrGroupedAmount(amount: number): string {
   const n = Number.isFinite(amount) ? amount : 0;
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 const OrderPayments = () => {
   const navigate = useNavigate();
 
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{ franchise_id: string }>({
+  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
+    franchise_id: string;
+  }>({
     defaultValues: { franchise_id: "all" },
   });
 
@@ -294,7 +334,13 @@ const OrderPayments = () => {
     listParamsRef.current.partnerPaymentScope = partnerPaymentScope;
     listParamsRef.current.fromDate = fromDate;
     listParamsRef.current.toDate = toDate;
-  }, [orderStatus, customerPaymentScope, partnerPaymentScope, fromDate, toDate]);
+  }, [
+    orderStatus,
+    customerPaymentScope,
+    partnerPaymentScope,
+    fromDate,
+    toDate,
+  ]);
 
   const dateScopeFilters = useMemo((): FinancialListFilters => {
     const out: FinancialListFilters = {};
@@ -305,7 +351,10 @@ const OrderPayments = () => {
 
   useEffect(() => {
     if (USE_MOCK_ORDER_PAYMENTS) {
-      const scoped = applyMockFilters(MOCK_ORDER_PAYMENTS_ROWS, dateScopeFilters);
+      const scoped = applyMockFilters(
+        MOCK_ORDER_PAYMENTS_ROWS,
+        dateScopeFilters
+      );
       let totalPartnerPending = 128000;
       let totalUserPending = 135000;
       for (const r of scoped) {
@@ -313,8 +362,10 @@ const OrderPayments = () => {
         totalUserPending += Number(r.customer_pending_amount) || 0;
       }
       setSummary({
-        completedOrders: scoped.filter((r) => Number(r.service_status) === 3).length,
-        inProgressOrders: scoped.filter((r) => Number(r.service_status) === 2).length,
+        completedOrders: scoped.filter((r) => Number(r.service_status) === 3)
+          .length,
+        inProgressOrders: scoped.filter((r) => Number(r.service_status) === 2)
+          .length,
         totalPartnerPending: Math.round(totalPartnerPending * 100) / 100,
         totalUserPending: Math.round(totalUserPending * 100) / 100,
       });
@@ -324,8 +375,18 @@ const OrderPayments = () => {
     (async () => {
       const scope = dateScopeFilters;
       const [completedRes, inProgRes, allRows] = await Promise.all([
-        fetchFinancial(1, 1, { ...scope, service_status: "3" }, { skipLoader: true }),
-        fetchFinancial(1, 1, { ...scope, service_status: "2" }, { skipLoader: true }),
+        fetchFinancial(
+          1,
+          1,
+          { ...scope, service_status: "3" },
+          { skipLoader: true }
+        ),
+        fetchFinancial(
+          1,
+          1,
+          { ...scope, service_status: "2" },
+          { skipLoader: true }
+        ),
         fetchAllFinancialRowsMatching(scope, 250, { skipEnrich: true }),
       ]);
       if (cancelled) return;
@@ -338,8 +399,10 @@ const OrderPayments = () => {
         }
       }
       setSummary({
-        completedOrders: completedRes.response ? (completedRes.totalItems ?? 0) : 0,
-        inProgressOrders: inProgRes.response ? (inProgRes.totalItems ?? 0) : 0,
+        completedOrders: completedRes.response
+          ? completedRes.totalItems ?? 0
+          : 0,
+        inProgressOrders: inProgRes.response ? inProgRes.totalItems ?? 0 : 0,
         totalPartnerPending: Math.round(totalPartnerPending * 100) / 100,
         totalUserPending: Math.round(totalUserPending * 100) / 100,
       });
@@ -349,35 +412,42 @@ const OrderPayments = () => {
     };
   }, [dateScopeFilters]);
 
-  const runFetch = useCallback(async (page: number, size: number) => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    const p = listParamsRef.current;
-    const merged = buildListFilters({
-      keyword: p.keyword,
-      orderStatus: p.orderStatus,
-      customerPaymentScope: p.customerPaymentScope,
-      partnerPaymentScope: p.partnerPaymentScope,
-      fromDate: p.fromDate,
-      toDate: p.toDate,
-    });
-    if (USE_MOCK_ORDER_PAYMENTS) {
-      const rows = applyMockFilters(MOCK_ORDER_PAYMENTS_ROWS, merged);
-      const start = (page - 1) * size;
-      const end = start + size;
-      setFinancialList(rows.slice(start, end));
-      setTotalPages(Math.max(1, Math.ceil(rows.length / size)));
+  const runFetch = useCallback(
+    async (page: number, size: number) => {
+      if (fetchRef.current) return;
+      fetchRef.current = true;
+      const p = listParamsRef.current;
+      const merged = buildListFilters({
+        keyword: p.keyword,
+        orderStatus: p.orderStatus,
+        customerPaymentScope: p.customerPaymentScope,
+        partnerPaymentScope: p.partnerPaymentScope,
+        fromDate: p.fromDate,
+        toDate: p.toDate,
+      });
+      if (USE_MOCK_ORDER_PAYMENTS) {
+        const rows = applyMockFilters(MOCK_ORDER_PAYMENTS_ROWS, merged);
+        const start = (page - 1) * size;
+        const end = start + size;
+        setFinancialList(rows.slice(start, end));
+        setTotalPages(Math.max(1, Math.ceil(rows.length / size)));
+        fetchRef.current = false;
+        return;
+      }
+      const {
+        response,
+        financials,
+        totalPages: tp,
+      } = await fetchFinancial(page, size, merged, undefined, sortBy);
+      if (response) {
+        const withNames = await enrichFinancialRowsWithOrderNames(financials);
+        setFinancialList(withNames);
+        setTotalPages(tp);
+      }
       fetchRef.current = false;
-      return;
-    }
-    const { response, financials, totalPages: tp } = await fetchFinancial(page, size, merged, undefined, sortBy);
-    if (response) {
-      const withNames = await enrichFinancialRowsWithOrderNames(financials);
-      setFinancialList(withNames);
-      setTotalPages(tp);
-    }
-    fetchRef.current = false;
-  }, [sortBy]);
+    },
+    [sortBy]
+  );
 
   useEffect(() => {
     void runFetch(currentPage, pageSize);
@@ -391,7 +461,8 @@ const OrderPayments = () => {
   const handleVoidOrder = useCallback(
     async (order: FinancialModel) => {
       const orderId = order.order_id ?? order._id;
-      const display = order.order_unique_id ?? order.order_id ?? order._id ?? "-";
+      const display =
+        order.order_unique_id ?? order.order_id ?? order._id ?? "-";
 
       openConfirmDialog(
         `Are you sure you want to void this order (${display})?`,
@@ -416,11 +487,14 @@ const OrderPayments = () => {
     setCurrentPage(1);
     setFilterEpoch((e) => e + 1);
   };
-  const handleServerSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
-    setSortBy(next);
-    setCurrentPage(1);
-    setFilterEpoch((e) => e + 1);
-  }, []);
+  const handleServerSortChange = useCallback(
+    (next: { id: string; desc: boolean }[]) => {
+      setSortBy(next);
+      setCurrentPage(1);
+      setFilterEpoch((e) => e + 1);
+    },
+    []
+  );
 
   const filterControls = (
     <Row className="order-payments-filters-row g-3 mt-1 mb-2 align-items-end flex-nowrap">
@@ -432,7 +506,13 @@ const OrderPayments = () => {
           options={[...ORDER_STATUS_OPTIONS]}
           fieldName="order_status_filter"
           defaultValue={orderStatus}
-          setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+          setValue={
+            setHeaderValue as (
+              name: string,
+              value: any,
+              options?: { shouldValidate?: boolean }
+            ) => void
+          }
           asCol={false}
           noBottomMargin
           onChange={(e) => {
@@ -451,7 +531,13 @@ const OrderPayments = () => {
           options={[...PARTNER_PAYMENT_STATUS_OPTIONS]}
           fieldName="partner_payment_status_filter"
           defaultValue={partnerPaymentScope}
-          setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+          setValue={
+            setHeaderValue as (
+              name: string,
+              value: any,
+              options?: { shouldValidate?: boolean }
+            ) => void
+          }
           asCol={false}
           noBottomMargin
           onChange={(e) => {
@@ -470,7 +556,13 @@ const OrderPayments = () => {
           options={[...CUSTOMER_PAYMENT_STATUS_OPTIONS]}
           fieldName="customer_payment_status_filter"
           defaultValue={customerPaymentScope}
-          setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+          setValue={
+            setHeaderValue as (
+              name: string,
+              value: any,
+              options?: { shouldValidate?: boolean }
+            ) => void
+          }
           asCol={false}
           noBottomMargin
           onChange={(e) => {
@@ -527,7 +619,8 @@ const OrderPayments = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: { index: number } }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: { index: number } }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Order ID",
@@ -573,7 +666,11 @@ const OrderPayments = () => {
                 textDecorationThickness: "1px",
                 cursor: "pointer",
               }}
-              onClick={() => navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.original.partner_id}`)}
+              onClick={() =>
+                navigate(
+                  `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.original.partner_id}`
+                )
+              }
             >
               {label}
             </span>
@@ -586,7 +683,9 @@ const OrderPayments = () => {
         accessor: "service_date",
         sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) =>
-          formatDate(row.original.service_date ? row.original.service_date : ""),
+          formatDate(
+            row.original.service_date ? row.original.service_date : ""
+          ),
       },
       {
         Header: "Total Amount",
@@ -598,7 +697,9 @@ const OrderPayments = () => {
         Header: "Commission (%)",
         accessor: "commission_percentage",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const v = row.original.commission_percentage ?? row.original.commission_percent;
+          const v =
+            row.original.commission_percentage ??
+            row.original.commission_percent;
           return v != null ? `${v}%` : "-";
         },
       },
@@ -615,8 +716,15 @@ const OrderPayments = () => {
         accessor: "customer_paid_amount",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
           const o = row.original;
-          const v = o.customer_paid_amount ?? (o.is_paid ? o.total_price : undefined);
-          return <span>{v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}</span>;
+          const v =
+            o.customer_paid_amount ?? (o.is_paid ? o.total_price : undefined);
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
         },
       },
       {
@@ -624,16 +732,31 @@ const OrderPayments = () => {
         accessor: "customer_pending_amount",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
           const o = row.original;
-          const v = o.customer_pending_amount ?? (!o.is_paid ? o.total_price : undefined);
-          return <span>{v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}</span>;
+          const v =
+            o.customer_pending_amount ??
+            (!o.is_paid ? o.total_price : undefined);
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
         },
       },
       {
         Header: "Total Partner Amount",
         accessor: "total_service_amount",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const v = row.original.total_service_amount ?? row.original.service_price;
-          return <span>{v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}</span>;
+          const v =
+            row.original.total_service_amount ?? row.original.service_price;
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
         },
       },
       {
@@ -677,55 +800,69 @@ const OrderPayments = () => {
 
       <div className="row g-2">
         <div className="col-md-3">
-        <div className="custom-box-count" style={ORDER_PAYMENTS_STAT_CARD_STYLE}>
-          <div className="box-rw-clr2" style={{ textDecoration: "none" }}>
-            Total completed orders
+          <div
+            className="custom-box-count"
+            style={ORDER_PAYMENTS_STAT_CARD_STYLE}
+          >
+            <div className="box-rw-clr2" style={{ textDecoration: "none" }}>
+              Total completed orders
+            </div>
+            <span className="custom-box-count-span mt-2">
+              {summary.completedOrders}
+            </span>
           </div>
-          <span className="custom-box-count-span mt-2">{summary.completedOrders}</span>
-        </div>
         </div>
 
         <div className="col-md-3">
-        <div className="custom-box-count" style={ORDER_PAYMENTS_STAT_CARD_STYLE}>
-          <div className="box-rw-clr3" style={{ textDecoration: "none" }}>
-            Total in progress orders
+          <div
+            className="custom-box-count"
+            style={ORDER_PAYMENTS_STAT_CARD_STYLE}
+          >
+            <div className="box-rw-clr3" style={{ textDecoration: "none" }}>
+              Total in progress orders
+            </div>
+            <span className="custom-box-count-span mt-2">
+              {summary.inProgressOrders}
+            </span>
           </div>
-          <span className="custom-box-count-span mt-2">{summary.inProgressOrders}</span>
-        </div>
-        </div>
-        
-        <div className="col-md-3">
-        <div
-          className="custom-box-count"
-          style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
-          role="status"
-          aria-label={`Total partner pending amount ${AppConstant.currencySymbol}${formatInrGroupedAmount(summary.totalPartnerPending)}`}
-        >
-          <div className="box-rw-clr4" style={{ textDecoration: "none" }}>
-            Total partner pending amount
-          </div>
-          <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
-            <span aria-hidden="true">{AppConstant.currencySymbol}</span>
-            <span>{formatInrGroupedAmount(summary.totalPartnerPending)}</span>
-          </span>
-        </div>
         </div>
 
         <div className="col-md-3">
-        <div
-          className="custom-box-count"
-          style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
-          role="status"
-          aria-label={`Total user pending amount ${AppConstant.currencySymbol}${formatInrGroupedAmount(summary.totalUserPending)}`}
-        >
-          <div className="box-rw-clr1" style={{ textDecoration: "none" }}>
-            Total user pending amount
+          <div
+            className="custom-box-count"
+            style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
+            role="status"
+            aria-label={`Total partner pending amount ${
+              AppConstant.currencySymbol
+            }${formatInrGroupedAmount(summary.totalPartnerPending)}`}
+          >
+            <div className="box-rw-clr4" style={{ textDecoration: "none" }}>
+              Total partner pending amount
+            </div>
+            <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
+              <span aria-hidden="true">{AppConstant.currencySymbol}</span>
+              <span>{formatInrGroupedAmount(summary.totalPartnerPending)}</span>
+            </span>
           </div>
-          <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
-            <span aria-hidden="true">{AppConstant.currencySymbol}</span>
-            <span>{formatInrGroupedAmount(summary.totalUserPending)}</span>
-          </span>
         </div>
+
+        <div className="col-md-3">
+          <div
+            className="custom-box-count"
+            style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
+            role="status"
+            aria-label={`Total user pending amount ${
+              AppConstant.currencySymbol
+            }${formatInrGroupedAmount(summary.totalUserPending)}`}
+          >
+            <div className="box-rw-clr1" style={{ textDecoration: "none" }}>
+              Total user pending amount
+            </div>
+            <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
+              <span aria-hidden="true">{AppConstant.currencySymbol}</span>
+              <span>{formatInrGroupedAmount(summary.totalUserPending)}</span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -749,7 +886,13 @@ const OrderPayments = () => {
                   bumpFilters();
                 }}
                 register={headerRegister as unknown as UseFormRegister<any>}
-                setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+                setValue={
+                  setHeaderValue as (
+                    name: string,
+                    value: any,
+                    options?: { shouldValidate?: boolean }
+                  ) => void
+                }
                 asCol={false}
                 groupClassName="mb-0 w-100"
                 placeholderText="From Date"
@@ -769,7 +912,13 @@ const OrderPayments = () => {
                   bumpFilters();
                 }}
                 register={headerRegister as unknown as UseFormRegister<any>}
-                setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+                setValue={
+                  setHeaderValue as (
+                    name: string,
+                    value: any,
+                    options?: { shouldValidate?: boolean }
+                  ) => void
+                }
                 asCol={false}
                 groupClassName="mb-0 w-100"
                 placeholderText="To Date"

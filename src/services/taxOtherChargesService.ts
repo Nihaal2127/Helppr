@@ -2,8 +2,14 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { TaxOtherChargesModel } from "../models/TaxOtherChargesModel";
 
-export const fetchTaxOtherChargesById = async (): Promise<{ response: boolean, taxOtherCharges: TaxOtherChargesModel | null; }> => {
-  const response = await apiRequest(`${ApiPaths.GET_TAX_OTHER_CHARGES_BY_ID()}`, "GET");
+export const fetchTaxOtherChargesById = async (): Promise<{
+  response: boolean;
+  taxOtherCharges: TaxOtherChargesModel | null;
+}> => {
+  const response = await apiRequest(
+    `${ApiPaths.GET_TAX_OTHER_CHARGES_BY_ID()}`,
+    "GET"
+  );
   if (response.success) {
     return {
       response: true,
@@ -22,7 +28,9 @@ export const createOrUpdateTaxOtherCharges = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_TAX_OTHER_CHARGES(id!) : ApiPaths.CREATE_TAX_OTHER_CHARGES;
+  const path = isEditable
+    ? ApiPaths.UPDATE_TAX_OTHER_CHARGES(id!)
+    : ApiPaths.CREATE_TAX_OTHER_CHARGES;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

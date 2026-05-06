@@ -98,7 +98,7 @@ const OrderReportsPage = () => {
   >([]);
   const [userOptions, setUserOptions] = useState<OptionType[]>([allOption]);
   const [allFranchiseRows, setAllFranchiseRows] = useState<FranchiseModel[]>(
-    [],
+    []
   );
   const [allAreaRows, setAllAreaRows] = useState<AreaModel[]>([]);
 
@@ -119,7 +119,7 @@ const OrderReportsPage = () => {
       allOption,
       ...cityOptionsRaw.map(({ value, label }) => ({ value, label })),
     ],
-    [cityOptionsRaw],
+    [cityOptionsRaw]
   );
 
   const cityIdToStateId = useMemo(() => {
@@ -133,10 +133,10 @@ const OrderReportsPage = () => {
   const franchiseSelectOptions = useMemo((): OptionType[] => {
     if (allFranchiseRows.length === 0) return [allOption];
     const sSel = new Set(
-      states.filter((s) => s.value !== "all").map((s) => s.value),
+      states.filter((s) => s.value !== "all").map((s) => s.value)
     );
     const cSel = new Set(
-      cities.filter((c) => c.value !== "all").map((c) => c.value),
+      cities.filter((c) => c.value !== "all").map((c) => c.value)
     );
     const stActive = sSel.size > 0;
     const cActive = cSel.size > 0;
@@ -156,7 +156,7 @@ const OrderReportsPage = () => {
       out.push({ value: id, label: name });
     }
     out.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
     );
     return [allOption, ...out];
   }, [allFranchiseRows, states, cities]);
@@ -164,13 +164,13 @@ const OrderReportsPage = () => {
   const areaSelectOptions = useMemo((): OptionType[] => {
     if (allAreaRows.length === 0) return [allOption];
     const sSel = new Set(
-      states.filter((s) => s.value !== "all").map((s) => s.value),
+      states.filter((s) => s.value !== "all").map((s) => s.value)
     );
     const cSel = new Set(
-      cities.filter((c) => c.value !== "all").map((c) => c.value),
+      cities.filter((c) => c.value !== "all").map((c) => c.value)
     );
     const fSel = new Set(
-      franchises.filter((f) => f.value !== "all").map((f) => f.value),
+      franchises.filter((f) => f.value !== "all").map((f) => f.value)
     );
     const stActive = sSel.size > 0;
     const cActive = cSel.size > 0;
@@ -209,7 +209,7 @@ const OrderReportsPage = () => {
       out.push({ value: id, label: name });
     }
     out.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
     );
     return [allOption, ...out];
   }, [
@@ -223,7 +223,7 @@ const OrderReportsPage = () => {
 
   const handleSelectWithAll = (
     selected: OptionType[],
-    setter: (val: OptionType[]) => void,
+    setter: (val: OptionType[]) => void
   ) => {
     const hasAll = selected.some((item) => item.value === "all");
     if (hasAll) {
@@ -298,7 +298,7 @@ const OrderReportsPage = () => {
           rows = await fetchServiceDropDown();
         } else {
           const merged = await Promise.all(
-            specific.map((c) => fetchServiceDropDown(c.value)),
+            specific.map((c) => fetchServiceDropDown(c.value))
           );
           const byId = new Map<string, (typeof rows)[0]>();
           for (const block of merged) {
@@ -344,7 +344,7 @@ const OrderReportsPage = () => {
               value: c.value,
               label: c.label,
               state_id: c.state_id ? String(c.state_id) : undefined,
-            })),
+            }))
         );
       } catch {
         if (!cancelled) setCityOptionsRaw([]);
@@ -492,7 +492,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setOrderStatus,
+                      setOrderStatus
                     )
                   }
                   asCol={false}
@@ -512,7 +512,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setQuoteStatus,
+                      setQuoteStatus
                     )
                   }
                   asCol={false}
@@ -530,7 +530,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setCategories,
+                      setCategories
                     )
                   }
                   asCol={false}
@@ -548,7 +548,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setServices,
+                      setServices
                     )
                   }
                   asCol={false}
@@ -566,7 +566,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setPartners,
+                      setPartners
                     )
                   }
                   asCol={false}
@@ -584,7 +584,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setUserSelections,
+                      setUserSelections
                     )
                   }
                   asCol={false}
@@ -604,7 +604,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setPartnerPaymentStatus,
+                      setPartnerPaymentStatus
                     )
                   }
                   asCol={false}
@@ -624,7 +624,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setCustomerPaymentStatus,
+                      setCustomerPaymentStatus
                     )
                   }
                   asCol={false}
@@ -650,7 +650,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setStates,
+                      setStates
                     )
                   }
                   asCol={false}
@@ -668,7 +668,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setCities,
+                      setCities
                     )
                   }
                   asCol={false}
@@ -686,7 +686,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setFranchises,
+                      setFranchises
                     )
                   }
                   asCol={false}
@@ -704,7 +704,7 @@ const OrderReportsPage = () => {
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setAreas,
+                      setAreas
                     )
                   }
                   asCol={false}

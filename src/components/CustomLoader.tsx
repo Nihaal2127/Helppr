@@ -1,9 +1,9 @@
-import React from 'react';
-import '../assets/scss/loader.scss';
+import React from "react";
+import "../assets/scss/loader.scss";
 
 export const showLoader = () => {
-  const loaderDiv = document.createElement('div');
-  loaderDiv.setAttribute('id', 'global-loader');
+  const loaderDiv = document.createElement("div");
+  loaderDiv.setAttribute("id", "global-loader");
   loaderDiv.innerHTML = `
     <div class="loader-overlay">
       <div class="spinner"></div>
@@ -13,7 +13,7 @@ export const showLoader = () => {
 };
 
 export const hideLoader = () => {
-  const loaderDiv = document.getElementById('global-loader');
+  const loaderDiv = document.getElementById("global-loader");
   if (loaderDiv) {
     document.body.removeChild(loaderDiv);
   }

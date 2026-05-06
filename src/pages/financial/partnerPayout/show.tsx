@@ -61,7 +61,8 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       dateLabel: ledgerDateLabel(base),
       txType: "debit",
       orderIdDisplay: "—",
-      description: "Wallet payout · razorpay. Partner withdrawal — ref UTR DEMO998877",
+      description:
+        "Wallet payout · razorpay. Partner withdrawal — ref UTR DEMO998877",
       amount: 3200,
       orderId: null,
     },
@@ -91,7 +92,8 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       dateLabel: ledgerDateLabel(base - day * 3 + 3600000 * 16),
       txType: "debit",
       orderIdDisplay: "—",
-      description: "Wallet payout · cash. Counter settlement — branch Indiranagar",
+      description:
+        "Wallet payout · cash. Counter settlement — branch Indiranagar",
       amount: 1500,
       orderId: null,
     },
@@ -149,15 +151,21 @@ function ShowPartnerPayout() {
   const [partnerSummary, setPartnerSummary] = useState<UserModel | null>(null);
   const [partnerLoading, setPartnerLoading] = useState(true);
 
-  const [mergedOrderLines, setMergedOrderLines] = useState<FinancialModel[]>([]);
-  const [payoutRowsAll, setPayoutRowsAll] = useState<PartnerWalletPayoutHistoryRow[]>([]);
+  const [mergedOrderLines, setMergedOrderLines] = useState<FinancialModel[]>(
+    []
+  );
+  const [payoutRowsAll, setPayoutRowsAll] = useState<
+    PartnerWalletPayoutHistoryRow[]
+  >([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">(
+    "all"
+  );
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   useEffect(() => {
@@ -191,12 +199,20 @@ function ShowPartnerPayout() {
       try {
         const [pendingRows, paidRows, payouts] = await Promise.all([
           fetchAllFinancialRowsMatching(
-            { partner_id: partnerId, service_status: "3", partner_paid_status: "1" },
+            {
+              partner_id: partnerId,
+              service_status: "3",
+              partner_paid_status: "1",
+            },
             400,
             { skipEnrich: true }
           ),
           fetchAllFinancialRowsMatching(
-            { partner_id: partnerId, service_status: "3", partner_paid_status: "2" },
+            {
+              partner_id: partnerId,
+              service_status: "3",
+              partner_paid_status: "2",
+            },
             400,
             { skipEnrich: true }
           ),
@@ -244,21 +260,29 @@ function ShowPartnerPayout() {
   const ledgerBuild = useMemo(() => {
     const out: WalletLedgerEntry[] = [];
     for (const row of mergedOrderLines) {
-      const tEarn = new Date(row.service_date || row.updated_at || row.created_at || 0).getTime();
+      const tEarn = new Date(
+        row.service_date || row.updated_at || row.created_at || 0
+      ).getTime();
       const earning = Number(row.partner_earning) || 0;
       if (earning > 0) {
-        const rawEarn = row.service_date || row.updated_at || row.created_at || "";
+        const rawEarn =
+          row.service_date || row.updated_at || row.created_at || "";
         const oid =
           row.order_unique_id?.trim() ||
           (row.order_id ? String(row.order_id).trim() : "");
-        const descParts = [row.category_name?.trim(), row.service_name?.trim()].filter(Boolean);
+        const descParts = [
+          row.category_name?.trim(),
+          row.service_name?.trim(),
+        ].filter(Boolean);
         out.push({
           id: `${row._id}-earn`,
           sortTime: tEarn,
           dateLabel: ledgerDateLabel(tEarn, rawEarn),
           txType: "credit",
           orderIdDisplay: oid || "—",
-          description: descParts.length ? descParts.join(" · ") : "Service earning",
+          description: descParts.length
+            ? descParts.join(" · ")
+            : "Service earning",
           amount: earning,
           orderId: row.order_id,
         });
@@ -310,7 +334,9 @@ function ShowPartnerPayout() {
         const disp = e.orderIdDisplay.toLowerCase();
         const oid = (e.orderId || "").toLowerCase();
         const desc = e.description.toLowerCase();
-        return disp.includes(needle) || oid.includes(needle) || desc.includes(needle);
+        return (
+          disp.includes(needle) || oid.includes(needle) || desc.includes(needle)
+        );
       });
     }
     return list;
@@ -321,7 +347,8 @@ function ShowPartnerPayout() {
   }, [filteredLedgerEntries]);
 
   const ledgerTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(sortedFilteredLedger.length / ledgerPageSize) || 1),
+    () =>
+      Math.max(1, Math.ceil(sortedFilteredLedger.length / ledgerPageSize) || 1),
     [sortedFilteredLedger.length, ledgerPageSize]
   );
 
@@ -340,7 +367,8 @@ function ShowPartnerPayout() {
         Header: "SR No",
         id: "sr",
         accessor: "id",
-        Cell: ({ row }: { row: { index: number } }) => (ledgerPage - 1) * ledgerPageSize + row.index + 1,
+        Cell: ({ row }: { row: { index: number } }) =>
+          (ledgerPage - 1) * ledgerPageSize + row.index + 1,
       },
       {
         Header: "Date",
@@ -352,7 +380,13 @@ function ShowPartnerPayout() {
         Cell: ({ row }: { row: { original: WalletLedgerEntry } }) => {
           const isCredit = row.original.txType === "credit";
           return (
-            <span className={isCredit ? "wallet-tx-table__type-credit" : "wallet-tx-table__type-debit"}>
+            <span
+              className={
+                isCredit
+                  ? "wallet-tx-table__type-credit"
+                  : "wallet-tx-table__type-debit"
+              }
+            >
               {isCredit ? "Credit" : "Debit"}
             </span>
           );
@@ -382,7 +416,9 @@ function ShowPartnerPayout() {
         accessor: "description",
         className: "text-start",
         Cell: ({ row }: { row: { original: WalletLedgerEntry } }) => (
-          <span className="wallet-tx-table__desc-cell">{row.original.description || "—"}</span>
+          <span className="wallet-tx-table__desc-cell">
+            {row.original.description || "—"}
+          </span>
         ),
       },
       {
@@ -394,7 +430,9 @@ function ShowPartnerPayout() {
           return (
             <span
               className={
-                isCredit ? "wallet-tx-table__amount--credit" : "wallet-tx-table__amount--debit"
+                isCredit
+                  ? "wallet-tx-table__amount--credit"
+                  : "wallet-tx-table__amount--debit"
               }
             >
               {isCredit ? "+" : "−"}
@@ -414,7 +452,9 @@ function ShowPartnerPayout() {
           label="From Date"
           controlId="from_date_filter"
           selectedDate={fromDate || null}
-          onChange={(date) => setFromDate(date ? date.toISOString().slice(0, 10) : "")}
+          onChange={(date) =>
+            setFromDate(date ? date.toISOString().slice(0, 10) : "")
+          }
           register={register as unknown as UseFormRegister<any>}
           setValue={setValue as (name: string, value: any) => void}
           asCol={false}
@@ -428,7 +468,9 @@ function ShowPartnerPayout() {
           label="To Date"
           controlId="to_date_filter"
           selectedDate={toDate || null}
-          onChange={(date) => setToDate(date ? date.toISOString().slice(0, 10) : "")}
+          onChange={(date) =>
+            setToDate(date ? date.toISOString().slice(0, 10) : "")
+          }
           register={register as unknown as UseFormRegister<any>}
           setValue={setValue as (name: string, value: any) => void}
           asCol={false}
@@ -449,10 +491,18 @@ function ShowPartnerPayout() {
           ]}
           fieldName="transaction_type_filter"
           defaultValue={typeFilter}
-          setValue={setValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+          setValue={
+            setValue as (
+              name: string,
+              value: any,
+              options?: { shouldValidate?: boolean }
+            ) => void
+          }
           asCol={false}
           noBottomMargin
-          onChange={(e) => setTypeFilter(e.target.value as "all" | "credit" | "debit")}
+          onChange={(e) =>
+            setTypeFilter(e.target.value as "all" | "credit" | "debit")
+          }
         />
       </Col>
       <Col xs="auto" className="d-flex align-items-end">
@@ -460,7 +510,9 @@ function ShowPartnerPayout() {
           variant="outline-secondary"
           size="sm"
           className="custom-btn-secondary partner-payout-clear-btn px-3"
-          disabled={!fromDate && !toDate && !keyword.trim() && typeFilter === "all"}
+          disabled={
+            !fromDate && !toDate && !keyword.trim() && typeFilter === "all"
+          }
           onClick={() => {
             setFromDate("");
             setToDate("");
@@ -478,11 +530,15 @@ function ShowPartnerPayout() {
 
   return (
     <div className="main-page-content">
-      <CustomHeader title="Financial — Partner Payout Details" titlePrefix={<PartnerPayoutDetailsBackButton />} />
+      <CustomHeader
+        title="Financial — Partner Payout Details"
+        titlePrefix={<PartnerPayoutDetailsBackButton />}
+      />
 
       {!partnerId ? (
         <p className="text-muted px-1">
-          Missing partner ID. Open this screen from Financial — Partner Payout and choose View on a partner row.
+          Missing partner ID. Open this screen from Financial — Partner Payout
+          and choose View on a partner row.
         </p>
       ) : (
         <>
@@ -498,19 +554,27 @@ function ShowPartnerPayout() {
               <Card.Body className="p-3 p-md-4">
                 <Row className="align-items-center g-3">
                   <Col className="min-w-0">
-                    <h5 className="partner-payout-detail-name mb-1 text-break">{partnerDetail.name}</h5>
+                    <h5 className="partner-payout-detail-name mb-1 text-break">
+                      {partnerDetail.name}
+                    </h5>
                     <div className="text-muted small mb-0">
                       Partner ID{" "}
-                      <span className="font-monospace user-select-all">{partnerDetail.userId}</span>
+                      <span className="font-monospace user-select-all">
+                        {partnerDetail.userId}
+                      </span>
                     </div>
                   </Col>
                   <Col xs={12} md="auto" className="ms-md-auto">
                     <div className="partner-payout-detail-wallet text-md-end">
-                      <div className="partner-payout-detail-wallet-label text-uppercase">Total wallet</div>
+                      <div className="partner-payout-detail-wallet-label text-uppercase">
+                        Total wallet
+                      </div>
                       <div className="partner-payout-detail-wallet-value">
                         {totalWalletAmount === null
                           ? "—"
-                          : `${AppConstant.currencySymbol}${totalWalletAmount.toLocaleString(undefined, {
+                          : `${
+                              AppConstant.currencySymbol
+                            }${totalWalletAmount.toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}`}
@@ -522,51 +586,56 @@ function ShowPartnerPayout() {
             </Card>
           ) : null}
 
-        <CustomUtilityBox
-          key={utilitySearchKey}
-          searchOnlyToolbar
-          title="Wallet transactions"
-          searchHint="Order ID or description…"
-          onSearch={(value) => {
-            setKeyword(value.trim());
-            setLedgerPage(1);
-          }}
-          onDownloadClick={() => {}}
-          onSortClick={() => {}}
-          onMoreClick={() => {}}
-        />
-
-        {filterControls}
-
-        {ledgerLoading ? (
-          <div
-            className="d-flex justify-content-center align-items-center gap-2 py-5"
-            style={{ border: "1px solid var(--txtfld-border)", borderRadius: "8px" }}
-          >
-            <Spinner animation="border" size="sm" />
-            <span className="text-muted small">Loading transactions…</span>
-          </div>
-        ) : (
-          <CustomTable
-            columns={walletTxColumns}
-            data={ledgerSlice}
-            pageSize={ledgerPageSize}
-            currentPage={ledgerPage}
-            totalPages={ledgerTotalPages}
-            onPageChange={(page: number) => setLedgerPage(page)}
-            onLimitChange={(ps: number) => {
-              setLedgerPageSize(ps);
+          <CustomUtilityBox
+            key={utilitySearchKey}
+            searchOnlyToolbar
+            title="Wallet transactions"
+            searchHint="Order ID or description…"
+            onSearch={(value) => {
+              setKeyword(value.trim());
               setLedgerPage(1);
             }}
-            theadClass="table-light"
-            tableClass="wallet-tx-react-table"
-            dynamicRowBackground={false}
-            getRowClassName={(row) =>
-              row.original.txType === "credit" ? "wallet-tx-table__row--credit" : "wallet-tx-table__row--debit"
-            }
+            onDownloadClick={() => {}}
+            onSortClick={() => {}}
+            onMoreClick={() => {}}
           />
-        )}
-      </>
+
+          {filterControls}
+
+          {ledgerLoading ? (
+            <div
+              className="d-flex justify-content-center align-items-center gap-2 py-5"
+              style={{
+                border: "1px solid var(--txtfld-border)",
+                borderRadius: "8px",
+              }}
+            >
+              <Spinner animation="border" size="sm" />
+              <span className="text-muted small">Loading transactions…</span>
+            </div>
+          ) : (
+            <CustomTable
+              columns={walletTxColumns}
+              data={ledgerSlice}
+              pageSize={ledgerPageSize}
+              currentPage={ledgerPage}
+              totalPages={ledgerTotalPages}
+              onPageChange={(page: number) => setLedgerPage(page)}
+              onLimitChange={(ps: number) => {
+                setLedgerPageSize(ps);
+                setLedgerPage(1);
+              }}
+              theadClass="table-light"
+              tableClass="wallet-tx-react-table"
+              dynamicRowBackground={false}
+              getRowClassName={(row) =>
+                row.original.txType === "credit"
+                  ? "wallet-tx-table__row--credit"
+                  : "wallet-tx-table__row--debit"
+              }
+            />
+          )}
+        </>
       )}
     </div>
   );

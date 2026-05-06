@@ -17,13 +17,21 @@ export const fetchOrder = async (
     to_date?: string | null;
   },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean; orders: OrderModel[]; totalPages: number; totalCount: number }> => {
+): Promise<{
+  response: boolean;
+  orders: OrderModel[];
+  totalPages: number;
+  totalCount: number;
+}> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { keyword: filters.keyword }),
-    ...(filters.status && filters.status !== "All" && { order_status: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && {
+        order_status: filters.status.toLowerCase(),
+      }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),
@@ -69,7 +77,7 @@ export const fetchOrder = async (
 export const fetchOrderById = async (
   id: string,
   options?: { skipLoader?: boolean }
-): Promise<{ response: boolean, order: OrderModel | null; }> => {
+): Promise<{ response: boolean; order: OrderModel | null }> => {
   const response = await apiRequest(
     `${ApiPaths.GET_ORDER_BY_ID()}/${id}`,
     "GET",
@@ -117,8 +125,15 @@ export const createOrUpdateOrder = async (
   }
 };
 
-export const cancelOrderService = async (orderId: string, payload: any): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.ORDER_CANCLE_SERVICE(orderId), "PUT", payload);
+export const cancelOrderService = async (
+  orderId: string,
+  payload: any
+): Promise<boolean> => {
+  const response = await apiRequest(
+    ApiPaths.ORDER_CANCLE_SERVICE(orderId),
+    "PUT",
+    payload
+  );
   if (response.success) {
     return true;
   } else {
@@ -127,7 +142,10 @@ export const cancelOrderService = async (orderId: string, payload: any): Promise
   }
 };
 
-export const cancelOrder = async (id: string, payload: any): Promise<boolean> => {
+export const cancelOrder = async (
+  id: string,
+  payload: any
+): Promise<boolean> => {
   const response = await apiRequest(ApiPaths.CANCLE_ORDER(id), "PUT", payload);
   if (response.success) {
     return true;
@@ -141,16 +159,18 @@ export const updateOrderService = async (
   payload: any,
   id: string
 ): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.ORDER_UPDATE_SERVICE(id), "PUT", payload);
+  const response = await apiRequest(
+    ApiPaths.ORDER_UPDATE_SERVICE(id),
+    "PUT",
+    payload
+  );
   if (response.success) {
     return true;
   }
   return false;
 };
 
-export const payComission = async (
-  payload: any,
-): Promise<boolean> => {
+export const payComission = async (payload: any): Promise<boolean> => {
   try {
     const response = await apiRequest(ApiPaths.PAY_COMISSION, "POST", payload);
     if (response.success) {
@@ -174,7 +194,9 @@ export type OrderRefundPayload = {
   description?: string;
 };
 
-export const submitOrderRefund = async (payload: OrderRefundPayload): Promise<boolean> => {
+export const submitOrderRefund = async (
+  payload: OrderRefundPayload
+): Promise<boolean> => {
   try {
     const response = await apiRequest(ApiPaths.ORDER_REFUND, "POST", payload);
     if (response.success) {
@@ -198,9 +220,6 @@ export const downloadInvoice = async (orderId: string) => {
       html2canvas: { scale: 2 },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     };
-    html2pdf()
-      .from(invoiceHtml)
-      .set(html2pdfOptions)
-      .save();
+    html2pdf().from(invoiceHtml).set(html2pdfOptions).save();
   }
 };

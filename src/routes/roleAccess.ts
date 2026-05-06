@@ -25,7 +25,8 @@ function isStaffDeniedPath(pathname: string): boolean {
   for (const p of STAFF_DENIED_PREFIXES) {
     if (matchesPrefix(pathname, p)) return true;
   }
-  if (pathname === "/settings" || pathname.startsWith("/settings-")) return true;
+  if (pathname === "/settings" || pathname.startsWith("/settings-"))
+    return true;
   return false;
 }
 
@@ -33,7 +34,8 @@ function isEmployeeDeniedPath(pathname: string): boolean {
   if (isStaffDeniedPath(pathname)) return true;
   if (matchesPrefix(pathname, "/my-franchise")) return true;
   if (matchesPrefix(pathname, "/expenses")) return true;
-  if (pathname === "/financial" || pathname.startsWith("/financial-")) return true;
+  if (pathname === "/financial" || pathname.startsWith("/financial-"))
+    return true;
   return false;
 }
 
@@ -67,7 +69,11 @@ export function isAuthenticatedPathAllowed(
   }
   if (r === UserRole.EMPLOYEE) {
     if (isEmployeeDeniedPath(p)) return false;
-  } else if (r !== UserRole.ADMIN && r !== UserRole.FRANCHISE_ADMIN && r !== UserRole.STAFF) {
+  } else if (
+    r !== UserRole.ADMIN &&
+    r !== UserRole.FRANCHISE_ADMIN &&
+    r !== UserRole.STAFF
+  ) {
     if (isEmployeeDeniedPath(p)) return false;
   }
 

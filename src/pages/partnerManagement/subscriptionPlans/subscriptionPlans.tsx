@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button, Col, Row, OverlayTrigger, Tooltip } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -36,7 +42,10 @@ const getRemainingCalendarDays = (endDateStr: string): number | null => {
   return Math.round((end.getTime() - today.getTime()) / 86400000);
 };
 
-const planDescriptionCell = (row: { original: SubscriptionPlanModel; index: number }) => {
+const planDescriptionCell = (row: {
+  original: SubscriptionPlanModel;
+  index: number;
+}) => {
   const raw = row.original.plan_description;
   const text = raw != null && String(raw).trim() !== "" ? String(raw) : "";
   if (!text) {
@@ -92,26 +101,44 @@ type SubscriptionPlansProps = {
 
 const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const { register, setValue } = useForm<any>();
-  const [selectedBox, setSelectedBox] = useState<"plans" | "partner_subscription_list">("plans");
+  const [selectedBox, setSelectedBox] = useState<
+    "plans" | "partner_subscription_list"
+  >("plans");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
-  const [planData, setPlanData] = useState({ Total: 0, Active: 0, Inactive: 0 });
-  const [partnerSubscriptionData, setPartnerSubscriptionData] = useState({ Total: 0, Active: 0, Inactive: 0 });
+  const [planData, setPlanData] = useState({
+    Total: 0,
+    Active: 0,
+    Inactive: 0,
+  });
+  const [partnerSubscriptionData, setPartnerSubscriptionData] = useState({
+    Total: 0,
+    Active: 0,
+    Inactive: 0,
+  });
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const [planRows, setPlanRows] = useState<SubscriptionPlanModel[]>([]);
   const [planTotalPages, setPlanTotalPages] = useState(0);
-  const [partnerSubRows, setPartnerSubRows] = useState<PartnerSubscriptionModel[]>([]);
+  const [partnerSubRows, setPartnerSubRows] = useState<
+    PartnerSubscriptionModel[]
+  >([]);
   const [partnerSubTotalPages, setPartnerSubTotalPages] = useState(0);
   const [planSortBy, setPlanSortBy] = useState<ServerTableSortBy>([]);
-  const [partnerSubSortBy, setPartnerSubSortBy] = useState<ServerTableSortBy>([]);
-  const [locationAreaOptions, setLocationAreaOptions] = useState<{ value: string; label: string }[]>([
-    { value: "all", label: "All" },
-  ]);
+  const [partnerSubSortBy, setPartnerSubSortBy] = useState<ServerTableSortBy>(
+    []
+  );
+  const [locationAreaOptions, setLocationAreaOptions] = useState<
+    { value: string; label: string }[]
+  >([{ value: "all", label: "All" }]);
 
-  const [planFilters, setPlanFilters] = useState<{ name?: string; status?: string; sort?: string }>({});
+  const [planFilters, setPlanFilters] = useState<{
+    name?: string;
+    status?: string;
+    sort?: string;
+  }>({});
   const [partnerFilters, setPartnerFilters] = useState<{
     name?: string;
     status?: string;
@@ -150,7 +177,12 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
        */
       const [planRes, partnerRes] = await Promise.all([
         fetchSubscriptionPlans(currentPage, pageSize, planFilters, planSortBy),
-        fetchPartnerSubscriptions(currentPage, pageSize, partnerFilters, partnerSubSortBy),
+        fetchPartnerSubscriptions(
+          currentPage,
+          pageSize,
+          partnerFilters,
+          partnerSubSortBy
+        ),
       ]);
 
       if (planRes.response) {
@@ -175,7 +207,14 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, pageSize, planFilters, partnerFilters, planSortBy, partnerSubSortBy]);
+  }, [
+    currentPage,
+    pageSize,
+    planFilters,
+    partnerFilters,
+    planSortBy,
+    partnerSubSortBy,
+  ]);
 
   useEffect(() => {
     void fetchData();
@@ -193,10 +232,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     setCurrentPage(1);
     setPlanFilters(filters);
   };
-  const handlePlanSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
-    setPlanSortBy(next);
-    setCurrentPage(1);
-  }, []);
+  const handlePlanSortChange = useCallback(
+    (next: { id: string; desc: boolean }[]) => {
+      setPlanSortBy(next);
+      setCurrentPage(1);
+    },
+    []
+  );
 
   const handlePartnerSubscriptionFilterChange = (filters: {
     name?: string;
@@ -214,10 +256,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     if (next.status === "false") next.status = "inactive";
     setPartnerFilters((prev) => ({ ...prev, ...next }));
   };
-  const handlePartnerSubSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
-    setPartnerSubSortBy(next);
-    setCurrentPage(1);
-  }, []);
+  const handlePartnerSubSortChange = useCallback(
+    (next: { id: string; desc: boolean }[]) => {
+      setPartnerSubSortBy(next);
+      setCurrentPage(1);
+    },
+    []
+  );
 
   const partnerFilterControls = (
     <Row className="order-payments-filters-row g-3 mt-1 mb-3 align-items-end flex-wrap">
@@ -240,10 +285,18 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           setValue={setValue}
           placeholder="All plan types"
           menuPortal
-          onChange={(e) => handlePartnerSubscriptionFilterChange({ planType: e.target.value })}
+          onChange={(e) =>
+            handlePartnerSubscriptionFilterChange({ planType: e.target.value })
+          }
         />
       </Col>
-      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+      <Col
+        xs={12}
+        sm={6}
+        md="auto"
+        className="order-payments-filter-col"
+        style={{ minWidth: 200 }}
+      >
         <CustomFormSelect
           label="Location (area)"
           controlId="partner_sub_location_filter"
@@ -256,7 +309,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           setValue={setValue}
           placeholder="All locations"
           menuPortal
-          onChange={(e) => handlePartnerSubscriptionFilterChange({ location: e.target.value })}
+          onChange={(e) =>
+            handlePartnerSubscriptionFilterChange({ location: e.target.value })
+          }
         />
       </Col>
       <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
@@ -276,10 +331,18 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           setValue={setValue}
           placeholder="All statuses"
           menuPortal
-          onChange={(e) => handlePartnerSubscriptionFilterChange({ status: e.target.value })}
+          onChange={(e) =>
+            handlePartnerSubscriptionFilterChange({ status: e.target.value })
+          }
         />
       </Col>
-      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+      <Col
+        xs={12}
+        sm={6}
+        md="auto"
+        className="order-payments-filter-col"
+        style={{ minWidth: 200 }}
+      >
         <CustomDatePicker
           label="From Date"
           controlId="partner_sub_start_date_filter"
@@ -296,7 +359,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           filterDate={() => true}
         />
       </Col>
-      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col" style={{ minWidth: 200 }}>
+      <Col
+        xs={12}
+        sm={6}
+        md="auto"
+        className="order-payments-filter-col"
+        style={{ minWidth: 200 }}
+      >
         <CustomDatePicker
           label="To Date"
           controlId="partner_sub_end_date_filter"
@@ -313,7 +382,12 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           filterDate={() => true}
         />
       </Col>
-      <Col xs={12} sm={6} md="auto" className="order-payments-filter-col d-flex align-items-end ms-md-auto">
+      <Col
+        xs={12}
+        sm={6}
+        md="auto"
+        className="order-payments-filter-col d-flex align-items-end ms-md-auto"
+      >
         <Button
           variant="outline-secondary"
           size="sm"
@@ -332,11 +406,21 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             setPartnerSubSortBy([]);
             setUtilitySearchKey((k) => k + 1);
             setCurrentPage(1);
-            setValue("partner_sub_plan_type_filter", "all", { shouldValidate: false });
-            setValue("partner_sub_status_filter", "all", { shouldValidate: false });
-            setValue("partner_sub_location_filter", "all", { shouldValidate: false });
-            setValue("partner_sub_start_date_filter", "", { shouldValidate: false });
-            setValue("partner_sub_end_date_filter", "", { shouldValidate: false });
+            setValue("partner_sub_plan_type_filter", "all", {
+              shouldValidate: false,
+            });
+            setValue("partner_sub_status_filter", "all", {
+              shouldValidate: false,
+            });
+            setValue("partner_sub_location_filter", "all", {
+              shouldValidate: false,
+            });
+            setValue("partner_sub_start_date_filter", "", {
+              shouldValidate: false,
+            });
+            setValue("partner_sub_end_date_filter", "", {
+              shouldValidate: false,
+            });
           }}
         >
           Clear
@@ -350,13 +434,15 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Plan Name",
         accessor: "plan_name",
         sort: true,
-        Cell: ({ row }: { row: any }) => capitalizeString(row.original.plan_name),
+        Cell: ({ row }: { row: any }) =>
+          capitalizeString(row.original.plan_name),
       },
       {
         Header: "Priority",
@@ -368,14 +454,19 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         accessor: "plan_description",
         className: "subscription-plans-desc-cell",
         width: 260,
-        Cell: ({ row }: { row: { original: SubscriptionPlanModel; index: number } }) => planDescriptionCell(row),
+        Cell: ({
+          row,
+        }: {
+          row: { original: SubscriptionPlanModel; index: number };
+        }) => planDescriptionCell(row),
       },
       { Header: "Price", accessor: "price" },
       { Header: "Duration", accessor: "duration" },
       {
         Header: "Duration Type",
         accessor: "duration_type",
-        Cell: ({ row }: { row: any }) => capitalizeString(row.original.duration_type),
+        Cell: ({ row }: { row: any }) =>
+          capitalizeString(row.original.duration_type),
       },
       {
         Header: "Status",
@@ -389,7 +480,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           <CustomActionColumn
             row={row}
             onView={() => {
-              AddEditSubscriptionPlanDialog.show(false, row.original, () => refreshData());
+              AddEditSubscriptionPlanDialog.show(false, row.original, () =>
+                refreshData()
+              );
             }}
             onDelete={async () => {
               openConfirmDialog(
@@ -414,17 +507,27 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Partner Name", accessor: "partner_name", sort: true },
       {
         Header: "Subscription Plan",
         accessor: "subscription_plan",
         sort: true,
-        Cell: ({ row }: { row: any }) => capitalizeString(row.original.subscription_plan),
+        Cell: ({ row }: { row: any }) =>
+          capitalizeString(row.original.subscription_plan),
       },
-      { Header: "Subscription Start Date", accessor: "subscription_start_date", sort: true },
-      { Header: "Subscription End Date", accessor: "subscription_end_date", sort: true },
+      {
+        Header: "Subscription Start Date",
+        accessor: "subscription_start_date",
+        sort: true,
+      },
+      {
+        Header: "Subscription End Date",
+        accessor: "subscription_end_date",
+        sort: true,
+      },
       {
         Header: "Remaining Days",
         accessor: "remaining_days",
@@ -433,7 +536,8 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           if (r.remaining_days_demo != null) {
             return (
               <span className="text-danger fw-semibold">
-                {r.remaining_days_demo} day{r.remaining_days_demo === 1 ? "" : "s"}
+                {r.remaining_days_demo} day
+                {r.remaining_days_demo === 1 ? "" : "s"}
               </span>
             );
           }
@@ -452,7 +556,9 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           <CustomActionColumn
             row={row}
             onView={() => {
-              AddEditPartnerSubscriptionDialog.show(false, row.original, () => refreshData());
+              AddEditPartnerSubscriptionDialog.show(false, row.original, () =>
+                refreshData()
+              );
             }}
             onDelete={async () => {
               openConfirmDialog(
@@ -532,16 +638,26 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           isAddShow={true}
           addButtonLable="Add"
           onAddClick={() => {
-            AddEditPartnerSubscriptionDialog.show(true, null, () => refreshData());
+            AddEditPartnerSubscriptionDialog.show(true, null, () =>
+              refreshData()
+            );
           }}
         />
       </div>
 
       <CustomUtilityBox
-        key={activeBox === "partner_subscription_list" ? utilitySearchKey : undefined}
+        key={
+          activeBox === "partner_subscription_list"
+            ? utilitySearchKey
+            : undefined
+        }
         searchOnlyToolbar={activeBox === "partner_subscription_list"}
         toolsInlineRow={activeBox === "partner_subscription_list"}
-        title={activeBox === "plans" ? "Subscription Plans" : "Partner Subscription List"}
+        title={
+          activeBox === "plans"
+            ? "Subscription Plans"
+            : "Partner Subscription List"
+        }
         searchHint={
           activeBox === "plans" ? "Search Plan Name" : "Search Partner Name"
         }

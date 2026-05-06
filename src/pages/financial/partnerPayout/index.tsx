@@ -13,7 +13,11 @@ import { UserModel } from "../../../models/UserModel";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
 import { AppConstant } from "../../../constant/AppConstant";
-import { formatDate, priceCell, textUnderlineCell } from "../../../helper/utility";
+import {
+  formatDate,
+  priceCell,
+  textUnderlineCell,
+} from "../../../helper/utility";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
 import AddPayoutDialog from "./AddPayoutDialog";
@@ -28,7 +32,9 @@ const WALLET_STATUS_OPTIONS = [
 const PartnerPayout = () => {
   const navigate = useNavigate();
 
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{ franchise_id: string }>({
+  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
+    franchise_id: string;
+  }>({
     defaultValues: { franchise_id: "all" },
   });
 
@@ -55,13 +61,24 @@ const PartnerPayout = () => {
       if (fetchRef.current) return;
       fetchRef.current = true;
       const w = listRef.current;
-      const { response, users, totalPages: tp } = await fetchUser(false, 2, currentPage, pageSize, {
-        keyword: filters.keyword ?? keywordRef.current,
-        status: "true",
-        wallet_status: w.walletStatus,
-        ...(w.fromDate ? { from_date: w.fromDate } : {}),
-        ...(w.toDate ? { to_date: w.toDate } : {}),
-      }, sortBy);
+      const {
+        response,
+        users,
+        totalPages: tp,
+      } = await fetchUser(
+        false,
+        2,
+        currentPage,
+        pageSize,
+        {
+          keyword: filters.keyword ?? keywordRef.current,
+          status: "true",
+          wallet_status: w.walletStatus,
+          ...(w.fromDate ? { from_date: w.fromDate } : {}),
+          ...(w.toDate ? { to_date: w.toDate } : {}),
+        },
+        sortBy
+      );
       if (response) {
         setPartnerList(users);
         setTotalPages(tp);
@@ -75,7 +92,10 @@ const PartnerPayout = () => {
     void fetchData({});
   }, [currentPage, pageSize, walletStatus, fromDate, toDate, fetchData]);
 
-  const handleFilterChange = async (filters: { keyword?: string; status?: string }) => {
+  const handleFilterChange = async (filters: {
+    keyword?: string;
+    status?: string;
+  }) => {
     setCurrentPage(1);
     setTotalPages(0);
     if (Object.keys(filters).length === 0) {
@@ -85,10 +105,13 @@ const PartnerPayout = () => {
     }
   };
 
-  const handleServerSortChange = useCallback((next: { id: string; desc: boolean }[]) => {
-    setSortBy(next);
-    setCurrentPage(1);
-  }, []);
+  const handleServerSortChange = useCallback(
+    (next: { id: string; desc: boolean }[]) => {
+      setSortBy(next);
+      setCurrentPage(1);
+    },
+    []
+  );
 
   const bumpWalletFilters = () => {
     setCurrentPage(1);
@@ -97,7 +120,9 @@ const PartnerPayout = () => {
   const handleVoidPartnerPayout = useCallback(
     (partner: UserModel) => {
       openConfirmDialog(
-        `Are you sure you want to void this payout for ${partner.user_id ?? partner.name ?? "this partner"}?`,
+        `Are you sure you want to void this payout for ${
+          partner.user_id ?? partner.name ?? "this partner"
+        }?`,
         "Void",
         "Cancel",
         async () => {
@@ -119,7 +144,13 @@ const PartnerPayout = () => {
           options={[...WALLET_STATUS_OPTIONS]}
           fieldName="wallet_status_filter"
           defaultValue={walletStatus}
-          setValue={setHeaderValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+          setValue={
+            setHeaderValue as (
+              name: string,
+              value: any,
+              options?: { shouldValidate?: boolean }
+            ) => void
+          }
           asCol={false}
           noBottomMargin
           onChange={(e) => {
@@ -176,7 +207,9 @@ const PartnerPayout = () => {
           size="sm"
           className="custom-btn-secondary partner-payout-clear-btn px-3"
           type="button"
-          disabled={walletStatus === "all" && !fromDate && !toDate && !keywordActive}
+          disabled={
+            walletStatus === "all" && !fromDate && !toDate && !keywordActive
+          }
           onClick={() => {
             setWalletStatus("all");
             setFromDate("");
@@ -202,7 +235,8 @@ const PartnerPayout = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: { index: number } }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: { index: number } }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Partner ID",
@@ -217,8 +251,15 @@ const PartnerPayout = () => {
         Header: "Total wallet amount",
         accessor: "total_wallet_amount",
         Cell: ({ row }: { row: { original: UserModel } }) => {
-          const v = row.original.total_wallet_amount ?? row.original.total_amount;
-          return <span>{v !== undefined && v !== null ? `${AppConstant.currencySymbol}${v}` : "-"}</span>;
+          const v =
+            row.original.total_wallet_amount ?? row.original.total_amount;
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
         },
       },
       {
@@ -230,7 +271,10 @@ const PartnerPayout = () => {
         Header: "Last withdraw date",
         accessor: "last_withdraw_date",
         Cell: ({ row }: { row: { original: UserModel } }) => {
-          const raw = row.original.last_withdraw_date || row.original.last_paid_date || "";
+          const raw =
+            row.original.last_withdraw_date ||
+            row.original.last_paid_date ||
+            "";
           return formatDate(raw);
         },
       },
@@ -240,7 +284,13 @@ const PartnerPayout = () => {
         Cell: ({ row }: { row: { original: UserModel } }) => (
           <CustomActionColumn
             row={row}
-            onView={(r) => navigate(`${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(r.original._id)}`)}
+            onView={(r) =>
+              navigate(
+                `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(
+                  r.original._id
+                )}`
+              )
+            }
             onDelete={() => handleVoidPartnerPayout(row.original)}
           />
         ),

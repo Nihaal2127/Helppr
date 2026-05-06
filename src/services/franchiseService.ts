@@ -56,14 +56,16 @@ async function fetchAllFranchiseAdmins(): Promise<Map<string, AdminContact>> {
     if (!res.success) break;
     const payload = (res as any).data ?? {};
     const inner =
-      payload && typeof payload.data === "object" && !Array.isArray(payload.data)
+      payload &&
+      typeof payload.data === "object" &&
+      !Array.isArray(payload.data)
         ? payload.data
         : payload;
     const records = Array.isArray(inner.records)
       ? inner.records
       : Array.isArray(payload.records)
-        ? payload.records
-        : [];
+      ? payload.records
+      : [];
     all.push(...records);
     const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
     if (!totalPages || page >= totalPages) break;
@@ -78,10 +80,18 @@ function toIdArray(raw: unknown): string[] {
   return raw.map((x) => String(x ?? "").trim()).filter(Boolean);
 }
 
-function mapFranchiseRow(raw: any, adminContacts?: Map<string, AdminContact>): FranchiseModel {
+function mapFranchiseRow(
+  raw: any,
+  adminContacts?: Map<string, AdminContact>
+): FranchiseModel {
   const admin = raw?.admin && typeof raw.admin === "object" ? raw.admin : null;
-  const adminInfo = raw?.admin_info && typeof raw.admin_info === "object" ? raw.admin_info : null;
-  const adminId = String(raw?.admin_id ?? admin?._id ?? adminInfo?._id ?? "").trim();
+  const adminInfo =
+    raw?.admin_info && typeof raw.admin_info === "object"
+      ? raw.admin_info
+      : null;
+  const adminId = String(
+    raw?.admin_id ?? admin?._id ?? adminInfo?._id ?? ""
+  ).trim();
   const fromAdminList = adminId ? adminContacts?.get(adminId) : undefined;
   const mappedEmail = String(
     raw?.email ??
@@ -119,8 +129,12 @@ function mapFranchiseRow(raw: any, adminContacts?: Map<string, AdminContact>): F
   } as FranchiseModel;
 }
 
-export const fetchFranchiseDropDown = async (): Promise<FranchiseDropDownOption[]> => {
-  const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+export const fetchFranchiseDropDown = async (): Promise<
+  FranchiseDropDownOption[]
+> => {
+  const currentUserRole = String(
+    getLocalStorage(AppConstant.userRole) ?? ""
+  ).trim();
   if (
     currentUserRole === UserRole.FRANCHISE_ADMIN ||
     currentUserRole === UserRole.EMPLOYEE
@@ -156,7 +170,9 @@ export const fetchFranchiseDropDown = async (): Promise<FranchiseDropDownOption[
 };
 
 /** Single franchise by id (GET /franchise/get/:id). Used when header filters to one franchise. */
-export const fetchFranchiseById = async (id: string): Promise<FranchiseModel | null> => {
+export const fetchFranchiseById = async (
+  id: string
+): Promise<FranchiseModel | null> => {
   const targetId = String(id ?? "").trim();
   if (!targetId) return null;
   if (USE_MOCK_FRANCHISE_API) {
@@ -176,10 +192,15 @@ export const fetchFranchiseById = async (id: string): Promise<FranchiseModel | n
   if (!response.success) return null;
   const payload = (response as any).data ?? {};
   const d =
-    payload.data !== undefined && typeof payload.data === "object" && !Array.isArray(payload.data)
+    payload.data !== undefined &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data)
       ? payload.data
       : payload;
-  const raw = d?.record ?? d?.franchise ?? (d && typeof d === "object" && d._id ? d : null);
+  const raw =
+    d?.record ??
+    d?.franchise ??
+    (d && typeof d === "object" && d._id ? d : null);
   if (!raw || typeof raw !== "object") return null;
   const adminContacts = await fetchAllFranchiseAdmins();
   return mapFranchiseRow(raw, adminContacts);
@@ -202,7 +223,12 @@ export const fetchFranchise = async (
     franchise_id?: string;
   },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean; franchises: FranchiseModel[]; totalPages: number; totalItems?: number }> => {
+): Promise<{
+  response: boolean;
+  franchises: FranchiseModel[];
+  totalPages: number;
+  totalItems?: number;
+}> => {
   const primarySort = sortBy[0];
   if (USE_MOCK_FRANCHISE_API) {
     const keyword = (filters.search ?? filters.name ?? "").trim().toLowerCase();
@@ -233,20 +259,36 @@ export const fetchFranchise = async (
           .join(" ")
           .toLowerCase();
         return (
-          String(item.name ?? "").toLowerCase().includes(keyword) ||
-          String(item.state_name ?? "").toLowerCase().includes(keyword) ||
-          String(item.city_name ?? "").toLowerCase().includes(keyword) ||
-          String(areas ?? "").toLowerCase().includes(keyword) ||
-          String(item.admin_name ?? "").toLowerCase().includes(keyword) ||
-          String(item.description ?? "").toLowerCase().includes(keyword) ||
-          String(item.contact ?? "").toLowerCase().includes(keyword) ||
+          String(item.name ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(item.state_name ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(item.city_name ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(areas ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(item.admin_name ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(item.description ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
+          String(item.contact ?? "")
+            .toLowerCase()
+            .includes(keyword) ||
           catSvc.includes(keyword)
         );
       });
     }
 
     const sort = primarySort
-      ? (primarySort.desc ? "desc" : "asc")
+      ? primarySort.desc
+        ? "desc"
+        : "asc"
       : String(filters.sort_order ?? sortRaw).toLowerCase();
     if (sort) {
       const ascending = sort === "asc" || sort === "1";
@@ -261,7 +303,9 @@ export const fetchFranchise = async (
     const totalPages = Math.ceil(data.length / pageSize) || 0;
     const start = (page - 1) * pageSize;
     const adminContacts = await fetchAllFranchiseAdmins();
-    const records = data.slice(start, start + pageSize).map((r) => mapFranchiseRow(r, adminContacts));
+    const records = data
+      .slice(start, start + pageSize)
+      .map((r) => mapFranchiseRow(r, adminContacts));
 
     return {
       response: true,
@@ -275,15 +319,15 @@ export const fetchFranchise = async (
   const primarySortId = primarySort?.id ? String(primarySort.id).trim() : "";
   /** Column id from the table (matches API sort_by per franchise/getAll docs). */
   const sortByParam =
-    primarySortId ||
-    (filters.sort_by ? String(filters.sort_by).trim() : "");
+    primarySortId || (filters.sort_by ? String(filters.sort_by).trim() : "");
 
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(searchValue && { search: searchValue }),
     ...(searchValue && { name: searchValue }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.state_id && { state_id: filters.state_id }),
     ...(filters.city_id && { city_id: filters.city_id }),
     ...(filters.admin_id && { admin_id: filters.admin_id }),
@@ -294,10 +338,10 @@ export const fetchFranchise = async (
     ...(primarySort
       ? { sort_order: primarySort.desc ? "desc" : "asc" }
       : filters.sort_order
-        ? { sort_order: filters.sort_order }
-        : filters.sort
-          ? { sort_order: filters.sort === "-1" ? "desc" : "asc" }
-          : {}),
+      ? { sort_order: filters.sort_order }
+      : filters.sort
+      ? { sort_order: filters.sort === "-1" ? "desc" : "asc" }
+      : {}),
   });
 
   const response = await apiRequest(
@@ -308,18 +352,26 @@ export const fetchFranchise = async (
   if (response.success) {
     const payload = response.data ?? {};
     const inner =
-      payload && typeof payload.data === "object" && !Array.isArray(payload.data)
+      payload &&
+      typeof payload.data === "object" &&
+      !Array.isArray(payload.data)
         ? payload.data
         : payload;
     const records = Array.isArray(inner.records)
       ? inner.records
       : Array.isArray(payload.records)
-        ? payload.records
-        : [];
+      ? payload.records
+      : [];
     const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
-    const totalItemsRaw = inner.totalItems ?? payload.totalItems ?? inner.totalCount ?? payload.totalCount;
+    const totalItemsRaw =
+      inner.totalItems ??
+      payload.totalItems ??
+      inner.totalCount ??
+      payload.totalCount;
     const totalItemsParsed =
-      totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+      totalItemsRaw === undefined ||
+      totalItemsRaw === null ||
+      totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
     const adminContacts = await fetchAllFranchiseAdmins();
@@ -331,7 +383,9 @@ export const fetchFranchise = async (
       );
       const totalItemsFiltered = franchises.length;
       const totalPagesFiltered =
-        totalItemsFiltered === 0 ? 0 : Math.max(1, Math.ceil(totalItemsFiltered / pageSize));
+        totalItemsFiltered === 0
+          ? 0
+          : Math.max(1, Math.ceil(totalItemsFiltered / pageSize));
       const start = (page - 1) * pageSize;
       franchises = franchises.slice(start, start + pageSize);
       return {
@@ -345,7 +399,10 @@ export const fetchFranchise = async (
       response: true,
       franchises,
       totalPages,
-      totalItems: totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed) ? totalItemsParsed : undefined,
+      totalItems:
+        totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed)
+          ? totalItemsParsed
+          : undefined,
     };
   } else {
     showLog(response.message || "Failed to fetch franchise");
@@ -361,7 +418,9 @@ export const fetchFranchise = async (
 export const deleteFranchise = async (id: string): Promise<boolean> => {
   if (USE_MOCK_FRANCHISE_API) {
     const before = mockFranchises.length;
-    mockFranchises = mockFranchises.filter((f: any) => String(f._id) !== String(id));
+    mockFranchises = mockFranchises.filter(
+      (f: any) => String(f._id) !== String(id)
+    );
     return mockFranchises.length !== before;
   }
 
@@ -375,14 +434,18 @@ export const deleteFranchise = async (id: string): Promise<boolean> => {
   }
 };
 
-function parseFranchiseIdFromMutationResponse(apiData: unknown): string | undefined {
+function parseFranchiseIdFromMutationResponse(
+  apiData: unknown
+): string | undefined {
   if (!apiData || typeof apiData !== "object") return undefined;
   const root = apiData as Record<string, unknown>;
   const nested =
     root.data && typeof root.data === "object" && !Array.isArray(root.data)
       ? (root.data as Record<string, unknown>)
       : root;
-  const rec = (nested.record ?? nested.franchise ?? root.record) as Record<string, unknown> | undefined;
+  const rec = (nested.record ?? nested.franchise ?? root.record) as
+    | Record<string, unknown>
+    | undefined;
   if (rec && typeof rec === "object") {
     const rid = rec._id ?? rec.id;
     if (rid != null && String(rid).trim()) return String(rid).trim();
@@ -390,7 +453,10 @@ function parseFranchiseIdFromMutationResponse(apiData: unknown): string | undefi
   return undefined;
 }
 
-export type CreateOrUpdateFranchiseResult = { ok: boolean; franchiseId?: string };
+export type CreateOrUpdateFranchiseResult = {
+  ok: boolean;
+  franchiseId?: string;
+};
 
 export const createOrUpdateFranchise = async (
   payload: any,
@@ -399,7 +465,9 @@ export const createOrUpdateFranchise = async (
 ): Promise<CreateOrUpdateFranchiseResult> => {
   if (USE_MOCK_FRANCHISE_API) {
     if (isEditable) {
-      const idx = mockFranchises.findIndex((f: any) => String(f._id) === String(id));
+      const idx = mockFranchises.findIndex(
+        (f: any) => String(f._id) === String(id)
+      );
       if (idx === -1) return { ok: false };
 
       mockFranchises[idx] = {
@@ -421,7 +489,9 @@ export const createOrUpdateFranchise = async (
     return { ok: true, franchiseId: newId };
   }
 
-  const path = isEditable ? ApiPaths.UPDATE_FRANCHISE(id!) : ApiPaths.CREATE_FRANCHISE;
+  const path = isEditable
+    ? ApiPaths.UPDATE_FRANCHISE(id!)
+    : ApiPaths.CREATE_FRANCHISE;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

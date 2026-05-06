@@ -43,7 +43,8 @@ const QuoteChatConversationPage = () => {
   const chatId = searchParams.get("chatId") || "";
 
   const selectedChat =
-    quoteChatConversations.find((chat) => chat.id === chatId) || quoteChatConversations[0];
+    quoteChatConversations.find((chat) => chat.id === chatId) ||
+    quoteChatConversations[0];
 
   const fallbackDetail = {
     chatId: selectedChat.id,
@@ -68,11 +69,23 @@ const QuoteChatConversationPage = () => {
         sentAt: selectedChat.lastMessageAt,
       },
     ],
-    transferHistory: [] as { employeeName: string; date: string; note?: string }[],
+    transferHistory: [] as {
+      employeeName: string;
+      date: string;
+      note?: string;
+    }[],
     currentEmployeeName: "Assigned Employee",
   };
 
   const detail = quoteChatDetails[selectedChat.id] || fallbackDetail;
+  const getSenderProfile = (sender: "user" | "employee") => {
+    const isEmployee = sender === "employee";
+    const name = isEmployee ? detail.employee.name : detail.user.name;
+    return {
+      letter: (name || "U").charAt(0),
+      bg: isEmployee ? "#991b1b" : "#7f1d1d",
+    };
+  };
 
   const baseMessages = useMemo<ChatMessage[]>(
     () =>
@@ -86,7 +99,8 @@ const QuoteChatConversationPage = () => {
   );
 
   const [messages, setMessages] = useState<ChatMessage[]>(baseMessages);
-  const isSendDisabled = messageDraft.trim().length === 0 && selectedFiles.length === 0;
+  const isSendDisabled =
+    messageDraft.trim().length === 0 && selectedFiles.length === 0;
 
   const transferAssigneeOptions = useMemo(
     () => [
@@ -121,7 +135,8 @@ const QuoteChatConversationPage = () => {
     const mappedFiles: DraftAttachment[] = files.map((file, index) => {
       const isImage = file.type.startsWith("image/");
       const isVideo = file.type.startsWith("video/");
-      const previewUrl = isImage || isVideo ? URL.createObjectURL(file) : undefined;
+      const previewUrl =
+        isImage || isVideo ? URL.createObjectURL(file) : undefined;
       return {
         id: `${Date.now()}-${index}-${file.name}`,
         file,
@@ -144,7 +159,9 @@ const QuoteChatConversationPage = () => {
   };
 
   const updateAttachmentCaption = (id: string, caption: string) => {
-    setSelectedFiles((prev) => prev.map((item) => (item.id === id ? { ...item, caption } : item)));
+    setSelectedFiles((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, caption } : item))
+    );
   };
 
   const formatNow = () =>
@@ -165,7 +182,8 @@ const QuoteChatConversationPage = () => {
     }));
 
     const text = messageDraft.trim();
-    const outgoingText = text || (outgoingAttachments.length > 0 ? "Shared attachments" : "");
+    const outgoingText =
+      text || (outgoingAttachments.length > 0 ? "Shared attachments" : "");
 
     setMessages((prev) => [
       ...prev,
@@ -188,7 +206,7 @@ const QuoteChatConversationPage = () => {
         <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-             className="financial-subpage-back text-danger"
+            className="financial-subpage-back text-danger"
             onClick={() => navigate(ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT.path)}
             aria-label="Back to quote chat list"
           >
@@ -196,7 +214,11 @@ const QuoteChatConversationPage = () => {
           </button>
           <h4 className="m-0 p-0">Quote Chat</h4>
         </div>
-        <button type="button" className="btn p-0 border-0 bg-transparent" aria-label="Notifications">
+        <button
+          type="button"
+          className="btn p-0 border-0 bg-transparent"
+          aria-label="Notifications"
+        >
           <i className="bi bi-bell-fill text-danger fs-5" />
         </button>
       </div>
@@ -204,53 +226,64 @@ const QuoteChatConversationPage = () => {
       <div className="row g-3">
         <div className="col-lg-8">
           <div className="border rounded-3 bg-white">
-            <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
-              <div className="d-flex align-items-center gap-2">
-                <div
-                  className="normal-chat-avatar d-inline-flex align-items-center justify-content-center position-relative flex-shrink-0"
-                  style={{ backgroundColor: selectedChat.avatarColor }}
-                >
-                  {selectedChat.userName.charAt(0)}
-                </div>
-                <div>
-                  <h6 className="normal-chat-user-name mb-0">{selectedChat.userName}</h6>
-                  <small className="normal-chat-time">{selectedChat.userId}</small>
-                </div>
-              </div>
-            </div>
-
             <div className="normal-chat-message-area" ref={messageAreaRef}>
               {messages.map((msg) => {
                 const isEmployee = msg.sender === "employee";
+                const senderProfile = getSenderProfile(msg.sender);
                 return (
                   <div
                     key={msg.id}
-                    className={`d-flex mb-2 ${isEmployee ? "justify-content-end" : "justify-content-start"}`}
+                    className={`d-flex mb-2 ${
+                      isEmployee
+                        ? "justify-content-end"
+                        : "justify-content-start"
+                    }`}
                   >
-                    <div className={`normal-chat-bubble ${isEmployee ? "employee" : "user"}`}>
+                    {!isEmployee && (
+                      <div
+                        className="normal-chat-message-avatar"
+                        style={{ backgroundColor: senderProfile.bg }}
+                        aria-label="sender avatar"
+                        title={detail.user.name}
+                      >
+                        {senderProfile.letter}
+                      </div>
+                    )}
+                    <div
+                      className={`normal-chat-bubble ${
+                        isEmployee ? "employee" : "user"
+                      }`}
+                    >
                       <p className="mb-1">{msg.text}</p>
                       {msg.attachments && msg.attachments.length > 0 && (
                         <div
                           className={`normal-chat-bubble-attachments ${
-                            msg.attachments.length > 1 ? "normal-chat-bubble-attachments-grid" : ""
+                            msg.attachments.length > 1
+                              ? "normal-chat-bubble-attachments-grid"
+                              : ""
                           }`}
                         >
                           {msg.attachments.map((attachment) => (
-                            <div key={attachment.id} className="normal-chat-bubble-attachment-item">
-                              {attachment.kind === "image" && attachment.previewUrl && (
-                                <img
-                                  src={attachment.previewUrl}
-                                  alt={attachment.fileName}
-                                  className="normal-chat-bubble-attachment-preview"
-                                />
-                              )}
-                              {attachment.kind === "video" && attachment.previewUrl && (
-                                <video
-                                  className="normal-chat-bubble-attachment-preview"
-                                  controls
-                                  src={attachment.previewUrl}
-                                />
-                              )}
+                            <div
+                              key={attachment.id}
+                              className="normal-chat-bubble-attachment-item"
+                            >
+                              {attachment.kind === "image" &&
+                                attachment.previewUrl && (
+                                  <img
+                                    src={attachment.previewUrl}
+                                    alt={attachment.fileName}
+                                    className="normal-chat-bubble-attachment-preview"
+                                  />
+                                )}
+                              {attachment.kind === "video" &&
+                                attachment.previewUrl && (
+                                  <video
+                                    className="normal-chat-bubble-attachment-preview"
+                                    controls
+                                    src={attachment.previewUrl}
+                                  />
+                                )}
                               {attachment.kind === "file" && (
                                 <div className="normal-chat-bubble-file">
                                   <i className="bi bi-file-earmark-text" />
@@ -258,7 +291,9 @@ const QuoteChatConversationPage = () => {
                                 </div>
                               )}
                               {attachment.caption && (
-                                <div className="normal-chat-attachment-caption">{attachment.caption}</div>
+                                <div className="normal-chat-attachment-caption">
+                                  {attachment.caption}
+                                </div>
                               )}
                             </div>
                           ))}
@@ -266,6 +301,19 @@ const QuoteChatConversationPage = () => {
                       )}
                       <small>{msg.sentAt}</small>
                     </div>
+                    {isEmployee && (
+                      <div
+                        className="normal-chat-message-avatar"
+                        style={{
+                          backgroundColor: senderProfile.bg,
+                          marginLeft: 8,
+                        }}
+                        aria-label="sender avatar"
+                        title={detail.employee.name}
+                      >
+                        {senderProfile.letter}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -275,7 +323,8 @@ const QuoteChatConversationPage = () => {
               <div className="px-3 pt-2">
                 <div className="d-flex align-items-center justify-content-between gap-2">
                   <div className="text-muted" style={{ fontSize: 12 }}>
-                    {selectedFiles.length} attachment{selectedFiles.length > 1 ? "s" : ""} selected
+                    {selectedFiles.length} attachment
+                    {selectedFiles.length > 1 ? "s" : ""} selected
                   </div>
                   <button
                     type="button"
@@ -294,7 +343,8 @@ const QuoteChatConversationPage = () => {
                       tabIndex={0}
                       onClick={() => setShowAttachmentModal(true)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") setShowAttachmentModal(true);
+                        if (e.key === "Enter" || e.key === " ")
+                          setShowAttachmentModal(true);
                       }}
                     >
                       <div className="normal-chat-selected-file-header">
@@ -304,11 +354,13 @@ const QuoteChatConversationPage = () => {
                               file.kind === "image"
                                 ? "bi-image"
                                 : file.kind === "video"
-                                  ? "bi-film"
-                                  : "bi-file-earmark-text"
+                                ? "bi-film"
+                                : "bi-file-earmark-text"
                             }`}
                           />
-                          <span className="text-truncate">{file.file.name}</span>
+                          <span className="text-truncate">
+                            {file.file.name}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -322,13 +374,21 @@ const QuoteChatConversationPage = () => {
                           <i className="bi bi-x-circle-fill" />
                         </button>
                       </div>
-                      {file.kind !== "file" && file.previewUrl && (
-                        file.kind === "image" ? (
-                          <img src={file.previewUrl} alt={file.file.name} className="normal-chat-selected-preview" />
+                      {file.kind !== "file" &&
+                        file.previewUrl &&
+                        (file.kind === "image" ? (
+                          <img
+                            src={file.previewUrl}
+                            alt={file.file.name}
+                            className="normal-chat-selected-preview"
+                          />
                         ) : (
-                          <video src={file.previewUrl} className="normal-chat-selected-preview" controls />
-                        )
-                      )}
+                          <video
+                            src={file.previewUrl}
+                            className="normal-chat-selected-preview"
+                            controls
+                          />
+                        ))}
                     </div>
                   ))}
                 </div>
@@ -402,30 +462,41 @@ const QuoteChatConversationPage = () => {
                     <li key={`${t.employeeName}-${idx}`} className="mb-2">
                       <span className="fw-semibold">{t.employeeName}</span>
                       <span className="text-muted"> · {t.date}</span>
-                      {t.note ? <span className="d-block text-muted">({t.note})</span> : null}
+                      {t.note ? (
+                        <span className="d-block text-muted">({t.note})</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               )}
               <div className="fw-semibold">
-                Current employee — {detail.currentEmployeeName ?? detail.employee.name}
+                Current employee —{" "}
+                {detail.currentEmployeeName ?? detail.employee.name}
               </div>
             </div>
 
             <h6 className="normal-chat-section-title">User Details</h6>
             <div className="row g-2 mb-3">
               <span className="col-4 normal-chat-detail-key">Name</span>
-              <strong className="col-8 normal-chat-detail-value">{detail.user.name}</strong>
+              <strong className="col-8 normal-chat-detail-value">
+                {detail.user.name}
+              </strong>
               <span className="col-4 normal-chat-detail-key">Email</span>
-              <strong className="col-8 normal-chat-detail-value">{detail.user.email}</strong>
+              <strong className="col-8 normal-chat-detail-value">
+                {detail.user.email}
+              </strong>
             </div>
 
             <h6 className="normal-chat-section-title">Employee Details</h6>
             <div className="row g-2 mb-3">
               <span className="col-4 normal-chat-detail-key">Name</span>
-              <strong className="col-8 normal-chat-detail-value">{detail.employee.name}</strong>
+              <strong className="col-8 normal-chat-detail-value">
+                {detail.employee.name}
+              </strong>
               <span className="col-4 normal-chat-detail-key">Email</span>
-              <strong className="col-8 normal-chat-detail-value">{detail.employee.email}</strong>
+              <strong className="col-8 normal-chat-detail-value">
+                {detail.employee.email}
+              </strong>
             </div>
 
             <h6 className="normal-chat-section-title">Attachments</h6>
@@ -449,7 +520,9 @@ const QuoteChatConversationPage = () => {
                           loading="lazy"
                         />
                         <div className="p-2">
-                          <div className="normal-chat-attachment-name">{att.fileName}</div>
+                          <div className="normal-chat-attachment-name">
+                            {att.fileName}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -474,19 +547,28 @@ const QuoteChatConversationPage = () => {
           <CustomCloseButton onClose={() => setShowAttachmentModal(false)} />
         </Modal.Header>
 
-        <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        <Modal.Body
+          className="px-4 pb-4 pt-0"
+          style={{ maxHeight: "70vh", overflowY: "auto" }}
+        >
           <div className="d-flex justify-content-between align-items-center mb-3">
             <div className="text-muted" style={{ fontSize: 14 }}>
               Preview and add captions before sending
             </div>
-            <button type="button" className="btn custom-add-button" onClick={openAttachmentPicker}>
+            <button
+              type="button"
+              className="btn custom-add-button"
+              onClick={openAttachmentPicker}
+            >
               <i className="bi bi-plus-lg me-2" />
               Add files
             </button>
           </div>
 
           {selectedFiles.length === 0 ? (
-            <div className="normal-chat-empty-state">No attachments selected.</div>
+            <div className="normal-chat-empty-state">
+              No attachments selected.
+            </div>
           ) : (
             <div className="row g-3">
               {selectedFiles.map((file) => (
@@ -516,15 +598,26 @@ const QuoteChatConversationPage = () => {
 
                     {file.previewUrl && file.kind !== "file" ? (
                       file.kind === "image" ? (
-                        <img src={file.previewUrl} alt={file.file.name} className="normal-chat-modal-preview" />
+                        <img
+                          src={file.previewUrl}
+                          alt={file.file.name}
+                          className="normal-chat-modal-preview"
+                        />
                       ) : (
-                        <video src={file.previewUrl} className="normal-chat-modal-preview" controls />
+                        <video
+                          src={file.previewUrl}
+                          className="normal-chat-modal-preview"
+                          controls
+                        />
                       )
                     ) : (
                       <div className="border rounded-3 p-3 text-center">
                         <i
                           className="bi bi-file-earmark-text"
-                          style={{ fontSize: 24, color: "var(--primary-txt-color)" }}
+                          style={{
+                            fontSize: 24,
+                            color: "var(--primary-txt-color)",
+                          }}
                         />
                       </div>
                     )}
@@ -534,7 +627,9 @@ const QuoteChatConversationPage = () => {
                       rows={2}
                       placeholder="Caption"
                       value={file.caption}
-                      onChange={(e) => updateAttachmentCaption(file.id, e.target.value)}
+                      onChange={(e) =>
+                        updateAttachmentCaption(file.id, e.target.value)
+                      }
                     />
                   </div>
                 </div>
@@ -580,4 +675,3 @@ const QuoteChatConversationPage = () => {
 };
 
 export default QuoteChatConversationPage;
-

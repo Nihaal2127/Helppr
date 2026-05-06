@@ -61,12 +61,17 @@ function getPaymentDoneByLabel(row: ExpenseModel): string {
   );
 }
 
-export function expensesModelToExportRow(row: ExpenseModel, index0: number): string[] {
+export function expensesModelToExportRow(
+  row: ExpenseModel,
+  index0: number
+): string[] {
   const category = getField(row, "category_name", "categoryName") || "-";
-  const subCategory = getField(row, "sub_category_name", "subCategoryName") || "-";
+  const subCategory =
+    getField(row, "sub_category_name", "subCategoryName") || "-";
   const expenseName = getField(row, "expense_name", "expenseName") || "-";
   const description =
-    getField(row, "description", "expense_description", "expenseDescription") || "-";
+    getField(row, "description", "expense_description", "expenseDescription") ||
+    "-";
 
   const expenseAmount = row.expense_amount ?? row.expenseAmount;
   const expenseDate = getField(row, "expense_date", "expenseDate");
@@ -88,14 +93,19 @@ export function expensesModelToExportRow(row: ExpenseModel, index0: number): str
 export function buildExpensesCsv(rows: ExpenseModel[]): string {
   const lines = [
     HEADERS.join(","),
-    ...rows.map((r, i) => expensesModelToExportRow(r, i).map(csvEscape).join(",")),
+    ...rows.map((r, i) =>
+      expensesModelToExportRow(r, i).map(csvEscape).join(",")
+    ),
   ];
 
   // BOM helps Excel auto-detect UTF-8.
   return `\uFEFF${lines.join("\r\n")}`;
 }
 
-export function downloadExpensesCsv(filename: string, csvContent: string): void {
+export function downloadExpensesCsv(
+  filename: string,
+  csvContent: string
+): void {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -106,4 +116,3 @@ export function downloadExpensesCsv(filename: string, csvContent: string): void 
   window.URL.revokeObjectURL(url);
   document.body.removeChild(a);
 }
-

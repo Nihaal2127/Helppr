@@ -57,7 +57,10 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   return (
     <Wrapper {...wrapperProps}>
-      <Form.Group controlId={groupControlId ?? controlId} className={groupClassName ?? "mb-3 w-100"}>
+      <Form.Group
+        controlId={groupControlId ?? controlId}
+        className={groupClassName ?? "mb-3 w-100"}
+      >
         {label && <Form.Label>{label}</Form.Label>}
         <div className="position-relative w-100">
           <DatePicker
@@ -66,12 +69,17 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             onChange={handleDateChange}
             dateFormat="dd/MM/yyyy"
             placeholderText={placeholderText}
-            className={`form-control ${error ? "is-invalid" : ""} full-width-date-picker`}
-            filterDate={filterDate ?? ((date) => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              return date >= today;
-            })}
+            className={`form-control ${
+              error ? "is-invalid" : ""
+            } full-width-date-picker`}
+            filterDate={
+              filterDate ??
+              ((date) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return date >= today;
+              })
+            }
             showPopperArrow={false}
           />
           <span
@@ -84,7 +92,9 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         </div>
         {error && (
           <Form.Control.Feedback type="invalid" className="d-block">
-            {typeof error === "string" ? error : error.message || "This field is required."}
+            {typeof error === "string"
+              ? error
+              : error.message || "This field is required."}
           </Form.Control.Feedback>
         )}
       </Form.Group>

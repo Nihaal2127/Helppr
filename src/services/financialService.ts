@@ -17,7 +17,9 @@ export async function enrichFinancialRowsWithOrderNames(
   if (!rows.length) return rows;
 
   const orderIds = Array.from(
-    new Set(rows.map((r) => r.order_id).filter((id): id is string => Boolean(id)))
+    new Set(
+      rows.map((r) => r.order_id).filter((id): id is string => Boolean(id))
+    )
   );
 
   const orderById = new Map<string, OrderModel>();
@@ -92,13 +94,19 @@ export const fetchFinancial = async (
     ...(filters.user_id && { user_id: filters.user_id }),
     ...(filters.partner_id && { partner_id: filters.partner_id }),
     ...(filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
-    ...(filters.partner_paid_status && { partner_paid_status: filters.partner_paid_status }),
+    ...(filters.partner_paid_status && {
+      partner_paid_status: filters.partner_paid_status,
+    }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
     ...(filters.payment_status && { payment_status: filters.payment_status }),
-    ...(filters.customer_payment_status && { customer_payment_status: filters.customer_payment_status }),
-    ...(filters.partner_payment_status && { partner_payment_status: filters.partner_payment_status }),
+    ...(filters.customer_payment_status && {
+      customer_payment_status: filters.customer_payment_status,
+    }),
+    ...(filters.partner_payment_status && {
+      partner_payment_status: filters.partner_payment_status,
+    }),
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),
     ...(filters.order_id && { order_id: filters.order_id }),
@@ -114,16 +122,23 @@ export const fetchFinancial = async (
 
   if (response.success) {
     const d = response.data ?? {};
-    const inner = d.data != null && typeof d.data === "object" && !Array.isArray(d.data) ? d.data : null;
+    const inner =
+      d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+        ? d.data
+        : null;
     const records = inner?.records ?? d.records ?? [];
     const totalPagesVal = inner?.totalPages ?? d.totalPages ?? 0;
     const totalItemsRaw = inner?.totalItems ?? d.totalItems;
     const totalItemsParsed =
-      totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+      totalItemsRaw === undefined ||
+      totalItemsRaw === null ||
+      totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
     const totalItems =
-      totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed) ? totalItemsParsed : undefined;
+      totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed)
+        ? totalItemsParsed
+        : undefined;
 
     return {
       response: true,
@@ -148,12 +163,24 @@ export async function fetchAllFinancialRowsMatching(
   batchSize = 250,
   opts?: { skipEnrich?: boolean; sortBy?: ServerTableSortBy }
 ): Promise<FinancialModel[] | null> {
-  const first = await fetchFinancial(1, batchSize, filters, { skipLoader: true }, opts?.sortBy ?? []);
+  const first = await fetchFinancial(
+    1,
+    batchSize,
+    filters,
+    { skipLoader: true },
+    opts?.sortBy ?? []
+  );
   if (!first.response) return null;
   let all = [...first.financials];
   const totalPages = Math.max(1, first.totalPages);
   for (let p = 2; p <= totalPages; p++) {
-    const next = await fetchFinancial(p, batchSize, filters, { skipLoader: true }, opts?.sortBy ?? []);
+    const next = await fetchFinancial(
+      p,
+      batchSize,
+      filters,
+      { skipLoader: true },
+      opts?.sortBy ?? []
+    );
     if (!next.response) break;
     all = all.concat(next.financials);
   }

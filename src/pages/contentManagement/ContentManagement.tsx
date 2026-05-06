@@ -14,7 +14,11 @@ type ContentModel = ContentItem;
 
 type ContentManagementProps = {
   register?: UseFormRegister<any>;
-  setValue?: (name: string, value: any, options?: { shouldValidate?: boolean }) => void;
+  setValue?: (
+    name: string,
+    value: any,
+    options?: { shouldValidate?: boolean }
+  ) => void;
 };
 
 const pageSize = 10;
@@ -53,8 +57,8 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
       primarySort?.id === "title"
         ? "title"
         : primarySort?.id === "last_updated"
-          ? "updated_at"
-          : undefined;
+        ? "updated_at"
+        : undefined;
     const result = await fetchContentList(currentPage, pageSize, {
       search: keyword.trim() || undefined,
       sort: sortField,
@@ -96,7 +100,8 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
       {
         Header: "S.No",
         accessor: "serialNumber",
-        Cell: ({ row }: any) => (Math.max(1, currentPage) - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: any) =>
+          (Math.max(1, currentPage) - 1) * pageSize + row.index + 1,
         className: "text-center",
       },
       {
@@ -127,7 +132,11 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
 
   return (
     <div className="main-page-content">
-      <CustomHeader title="Content Management" register={register} setValue={setValue} />
+      <CustomHeader
+        title="Content Management"
+        register={register}
+        setValue={setValue}
+      />
 
       <div className="card border-0 shadow-sm">
         <div className="card-body">

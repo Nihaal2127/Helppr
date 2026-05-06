@@ -41,7 +41,10 @@ function money(v: number | null | undefined): string {
 }
 
 /** Mirrors `orderPayments` table cell values for export. */
-export function financialModelToExportRow(row: FinancialModel, index0: number): string[] {
+export function financialModelToExportRow(
+  row: FinancialModel,
+  index0: number
+): string[] {
   const taxV = row.tax_percentage ?? row.tax_percent;
   const taxStr = taxV != null ? `${taxV}%` : "-";
   const commV = row.commission_percentage ?? row.commission_percent;
@@ -56,7 +59,9 @@ export function financialModelToExportRow(row: FinancialModel, index0: number): 
 
   return [
     String(index0 + 1),
-    row.order_unique_id != null && row.order_unique_id !== "" ? String(row.order_unique_id) : "-",
+    row.order_unique_id != null && row.order_unique_id !== ""
+      ? String(row.order_unique_id)
+      : "-",
     row.user_info?.name || "-",
     row.partner_info?.name ?? "-",
     row.service_name ?? "-",
@@ -76,12 +81,17 @@ export function financialModelToExportRow(row: FinancialModel, index0: number): 
 export function buildOrderPaymentsCsv(rows: FinancialModel[]): string {
   const lines = [
     HEADERS.join(","),
-    ...rows.map((r, i) => financialModelToExportRow(r, i).map(csvEscape).join(",")),
+    ...rows.map((r, i) =>
+      financialModelToExportRow(r, i).map(csvEscape).join(",")
+    ),
   ];
   return `\uFEFF${lines.join("\r\n")}`;
 }
 
-export function downloadOrderPaymentsCsv(filename: string, csvContent: string): void {
+export function downloadOrderPaymentsCsv(
+  filename: string,
+  csvContent: string
+): void {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");

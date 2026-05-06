@@ -15,7 +15,8 @@ export function nextServerSortState(
     return [{ id: columnId, desc: sortDescFirst }];
   }
 
-  const shouldRemove = (ex.desc && !sortDescFirst) || (!ex.desc && sortDescFirst);
+  const shouldRemove =
+    (ex.desc && !sortDescFirst) || (!ex.desc && sortDescFirst);
   if (shouldRemove) {
     return [];
   }

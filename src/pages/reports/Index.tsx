@@ -25,11 +25,11 @@ const Reports = () => {
         return <OrderReportsPage />;
 
       case "quotation_reports":
-  return <QuotationReportsPage />;
+        return <QuotationReportsPage />;
 
       case "partner_reports":
         return <PartnerReportsPage />;
-    
+
       default:
         return null;
     }
@@ -37,7 +37,11 @@ const Reports = () => {
 
   return (
     <div className="main-page-content">
-      <CustomHeader title="Reports & Analytics" register={register} setValue={setValue} />
+      <CustomHeader
+        title="Reports & Analytics"
+        register={register}
+        setValue={setValue}
+      />
 
       <div className="d-flex gap-2 mb-3">
         {reportTabs.map((tab) => (

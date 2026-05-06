@@ -1,4 +1,3 @@
-
 export interface CategoryModel {
   _id: string;
   category_id: string;
@@ -16,7 +15,6 @@ export interface CategoryModel {
   image_url: string;
   is_active: boolean;
   deleted_at: string | null;
-  created_at: string| null;
-  updated_at: string| null;
+  created_at: string | null;
+  updated_at: string | null;
 }
-

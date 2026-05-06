@@ -50,16 +50,15 @@ let mockRoles: RoleSettingsModel[] = rolesMockSeed.map((item, index) => {
   };
 });
 
-let mockExpenseCategories: ExpenseCategoryModel[] = expenseCategoriesMockSeed.map(
-  (item, index) => {
+let mockExpenseCategories: ExpenseCategoryModel[] =
+  expenseCategoriesMockSeed.map((item, index) => {
     const now = new Date().toISOString();
     return {
       ...item,
       id: `${Date.now()}-expense-category-${index}`,
       createdDate: now,
     };
-  }
-);
+  });
 
 let mockStaff: StaffSettingsModel[] = staffMockSeed.map((item, index) => {
   const now = new Date().toISOString();
@@ -152,12 +151,17 @@ export type SettingsSectionPageResult = {
 };
 
 function normalizeActiveStatus(raw: unknown): "active" | "inactive" {
-  if (raw === true || raw === 1 || String(raw).toLowerCase() === "active") return "active";
-  if (raw === false || raw === 0 || String(raw).toLowerCase() === "inactive") return "inactive";
+  if (raw === true || raw === 1 || String(raw).toLowerCase() === "active")
+    return "active";
+  if (raw === false || raw === 0 || String(raw).toLowerCase() === "inactive")
+    return "inactive";
   return "active";
 }
 
-function mapApiUserToRoleSettingsModel(raw: Record<string, unknown>, roleType: "franchise_admin" | "employee"): RoleSettingsModel {
+function mapApiUserToRoleSettingsModel(
+  raw: Record<string, unknown>,
+  roleType: "franchise_admin" | "employee"
+): RoleSettingsModel {
   const id = String(raw._id ?? raw.id ?? generateId());
   const roleId = String(raw.user_id ?? raw.userId ?? raw.role_id ?? id);
   const name = String(raw.name ?? raw.role_name ?? "-");
@@ -167,7 +171,9 @@ function mapApiUserToRoleSettingsModel(raw: Record<string, unknown>, roleType: "
     roleId,
     roleName: name,
     roleType,
-    assignedFranchise: String(raw.franchise_name ?? raw.assigned_franchise ?? "").trim() || undefined,
+    assignedFranchise:
+      String(raw.franchise_name ?? raw.assigned_franchise ?? "").trim() ||
+      undefined,
     franchise_id: String(raw.franchise_id ?? "").trim() || undefined,
     state_id: String(raw.state_id ?? "").trim() || undefined,
     city_id: String(raw.city_id ?? "").trim() || undefined,
@@ -180,7 +186,9 @@ function mapApiUserToRoleSettingsModel(raw: Record<string, unknown>, roleType: "
   };
 }
 
-function mapApiUserToStaffSettingsModel(raw: Record<string, unknown>): StaffSettingsModel {
+function mapApiUserToStaffSettingsModel(
+  raw: Record<string, unknown>
+): StaffSettingsModel {
   const id = String(raw._id ?? raw.id ?? generateId());
   const staffId = String(raw.user_id ?? raw.userId ?? raw.staff_id ?? id);
   return {
@@ -204,7 +212,9 @@ function mapRowsByType(
 ): { roles: RoleSettingsModel[]; staff: StaffSettingsModel[] } {
   if (type === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN) {
     return {
-      roles: rows.map((u) => mapApiUserToRoleSettingsModel(u, "franchise_admin")),
+      roles: rows.map((u) =>
+        mapApiUserToRoleSettingsModel(u, "franchise_admin")
+      ),
       staff: [] as StaffSettingsModel[],
     };
   }
@@ -220,7 +230,10 @@ function mapRowsByType(
       staff: rows.map(mapApiUserToStaffSettingsModel),
     };
   }
-  return { roles: [] as RoleSettingsModel[], staff: [] as StaffSettingsModel[] };
+  return {
+    roles: [] as RoleSettingsModel[],
+    staff: [] as StaffSettingsModel[],
+  };
 }
 
 export const fetchSettingsSectionPageByType = async (
@@ -233,7 +246,8 @@ export const fetchSettingsSectionPageByType = async (
   const primarySort = sortBy[0];
   const mappedSortField = (() => {
     if (!primarySort?.id) return undefined;
-    if (primarySort.id === "roleName" || primarySort.id === "name") return "name";
+    if (primarySort.id === "roleName" || primarySort.id === "name")
+      return "name";
     if (primarySort.id === "email") return "email";
     return undefined;
   })();
@@ -266,21 +280,28 @@ export const fetchSettingsSectionPageByType = async (
   if (!res.success) return null;
 
   const d = (res.data ?? {}) as Record<string, unknown>;
-  const records =
-    (Array.isArray((d.data as Record<string, unknown> | undefined)?.records)
+  const records = (
+    Array.isArray((d.data as Record<string, unknown> | undefined)?.records)
       ? (d.data as Record<string, unknown>).records
       : Array.isArray(d.records)
-        ? d.records
-        : []) as Record<string, unknown>[];
+      ? d.records
+      : []
+  ) as Record<string, unknown>[];
 
   const totalItems = Number(
-    (d.data as Record<string, unknown> | undefined)?.totalItems ?? d.totalItems ?? records.length
+    (d.data as Record<string, unknown> | undefined)?.totalItems ??
+      d.totalItems ??
+      records.length
   );
   const totalPages = Number(
-    (d.data as Record<string, unknown> | undefined)?.totalPages ?? d.totalPages ?? 1
+    (d.data as Record<string, unknown> | undefined)?.totalPages ??
+      d.totalPages ??
+      1
   );
   const currentPage = Number(
-    (d.data as Record<string, unknown> | undefined)?.currentPage ?? d.currentPage ?? page
+    (d.data as Record<string, unknown> | undefined)?.currentPage ??
+      d.currentPage ??
+      page
   );
 
   const mapped = mapRowsByType(type, records);
@@ -292,7 +313,9 @@ export const fetchSettingsSectionPageByType = async (
   };
 };
 
-async function fetchAllUsersByType(type: number): Promise<Record<string, unknown>[] | null> {
+async function fetchAllUsersByType(
+  type: number
+): Promise<Record<string, unknown>[] | null> {
   const limit = 100;
   const maxPages = 30;
   const all: Record<string, unknown>[] = [];
@@ -303,18 +326,28 @@ async function fetchAllUsersByType(type: number): Promise<Record<string, unknown
       type: String(type),
       _ts: String(Date.now()),
     });
-    const res = await apiRequest(`${ApiPaths.GET_USER()}?${params.toString()}`, "GET", undefined, false, true, true);
+    const res = await apiRequest(
+      `${ApiPaths.GET_USER()}?${params.toString()}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true
+    );
     if (!res.success) return null;
     const d = (res.data ?? {}) as Record<string, unknown>;
-    const records =
-      (Array.isArray((d.data as Record<string, unknown> | undefined)?.records)
+    const records = (
+      Array.isArray((d.data as Record<string, unknown> | undefined)?.records)
         ? (d.data as Record<string, unknown>).records
         : Array.isArray(d.records)
-          ? d.records
-          : []) as Record<string, unknown>[];
+        ? d.records
+        : []
+    ) as Record<string, unknown>[];
     all.push(...records);
     const totalPagesRaw =
-      (d.data as Record<string, unknown> | undefined)?.totalPages ?? d.totalPages ?? 1;
+      (d.data as Record<string, unknown> | undefined)?.totalPages ??
+      d.totalPages ??
+      1;
     const totalPages = Number(totalPagesRaw);
     if (!Number.isFinite(totalPages) || page >= totalPages) break;
   }
@@ -325,30 +358,39 @@ async function fetchAllUsersByType(type: number): Promise<Record<string, unknown
  * Load settings-role members from `/user/getAll` using dashboard user list `type=4`,
  * then split by each record's actual `type` (1/3/6).
  */
-export const fetchRoleAndStaffFromApi = async (): Promise<SettingsRoleStaffApiData | null> => {
-  const allDashboardMembers = await fetchAllUsersByType(4);
-  if (!allDashboardMembers) return null;
-  const admins = allDashboardMembers.filter(
-    (u) => Number((u as Record<string, unknown>).type) === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
-  );
-  const employees = allDashboardMembers.filter(
-    (u) => Number((u as Record<string, unknown>).type) === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE
-  );
-  const staff = allDashboardMembers.filter(
-    (u) => Number((u as Record<string, unknown>).type) === WEB_MANAGEMENT_USER_TYPE.STAFF
-  );
-  const mapped: SettingsRoleStaffApiData = {
-    roles: [
-      ...admins.map((u) => mapApiUserToRoleSettingsModel(u, "franchise_admin")),
-      ...employees.map((u) => mapApiUserToRoleSettingsModel(u, "employee")),
-    ],
-    staff: staff.map(mapApiUserToStaffSettingsModel),
+export const fetchRoleAndStaffFromApi =
+  async (): Promise<SettingsRoleStaffApiData | null> => {
+    const allDashboardMembers = await fetchAllUsersByType(4);
+    if (!allDashboardMembers) return null;
+    const admins = allDashboardMembers.filter(
+      (u) =>
+        Number((u as Record<string, unknown>).type) ===
+        WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
+    );
+    const employees = allDashboardMembers.filter(
+      (u) =>
+        Number((u as Record<string, unknown>).type) ===
+        WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE
+    );
+    const staff = allDashboardMembers.filter(
+      (u) =>
+        Number((u as Record<string, unknown>).type) ===
+        WEB_MANAGEMENT_USER_TYPE.STAFF
+    );
+    const mapped: SettingsRoleStaffApiData = {
+      roles: [
+        ...admins.map((u) =>
+          mapApiUserToRoleSettingsModel(u, "franchise_admin")
+        ),
+        ...employees.map((u) => mapApiUserToRoleSettingsModel(u, "employee")),
+      ],
+      staff: staff.map(mapApiUserToStaffSettingsModel),
+    };
+    // Keep existing `getRoles/getStaff/save*` flow consistent with API-loaded data.
+    mockRoles = mapped.roles.map((r) => ({ ...r }));
+    mockStaff = mapped.staff.map((s) => ({ ...s }));
+    return mapped;
   };
-  // Keep existing `getRoles/getStaff/save*` flow consistent with API-loaded data.
-  mockRoles = mapped.roles.map((r) => ({ ...r }));
-  mockStaff = mapped.staff.map((s) => ({ ...s }));
-  return mapped;
-};
 
 /**
  * Fetch only one settings-role section using a specific `type` query.
@@ -358,7 +400,10 @@ export const fetchRoleAndStaffFromApi = async (): Promise<SettingsRoleStaffApiDa
  */
 export const fetchSettingsSectionByType = async (
   type: number
-): Promise<{ roles: RoleSettingsModel[]; staff: StaffSettingsModel[] } | null> => {
+): Promise<{
+  roles: RoleSettingsModel[];
+  staff: StaffSettingsModel[];
+} | null> => {
   const rows = await fetchAllUsersByType(type);
   if (rows && rows.length > 0) {
     return mapRowsByType(type, rows);
@@ -401,14 +446,18 @@ function profileUrlForApi(profileUrl?: string): string | undefined {
   return u;
 }
 
-function pickRecordId(record: Record<string, unknown> | null | undefined): string | undefined {
+function pickRecordId(
+  record: Record<string, unknown> | null | undefined
+): string | undefined {
   if (!record) return undefined;
   const id = record._id ?? record.id;
   return id != null ? String(id) : undefined;
 }
 
 function sanitizeStatus(status?: string): "active" | "inactive" {
-  return String(status ?? "active").toLowerCase() === "inactive" ? "inactive" : "active";
+  return String(status ?? "active").toLowerCase() === "inactive"
+    ? "inactive"
+    : "active";
 }
 
 function updateStatusPayloadValue(status?: string): boolean {
@@ -470,7 +519,9 @@ export const createRoleUserWithApi = async (
 
   const raw = result.record as Record<string, unknown> | null | undefined;
   const serverId = pickRecordId(raw);
-  const roleId = String(raw?.user_id ?? raw?.userId ?? payload.roleId ?? serverId ?? generateId());
+  const roleId = String(
+    raw?.user_id ?? raw?.userId ?? payload.roleId ?? serverId ?? generateId()
+  );
   const isActive = raw?.is_active !== false;
 
   saveRole(
@@ -479,8 +530,10 @@ export const createRoleUserWithApi = async (
       roleId,
       roleName: String(raw?.name ?? payload.roleName),
       email: (raw?.email as string | undefined) ?? payload.email,
-      phone_number: (raw?.phone_number as string | undefined) ?? payload.phone_number,
-      profile_url: (raw?.profile_url as string | undefined) ?? payload.profile_url,
+      phone_number:
+        (raw?.phone_number as string | undefined) ?? payload.phone_number,
+      profile_url:
+        (raw?.profile_url as string | undefined) ?? payload.profile_url,
       status: isActive ? "active" : "inactive",
     },
     undefined,
@@ -574,7 +627,9 @@ export const assignFranchiseToAdminUser = async (params: {
   const record = user as unknown as Record<string, unknown>;
   const userType = Number(record.type);
   const roleType: "franchise_admin" | "employee" =
-    userType === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE ? "employee" : "franchise_admin";
+    userType === WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE
+      ? "employee"
+      : "franchise_admin";
 
   const mapped = mapApiUserToRoleSettingsModel(record, roleType);
   const stateId = String(params.stateId ?? "").trim() || mapped.state_id || "";
@@ -595,7 +650,9 @@ export const assignFranchiseToAdminUser = async (params: {
     city_id: cityId,
   };
 
-  const ok = await updateRoleUserWithApi(adminUserId, payload, undefined, { suppressSuccessAlert: true });
+  const ok = await updateRoleUserWithApi(adminUserId, payload, undefined, {
+    suppressSuccessAlert: true,
+  });
   if (!ok) {
     showErrorAlert(
       "Franchise saved, but linking this admin to the franchise failed. Assign the franchise under Settings → Role."
@@ -617,7 +674,9 @@ export const createStaffUserWithApi = async (
     return false;
   }
 
-  const staffPermKeys = (payload.screenPermissions ?? []).filter((k) => k !== "my-franchise");
+  const staffPermKeys = (payload.screenPermissions ?? []).filter(
+    (k) => k !== "my-franchise"
+  );
   const result = await createWebManagementUser({
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),
@@ -635,7 +694,9 @@ export const createStaffUserWithApi = async (
 
   const raw = result.record as Record<string, unknown> | null | undefined;
   const serverId = pickRecordId(raw);
-  const staffId = String(raw?.user_id ?? raw?.userId ?? payload.staffId ?? serverId ?? generateId());
+  const staffId = String(
+    raw?.user_id ?? raw?.userId ?? payload.staffId ?? serverId ?? generateId()
+  );
   const isActive = raw?.is_active !== false;
 
   saveStaff(
@@ -644,8 +705,10 @@ export const createStaffUserWithApi = async (
       staffId,
       name: String(raw?.name ?? payload.name),
       email: (raw?.email as string | undefined) ?? payload.email,
-      phone_number: (raw?.phone_number as string | undefined) ?? payload.phone_number,
-      profile_url: (raw?.profile_url as string | undefined) ?? payload.profile_url,
+      phone_number:
+        (raw?.phone_number as string | undefined) ?? payload.phone_number,
+      profile_url:
+        (raw?.profile_url as string | undefined) ?? payload.profile_url,
       status: isActive ? "active" : "inactive",
     },
     undefined,
@@ -662,7 +725,9 @@ export const updateStaffUserWithApi = async (
 ): Promise<boolean> => {
   const userId = String(id || "").trim();
   if (!userId) return false;
-  const staffPermKeys = (payload.screenPermissions ?? []).filter((k) => k !== "my-franchise");
+  const staffPermKeys = (payload.screenPermissions ?? []).filter(
+    (k) => k !== "my-franchise"
+  );
   const pages = staffAvailablePagesFromMenuKeys(staffPermKeys);
 
   const body: Record<string, unknown> = {
@@ -692,7 +757,12 @@ export const updateStaffUserWithApi = async (
     requestPayload = formData;
   }
 
-  const res = await apiRequest(ApiPaths.UPDATE_USER(userId), "PUT", requestPayload, shouldSendMultipart);
+  const res = await apiRequest(
+    ApiPaths.UPDATE_USER(userId),
+    "PUT",
+    requestPayload,
+    shouldSendMultipart
+  );
   if (!res.success) return false;
   return true;
 };
@@ -721,7 +791,9 @@ export const saveExpenseCategory = (
 };
 
 export const voidExpenseCategory = (id: string) => {
-  mockExpenseCategories = mockExpenseCategories.filter((item) => item.id !== id);
+  mockExpenseCategories = mockExpenseCategories.filter(
+    (item) => item.id !== id
+  );
 };
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -729,22 +801,31 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function pickExpenseCategoryRows(payload: Record<string, unknown>): Record<string, unknown>[] {
+function pickExpenseCategoryRows(
+  payload: Record<string, unknown>
+): Record<string, unknown>[] {
   const data = toRecord(payload.data);
   const records = data?.records;
   if (Array.isArray(records)) return records as Record<string, unknown>[];
-  if (Array.isArray(payload.records)) return payload.records as Record<string, unknown>[];
+  if (Array.isArray(payload.records))
+    return payload.records as Record<string, unknown>[];
   const nestedData = data?.data;
   if (Array.isArray(nestedData)) return nestedData as Record<string, unknown>[];
-  if (Array.isArray(payload.data)) return payload.data as Record<string, unknown>[];
+  if (Array.isArray(payload.data))
+    return payload.data as Record<string, unknown>[];
   return [];
 }
 
-function mapApiExpenseCategory(raw: Record<string, unknown>): ExpenseCategoryModel {
-  const rowId = String(raw._id ?? raw.id ?? raw.expense_category_id ?? generateId());
+function mapApiExpenseCategory(
+  raw: Record<string, unknown>
+): ExpenseCategoryModel {
+  const rowId = String(
+    raw._id ?? raw.id ?? raw.expense_category_id ?? generateId()
+  );
   return {
     id: rowId,
-    categoryId: String(raw.category_id ?? raw.categoryId ?? rowId).trim() || rowId,
+    categoryId:
+      String(raw.category_id ?? raw.categoryId ?? rowId).trim() || rowId,
     subCategoryId:
       String(
         raw.subcategory_id ??
@@ -754,12 +835,18 @@ function mapApiExpenseCategory(raw: Record<string, unknown>): ExpenseCategoryMod
           raw.serviceId ??
           ""
       ).trim() || undefined,
-    franchiseId: String(raw.franchise_id ?? raw.franchiseId ?? "").trim() || undefined,
-    franchiseName: String(raw.franchise_name ?? raw.franchiseName ?? "").trim() || undefined,
+    franchiseId:
+      String(raw.franchise_id ?? raw.franchiseId ?? "").trim() || undefined,
+    franchiseName:
+      String(raw.franchise_name ?? raw.franchiseName ?? "").trim() || undefined,
     categoryName: String(raw.category_name ?? raw.categoryName ?? "").trim(),
-    subCategoryName: String(raw.sub_category_name ?? raw.subCategoryName ?? "").trim(),
+    subCategoryName: String(
+      raw.sub_category_name ?? raw.subCategoryName ?? ""
+    ).trim(),
     description: String(raw.description ?? "").trim(),
-    createdDate: String(raw.created_at ?? raw.createdDate ?? new Date().toISOString()),
+    createdDate: String(
+      raw.created_at ?? raw.createdDate ?? new Date().toISOString()
+    ),
   };
 }
 
@@ -774,7 +861,11 @@ export const fetchExpenseCategoriesPage = async (
     startDate?: string;
     endDate?: string;
   }
-): Promise<{ rows: ExpenseCategoryModel[]; totalPages: number; totalItems?: number } | null> => {
+): Promise<{
+  rows: ExpenseCategoryModel[];
+  totalPages: number;
+  totalItems?: number;
+} | null> => {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
@@ -799,15 +890,25 @@ export const fetchExpenseCategoriesPage = async (
   const rows = pickExpenseCategoryRows(payload).map(mapApiExpenseCategory);
 
   const data = toRecord(payload.data);
-  const inner = data != null && typeof data === "object" && !Array.isArray(data) ? data : null;
-  const totalPagesRaw = inner?.totalPages ?? data?.totalPages ?? payload.totalPages ?? 0;
-  const totalItemsRaw = inner?.totalItems ?? data?.totalItems ?? payload.totalItems;
+  const inner =
+    data != null && typeof data === "object" && !Array.isArray(data)
+      ? data
+      : null;
+  const totalPagesRaw =
+    inner?.totalPages ?? data?.totalPages ?? payload.totalPages ?? 0;
+  const totalItemsRaw =
+    inner?.totalItems ?? data?.totalItems ?? payload.totalItems;
   let totalPages = Number(totalPagesRaw);
   const totalItemsParsed =
-    totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+    totalItemsRaw === undefined ||
+    totalItemsRaw === null ||
+    totalItemsRaw === ""
       ? undefined
       : Number(totalItemsRaw);
-  const totalItems = totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed) ? totalItemsParsed : undefined;
+  const totalItems =
+    totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed)
+      ? totalItemsParsed
+      : undefined;
 
   if (!Number.isFinite(totalPages) || totalPages < 1) {
     if (totalItems !== undefined && limit > 0) {
@@ -827,12 +928,17 @@ export const fetchExpenseCategoriesPage = async (
 const EXPENSE_CATEGORY_FETCH_BATCH = 100;
 
 /** Walks all API pages (page + limit) and refreshes local mock cache. */
-export const fetchAllExpenseCategoriesWithApi = async (): Promise<ExpenseCategoryModel[] | null> => {
+export const fetchAllExpenseCategoriesWithApi = async (): Promise<
+  ExpenseCategoryModel[] | null
+> => {
   let page = 1;
   const all: ExpenseCategoryModel[] = [];
   for (;;) {
     // eslint-disable-next-line no-await-in-loop
-    const chunk = await fetchExpenseCategoriesPage(page, EXPENSE_CATEGORY_FETCH_BATCH);
+    const chunk = await fetchExpenseCategoriesPage(
+      page,
+      EXPENSE_CATEGORY_FETCH_BATCH
+    );
     if (!chunk) return null;
     if (chunk.rows.length === 0) break;
     all.push(...chunk.rows);
@@ -869,13 +975,18 @@ export const saveExpenseCategoryWithApi = async (
 };
 
 /** API delete via `/expense-category-management/delete/:id`. */
-export const voidExpenseCategoryWithApi = async (id: string): Promise<boolean> => {
+export const voidExpenseCategoryWithApi = async (
+  id: string
+): Promise<boolean> => {
   const targetId = String(id ?? "").trim();
   if (!targetId) {
     showErrorAlert("Invalid expense category id.");
     return false;
   }
-  const res = await apiRequest(ApiPaths.DELETE_EXPENSE_CATEGORY(targetId), "DELETE");
+  const res = await apiRequest(
+    ApiPaths.DELETE_EXPENSE_CATEGORY(targetId),
+    "DELETE"
+  );
   if (!res.success) return false;
   await fetchAllExpenseCategoriesWithApi();
   return true;

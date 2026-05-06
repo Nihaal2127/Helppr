@@ -28,7 +28,11 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 const normalizeStatus = (value: string): string => value.trim().toLowerCase();
 
 const QuoteEditStatusDialog: React.FC<QuoteEditStatusDialogProps> & {
-  show: (quoteId: string, defaultStatus: string, onSaved: (status: string) => void) => void;
+  show: (
+    quoteId: string,
+    defaultStatus: string,
+    onSaved: (status: string) => void
+  ) => void;
 } = ({ quoteId, defaultStatus, onClose, onSaved }) => {
   const {
     register,
@@ -66,7 +70,11 @@ const QuoteEditStatusDialog: React.FC<QuoteEditStatusDialogProps> & {
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
         <p className="text-muted small mb-3">Quote ID: {quoteId}</p>
-        <form noValidate name="quote-edit-status-form" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          noValidate
+          name="quote-edit-status-form"
+          onSubmit={handleSubmit(onSubmit)}
+        >
           <Row className="align-items-center mt-2">
             <Col sm={4} className="d-flex align-items-center">
               <label className="custom-profile-lable">Quote status</label>
@@ -83,16 +91,27 @@ const QuoteEditStatusDialog: React.FC<QuoteEditStatusDialogProps> & {
                 setValue={setValue as any}
                 placeholder="Select status"
               />
-              {errors.status?.message && <div className="text-danger small mt-1">{errors.status.message}</div>}
+              {errors.status?.message && (
+                <div className="text-danger small mt-1">
+                  {errors.status.message}
+                </div>
+              )}
             </Col>
           </Row>
 
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
               </Button>
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>
@@ -119,4 +138,3 @@ QuoteEditStatusDialog.show = (
 };
 
 export default QuoteEditStatusDialog;
-

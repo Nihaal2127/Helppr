@@ -11,9 +11,11 @@ const LOGIN_TYPE_ATTEMPTS = [
   WEB_MANAGEMENT_USER_TYPE.STAFF,
 ] as const;
 
-export const login = async (
-  payload: { email: string; password: string; device_token?: string | null }
-): Promise<{ admin: UserModel | null; response: boolean }> => {
+export const login = async (payload: {
+  email: string;
+  password: string;
+  device_token?: string | null;
+}): Promise<{ admin: UserModel | null; response: boolean }> => {
   try {
     const base: Record<string, unknown> = {
       email: payload.email,
@@ -57,11 +59,13 @@ export const login = async (
   }
 };
 
-export const forgotPassword = async (
-  payload: any
-): Promise<boolean> => {
+export const forgotPassword = async (payload: any): Promise<boolean> => {
   try {
-    const response = await apiRequest(ApiPaths.FORGOT_PASSWORD(), "POST", payload);
+    const response = await apiRequest(
+      ApiPaths.FORGOT_PASSWORD(),
+      "POST",
+      payload
+    );
     if (response.success) {
       return true;
     } else {
@@ -90,7 +94,10 @@ export const logout = async (): Promise<Boolean> => {
 
 export const fetchById = async (id: string): Promise<UserModel | null> => {
   try {
-    const response = await apiRequest(`${ApiPaths.GET_USER_BY_ID()}/${id}`, "GET");
+    const response = await apiRequest(
+      `${ApiPaths.GET_USER_BY_ID()}/${id}`,
+      "GET"
+    );
     if (response.success) {
       return response.data.record;
     } else {
@@ -118,10 +125,7 @@ export const createOrUpdateUser = async (
   return false;
 };
 
-export const changePassword = async (
-  payload: any,
-): Promise<boolean> => {
-
+export const changePassword = async (payload: any): Promise<boolean> => {
   const response = await apiRequest(ApiPaths.CHANGE_PASSWORD, "POST", payload);
   if (response.success) {
     return true;

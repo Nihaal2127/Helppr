@@ -102,35 +102,57 @@ function mapApiAreaToFranchiseAreaRow(raw: any): AreaRow {
       is_active: false,
     };
   }
-  const pincodesRaw = raw.pincodes ?? raw.pincode ?? raw.pin_codes ?? (raw as any).pincode_list;
+  const pincodesRaw =
+    raw.pincodes ?? raw.pincode ?? raw.pin_codes ?? (raw as any).pincode_list;
   const pinList = Array.isArray(pincodesRaw)
     ? pincodesRaw.map((p: unknown) => String(p).trim()).filter(Boolean)
     : typeof pincodesRaw === "string"
-      ? pincodesRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean)
-      : [];
+    ? pincodesRaw
+        .split(/[,\n]/)
+        .map((p: string) => p.trim())
+        .filter(Boolean)
+    : [];
 
   const isActive = (() => {
     if (typeof raw.is_active === "boolean") return raw.is_active;
     if (raw.is_active === 1) return true;
     if (raw.is_active === 0) return false;
-    if (String(raw.is_active).toLowerCase() === "active" || String(raw.status).toLowerCase() === "active")
+    if (
+      String(raw.is_active).toLowerCase() === "active" ||
+      String(raw.status).toLowerCase() === "active"
+    )
       return true;
-    if (String(raw.is_active).toLowerCase() === "inactive" || String(raw.status).toLowerCase() === "inactive")
+    if (
+      String(raw.is_active).toLowerCase() === "inactive" ||
+      String(raw.status).toLowerCase() === "inactive"
+    )
       return false;
     return true;
   })();
 
   return {
     _id: String(raw._id ?? raw.id ?? ""),
-    area_name: String(raw.area_name ?? raw.name ?? raw.title ?? "").trim() || "—",
-    city_name: String(
-      raw.city_name ?? (raw.city && (typeof raw.city === "object" ? raw.city.name : raw.city)) ?? ""
-    ).trim() || "—",
-    state_name: String(
-      raw.state_name ?? (raw.state && (typeof raw.state === "object" ? raw.state.name : raw.state)) ?? ""
-    ).trim() || "—",
+    area_name:
+      String(raw.area_name ?? raw.name ?? raw.title ?? "").trim() || "—",
+    city_name:
+      String(
+        raw.city_name ??
+          (raw.city &&
+            (typeof raw.city === "object" ? raw.city.name : raw.city)) ??
+          ""
+      ).trim() || "—",
+    state_name:
+      String(
+        raw.state_name ??
+          (raw.state &&
+            (typeof raw.state === "object" ? raw.state.name : raw.state)) ??
+          ""
+      ).trim() || "—",
     pincodes: pinList,
-    pincode: typeof raw.pincode === "string" && !pinList.length ? raw.pincode : undefined,
+    pincode:
+      typeof raw.pincode === "string" && !pinList.length
+        ? raw.pincode
+        : undefined,
     is_active: isActive,
   };
 }
@@ -150,10 +172,14 @@ async function resolveSessionFranchiseId(): Promise<string | undefined> {
   if (sessionFranchiseIdInFlight) return sessionFranchiseIdInFlight;
 
   sessionFranchiseIdInFlight = (async () => {
-    const currentUserId = (getLocalStorage(AppConstant.createdById) || "").trim();
+    const currentUserId = (
+      getLocalStorage(AppConstant.createdById) || ""
+    ).trim();
     if (!currentUserId) return undefined;
     const userRes = await fetchUserById(currentUserId);
-    const franchiseId = String((userRes.user as any)?.franchise_id ?? "").trim();
+    const franchiseId = String(
+      (userRes.user as any)?.franchise_id ?? ""
+    ).trim();
     if (!franchiseId) return undefined;
     cachedSessionFranchiseId = franchiseId;
     return franchiseId;
@@ -177,7 +203,12 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   let page = 1;
 
   for (; page <= maxPages; page += 1) {
-    const { response, areas, totalPages } = await fetchArea(page, limit, filters, []);
+    const { response, areas, totalPages } = await fetchArea(
+      page,
+      limit,
+      filters,
+      []
+    );
     if (!response) {
       return null;
     }
@@ -205,8 +236,11 @@ function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
   const isActive =
     typeof isActiveRaw === "boolean"
       ? isActiveRaw
-      : String(isActiveRaw).toLowerCase() === "true" || String(isActiveRaw) === "1";
-  const screenPermissionKeys = menuKeysFromUserAccess(raw as Record<string, unknown>);
+      : String(isActiveRaw).toLowerCase() === "true" ||
+        String(isActiveRaw) === "1";
+  const screenPermissionKeys = menuKeysFromUserAccess(
+    raw as Record<string, unknown>
+  );
   const accessible_screens = mapMenuKeysToAvailablePages(screenPermissionKeys);
 
   return {
@@ -218,17 +252,26 @@ function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
     email: String(raw?.email ?? "").trim() || "-",
     area_name: areaName,
     is_active: isActive,
-    chat_enabled: isActive ? Boolean(raw?.chat ?? raw?.chat_enabled ?? true) : false,
+    chat_enabled: isActive
+      ? Boolean(raw?.chat ?? raw?.chat_enabled ?? true)
+      : false,
     accessible_screens,
     screenPermissionKeys,
   };
 }
 
-async function fetchEmployeeRowsForMyFranchise(): Promise<EmployeeRow[] | null> {
-  const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+async function fetchEmployeeRowsForMyFranchise(): Promise<
+  EmployeeRow[] | null
+> {
+  const currentUserRole = String(
+    getLocalStorage(AppConstant.userRole) ?? ""
+  ).trim();
   const isFranchiseScopedByAuth =
-    currentUserRole === UserRole.FRANCHISE_ADMIN || currentUserRole === UserRole.EMPLOYEE;
-  const franchiseId = isFranchiseScopedByAuth ? "" : (await resolveSessionFranchiseId()) ?? "";
+    currentUserRole === UserRole.FRANCHISE_ADMIN ||
+    currentUserRole === UserRole.EMPLOYEE;
+  const franchiseId = isFranchiseScopedByAuth
+    ? ""
+    : (await resolveSessionFranchiseId()) ?? "";
   if (!isFranchiseScopedByAuth && !franchiseId) return [];
 
   const pageSize = 200;
@@ -255,14 +298,6 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<EmployeeRow[] | null> 
   return all.map(mapApiEmployeeToFranchiseEmployeeRow);
 }
 
-function categoryNameById(categoryId: string): string {
-  return categoryId;
-}
-
-function serviceNamesFromIds(_serviceIds: string[]): string[] {
-  return [];
-}
-
 export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
   const apiEmployeeRows = await fetchEmployeeRowsForMyFranchise();
   // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
@@ -278,19 +313,28 @@ export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
   };
 }
 
-export async function setEmployeeChatEnabled(id: string, chat_enabled: boolean): Promise<boolean> {
+export async function setEmployeeChatEnabled(
+  id: string,
+  chat_enabled: boolean
+): Promise<boolean> {
   void id;
   void chat_enabled;
   return false;
 }
 
-export async function setServiceActive(id: string, is_active: boolean): Promise<boolean> {
+export async function setServiceActive(
+  id: string,
+  is_active: boolean
+): Promise<boolean> {
   void id;
   void is_active;
   return false;
 }
 
-export async function setCategoryActive(id: string, is_active: boolean): Promise<boolean> {
+export async function setCategoryActive(
+  id: string,
+  is_active: boolean
+): Promise<boolean> {
   void id;
   void is_active;
   return false;
@@ -305,12 +349,12 @@ type FranchiseEmployeeInput = {
   screenPermissionKeys: string[];
 };
 
-function nextEmployeeId(): string {
-  return `FE-${Date.now()}`;
-}
-
-export async function createFranchiseEmployee(input: FranchiseEmployeeInput): Promise<boolean> {
-  const keys = (input.screenPermissionKeys ?? []).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
+export async function createFranchiseEmployee(
+  input: FranchiseEmployeeInput
+): Promise<boolean> {
+  const keys = (input.screenPermissionKeys ?? []).filter(
+    (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+  );
   const accessible_screens = mapMenuKeysToAvailablePages(keys);
 
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
@@ -359,12 +403,17 @@ export type RequestedServiceInput = {
   image_url?: string;
 };
 
-export async function createRequestedService(input: RequestedServiceInput): Promise<boolean> {
+export async function createRequestedService(
+  input: RequestedServiceInput
+): Promise<boolean> {
   void input;
   return false;
 }
 
-export async function updateRequestedService(id: string, input: RequestedServiceInput): Promise<boolean> {
+export async function updateRequestedService(
+  id: string,
+  input: RequestedServiceInput
+): Promise<boolean> {
   void id;
   void input;
   return false;
@@ -382,12 +431,17 @@ export type RequestedCategoryInput = {
   image_url?: string;
 };
 
-export async function createRequestedCategory(input: RequestedCategoryInput): Promise<boolean> {
+export async function createRequestedCategory(
+  input: RequestedCategoryInput
+): Promise<boolean> {
   void input;
   return false;
 }
 
-export async function updateRequestedCategory(id: string, input: RequestedCategoryInput): Promise<boolean> {
+export async function updateRequestedCategory(
+  id: string,
+  input: RequestedCategoryInput
+): Promise<boolean> {
   void id;
   void input;
   return false;
@@ -397,4 +451,3 @@ export async function voidRequestedCategory(id: string): Promise<boolean> {
   void id;
   return false;
 }
-

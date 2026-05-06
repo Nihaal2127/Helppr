@@ -4,8 +4,9 @@ import { ServiceModel } from "../models/ServiceModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-export const fetchServiceDropDown = async (categoryId ?: string
-): Promise<{ value: string; label: string,price?: number }[]> => {
+export const fetchServiceDropDown = async (
+  categoryId?: string
+): Promise<{ value: string; label: string; price?: number }[]> => {
   const params = new URLSearchParams({
     ...(categoryId && { category_id: categoryId }),
   });
@@ -19,7 +20,7 @@ export const fetchServiceDropDown = async (categoryId ?: string
     return response.data.records.map((service: any) => ({
       value: service._id,
       label: service.name,
-      price: service.price
+      price: service.price,
     }));
   } else {
     showLog(response.message || "Failed to fetch service");
@@ -30,15 +31,20 @@ export const fetchServiceDropDown = async (categoryId ?: string
 export const fetchService = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string ; sort?: string; },
+  filters: { keyword?: string; status?: string; sort?: string },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, services: ServiceModel[]; totalPages: number }> => {
+): Promise<{
+  response: boolean;
+  services: ServiceModel[];
+  totalPages: number;
+}> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { keyword: filters.keyword }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
@@ -80,7 +86,9 @@ export const createOrUpdateService = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_SERVICE(id!) : ApiPaths.CREATE_SERVICE;
+  const path = isEditable
+    ? ApiPaths.UPDATE_SERVICE(id!)
+    : ApiPaths.CREATE_SERVICE;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

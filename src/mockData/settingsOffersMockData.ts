@@ -1,8 +1,6 @@
 import type { OfferModel } from "../models/SettingsModel";
 
-export const offersMockSeed: Array<
-  Omit<OfferModel, "id" | "createdAt">
-> = [
+export const offersMockSeed: Array<Omit<OfferModel, "id" | "createdAt">> = [
   {
     offerId: "OFF-001",
     offerName: "New User 20%",

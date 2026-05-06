@@ -1,4 +1,7 @@
-import type { QuoteRow, QuoteTabKey } from "../pages/quoteManagement/quoteTypes";
+import type {
+  QuoteRow,
+  QuoteTabKey,
+} from "../pages/quoteManagement/quoteTypes";
 import { quoteListMockData } from "../mockData/quoteMockData";
 import { fetchPartnerDropDown } from "./userService";
 import { apiRequest } from "../remote/apiHelper";
@@ -16,8 +19,12 @@ export type QuoteUserOption = OptionType & { user_name: string };
  * Maps a service label to schedule UI: one day, date range, or one day with time window.
  * Heuristic over mock labels; replace with API-driven metadata when available.
  */
-export function getQuoteServiceScheduleMode(serviceLabel: string): QuoteServiceScheduleMode {
-  const s = String(serviceLabel || "").toLowerCase().trim();
+export function getQuoteServiceScheduleMode(
+  serviceLabel: string
+): QuoteServiceScheduleMode {
+  const s = String(serviceLabel || "")
+    .toLowerCase()
+    .trim();
   if (!s) return "single";
 
   if (
@@ -65,7 +72,10 @@ export function normalizeQuoteListSort(sort: QuoteListSort): QuoteListSort {
 }
 
 /** Same rule as backend `tab` query: show rows whose DB `status` matches the tab (case-insensitive). */
-function filterQuotesByStatusTab(records: QuoteRow[], tab: QuoteTabKey): QuoteRow[] {
+function filterQuotesByStatusTab(
+  records: QuoteRow[],
+  tab: QuoteTabKey
+): QuoteRow[] {
   const want = tab.toLowerCase();
   return records.filter((r) => String(r.status ?? "").toLowerCase() === want);
 }
@@ -153,7 +163,12 @@ function sortQuotesInMemory(rows: QuoteRow[], sort: QuoteListSort): QuoteRow[] {
     if (typeof va === "number" && typeof vb === "number") {
       return (va - vb) * dir;
     }
-    return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" }) * dir;
+    return (
+      String(va).localeCompare(String(vb), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }) * dir
+    );
   });
 }
 
@@ -164,9 +179,13 @@ function filterQuotesForTab(
 ): QuoteRow[] {
   const keyword = (filters.keyword ?? "").trim().toLowerCase();
   const fromTs =
-    filters.from_date != null ? new Date(filters.from_date).setHours(0, 0, 0, 0) : null;
+    filters.from_date != null
+      ? new Date(filters.from_date).setHours(0, 0, 0, 0)
+      : null;
   const toTs =
-    filters.to_date != null ? new Date(filters.to_date).setHours(23, 59, 59, 999) : null;
+    filters.to_date != null
+      ? new Date(filters.to_date).setHours(23, 59, 59, 999)
+      : null;
 
   return rows.filter((row) => {
     if (!matchesKeyword(row, keyword)) return false;
@@ -177,7 +196,8 @@ function filterQuotesForTab(
         : row.requested_date
     );
 
-    const matchesFrom = fromTs == null || (rowDateTs != null && rowDateTs >= fromTs);
+    const matchesFrom =
+      fromTs == null || (rowDateTs != null && rowDateTs >= fromTs);
     const matchesTo = toTs == null || (rowDateTs != null && rowDateTs <= toTs);
     return matchesFrom && matchesTo;
   });
@@ -235,7 +255,8 @@ export async function fetchQuotes(
     true
   );
 
-  if (!res.success) return { response: false, quotes: [], totalPages: 0, totalCount: 0 };
+  if (!res.success)
+    return { response: false, quotes: [], totalPages: 0, totalCount: 0 };
 
   const d = res.data ?? {};
   const inner = d.data ?? {};
@@ -264,7 +285,9 @@ export async function fetchQuotes(
 /**
  * Services available for a category (from mock quote rows; replace with API when wired).
  */
-export function getQuoteServiceOptionsForCategory(categoryId: string | undefined | null): OptionType[] {
+export function getQuoteServiceOptionsForCategory(
+  categoryId: string | undefined | null
+): OptionType[] {
   const cid = String(categoryId ?? "").trim();
   if (!cid) return [];
 
@@ -296,7 +319,9 @@ export async function fetchQuoteCreateOptions(): Promise<{
 
   const partners = Array.from(
     new Set(
-      allMock.map((row) => String(row.requested_partner || "").trim()).filter(Boolean)
+      allMock
+        .map((row) => String(row.requested_partner || "").trim())
+        .filter(Boolean)
     )
   );
 
@@ -346,9 +371,7 @@ export async function fetchQuoteCreateOptions(): Promise<{
   };
 }
 
-export async function fetchQuotePartnerDropDown(
-  serviceId?: string
-): Promise<{
+export async function fetchQuotePartnerDropDown(serviceId?: string): Promise<{
   partners: Array<any>;
 }> {
   // Mock mode: derive partner list from mock quotes.
@@ -374,4 +397,3 @@ export async function fetchQuotePartnerDropDown(
 
   return fetchPartnerDropDown(serviceId);
 }
-

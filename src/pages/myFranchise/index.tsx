@@ -51,17 +51,20 @@ const pendingRequestedStatusCell = () => (
 );
 
 function normalizeAreaValue(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeAreaPinCodesFromRow(original: any): string[] {
-  const rawPinCodes = original?.pincodes ?? original?.pincode ?? original?.pin_codes ?? [];
+  const rawPinCodes =
+    original?.pincodes ?? original?.pincode ?? original?.pin_codes ?? [];
 
   const pinCodes = Array.isArray(rawPinCodes)
     ? rawPinCodes
     : typeof rawPinCodes === "string"
-      ? rawPinCodes.split(",")
-      : [];
+    ? rawPinCodes.split(",")
+    : [];
 
   return pinCodes.map((p: unknown) => String(p).trim()).filter(Boolean);
 }
@@ -80,7 +83,10 @@ function franchiseAreasPinCodesCell({ row }: { row: any }) {
         ) : (
           <>
             {normalized[0]}...
-            <span className="pin-code-more-count"> +{normalized.length - 1}</span>
+            <span className="pin-code-more-count">
+              {" "}
+              +{normalized.length - 1}
+            </span>
           </>
         )}
       </span>
@@ -98,7 +104,9 @@ function franchiseAreasPinCodesCell({ row }: { row: any }) {
 }
 
 /** Services column: first name + “...+N”, hover card lists all (matches `serviceManagement` category table). */
-function renderCategoryServicesNamesHover(names: (string | undefined)[]): React.ReactNode {
+function renderCategoryServicesNamesHover(
+  names: (string | undefined)[]
+): React.ReactNode {
   const list = names.map((n) => String(n ?? "").trim()).filter(Boolean);
   if (list.length === 0) return "-";
   if (list.length === 1) return list[0];
@@ -107,7 +115,9 @@ function renderCategoryServicesNamesHover(names: (string | undefined)[]): React.
     <div className="pin-code-hover-wrapper">
       <span className="pin-code-hover-trigger">
         {`${list[0]}...`}
-        <span style={{ color: "red", fontWeight: 600 }}>{`+${additionalCount}`}</span>
+        <span
+          style={{ color: "red", fontWeight: 600 }}
+        >{`+${additionalCount}`}</span>
       </span>
       <div className="pin-code-hover-card">
         {list.map((n, idx) => (
@@ -125,16 +135,25 @@ function franchiseRequestedCategoryServicesCell({ row }: { row: any }) {
   return renderCategoryServicesNamesHover(rc.service_names ?? []);
 }
 
-function serviceNamesForCatalogCategory(cat: CategoryRow, servicesList: ServiceRow[]): string[] {
-  return servicesList.filter((s) => s.category_name === cat.name).map((s) => s.name);
+function serviceNamesForCatalogCategory(
+  cat: CategoryRow,
+  servicesList: ServiceRow[]
+): string[] {
+  return servicesList
+    .filter((s) => s.category_name === cat.name)
+    .map((s) => s.name);
 }
 
 const MyFranchise = () => {
   const { register, setValue } = useForm();
   const [selectedBox, setSelectedBox] = useState<BoxId>("box-employees");
-  const [servicesViewMode, setServicesViewMode] = useState<ServicesViewMode>("catalog");
-  const [categoriesViewMode, setCategoriesViewMode] = useState<CategoriesViewMode>("catalog");
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [servicesViewMode, setServicesViewMode] =
+    useState<ServicesViewMode>("catalog");
+  const [categoriesViewMode, setCategoriesViewMode] =
+    useState<CategoriesViewMode>("catalog");
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(
+    undefined
+  );
   const [searchKeyword, setSearchKeyword] = useState("");
   const [areaSortBy, setAreaSortBy] = useState<ServerTableSortBy>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -144,15 +163,19 @@ const MyFranchise = () => {
   const [areas, setAreas] = useState<AreaRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [requestedServices, setRequestedServices] = useState<RequestedServiceRow[]>([]);
-  const [requestedCategories, setRequestedCategories] = useState<RequestedCategoryRow[]>([]);
+  const [requestedServices, setRequestedServices] = useState<
+    RequestedServiceRow[]
+  >([]);
+  const [requestedCategories, setRequestedCategories] = useState<
+    RequestedCategoryRow[]
+  >([]);
 
   const reloadFranchiseData = useCallback(async () => {
     const data = await fetchMyFranchiseBoxData();
     setEmployees(
       (data.employees as unknown as EmployeeRow[]).map((e) => ({
         ...e,
-        chat_enabled: e.is_active ? (e.chat_enabled ?? true) : false,
+        chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
       }))
     );
     setAreas(data.areas as unknown as AreaRow[]);
@@ -170,14 +193,16 @@ const MyFranchise = () => {
       setEmployees(
         (data.employees as unknown as EmployeeRow[]).map((e) => ({
           ...e,
-          chat_enabled: e.is_active ? (e.chat_enabled ?? true) : false,
+          chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
         }))
       );
       setAreas(data.areas as unknown as AreaRow[]);
       setServices(data.services as unknown as ServiceRow[]);
       setCategories(data.categories as unknown as CategoryRow[]);
       setRequestedServices(data.requested_services as RequestedServiceRow[]);
-      setRequestedCategories(data.requested_categories as RequestedCategoryRow[]);
+      setRequestedCategories(
+        data.requested_categories as RequestedCategoryRow[]
+      );
     })();
     return () => {
       cancelled = true;
@@ -261,7 +286,14 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const hay = [row.employee_id, row.name, row.role, row.phone, row.email, row.area_name]
+      const hay = [
+        row.employee_id,
+        row.name,
+        row.role,
+        row.phone,
+        row.email,
+        row.area_name,
+      ]
         .join(" ")
         .toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
@@ -345,7 +377,9 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const svcHay = serviceNamesForCatalogCategory(row, services).join(" ").toLowerCase();
+      const svcHay = serviceNamesForCatalogCategory(row, services)
+        .join(" ")
+        .toLowerCase();
       const hay = [row.name, svcHay].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
@@ -354,7 +388,9 @@ const MyFranchise = () => {
 
   const filteredRequestedCategories = useMemo(() => {
     return requestedCategories.filter((row: RequestedCategoryRow) => {
-      const hay = [row.name, ...(row.service_names ?? [])].join(" ").toLowerCase();
+      const hay = [row.name, ...(row.service_names ?? [])]
+        .join(" ")
+        .toLowerCase();
       return !keyword || hay.includes(keyword);
     });
   }, [requestedCategories, keyword]);
@@ -366,9 +402,13 @@ const MyFranchise = () => {
       case "box-areas":
         return sortedFilteredAreas;
       case "box-services":
-        return servicesViewMode === "requested" ? filteredRequestedServices : filteredServices;
+        return servicesViewMode === "requested"
+          ? filteredRequestedServices
+          : filteredServices;
       case "box-categories":
-        return categoriesViewMode === "requested" ? filteredRequestedCategories : filteredCategories;
+        return categoriesViewMode === "requested"
+          ? filteredRequestedCategories
+          : filteredCategories;
       default:
         return [];
     }
@@ -397,20 +437,26 @@ const MyFranchise = () => {
   const setEmployeeChatEnabled = useCallback((id: string, enabled: boolean) => {
     void apiSetEmployeeChatEnabled(id, enabled);
     setEmployees((prev) =>
-      prev.map((e) => (e._id === id && e.is_active ? { ...e, chat_enabled: enabled } : e))
+      prev.map((e) =>
+        e._id === id && e.is_active ? { ...e, chat_enabled: enabled } : e
+      )
     );
     showSuccessAlert("Chat status updated");
   }, []);
 
   const setServiceActive = (id: string, is_active: boolean) => {
     void apiSetServiceActive(id, is_active);
-    setServices((prev) => prev.map((s) => (s._id === id ? { ...s, is_active } : s)));
+    setServices((prev) =>
+      prev.map((s) => (s._id === id ? { ...s, is_active } : s))
+    );
     showSuccessAlert("Service status updated");
   };
 
   const setCategoryActive = (id: string, is_active: boolean) => {
     void apiSetCategoryActive(id, is_active);
-    setCategories((prev) => prev.map((c) => (c._id === id ? { ...c, is_active } : c)));
+    setCategories((prev) =>
+      prev.map((c) => (c._id === id ? { ...c, is_active } : c))
+    );
     showSuccessAlert("Category status updated");
   };
 
@@ -467,9 +513,13 @@ const MyFranchise = () => {
       case "box-areas":
         return "Areas";
       case "box-services":
-        return servicesViewMode === "requested" ? "Requested services" : "Services";
+        return servicesViewMode === "requested"
+          ? "Requested services"
+          : "Services";
       case "box-categories":
-        return categoriesViewMode === "requested" ? "Requested categories" : "Categories";
+        return categoriesViewMode === "requested"
+          ? "Requested categories"
+          : "Categories";
       default:
         return "";
     }
@@ -496,11 +546,20 @@ const MyFranchise = () => {
         Header: "SR No",
         accessor: "serial_no",
         className: "my-franchise-col-sr",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Name", accessor: "name", className: "my-franchise-col-name" },
-      { Header: "Phone", accessor: "phone", className: "my-franchise-col-phone" },
-      { Header: "Email", accessor: "email", className: "my-franchise-col-email" },
+      {
+        Header: "Phone",
+        accessor: "phone",
+        className: "my-franchise-col-phone",
+      },
+      {
+        Header: "Email",
+        accessor: "email",
+        className: "my-franchise-col-email",
+      },
       {
         Header: "Chat",
         accessor: "chat_enabled",
@@ -515,7 +574,11 @@ const MyFranchise = () => {
               className="franchise-chat-switch"
               checked={chatOn}
               disabled={!emp.is_active}
-              title={emp.is_active ? "Chat on / off" : "Inactive employees cannot use chat"}
+              title={
+                emp.is_active
+                  ? "Chat on / off"
+                  : "Inactive employees cannot use chat"
+              }
               onChange={(e) => {
                 e.stopPropagation();
                 if (!emp.is_active) return;
@@ -553,7 +616,13 @@ const MyFranchise = () => {
         ),
       },
     ],
-    [currentPage, pageSize, setEmployeeChatEnabled, reloadFranchiseData, handleEmployeeVoid]
+    [
+      currentPage,
+      pageSize,
+      setEmployeeChatEnabled,
+      reloadFranchiseData,
+      handleEmployeeVoid,
+    ]
   );
 
   const areaColumns = useMemo(
@@ -561,7 +630,8 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Area Name",
@@ -598,7 +668,8 @@ const MyFranchise = () => {
       {
         Header: "Status",
         accessor: "is_active",
-        Cell: ({ row }: { row: any }) => (row.original as AreaRow).is_active ? "Active" : "Inactive",
+        Cell: ({ row }: { row: any }) =>
+          (row.original as AreaRow).is_active ? "Active" : "Inactive",
       },
     ],
     [currentPage, pageSize]
@@ -609,7 +680,8 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Service Name", accessor: "name" },
       { Header: "Category", accessor: "category_name" },
@@ -643,7 +715,8 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Service Name", accessor: "name" },
       { Header: "Category", accessor: "category_name" },
@@ -659,18 +732,30 @@ const MyFranchise = () => {
           <CustomActionColumn
             row={row}
             onView={(r) => {
-              RequestedServiceDialog.showView(r.original as RequestedServiceRow, categorySelectOptions, () => {
-                void reloadFranchiseData();
-              });
+              RequestedServiceDialog.showView(
+                r.original as RequestedServiceRow,
+                categorySelectOptions,
+                () => {
+                  void reloadFranchiseData();
+                }
+              );
             }}
             onDelete={(r) => {
-              handleRequestedServiceVoid((r.original as RequestedServiceRow)._id);
+              handleRequestedServiceVoid(
+                (r.original as RequestedServiceRow)._id
+              );
             }}
           />
         ),
       },
     ],
-    [currentPage, pageSize, categorySelectOptions, reloadFranchiseData, handleRequestedServiceVoid]
+    [
+      currentPage,
+      pageSize,
+      categorySelectOptions,
+      reloadFranchiseData,
+      handleRequestedServiceVoid,
+    ]
   );
 
   const requestedCategoryColumns = useMemo(
@@ -678,7 +763,8 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Category Name", accessor: "name" },
       {
@@ -707,13 +793,21 @@ const MyFranchise = () => {
               );
             }}
             onDelete={(r) => {
-              handleRequestedCategoryVoid((r.original as RequestedCategoryRow)._id);
+              handleRequestedCategoryVoid(
+                (r.original as RequestedCategoryRow)._id
+              );
             }}
           />
         ),
       },
     ],
-    [franchiseServiceOptionsForCategoryDialog, reloadFranchiseData, handleRequestedCategoryVoid]
+    [
+      currentPage,
+      pageSize,
+      franchiseServiceOptionsForCategoryDialog,
+      reloadFranchiseData,
+      handleRequestedCategoryVoid,
+    ]
   );
 
   const categoryColumns = useMemo(
@@ -721,7 +815,8 @@ const MyFranchise = () => {
       {
         Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Category Name", accessor: "name" },
       {
@@ -729,7 +824,9 @@ const MyFranchise = () => {
         accessor: "service_names_display",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
-          return renderCategoryServicesNamesHover(serviceNamesForCatalogCategory(cat, services));
+          return renderCategoryServicesNamesHover(
+            serviceNamesForCatalogCategory(cat, services)
+          );
         },
       },
       {
@@ -763,9 +860,13 @@ const MyFranchise = () => {
       case "box-areas":
         return areaColumns;
       case "box-services":
-        return servicesViewMode === "requested" ? requestedServiceColumns : serviceColumns;
+        return servicesViewMode === "requested"
+          ? requestedServiceColumns
+          : serviceColumns;
       case "box-categories":
-        return categoriesViewMode === "requested" ? requestedCategoryColumns : categoryColumns;
+        return categoriesViewMode === "requested"
+          ? requestedCategoryColumns
+          : categoryColumns;
       default:
         return employeeColumns;
     }
@@ -821,9 +922,12 @@ const MyFranchise = () => {
         isAddShow: true,
         addLabel: "Add request",
         onAdd: () => {
-          RequestedCategoryDialog.showAdd(franchiseServiceOptionsForCategoryDialog, () => {
-            void reloadFranchiseData();
-          });
+          RequestedCategoryDialog.showAdd(
+            franchiseServiceOptionsForCategoryDialog,
+            () => {
+              void reloadFranchiseData();
+            }
+          );
         },
       },
     ];
@@ -839,7 +943,11 @@ const MyFranchise = () => {
 
   return (
     <div className="main-page-content my-franchise-page">
-      <CustomHeader title="My Franchise" register={register} setValue={setValue} />
+      <CustomHeader
+        title="My Franchise"
+        register={register}
+        setValue={setValue}
+      />
 
       <div className="box-container my-franchise-box-container">
         {boxConfigs.map((cfg) => (
@@ -868,15 +976,15 @@ const MyFranchise = () => {
                     }
                   }
                 : cfg.id === "box-categories"
-                  ? (key) => {
-                      if (key === "requested_category") {
-                        setSelectedBox("box-categories");
-                        setCategoriesViewMode("requested");
-                        setStatusFilter(undefined);
-                        setCurrentPage(1);
-                      }
+                ? (key) => {
+                    if (key === "requested_category") {
+                      setSelectedBox("box-categories");
+                      setCategoriesViewMode("requested");
+                      setStatusFilter(undefined);
+                      setCurrentPage(1);
                     }
-                  : undefined
+                  }
+                : undefined
             }
           />
         ))}
@@ -902,21 +1010,26 @@ const MyFranchise = () => {
           totalPages={totalPages}
           horizontalScroll={
             selectedBox !== "box-areas" &&
-            !(selectedBox === "box-services" && servicesViewMode === "requested") &&
-            !(selectedBox === "box-categories" && categoriesViewMode === "requested")
+            !(
+              selectedBox === "box-services" && servicesViewMode === "requested"
+            ) &&
+            !(
+              selectedBox === "box-categories" &&
+              categoriesViewMode === "requested"
+            )
           }
-          onPageChange={(page: number) => setCurrentPage(page)} 
+          onPageChange={(page: number) => setCurrentPage(page)}
           onLimitChange={(limit: number) => {
             setPageSize(limit);
             setCurrentPage(1);
           }}
-        manualSortBy={selectedBox === "box-areas"}
-        sortBy={selectedBox === "box-areas" ? areaSortBy : []}
-        onSortChange={(next) => {
-          if (selectedBox !== "box-areas") return;
-          setAreaSortBy(next);
-          setCurrentPage(1);
-        }}
+          manualSortBy={selectedBox === "box-areas"}
+          sortBy={selectedBox === "box-areas" ? areaSortBy : []}
+          onSortChange={(next) => {
+            if (selectedBox !== "box-areas") return;
+            setAreaSortBy(next);
+            setCurrentPage(1);
+          }}
           theadClass="table-light"
         />
       </div>

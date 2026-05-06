@@ -23,13 +23,20 @@ function normalize(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function paginate<T>(rows: T[], page: number, limit: number): { records: T[]; totalPages: number } {
+function paginate<T>(
+  rows: T[],
+  page: number,
+  limit: number
+): { records: T[]; totalPages: number } {
   const totalPages = rows.length ? Math.ceil(rows.length / limit) : 0;
   const start = Math.max(0, (page - 1) * limit);
   return { records: rows.slice(start, start + limit), totalPages };
 }
 
-function sortByName<T extends { name?: string | null }>(rows: T[], sort?: string): T[] {
+function sortByName<T extends { name?: string | null }>(
+  rows: T[],
+  sort?: string
+): T[] {
   const s = String(sort ?? "");
   if (s !== "1" && s !== "-1") return rows;
   const asc = s === "1";
@@ -51,7 +58,11 @@ async function buildMockAreasFromDropdowns(): Promise<LocationAreaMockRow[]> {
       if (!state) return null;
       return { seed, stateId: state.value, stateLabel: state.label };
     })
-    .filter(Boolean) as { seed: (typeof locationAreaSeeds)[number]; stateId: string; stateLabel: string }[];
+    .filter(Boolean) as {
+    seed: (typeof locationAreaSeeds)[number];
+    stateId: string;
+    stateLabel: string;
+  }[];
 
   if (!stateBySeed.length) return [];
 
@@ -70,7 +81,11 @@ async function buildMockAreasFromDropdowns(): Promise<LocationAreaMockRow[]> {
     if (!city) continue;
 
     rows.push({
-      _id: seed._id || `dummy-${city.value}-${normalize(seed.name).replace(/\\s+/g, "") || "area"}`,
+      _id:
+        seed._id ||
+        `dummy-${city.value}-${
+          normalize(seed.name).replace(/\\s+/g, "") || "area"
+        }`,
       name: seed.name,
       state_id: stateId,
       state_name: stateLabel,
@@ -95,7 +110,9 @@ function applyFilters(
     const nameMatch = filters.name
       ? normalize(item.name).includes(normalize(filters.name))
       : true;
-    const stateMatch = filters.state_id ? item.state_id === filters.state_id : true;
+    const stateMatch = filters.state_id
+      ? item.state_id === filters.state_id
+      : true;
     const cityMatch = filters.city_id ? item.city_id === filters.city_id : true;
 
     const statusMatch =
@@ -133,4 +150,3 @@ export async function fetchMockAreas(
     totalPages,
   };
 }
-

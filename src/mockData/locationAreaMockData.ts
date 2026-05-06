@@ -46,4 +46,3 @@ export const locationAreaSeeds = [
     updated_at: null,
   },
 ];
-

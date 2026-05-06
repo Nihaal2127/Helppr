@@ -9,16 +9,20 @@ export const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = [
   "location-management",
   "franchise-management",
   "service-management",
-  "settings"
+  "settings",
 ] as const;
 
 export function isFranchiseEmployeeExcludedScreenKey(key: string): boolean {
-  return (FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS as readonly string[]).includes(key);
+  return (
+    FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS as readonly string[]
+  ).includes(key);
 }
 
 /** Main-nav entries assignable to a franchise employee (label + path from `mainMenuItems`). */
 export function getFranchiseEmployeeScreenMenuItems() {
-  return mainMenuItems.filter(({ key }) => !isFranchiseEmployeeExcludedScreenKey(key));
+  return mainMenuItems.filter(
+    ({ key }) => !isFranchiseEmployeeExcludedScreenKey(key)
+  );
 }
 
 export function labelForFranchiseEmployeeScreenKey(key: string): string {

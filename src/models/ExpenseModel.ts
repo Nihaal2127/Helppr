@@ -41,4 +41,3 @@ export interface ExpenseModel {
   created_by_id?: string;
   createdById?: string;
 }
-

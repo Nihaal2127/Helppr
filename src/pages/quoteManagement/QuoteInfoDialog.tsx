@@ -10,7 +10,10 @@ import QuoteEditQuoteFieldsDialog from "./QuoteEditQuoteFieldsDialog";
 import QuoteEditScheduleDetailsDialog from "./QuoteEditScheduleDetailsDialog";
 import QuoteSelectEmployeeDialog from "./QuoteSelectEmployeeDialog";
 import type { QuoteViewData } from "./quoteViewTypes";
-import { formatQuoteScheduleForView, formatServiceAddressLines } from "./quoteScheduleDisplay";
+import {
+  formatQuoteScheduleForView,
+  formatServiceAddressLines,
+} from "./quoteScheduleDisplay";
 
 export type { QuoteViewData };
 
@@ -46,7 +49,9 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const showPartnerEdit = isNew || isAccepted;
   const showEmployeeEdit = true;
 
-  const partnerNameForDisplay = isAccepted ? displayQuote.partner_name : displayQuote.requested_partner;
+  const partnerNameForDisplay = isAccepted
+    ? displayQuote.partner_name
+    : displayQuote.requested_partner;
 
   const profileSrc = displayQuote.profile_url
     ? `${AppConstant.IMAGE_BASE_URL}${displayQuote.profile_url}?t=${Date.now()}`
@@ -106,7 +111,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
-      <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+      <Modal.Body
+        className="px-4 pb-4 pt-0"
+        style={{ maxHeight: "70vh", overflowY: "auto" }}
+      >
         <section className="custom-other-details" style={{ padding: "10px" }}>
           {isSuccess && (
             <>
@@ -117,7 +125,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               </Row>
               <Row>
                 <Col xs={12}>
-                  <DetailsRow title="Order ID" value={displayQuote.order_id ?? "-"} />
+                  <DetailsRow
+                    title="Order ID"
+                    value={displayQuote.order_id ?? "-"}
+                  />
                 </Col>
               </Row>
             </>
@@ -139,8 +150,12 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                     (patch) => {
                       setDisplayQuote((q) => ({
                         ...q,
-                        ...(patch.service_price != null ? { service_price: patch.service_price } : {}),
-                        ...(patch.status != null ? { status: patch.status } : {}),
+                        ...(patch.service_price != null
+                          ? { service_price: patch.service_price }
+                          : {}),
+                        ...(patch.status != null
+                          ? { status: patch.status }
+                          : {}),
                       }));
                       onRefreshData?.();
                     }
@@ -157,11 +172,17 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
             <Col className="custom-helper-column">
               <DetailsRow
                 title="Service Price"
-                value={`${AppConstant.currencySymbol}${displayQuote.service_price ?? 0}`}
+                value={`${AppConstant.currencySymbol}${
+                  displayQuote.service_price ?? 0
+                }`}
               />
               <DetailsRow
                 title="Quote Status"
-                value={<span style={{ color: statusColor, fontWeight: 600 }}>{displayQuote.status}</span>}
+                value={
+                  <span style={{ color: statusColor, fontWeight: 600 }}>
+                    {displayQuote.status}
+                  </span>
+                }
               />
             </Col>
           </Row>
@@ -221,7 +242,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           </Row>
         </section>
 
-        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+        <section
+          className="custom-other-details mt-3"
+          style={{ padding: "10px" }}
+        >
           <Row className="mb-2">
             <Col>
               <h3 className="mb-0">User</h3>
@@ -242,10 +266,16 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <Row className="g-2">
                 <Col sm={6}>
                   <DetailsRow title="Name" value={displayQuote.user_name} />
-                  <DetailsRow title="Email" value={displayQuote.user_email ?? "-"} />
+                  <DetailsRow
+                    title="Email"
+                    value={displayQuote.user_email ?? "-"}
+                  />
                 </Col>
                 <Col sm={6}>
-                  <DetailsRow title="Phone number" value={displayQuote.phone_number} />
+                  <DetailsRow
+                    title="Phone number"
+                    value={displayQuote.phone_number}
+                  />
                 </Col>
               </Row>
               <Row className="mt-2">
@@ -259,7 +289,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           </Row>
         </section>
 
-        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+        <section
+          className="custom-other-details mt-3"
+          style={{ padding: "10px" }}
+        >
           <Row className="d-flex justify-content-between align-items-center mb-2">
             <Col>
               <h3 className="mb-0">Partner</h3>
@@ -267,7 +300,11 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
             {showPartnerEdit && (
               <Col className="text-end">
                 {editIcon(() => {
-                  const defaultPid = (displayQuote.partner_id || displayQuote.partner_user_id || "").trim();
+                  const defaultPid = (
+                    displayQuote.partner_id ||
+                    displayQuote.partner_user_id ||
+                    ""
+                  ).trim();
                   QuoteUpdatePartnerDialog.show(
                     displayQuote.service_id,
                     defaultPid || undefined,
@@ -277,7 +314,9 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                         requested_partner: partnerName,
                         partner_id: partnerId,
                         partner_name: partnerName,
-                        partner_user_id: isAccepted ? partnerId : q.partner_user_id,
+                        partner_user_id: isAccepted
+                          ? partnerId
+                          : q.partner_user_id,
                       }));
                       onRefreshData?.();
                     },
@@ -296,7 +335,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <DetailsRow title="Name" value={partnerNameForDisplay} />
             </Col>
             <Col md={6} className="custom-helper-column">
-              <DetailsRow title="Phone number" value={displayQuote.partner_phone} />
+              <DetailsRow
+                title="Phone number"
+                value={displayQuote.partner_phone}
+              />
             </Col>
           </Row>
           <Row className="mt-2">
@@ -308,7 +350,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           </Row>
         </section>
 
-        <section className="custom-other-details mt-3" style={{ padding: "10px" }}>
+        <section
+          className="custom-other-details mt-3"
+          style={{ padding: "10px" }}
+        >
           <Row className="mb-2">
             <Col>
               <h3 className="mb-0">Employee</h3>
@@ -342,7 +387,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <DetailsRow title="Name" value={displayQuote.employee_name} />
             </Col>
             <Col className="custom-helper-column">
-              <DetailsRow title="Phone number" value={displayQuote.employee_phone ?? "-"} />
+              <DetailsRow
+                title="Phone number"
+                value={displayQuote.employee_phone ?? "-"}
+              />
             </Col>
           </Row>
         </section>
@@ -353,7 +401,11 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
 
 QuoteInfoDialog.show = (quote: QuoteViewData, onRefreshData?: () => void) => {
   openDialog("quote-details-modal", (close) => (
-    <QuoteInfoDialog quote={quote} onClose={close} onRefreshData={onRefreshData} />
+    <QuoteInfoDialog
+      quote={quote}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
   ));
 };
 

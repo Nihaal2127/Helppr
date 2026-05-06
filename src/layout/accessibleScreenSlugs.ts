@@ -25,7 +25,9 @@ const MENU_KEY_TO_ACCESSIBLE_SLUG: Record<string, string> = {
 };
 
 /** Ordered slugs for selected menu keys (deduped, stable order follows `mainMenuItems`). */
-export function mapMenuKeysToAccessibleScreenSlugs(menuKeys: string[]): string[] {
+export function mapMenuKeysToAccessibleScreenSlugs(
+  menuKeys: string[]
+): string[] {
   const want = new Set(menuKeys ?? []);
   const out: string[] = [];
   const seen = new Set<string>();
@@ -41,7 +43,15 @@ export function mapMenuKeysToAccessibleScreenSlugs(menuKeys: string[]): string[]
 
 /** Reverse map API `accessible_screens` slugs to sidebar menu keys. */
 export function mapAccessibleScreenSlugsToMenuKeys(slugs: string[]): string[] {
-  const inSet = new Set((slugs ?? []).map((s) => String(s || "").trim().toLowerCase()).filter(Boolean));
+  const inSet = new Set(
+    (slugs ?? [])
+      .map((s) =>
+        String(s || "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean)
+  );
   const out: string[] = [];
   for (const { key } of mainMenuItems) {
     const slug = MENU_KEY_TO_ACCESSIBLE_SLUG[key];

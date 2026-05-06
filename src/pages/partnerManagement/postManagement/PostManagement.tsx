@@ -58,7 +58,9 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
 
     if (searchText.trim()) {
       const value = searchText.toLowerCase();
-      data = data.filter((item) => item.partner_name.toLowerCase().includes(value));
+      data = data.filter((item) =>
+        item.partner_name.toLowerCase().includes(value)
+      );
     }
 
     data.sort((a, b) => {

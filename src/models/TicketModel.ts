@@ -12,19 +12,19 @@ export interface TicketModel {
   user_unique_id: string | null;
   employee_unique_id: string | null;
   status: number | null;
-  resolve_status: number | null;  
+  resolve_status: number | null;
   created_by_name: string | null;
   email: string | null;
   phone_number: string | null;
   query: string | null;
-  contact_type: number |null;
+  contact_type: number | null;
   resolved_by_name: string | null;
   close_date: string | null;
   description: string | null;
   is_active: boolean;
   deleted_at: string | null;
-  created_at: string| null;
-  updated_at: string| null;
+  created_at: string | null;
+  updated_at: string | null;
   transferHistory?: TicketTransferHistoryEntry[];
   currentEmployeeName?: string;
 }

@@ -5,9 +5,13 @@ import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 export const fetchCityDropDown = async (
-  stateIdList?: string[],
-): Promise<{ value: string; label: string; state_id?: string; state_name?: string }[]> => {
-  const params = stateIdList ? new URLSearchParams({ state_id: stateIdList.toString() }) : "";
+  stateIdList?: string[]
+): Promise<
+  { value: string; label: string; state_id?: string; state_name?: string }[]
+> => {
+  const params = stateIdList
+    ? new URLSearchParams({ state_id: stateIdList.toString() })
+    : "";
 
   const response = await apiRequest(
     `${ApiPaths.GET_CITY_DROP_DOWN()}${params ? `?${params.toString()}` : ""}`,
@@ -30,16 +34,17 @@ export const fetchCityDropDown = async (
 export const fetchCity = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string; sort?: string; state_id?: string; },
+  filters: { name?: string; status?: string; sort?: string; state_id?: string },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, cities: CityModel[]; totalPages: number }> => {
+): Promise<{ response: boolean; cities: CityModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.name && { name: filters.name }),
     ...(filters.name && { keyword: filters.name }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.state_id && { state_id: filters.state_id }),
     ...(primarySort?.id && { sort_by: primarySort.id }),

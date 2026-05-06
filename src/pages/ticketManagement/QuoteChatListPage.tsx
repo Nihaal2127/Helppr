@@ -22,7 +22,9 @@ const QuoteChatListPage = () => {
   const chats: ChatItem[] = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
-    const list = (isGroupList ? groupChatConversations : quoteChatConversations) as unknown as ChatItem[];
+    const list = (isGroupList
+      ? groupChatConversations
+      : quoteChatConversations) as unknown as ChatItem[];
     return list.filter((chat: any) => {
       if (unreadOnly && !(chat.unreadCount > 0)) return false;
       if (keyword.length === 0) return true;
@@ -42,20 +44,30 @@ const QuoteChatListPage = () => {
         <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-             className="financial-subpage-back text-danger"
+            className="financial-subpage-back text-danger"
             onClick={() => navigate(ROUTES.TICKET_MANAGEMENT.path)}
             aria-label="Back to ticket management"
           >
             <i className="bi bi-chevron-left" />
           </button>
-          <h4 className="m-0 p-0">{isGroupList ? "Group Chats" : "Quote Chats"}</h4>
+          <h4 className="m-0 p-0">
+            {isGroupList ? "Group Chats" : "Quote Chats"}
+          </h4>
         </div>
-        <button type="button" className="btn p-0 border-0 bg-transparent" aria-label="Notifications">
+        <button
+          type="button"
+          className="btn p-0 border-0 bg-transparent"
+          aria-label="Notifications"
+        >
           <i className="bi bi-bell-fill text-danger fs-5" />
         </button>
       </div>
 
-      <div className="d-flex align-items-center gap-2 mb-3" role="tablist" aria-label="Chat list filters">
+      <div
+        className="d-flex align-items-center gap-2 mb-3"
+        role="tablist"
+        aria-label="Chat list filters"
+      >
         <button
           type="button"
           className={`normal-chat-filter-tag ${!unreadOnly ? "active" : ""}`}
@@ -98,7 +110,9 @@ const QuoteChatListPage = () => {
           ) : (
             chats.map((chat) => {
               const isGroup = isGroupList;
-              const title = isGroup ? (chat as any).groupName : (chat as any).userName;
+              const title = isGroup
+                ? (chat as any).groupName
+                : (chat as any).userName;
               const id = isGroup ? (chat as any).groupId : (chat as any).userId;
               const online = (chat as any).online as boolean | undefined;
 
@@ -111,7 +125,10 @@ const QuoteChatListPage = () => {
                   onClick={() => {
                     const idParam = (chat as any).id as string;
                     navigate(
-                      `${isGroup ? ROUTES.TICKET_MANAGEMENT_GROUP_CHAT_VIEW.path : ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT_VIEW.path
+                      `${
+                        isGroup
+                          ? ROUTES.TICKET_MANAGEMENT_GROUP_CHAT_VIEW.path
+                          : ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT_VIEW.path
                       }?chatId=${idParam}`
                     );
                   }}
@@ -120,7 +137,10 @@ const QuoteChatListPage = () => {
                       e.preventDefault();
                       const idParam = (chat as any).id as string;
                       navigate(
-                        `${isGroup ? ROUTES.TICKET_MANAGEMENT_GROUP_CHAT_VIEW.path : ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT_VIEW.path
+                        `${
+                          isGroup
+                            ? ROUTES.TICKET_MANAGEMENT_GROUP_CHAT_VIEW.path
+                            : ROUTES.TICKET_MANAGEMENT_QUOTE_CHAT_VIEW.path
                         }?chatId=${idParam}`
                       );
                     }
@@ -136,15 +156,22 @@ const QuoteChatListPage = () => {
 
                   <div className="w-100" style={{ minWidth: 0 }}>
                     <div className="d-flex justify-content-between align-items-center gap-2">
-                      <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+                      <div
+                        className="d-flex align-items-center gap-2"
+                        style={{ minWidth: 0 }}
+                      >
                         <h6 className="normal-chat-user-name">{title}</h6>
                         <span className="normal-chat-user-pill">{id}</span>
                       </div>
-                      <span className="normal-chat-time">{(chat as any).lastMessageAt}</span>
+                      <span className="normal-chat-time">
+                        {(chat as any).lastMessageAt}
+                      </span>
                     </div>
 
                     <div className="d-flex justify-content-between align-items-center gap-2">
-                      <p className="normal-chat-last-message">{(chat as any).lastMessage}</p>
+                      <p className="normal-chat-last-message">
+                        {(chat as any).lastMessage}
+                      </p>
                       {(chat as any).unreadCount > 0 && (
                         <span className="normal-chat-unread-badge d-inline-flex align-items-center justify-content-center">
                           {(chat as any).unreadCount}
@@ -163,4 +190,3 @@ const QuoteChatListPage = () => {
 };
 
 export default QuoteChatListPage;
-

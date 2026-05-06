@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { useForm } from "react-hook-form";
-import Select, { MultiValue } from "react-select";
 import CustomImageUploader from "../../../components/CustomImageUploader";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
@@ -12,7 +11,10 @@ import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
-import { RoleSettingsModel, StaffSettingsModel } from "../../../models/SettingsModel";
+import {
+  RoleSettingsModel,
+  StaffSettingsModel,
+} from "../../../models/SettingsModel";
 import {
   ensureSettingsSeedData,
   createRoleUserWithApi,
@@ -35,7 +37,10 @@ import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
 import { WEB_MANAGEMENT_USER_TYPE } from "../../../services/userService";
-import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
+import {
+  fetchFranchiseDropDown,
+  FranchiseDropDownOption,
+} from "../../../services/franchiseService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 
 const emptyRoleForm = {
@@ -57,12 +62,10 @@ const toLocalPhone10Digits = (phone?: string) => {
   return digits.length > 10 ? digits.slice(-10) : digits;
 };
 
-const STAFF_FRANCHISE_ALL = "__all__";
-
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
-const staffScreenPermissionMenuItems = mainMenuItems.filter(({ key }) => key !== "my-franchise");
-
-type StaffFranchiseOption = { value: string; label: string };
+const staffScreenPermissionMenuItems = mainMenuItems.filter(
+  ({ key }) => key !== "my-franchise"
+);
 
 const emptyStaffForm = {
   name: "",
@@ -79,7 +82,12 @@ const emptyStaffForm = {
 function franchiseRoleProfileImageSrc(profileUrl?: string): string {
   const u = (profileUrl ?? "").trim();
   if (!u) return profilePlaceholder;
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:")) return u;
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:")
+  )
+    return u;
   if (u.startsWith("uploads/")) return profilePlaceholder;
   return `${AppConstant.IMAGE_BASE_URL}${u}?t=${Date.now()}`;
 }
@@ -88,8 +96,8 @@ const staffFranchiseSummary = (s: StaffSettingsModel) =>
   s.allFranchises
     ? "All franchises"
     : s.franchisePermissions.length
-      ? s.franchisePermissions.join(", ")
-      : "-";
+    ? s.franchisePermissions.join(", ")
+    : "-";
 
 type SummaryCounts = {
   total: number;
@@ -106,7 +114,10 @@ const EMPTY_SUMMARY_COUNTS: SummaryCounts = {
 const compareNullableText = (a?: string, b?: string) =>
   (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
 
-function applyRoleSortFallback(rows: RoleSettingsModel[], sortBy: ServerTableSortBy): RoleSettingsModel[] {
+function applyRoleSortFallback(
+  rows: RoleSettingsModel[],
+  sortBy: ServerTableSortBy
+): RoleSettingsModel[] {
   const primarySort = sortBy[0];
   if (!primarySort) return rows;
   if (primarySort.id !== "roleName" && primarySort.id !== "email") return rows;
@@ -121,7 +132,10 @@ function applyRoleSortFallback(rows: RoleSettingsModel[], sortBy: ServerTableSor
   return sorted;
 }
 
-function applyStaffSortFallback(rows: StaffSettingsModel[], sortBy: ServerTableSortBy): StaffSettingsModel[] {
+function applyStaffSortFallback(
+  rows: StaffSettingsModel[],
+  sortBy: ServerTableSortBy
+): StaffSettingsModel[] {
   const primarySort = sortBy[0];
   if (!primarySort) return rows;
   if (primarySort.id !== "name" && primarySort.id !== "email") return rows;
@@ -139,12 +153,13 @@ function applyStaffSortFallback(rows: StaffSettingsModel[], sortBy: ServerTableS
 const RoleManagement = () => {
   const SETTINGS_ROLE_PAGE_SIZE = 10;
   const { register, setValue } = useForm<any>();
-  const isFranchiseAdminSession = getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
+  const isFranchiseAdminSession =
+    getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
   const [items, setItems] = useState<RoleSettingsModel[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [roleType, setRoleType] = useState<"all" | "franchise_admin" | "employee">(() =>
-    isFranchiseAdminSession ? "employee" : "franchise_admin"
-  );
+  const [roleType, setRoleType] = useState<
+    "all" | "franchise_admin" | "employee"
+  >(() => (isFranchiseAdminSession ? "employee" : "franchise_admin"));
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [franchiseFilter, setFranchiseFilter] = useState("all");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
@@ -159,10 +174,14 @@ const RoleManagement = () => {
 
   const [staffItems, setStaffItems] = useState<StaffSettingsModel[]>([]);
   const [staffKeyword, setStaffKeyword] = useState("");
-  const [staffStatus, setStaffStatus] = useState<"all" | "active" | "inactive">("all");
+  const [staffStatus, setStaffStatus] = useState<"all" | "active" | "inactive">(
+    "all"
+  );
   const [staffUtilityKey, setStaffUtilityKey] = useState(0);
   const [showStaffModal, setShowStaffModal] = useState(false);
-  const [staffEditing, setStaffEditing] = useState<StaffSettingsModel | null>(null);
+  const [staffEditing, setStaffEditing] = useState<StaffSettingsModel | null>(
+    null
+  );
   const [staffForm, setStaffForm] = useState(emptyStaffForm);
   const [staffIsViewMode, setStaffIsViewMode] = useState(false);
   const [roleSavePending, setRoleSavePending] = useState(false);
@@ -174,72 +193,89 @@ const RoleManagement = () => {
   const [staffTotalPages, setStaffTotalPages] = useState(1);
   const [roleSortBy, setRoleSortBy] = useState<ServerTableSortBy>([]);
   const [staffSortBy, setStaffSortBy] = useState<ServerTableSortBy>([]);
-  const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<FranchiseDropDownOption[]>([]);
+  const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
+    FranchiseDropDownOption[]
+  >([]);
   const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
   const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
-  const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
-  const [employeeSummaryCounts, setEmployeeSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
-  const [staffSummaryCounts, setStaffSummaryCounts] = useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+  const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] =
+    useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+  const [employeeSummaryCounts, setEmployeeSummaryCounts] =
+    useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+  const [staffSummaryCounts, setStaffSummaryCounts] =
+    useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
 
-  const openFormWithData = useCallback((item?: RoleSettingsModel, viewMode = false) => {
-    if (!item) {
-      setEditing(null);
-      setForm(emptyRoleForm);
-      setRoleImageFile(null);
-      setIsViewMode(false);
+  const openFormWithData = useCallback(
+    (item?: RoleSettingsModel, viewMode = false) => {
+      if (!item) {
+        setEditing(null);
+        setForm(emptyRoleForm);
+        setRoleImageFile(null);
+        setIsViewMode(false);
+        setShowForm(true);
+        return;
+      }
+      setEditing(item);
+      setIsViewMode(viewMode);
+      const rawPerms = item.screenPermissions?.length
+        ? [...item.screenPermissions]
+        : [];
+      setForm({
+        roleName: item.roleName,
+        email: item.email ?? "",
+        phone_number: item.phone_number ?? "",
+        profile_url: item.profile_url ?? "",
+        roleType: item.roleType,
+        assignedFranchise: item.assignedFranchise || "",
+        status: item.status,
+        screenPermissions:
+          item.roleType === "employee"
+            ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
+            : rawPerms,
+      });
       setShowForm(true);
-      return;
-    }
-    setEditing(item);
-    setIsViewMode(viewMode);
-    const rawPerms = item.screenPermissions?.length ? [...item.screenPermissions] : [];
-    setForm({
-      roleName: item.roleName,
-      email: item.email ?? "",
-      phone_number: item.phone_number ?? "",
-      profile_url: item.profile_url ?? "",
-      roleType: item.roleType,
-      assignedFranchise: item.assignedFranchise || "",
-      status: item.status,
-      screenPermissions:
-        item.roleType === "employee"
-          ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
-          : rawPerms,
-    });
-    setShowForm(true);
-    setRoleImageFile(null);
-  }, []);
+      setRoleImageFile(null);
+    },
+    []
+  );
 
-  const openStaffWithData = useCallback((item?: StaffSettingsModel, viewMode = false) => {
-    if (!item) {
-      setStaffEditing(null);
-      setStaffForm({ ...emptyStaffForm });
-      setStaffImageFile(null);
-      setStaffIsViewMode(false);
+  const openStaffWithData = useCallback(
+    (item?: StaffSettingsModel, viewMode = false) => {
+      if (!item) {
+        setStaffEditing(null);
+        setStaffForm({ ...emptyStaffForm });
+        setStaffImageFile(null);
+        setStaffIsViewMode(false);
+        setShowStaffModal(true);
+        return;
+      }
+      setStaffEditing(item);
+      setStaffIsViewMode(viewMode);
+      setStaffForm({
+        name: item.name,
+        email: item.email ?? "",
+        phone_number: item.phone_number ?? "",
+        profile_url: item.profile_url ?? "",
+        status: item.status,
+        screenPermissions: item.screenPermissions?.length
+          ? item.screenPermissions.filter((k) => k !== "my-franchise")
+          : [],
+        allFranchises: item.allFranchises,
+        franchisePermissions: item.franchisePermissions?.length
+          ? [...item.franchisePermissions]
+          : [],
+      });
       setShowStaffModal(true);
-      return;
-    }
-    setStaffEditing(item);
-    setStaffIsViewMode(viewMode);
-    setStaffForm({
-      name: item.name,
-      email: item.email ?? "",
-      phone_number: item.phone_number ?? "",
-      profile_url: item.profile_url ?? "",
-      status: item.status,
-      screenPermissions: item.screenPermissions?.length
-        ? item.screenPermissions.filter((k) => k !== "my-franchise")
-        : [],
-      allFranchises: item.allFranchises,
-      franchisePermissions: item.franchisePermissions?.length ? [...item.franchisePermissions] : [],
-    });
-    setShowStaffModal(true);
-    setStaffImageFile(null);
-  }, []);
+      setStaffImageFile(null);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!showForm || !editing) return;
-    const rawPerms = editing.screenPermissions?.length ? [...editing.screenPermissions] : [];
+    const rawPerms = editing.screenPermissions?.length
+      ? [...editing.screenPermissions]
+      : [];
     setForm({
       roleName: editing.roleName,
       email: editing.email ?? "",
@@ -254,6 +290,7 @@ const RoleManagement = () => {
           : rawPerms,
     });
     setRoleImageFile(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when modal opens / role id changes; avoid resetting on unrelated `editing` churn
   }, [showForm, editing?.id]);
 
   useEffect(() => {
@@ -268,9 +305,12 @@ const RoleManagement = () => {
         ? staffEditing.screenPermissions.filter((k) => k !== "my-franchise")
         : [],
       allFranchises: staffEditing.allFranchises,
-      franchisePermissions: staffEditing.franchisePermissions?.length ? [...staffEditing.franchisePermissions] : [],
+      franchisePermissions: staffEditing.franchisePermissions?.length
+        ? [...staffEditing.franchisePermissions]
+        : [],
     });
     setStaffImageFile(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as role modal above
   }, [showStaffModal, staffEditing?.id]);
 
   const [reloadToken, setReloadToken] = useState(0);
@@ -317,8 +357,14 @@ const RoleManagement = () => {
     };
 
     void Promise.all([
-      fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN, setFranchiseAdminSummaryCounts),
-      fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE, setEmployeeSummaryCounts),
+      fetchCountsForType(
+        WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
+        setFranchiseAdminSummaryCounts
+      ),
+      fetchCountsForType(
+        WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE,
+        setEmployeeSummaryCounts
+      ),
       fetchCountsForType(WEB_MANAGEMENT_USER_TYPE.STAFF, setStaffSummaryCounts),
     ]);
 
@@ -335,8 +381,8 @@ const RoleManagement = () => {
         selectedBox === "box-staff"
           ? WEB_MANAGEMENT_USER_TYPE.STAFF
           : selectedBox === "box-franchise-admin"
-            ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
-            : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
+          ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
+          : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
       const apiData = await fetchSettingsSectionPageByType(
         type,
         selectedBox === "box-staff" ? staffCurrentPage : roleCurrentPage,
@@ -352,7 +398,10 @@ const RoleManagement = () => {
           setStaffItems([]);
           setStaffTotalPages(1);
         } else {
-          const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
+          const targetRoleType =
+            selectedBox === "box-franchise-admin"
+              ? "franchise_admin"
+              : "employee";
           setItems((prev) => prev.filter((r) => r.roleType !== targetRoleType));
           setRoleTotalPages(1);
         }
@@ -362,10 +411,15 @@ const RoleManagement = () => {
         setStaffItems(apiData.staff);
         setStaffTotalPages(Math.max(1, apiData.totalPages || 1));
       } else {
-        const targetRoleType = selectedBox === "box-franchise-admin" ? "franchise_admin" : "employee";
+        const targetRoleType =
+          selectedBox === "box-franchise-admin"
+            ? "franchise_admin"
+            : "employee";
         setItems((prev) => {
           const other = prev.filter((r) => r.roleType !== targetRoleType);
-          const current = apiData.roles.filter((r) => r.roleType === targetRoleType);
+          const current = apiData.roles.filter(
+            (r) => r.roleType === targetRoleType
+          );
           return [...other, ...current];
         });
         setRoleTotalPages(Math.max(1, apiData.totalPages || 1));
@@ -389,10 +443,7 @@ const RoleManagement = () => {
 
   useEffect(() => {
     void loadCurrentSectionPage();
-  }, [
-    loadCurrentSectionPage,
-    reloadToken,
-  ]);
+  }, [loadCurrentSectionPage, reloadToken]);
 
   const franchiseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -409,7 +460,9 @@ const RoleManagement = () => {
           ...item,
           assignedFranchise:
             item.assignedFranchise ||
-            (item.franchise_id ? franchiseNameById.get(String(item.franchise_id)) : undefined) ||
+            (item.franchise_id
+              ? franchiseNameById.get(String(item.franchise_id))
+              : undefined) ||
             "",
         })),
         roleSortBy
@@ -422,7 +475,8 @@ const RoleManagement = () => {
       // Keyword and status are already applied on backend (`/user/getAll` query params).
       const matchesType = roleType === "all" || item.roleType === roleType;
       const matchesFranchise =
-        franchiseFilter === "all" || (item.assignedFranchise || "") === franchiseFilter;
+        franchiseFilter === "all" ||
+        (item.assignedFranchise || "") === franchiseFilter;
       return matchesType && matchesFranchise;
     });
   }, [roleRows, roleType, franchiseFilter]);
@@ -462,14 +516,19 @@ const RoleManagement = () => {
   );
 
   const assignedFranchiseOptions = useMemo(() => {
-    const uniqueFranchises = Array.from(new Set(franchiseDropdownOptions.map((option) => option.label)));
+    const uniqueFranchises = Array.from(
+      new Set(franchiseDropdownOptions.map((option) => option.label))
+    );
 
     const options = uniqueFranchises.map((franchise) => ({
       value: franchise,
       label: franchise,
     }));
 
-    if (form.assignedFranchise && !uniqueFranchises.includes(form.assignedFranchise)) {
+    if (
+      form.assignedFranchise &&
+      !uniqueFranchises.includes(form.assignedFranchise)
+    ) {
       options.unshift({
         value: form.assignedFranchise,
         label: form.assignedFranchise,
@@ -505,7 +564,11 @@ const RoleManagement = () => {
 
   const columns = React.useMemo(
     () => [
-      { Header: "SR No", accessor: "sr", Cell: ({ row }: any) => row.index + 1 },
+      {
+        Header: "SR No",
+        accessor: "sr",
+        Cell: ({ row }: any) => row.index + 1,
+      },
       // {
       //   Header: "Id",
       //   accessor: "roleId",
@@ -532,7 +595,13 @@ const RoleManagement = () => {
         Header: "Status",
         accessor: "status",
         Cell: ({ row }: any) => (
-          <span className={row.original.status === "active" ? "custom-active" : "custom-inactive"}>
+          <span
+            className={
+              row.original.status === "active"
+                ? "custom-active"
+                : "custom-inactive"
+            }
+          >
             {row.original.status === "active" ? "Active" : "Inactive"}
           </span>
         ),
@@ -587,7 +656,13 @@ const RoleManagement = () => {
         Header: "Status",
         accessor: "status",
         Cell: ({ row }: any) => (
-          <span className={row.original.status === "active" ? "custom-active" : "custom-inactive"}>
+          <span
+            className={
+              row.original.status === "active"
+                ? "custom-active"
+                : "custom-inactive"
+            }
+          >
             {row.original.status === "active" ? "Active" : "Inactive"}
           </span>
         ),
@@ -618,7 +693,8 @@ const RoleManagement = () => {
     setUtilitySearchKey((k) => k + 1);
   };
 
-  const clearStaffFiltersDisabled = !staffKeyword.trim() && staffStatus === "all";
+  const clearStaffFiltersDisabled =
+    !staffKeyword.trim() && staffStatus === "all";
 
   const clearStaffFilters = () => {
     setStaffKeyword("");
@@ -644,94 +720,6 @@ const RoleManagement = () => {
       return { ...prev, screenPermissions: Array.from(next) };
     });
   };
-
-  const staffFranchiseMultiOptions = useMemo<StaffFranchiseOption[]>(
-    () => [
-      { value: STAFF_FRANCHISE_ALL, label: "All franchises" },
-      ...franchiseDropdownOptions.map((option) => ({ value: option.label, label: option.label })),
-    ],
-    [franchiseDropdownOptions]
-  );
-
-  const staffFranchiseSelectValue = useMemo<StaffFranchiseOption[]>(() => {
-    if (staffForm.allFranchises) {
-      return [{ value: STAFF_FRANCHISE_ALL, label: "All franchises" }];
-    }
-    return staffForm.franchisePermissions.map((name) => ({ value: name, label: name }));
-  }, [staffForm.allFranchises, staffForm.franchisePermissions]);
-
-  const handleStaffFranchiseMultiChange = (newValue: MultiValue<StaffFranchiseOption>) => {
-    setStaffForm((prev) => {
-      const vals = (newValue ?? []).map((o) => o.value);
-      if (vals.length === 0) {
-        return { ...prev, allFranchises: false, franchisePermissions: [] };
-      }
-      if (vals.includes(STAFF_FRANCHISE_ALL) && vals.length > 1) {
-        if (prev.allFranchises) {
-          const only = vals.filter((v) => v !== STAFF_FRANCHISE_ALL);
-          return { ...prev, allFranchises: false, franchisePermissions: only };
-        }
-        return { ...prev, allFranchises: true, franchisePermissions: [] };
-      }
-      if (vals.includes(STAFF_FRANCHISE_ALL)) {
-        return { ...prev, allFranchises: true, franchisePermissions: [] };
-      }
-      return { ...prev, allFranchises: false, franchisePermissions: vals };
-    });
-  };
-
-  const staffFranchiseMultiStyles = useMemo(
-    () => ({
-      control: (provided: Record<string, unknown>) => ({
-        ...provided,
-        borderColor: "var(--primary-color)",
-        boxShadow: "none",
-        borderRadius: "8px",
-        minHeight: "42px",
-        backgroundColor: "var(--bg-color)",
-        fontFamily: "'Inter', sans-serif",
-        fontSize: "14px",
-      }),
-      multiValue: (provided: Record<string, unknown>) => ({
-        ...provided,
-        backgroundColor: "rgba(15, 118, 110, 0.14)",
-        borderRadius: "6px",
-      }),
-      multiValueLabel: (provided: Record<string, unknown>) => ({
-        ...provided,
-        color: "var(--content-txt-color)",
-        fontSize: "13px",
-      }),
-      multiValueRemove: (provided: Record<string, unknown>) => ({
-        ...provided,
-        color: "#0f766e",
-        ":hover": {
-          backgroundColor: "rgba(15, 118, 110, 0.35)",
-          color: "#fff",
-        },
-      }),
-      option: (provided: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
-        ...provided,
-        backgroundColor: state.isSelected
-          ? "var(--txtfld-border)"
-          : state.isFocused
-            ? "var(--primary-color)"
-            : "",
-        color: state.isSelected
-          ? "var(--bg-color)"
-          : state.isFocused
-            ? "var(--bg-color)"
-            : "var(--primary-color)",
-      }),
-      placeholder: (provided: Record<string, unknown>) => ({
-        ...provided,
-        color: "var(--placeholder-txt)",
-        fontSize: "14px",
-      }),
-      menuPortal: (provided: Record<string, unknown>) => ({ ...provided, zIndex: 9999 }),
-    }),
-    []
-  );
 
   return (
     <div className="main-page-content">
@@ -779,7 +767,7 @@ const RoleManagement = () => {
           onSelect={(divId) => {
             setSelectedBox(divId);
             setRoleType("employee");
-              setRoleCurrentPage(1);
+            setRoleCurrentPage(1);
           }}
           isSelected={selectedBox === "box-employee"}
           onFilterChange={(filter) => {
@@ -865,7 +853,9 @@ const RoleManagement = () => {
                   defaultValue={staffStatus}
                   setValue={setValue}
                   onChange={(e) => {
-                    setStaffStatus(e.target.value as "all" | "active" | "inactive");
+                    setStaffStatus(
+                      e.target.value as "all" | "active" | "inactive"
+                    );
                     setStaffCurrentPage(1);
                   }}
                 />
@@ -882,7 +872,11 @@ const RoleManagement = () => {
       ) : (
         <CustomUtilityBox
           key={`role-utility-${utilitySearchKey}`}
-          title={`${selectedBox === "box-franchise-admin" ? "Franchise Admin" : "Franchise Employee"}`}
+          title={`${
+            selectedBox === "box-franchise-admin"
+              ? "Franchise Admin"
+              : "Franchise Employee"
+          }`}
           searchHint="Search Name, Email, Phone Number"
           toolsInlineRow
           afterSearchSlot={
@@ -987,285 +981,358 @@ const RoleManagement = () => {
       )}
 
       <Modal show={showForm} onHide={() => setShowForm(false)} centered>
-          <Modal.Header className="py-3 px-4 border-bottom-0">
-            <Modal.Title as="h5" className="custom-modal-title">
-              {editing
-                ? isViewMode
-                  ? form.roleType === "franchise_admin"
-                    ? "Franchise Admin Information"
-                    : "Franchise Employee Information"
-                  : form.roleType === "franchise_admin"
-                    ? "Edit Franchise Admin"
-                    : "Edit Franchise Employee"
+        <Modal.Header className="py-3 px-4 border-bottom-0">
+          <Modal.Title as="h5" className="custom-modal-title">
+            {editing
+              ? isViewMode
+                ? form.roleType === "franchise_admin"
+                  ? "Franchise Admin Information"
+                  : "Franchise Employee Information"
                 : form.roleType === "franchise_admin"
-                  ? "Add Franchise Admin"
-                  : "Add Franchise Employee"}
-            </Modal.Title>
-            <CustomCloseButton onClose={() => setShowForm(false)} />
-          </Modal.Header>
-          <Modal.Body className="px-4 pb-4 pt-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
-            {isViewMode && editing ? (
-              <section className="custom-other-details" style={{ padding: "10px" }}>
-                <div className="d-flex justify-content-end mb-2">
-                  <i
-                    className="bi bi-pencil-fill fs-6 text-danger"
-                    style={{ cursor: "pointer" }}
-                    title="Edit"
-                    aria-label="Edit"
-                    onClick={() => setIsViewMode(false)}
-                  />
-                </div>
-                <div className="text-center mb-3">
-                  <img
-                    src={franchiseRoleProfileImageSrc(editing.profile_url)}
-                    alt=""
-                    width={120}
-                    height={120}
-                    style={{
-                      objectFit: "cover",
-                      borderRadius: "50%",
-                      border: "1px solid var(--lb1-border)",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                    }}
-                  />
-                  <h4
-                    className="mt-3 mb-0 fw-semibold"
-                    style={{ color: "var(--navi-color)", fontFamily: "Inter, sans-serif" }}
-                  >
-                    {editing.roleName}
-                  </h4>
-                 
-                </div>
-                <div className="row pt-3 border-top" style={{ borderColor: "var(--lb1-border)" }}>
-                  <div className="col-md-12 custom-helper-column">
+                ? "Edit Franchise Admin"
+                : "Edit Franchise Employee"
+              : form.roleType === "franchise_admin"
+              ? "Add Franchise Admin"
+              : "Add Franchise Employee"}
+          </Modal.Title>
+          <CustomCloseButton onClose={() => setShowForm(false)} />
+        </Modal.Header>
+        <Modal.Body
+          className="px-4 pb-4 pt-0"
+          style={{ maxHeight: "70vh", overflowY: "auto" }}
+        >
+          {isViewMode && editing ? (
+            <section
+              className="custom-other-details"
+              style={{ padding: "10px" }}
+            >
+              <div className="d-flex justify-content-end mb-2">
+                <i
+                  className="bi bi-pencil-fill fs-6 text-danger"
+                  style={{ cursor: "pointer" }}
+                  title="Edit"
+                  aria-label="Edit"
+                  onClick={() => setIsViewMode(false)}
+                />
+              </div>
+              <div className="text-center mb-3">
+                <img
+                  src={franchiseRoleProfileImageSrc(editing.profile_url)}
+                  alt=""
+                  width={120}
+                  height={120}
+                  style={{
+                    objectFit: "cover",
+                    borderRadius: "50%",
+                    border: "1px solid var(--lb1-border)",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                  }}
+                />
+                <h4
+                  className="mt-3 mb-0 fw-semibold"
+                  style={{
+                    color: "var(--navi-color)",
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  {editing.roleName}
+                </h4>
+              </div>
+              <div
+                className="row pt-3 border-top"
+                style={{ borderColor: "var(--lb1-border)" }}
+              >
+                <div className="col-md-12 custom-helper-column">
                   <DetailsRow title="Email" value={editing.email || "-"} />
-                    <DetailsRow title="Phone" value={editing.phone_number || "-"} />
-                    
-                    <DetailsRow title="Assigned Franchise" value={editing.assignedFranchise || "-"} />
-                    <DetailsRow title="Status" value={editing.status === "active" ? "Active" : "Inactive"} />
-                    {editing.roleType !== "franchise_admin" ? (
-                      <FullDetailsRow
-                        title="Screen Permissions"
-                        value={
-                          editing.screenPermissions?.length
-                            ? (
-                              <ul className="mb-0 ps-3">
-                                {editing.screenPermissions.map((permissionKey) => (
-                                  <li key={permissionKey}>
-                                    {labelForFranchiseEmployeeScreenKey(permissionKey)}
-                                  </li>
-                                ))}
-                              </ul>
-                            )
-                            : "-"
-                        }
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <div className="row g-2">
-                <div className="col-md-12">
-                  <CustomFormInput
-                    label="Name"
-                    controlId="role_name"
-                    placeholder="Enter Name"
-                    register={register}
-                    asCol={false}
-                    value={form.roleName}
-                    onChange={(value: string) => setForm((p) => ({ ...p, roleName: value }))}
+                  <DetailsRow
+                    title="Phone"
+                    value={editing.phone_number || "-"}
                   />
-                </div>
-                <div className="col-md-12">
-                  <CustomFormInput
-                    label="Email"
-                    controlId="role_email"
-                    placeholder="name@example.com"
-                    register={register}
-                    inputType="email"
-                    asCol={false}
-                    value={form.email}
-                    onChange={(value: string) => setForm((p) => ({ ...p, email: value }))}
+
+                  <DetailsRow
+                    title="Assigned Franchise"
+                    value={editing.assignedFranchise || "-"}
                   />
-                </div>
-                <div className="col-md-12">
-                  <CustomFormInput
-                    label="Phone number"
-                    controlId="role_phone"
-                    placeholder="10-digit mobile number"
-                    register={register}
-                    inputType="tel"
-                    asCol={false}
-                    maxLength={10}
-                    value={form.phone_number}
-                    onChange={(value: string) =>
-                      setForm((p) => ({
-                        ...p,
-                        phone_number: value.replace(/\D/g, "").slice(0, 10),
-                      }))
-                    }
+                  <DetailsRow
+                    title="Status"
+                    value={editing.status === "active" ? "Active" : "Inactive"}
                   />
+                  {editing.roleType !== "franchise_admin" ? (
+                    <FullDetailsRow
+                      title="Screen Permissions"
+                      value={
+                        editing.screenPermissions?.length ? (
+                          <ul className="mb-0 ps-3">
+                            {editing.screenPermissions.map((permissionKey) => (
+                              <li key={permissionKey}>
+                                {labelForFranchiseEmployeeScreenKey(
+                                  permissionKey
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "-"
+                        )
+                      }
+                    />
+                  ) : null}
                 </div>
-                <div className="col-md-12">
-                  <CustomImageUploader
-                    label="Profile photo"
-                    maxFiles={1}
-                    isEditable={Boolean(editing)}
-                    {...(form.profile_url ? { existingImages: [form.profile_url] } : {})}
-                    onFileChange={(files) => {
-                      setRoleImageFile(files[0] ?? null);
-                      setForm((p) => ({
-                        ...p,
-                        profile_url: files[0] ? `uploads/${files[0].name}` : p.profile_url,
-                      }));
-                    }}
-                  />
-                </div>
-            <div className="col-md-12">
-              <CustomFormSelect
-                label="Assigned Franchise"
-                controlId="assigned_franchise"
-                options={assignedFranchiseOptions}
-                register={register}
-                fieldName="assigned_franchise"
-                asCol={false}
-                defaultValue={form.assignedFranchise}
-                setValue={setValue}
-                onChange={(e) => setForm((p) => ({ ...p, assignedFranchise: e.target.value }))}
-                menuPortal
-              />
-            </div>
-            <div className="col-md-12">
-              <Form.Group style={{ marginTop: "10px" }}>
-                <Form.Label className="fw-medium mb-1">Status</Form.Label>
-                <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
-                  <Form.Check
-                    type="radio"
-                    id="role_status_active"
-                    label={<span className="custom-radio-text">Active</span>}
-                    value="active"
-                    checked={form.status === "active"}
-                    onChange={() => setForm((p) => ({ ...p, status: "active" }))}
-                    className="custom-radio-check"
-                  />
-                  <Form.Check
-                    type="radio"
-                    id="role_status_inactive"
-                    label={<span className="custom-radio-text">Inactive</span>}
-                    value="inactive"
-                    checked={form.status === "inactive"}
-                    onChange={() => setForm((p) => ({ ...p, status: "inactive" }))}
-                    className="custom-radio-check"
-                  />
-                </div>
-              </Form.Group>
-            </div>
-            {form.roleType === "employee" && (
+              </div>
+            </section>
+          ) : (
+            <div className="row g-2">
               <div className="col-md-12">
-                <div className="staff-permission-section">
-                  <div className="staff-permission-section__head fw-medium mb-1">Screen Permissions</div>
-                  <div className="staff-permission-section__body">
-                    <div
-                      className="d-grid"
-                      style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, 1fr)" }}
-                    >
-                      {employeeScreenPermissionMenuItems.map(({ key, label }) => (
-                        <Form.Check
-                          key={key}
-                          type="checkbox"
-                          id={`role_screen_perm_${key}`}
-                          className="custom-checkbox-check"
-                          label={<span className="custom-radio-text">{label}</span>}
-                          checked={form.screenPermissions.includes(key)}
-                          onChange={() => toggleScreenPermission(key)}
-                        />
-                      ))}
+                <CustomFormInput
+                  label="Name"
+                  controlId="role_name"
+                  placeholder="Enter Name"
+                  register={register}
+                  asCol={false}
+                  value={form.roleName}
+                  onChange={(value: string) =>
+                    setForm((p) => ({ ...p, roleName: value }))
+                  }
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomFormInput
+                  label="Email"
+                  controlId="role_email"
+                  placeholder="name@example.com"
+                  register={register}
+                  inputType="email"
+                  asCol={false}
+                  value={form.email}
+                  onChange={(value: string) =>
+                    setForm((p) => ({ ...p, email: value }))
+                  }
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomFormInput
+                  label="Phone number"
+                  controlId="role_phone"
+                  placeholder="10-digit mobile number"
+                  register={register}
+                  inputType="tel"
+                  asCol={false}
+                  maxLength={10}
+                  value={form.phone_number}
+                  onChange={(value: string) =>
+                    setForm((p) => ({
+                      ...p,
+                      phone_number: value.replace(/\D/g, "").slice(0, 10),
+                    }))
+                  }
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomImageUploader
+                  label="Profile photo"
+                  maxFiles={1}
+                  isEditable={Boolean(editing)}
+                  {...(form.profile_url
+                    ? { existingImages: [form.profile_url] }
+                    : {})}
+                  onFileChange={(files) => {
+                    setRoleImageFile(files[0] ?? null);
+                    setForm((p) => ({
+                      ...p,
+                      profile_url: files[0]
+                        ? `uploads/${files[0].name}`
+                        : p.profile_url,
+                    }));
+                  }}
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomFormSelect
+                  label="Assigned Franchise"
+                  controlId="assigned_franchise"
+                  options={assignedFranchiseOptions}
+                  register={register}
+                  fieldName="assigned_franchise"
+                  asCol={false}
+                  defaultValue={form.assignedFranchise}
+                  setValue={setValue}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      assignedFranchise: e.target.value,
+                    }))
+                  }
+                  menuPortal
+                />
+              </div>
+              <div className="col-md-12">
+                <Form.Group style={{ marginTop: "10px" }}>
+                  <Form.Label className="fw-medium mb-1">Status</Form.Label>
+                  <div
+                    className="d-flex"
+                    style={{ flexDirection: "row", gap: "8px" }}
+                  >
+                    <Form.Check
+                      type="radio"
+                      id="role_status_active"
+                      label={<span className="custom-radio-text">Active</span>}
+                      value="active"
+                      checked={form.status === "active"}
+                      onChange={() =>
+                        setForm((p) => ({ ...p, status: "active" }))
+                      }
+                      className="custom-radio-check"
+                    />
+                    <Form.Check
+                      type="radio"
+                      id="role_status_inactive"
+                      label={
+                        <span className="custom-radio-text">Inactive</span>
+                      }
+                      value="inactive"
+                      checked={form.status === "inactive"}
+                      onChange={() =>
+                        setForm((p) => ({ ...p, status: "inactive" }))
+                      }
+                      className="custom-radio-check"
+                    />
+                  </div>
+                </Form.Group>
+              </div>
+              {form.roleType === "employee" && (
+                <div className="col-md-12">
+                  <div className="staff-permission-section">
+                    <div className="staff-permission-section__head fw-medium mb-1">
+                      Screen Permissions
+                    </div>
+                    <div className="staff-permission-section__body">
+                      <div
+                        className="d-grid"
+                        style={{
+                          gap: "10px 20px",
+                          gridTemplateColumns: "repeat(2, 1fr)",
+                        }}
+                      >
+                        {employeeScreenPermissionMenuItems.map(
+                          ({ key, label }) => (
+                            <Form.Check
+                              key={key}
+                              type="checkbox"
+                              id={`role_screen_perm_${key}`}
+                              className="custom-checkbox-check"
+                              label={
+                                <span className="custom-radio-text">
+                                  {label}
+                                </span>
+                              }
+                              checked={form.screenPermissions.includes(key)}
+                              onChange={() => toggleScreenPermission(key)}
+                            />
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-              </div>
-            )}
-          </Modal.Body>
-          {!isViewMode && (
-            <Modal.Footer>
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button
-                className="btn-danger"
-                disabled={roleSavePending}
-                onClick={async () => {
-                  if (!form.roleName.trim()) {
-                    showErrorAlert("Please enter name.");
-                    return;
-                  }
-                  if (!form.email.trim() || !isValidEmail(form.email)) {
-                    showErrorAlert("Please enter a valid email address.");
-                    return;
-                  }
-                  if (!isValidPhone10(form.phone_number)) {
-                    showErrorAlert("Please enter a valid 10-digit phone number.");
-                    return;
-                  }
-                  const rolePayload = {
-                    roleId: editing?.roleId || `ROLE-${String(items.length + 1).padStart(3, "0")}`,
-                    roleName: form.roleName.trim(),
-                    email: form.email.trim(),
-                    phone_number: form.phone_number.trim(),
-                    profile_url: form.profile_url.trim() || undefined,
-                    roleType: form.roleType,
-                    assignedFranchise: form.assignedFranchise || undefined,
-                    franchise_id:
-                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.value) ||
-                      editing?.franchise_id ||
-                      undefined,
-                    state_id:
-                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.state_id) ||
-                      editing?.state_id ||
-                      undefined,
-                    city_id:
-                      (form.assignedFranchise && franchiseMetaByName.get(form.assignedFranchise)?.city_id) ||
-                      editing?.city_id ||
-                      undefined,
-                    status: form.status,
-                    screenPermissions:
-                      form.roleType === "employee"
-                        ? form.screenPermissions.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
-                        : form.screenPermissions,
-                  };
-                  if (editing?.id) {
-                    setRoleSavePending(true);
-                    try {
-                      const ok = await updateRoleUserWithApi(editing.id, rolePayload, roleImageFile ?? undefined);
-                      if (ok) {
-                        setRoleImageFile(null);
-                        setShowForm(false);
-                        setReloadToken((v) => v + 1);
-                      }
-                    } finally {
-                      setRoleSavePending(false);
-                    }
-                    return;
-                  }
+              )}
+            </div>
+          )}
+        </Modal.Body>
+        {!isViewMode && (
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="btn-danger"
+              disabled={roleSavePending}
+              onClick={async () => {
+                if (!form.roleName.trim()) {
+                  showErrorAlert("Please enter name.");
+                  return;
+                }
+                if (!form.email.trim() || !isValidEmail(form.email)) {
+                  showErrorAlert("Please enter a valid email address.");
+                  return;
+                }
+                if (!isValidPhone10(form.phone_number)) {
+                  showErrorAlert("Please enter a valid 10-digit phone number.");
+                  return;
+                }
+                const rolePayload = {
+                  roleId:
+                    editing?.roleId ||
+                    `ROLE-${String(items.length + 1).padStart(3, "0")}`,
+                  roleName: form.roleName.trim(),
+                  email: form.email.trim(),
+                  phone_number: form.phone_number.trim(),
+                  profile_url: form.profile_url.trim() || undefined,
+                  roleType: form.roleType,
+                  assignedFranchise: form.assignedFranchise || undefined,
+                  franchise_id:
+                    (form.assignedFranchise &&
+                      franchiseMetaByName.get(form.assignedFranchise)?.value) ||
+                    editing?.franchise_id ||
+                    undefined,
+                  state_id:
+                    (form.assignedFranchise &&
+                      franchiseMetaByName.get(form.assignedFranchise)
+                        ?.state_id) ||
+                    editing?.state_id ||
+                    undefined,
+                  city_id:
+                    (form.assignedFranchise &&
+                      franchiseMetaByName.get(form.assignedFranchise)
+                        ?.city_id) ||
+                    editing?.city_id ||
+                    undefined,
+                  status: form.status,
+                  screenPermissions:
+                    form.roleType === "employee"
+                      ? form.screenPermissions.filter(
+                          (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+                        )
+                      : form.screenPermissions,
+                };
+                if (editing?.id) {
                   setRoleSavePending(true);
                   try {
-                    const ok = await createRoleUserWithApi(rolePayload, roleImageFile ?? undefined);
+                    const ok = await updateRoleUserWithApi(
+                      editing.id,
+                      rolePayload,
+                      roleImageFile ?? undefined
+                    );
                     if (ok) {
                       setRoleImageFile(null);
                       setShowForm(false);
-                      setRoleCurrentPage(1);
                       setReloadToken((v) => v + 1);
                     }
                   } finally {
                     setRoleSavePending(false);
                   }
-                }}
-              >
-                {roleSavePending ? "Saving…" : editing ? "Update" : "Save"}
-              </Button>
-            </Modal.Footer>
-          )}
+                  return;
+                }
+                setRoleSavePending(true);
+                try {
+                  const ok = await createRoleUserWithApi(
+                    rolePayload,
+                    roleImageFile ?? undefined
+                  );
+                  if (ok) {
+                    setRoleImageFile(null);
+                    setShowForm(false);
+                    setRoleCurrentPage(1);
+                    setReloadToken((v) => v + 1);
+                  }
+                } finally {
+                  setRoleSavePending(false);
+                }
+              }}
+            >
+              {roleSavePending ? "Saving…" : editing ? "Update" : "Save"}
+            </Button>
+          </Modal.Footer>
+        )}
       </Modal>
 
       <Modal
@@ -1286,7 +1353,10 @@ const RoleManagement = () => {
           </Modal.Title>
           <CustomCloseButton onClose={() => setShowStaffModal(false)} />
         </Modal.Header>
-        <Modal.Body className="px-4 pb-4 pt-3" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        <Modal.Body
+          className="px-4 pb-4 pt-3"
+          style={{ maxHeight: "70vh", overflowY: "auto" }}
+        >
           {staffIsViewMode && staffEditing ? (
             <section
               className="custom-other-details staff-settings-view-card"
@@ -1316,33 +1386,48 @@ const RoleManagement = () => {
                 />
                 <h4
                   className="mt-3 mb-0 fw-semibold"
-                  style={{ color: "var(--navi-color)", fontFamily: "Inter, sans-serif" }}
+                  style={{
+                    color: "var(--navi-color)",
+                    fontFamily: "Inter, sans-serif",
+                  }}
                 >
                   {staffEditing.name}
                 </h4>
-               
               </div>
-              <div className="row pt-3 border-top" style={{ borderColor: "var(--lb1-border)" }}>
+              <div
+                className="row pt-3 border-top"
+                style={{ borderColor: "var(--lb1-border)" }}
+              >
                 <div className="col-md-12 custom-helper-column">
-                <FullDetailsRow title="Email" value={staffEditing.email}/>
-                <FullDetailsRow title="Phone" value={staffEditing.phone_number}/>
+                  <FullDetailsRow title="Email" value={staffEditing.email} />
+                  <FullDetailsRow
+                    title="Phone"
+                    value={staffEditing.phone_number}
+                  />
                   <FullDetailsRow
                     title="Screen Permissions"
                     value={
-                      staffEditing.screenPermissions?.length
-                        ? (
-                          <ul className="mb-0 ps-3">
-                            {staffEditing.screenPermissions.map((permissionKey) => (
+                      staffEditing.screenPermissions?.length ? (
+                        <ul className="mb-0 ps-3">
+                          {staffEditing.screenPermissions.map(
+                            (permissionKey) => (
                               <li key={permissionKey}>
-                                {labelForFranchiseEmployeeScreenKey(permissionKey)}
+                                {labelForFranchiseEmployeeScreenKey(
+                                  permissionKey
+                                )}
                               </li>
-                            ))}
-                          </ul>
-                        )
-                        : "-"
+                            )
+                          )}
+                        </ul>
+                      ) : (
+                        "-"
+                      )
                     }
                   />
-                  <FullDetailsRow title="Franchise Permissions" value={staffFranchiseSummary(staffEditing)} />
+                  <FullDetailsRow
+                    title="Franchise Permissions"
+                    value={staffFranchiseSummary(staffEditing)}
+                  />
                 </div>
               </div>
             </section>
@@ -1356,7 +1441,9 @@ const RoleManagement = () => {
                   register={register}
                   asCol={false}
                   value={staffForm.name}
-                  onChange={(value: string) => setStaffForm((p) => ({ ...p, name: value }))}
+                  onChange={(value: string) =>
+                    setStaffForm((p) => ({ ...p, name: value }))
+                  }
                 />
               </div>
               <div className="col-md-12">
@@ -1368,7 +1455,9 @@ const RoleManagement = () => {
                   inputType="email"
                   asCol={false}
                   value={staffForm.email}
-                  onChange={(value: string) => setStaffForm((p) => ({ ...p, email: value }))}
+                  onChange={(value: string) =>
+                    setStaffForm((p) => ({ ...p, email: value }))
+                  }
                 />
               </div>
               <div className="col-md-12">
@@ -1394,37 +1483,49 @@ const RoleManagement = () => {
                   label="Profile photo"
                   maxFiles={1}
                   isEditable={Boolean(staffEditing)}
-                  {...(staffForm.profile_url ? { existingImages: [staffForm.profile_url] } : {})}
+                  {...(staffForm.profile_url
+                    ? { existingImages: [staffForm.profile_url] }
+                    : {})}
                   onFileChange={(files) => {
                     setStaffImageFile(files[0] ?? null);
                     setStaffForm((p) => ({
                       ...p,
-                      profile_url: files[0] ? `uploads/${files[0].name}` : p.profile_url,
+                      profile_url: files[0]
+                        ? `uploads/${files[0].name}`
+                        : p.profile_url,
                     }));
                   }}
                 />
               </div>
               <div className="col-md-12">
-
                 <Form.Group style={{ marginTop: "6px" }}>
                   <Form.Label className="fw-medium mb-1">Status</Form.Label>
-                  <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
+                  <div
+                    className="d-flex"
+                    style={{ flexDirection: "row", gap: "8px" }}
+                  >
                     <Form.Check
                       type="radio"
                       id="staff_status_active"
                       label={<span className="custom-radio-text">Active</span>}
                       value="active"
                       checked={staffForm.status === "active"}
-                      onChange={() => setStaffForm((p) => ({ ...p, status: "active" }))}
+                      onChange={() =>
+                        setStaffForm((p) => ({ ...p, status: "active" }))
+                      }
                       className="custom-radio-check"
                     />
                     <Form.Check
                       type="radio"
                       id="staff_status_inactive"
-                      label={<span className="custom-radio-text">Inactive</span>}
+                      label={
+                        <span className="custom-radio-text">Inactive</span>
+                      }
                       value="inactive"
                       checked={staffForm.status === "inactive"}
-                      onChange={() => setStaffForm((p) => ({ ...p, status: "inactive" }))}
+                      onChange={() =>
+                        setStaffForm((p) => ({ ...p, status: "inactive" }))
+                      }
                       className="custom-radio-check"
                     />
                   </div>
@@ -1432,16 +1533,26 @@ const RoleManagement = () => {
               </div>
               <div className="col-md-12">
                 <div className="staff-permission-section">
-                  <div className="staff-permission-section__head">Screen Permissions</div>
+                  <div className="staff-permission-section__head">
+                    Screen Permissions
+                  </div>
                   <div className="staff-permission-section__body">
-                    <div className="d-grid" style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, 1fr)" }}>
+                    <div
+                      className="d-grid"
+                      style={{
+                        gap: "10px 20px",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                      }}
+                    >
                       {staffScreenPermissionMenuItems.map(({ key, label }) => (
                         <Form.Check
                           key={key}
                           type="checkbox"
                           id={`staff_screen_perm_${key}`}
                           className="custom-checkbox-check"
-                          label={<span className="custom-radio-text">{label}</span>}
+                          label={
+                            <span className="custom-radio-text">{label}</span>
+                          }
                           checked={staffForm.screenPermissions.includes(key)}
                           onChange={() => toggleStaffScreenPermission(key)}
                         />
@@ -1450,13 +1561,15 @@ const RoleManagement = () => {
                   </div>
                 </div>
               </div>
-              
             </div>
           )}
         </Modal.Body>
         {!staffIsViewMode && (
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowStaffModal(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowStaffModal(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -1475,8 +1588,13 @@ const RoleManagement = () => {
                   showErrorAlert("Please enter a valid 10-digit phone number.");
                   return;
                 }
-                if (!staffForm.allFranchises && staffForm.franchisePermissions.length === 0) {
-                  showErrorAlert("Select at least one franchise, or choose All franchises.");
+                if (
+                  !staffForm.allFranchises &&
+                  staffForm.franchisePermissions.length === 0
+                ) {
+                  showErrorAlert(
+                    "Select at least one franchise, or choose All franchises."
+                  );
                   return;
                 }
                 const staffPayload = {
@@ -1488,14 +1606,22 @@ const RoleManagement = () => {
                   phone_number: staffForm.phone_number.trim(),
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
-                  screenPermissions: staffForm.screenPermissions.filter((k) => k !== "my-franchise"),
+                  screenPermissions: staffForm.screenPermissions.filter(
+                    (k) => k !== "my-franchise"
+                  ),
                   allFranchises: staffForm.allFranchises,
-                  franchisePermissions: staffForm.allFranchises ? [] : [...staffForm.franchisePermissions],
+                  franchisePermissions: staffForm.allFranchises
+                    ? []
+                    : [...staffForm.franchisePermissions],
                 };
                 if (staffEditing?.id) {
                   setStaffSavePending(true);
                   try {
-                    const ok = await updateStaffUserWithApi(staffEditing.id, staffPayload, staffImageFile ?? undefined);
+                    const ok = await updateStaffUserWithApi(
+                      staffEditing.id,
+                      staffPayload,
+                      staffImageFile ?? undefined
+                    );
                     if (ok) {
                       setStaffImageFile(null);
                       setShowStaffModal(false);
@@ -1508,7 +1634,10 @@ const RoleManagement = () => {
                 }
                 setStaffSavePending(true);
                 try {
-                  const ok = await createStaffUserWithApi(staffPayload, staffImageFile ?? undefined);
+                  const ok = await createStaffUserWithApi(
+                    staffPayload,
+                    staffImageFile ?? undefined
+                  );
                   if (ok) {
                     setStaffImageFile(null);
                     setShowStaffModal(false);

@@ -3,7 +3,12 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
 
-export const getCount = async (type: number): Promise<{ countModel: CountModel | null | null; responseCount: boolean }> => {
+export const getCount = async (
+  type: number
+): Promise<{
+  countModel: CountModel | null | null;
+  responseCount: boolean;
+}> => {
   try {
     const payload = {
       type: type,

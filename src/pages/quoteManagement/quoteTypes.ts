@@ -67,4 +67,3 @@ export type QuoteRow = {
   partner_phone?: string;
   partner_city?: string;
 };
-

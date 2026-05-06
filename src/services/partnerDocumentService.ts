@@ -6,7 +6,11 @@ export const updatePartnerDocument = async (
   payload: any,
   id: string
 ): Promise<{ fileList: String[]; response: boolean }> => {
-  const response = await apiRequest(ApiPaths.UPDATE_PARTNER_DOCUMENT(id), "PUT", payload);
+  const response = await apiRequest(
+    ApiPaths.UPDATE_PARTNER_DOCUMENT(id),
+    "PUT",
+    payload
+  );
   if (response.success) {
     return {
       fileList: response.data.records,
@@ -22,7 +26,10 @@ export const updatePartnerDocument = async (
 };
 
 export const deletePartnerDocument = async (id: string): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.DELETE_PARTNER_DOCUMENT(id), "DELETE");
+  const response = await apiRequest(
+    ApiPaths.DELETE_PARTNER_DOCUMENT(id),
+    "DELETE"
+  );
   if (response.success) {
     return true;
   } else {
@@ -31,9 +38,15 @@ export const deletePartnerDocument = async (id: string): Promise<boolean> => {
   }
 };
 
-export const updateStatusDocument = async (payload: any,
-  id: string): Promise<boolean> => {
-  const response = await apiRequest(ApiPaths.UPDATE_STATUS_PARTNER_DOCUMENT(id), "PUT" , payload);
+export const updateStatusDocument = async (
+  payload: any,
+  id: string
+): Promise<boolean> => {
+  const response = await apiRequest(
+    ApiPaths.UPDATE_STATUS_PARTNER_DOCUMENT(id),
+    "PUT",
+    payload
+  );
   if (response.success) {
     return true;
   } else {

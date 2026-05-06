@@ -7,9 +7,7 @@ type CustomSummaryBoxProps = {
   data: Record<string, number>;
   onSelect: (divId: string) => void;
   isSelected: boolean;
-  onFilterChange: (filters: {
-    status?: string;
-  }) => void;
+  onFilterChange: (filters: { status?: string }) => void;
   isAddShow?: boolean;
   addButtonLable?: string;
   onAddClick?: () => void;
@@ -33,7 +31,9 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
 }) => {
   return (
     <div
-      className={`box ${isSelected ? "selected-box" : ""} ${className ?? ""}`.trim()}
+      className={`box ${isSelected ? "selected-box" : ""} ${
+        className ?? ""
+      }`.trim()}
       id={divId}
       style={{ cursor: "pointer" }}
       onClick={() => onSelect(divId)}
@@ -105,8 +105,8 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
             {key === "requested_category"
               ? "Requested Categories"
               : key === "requested_service"
-                ? "Requested Services"
-                : key}
+              ? "Requested Services"
+              : key}
           </div>
           <div className="box-column box-right-column">{value}</div>
         </div>

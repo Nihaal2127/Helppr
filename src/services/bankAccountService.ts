@@ -6,7 +6,9 @@ export const createOrUpdateBankAccount = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_BANK_ACCOUNT(id!) : ApiPaths.CREATE_BANK_ACCOUNT;
+  const path = isEditable
+    ? ApiPaths.UPDATE_BANK_ACCOUNT(id!)
+    : ApiPaths.CREATE_BANK_ACCOUNT;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

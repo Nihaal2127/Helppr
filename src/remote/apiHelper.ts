@@ -1,6 +1,6 @@
 import { showSuccessAlert, showErrorAlert } from "../helper/alertHelper";
 import { showLoader, hideLoader } from "../components/CustomLoader";
-import { ROUTES } from '../routes/Routes';
+import { ROUTES } from "../routes/Routes";
 import { AppConstant } from "../constant/AppConstant";
 import { clearLocalStorage } from "../helper/localStorageHelper";
 import { isMockAuthSession } from "../helper/authSessionHelper";
@@ -93,7 +93,11 @@ export const apiRequest = async (
       ) {
         showErrorAlert(data.message || "Request failed");
       }
-      return { success: false, status: response.status, message: data.message || "Request failed" };
+      return {
+        success: false,
+        status: response.status,
+        message: data.message || "Request failed",
+      };
     }
   } catch (error: any) {
     if (!skipLoader) hideLoader();
@@ -112,17 +116,14 @@ export const apiRequest = async (
   }
 };
 
-export const apiRequestBlob = async (
-  endpoint: string,
-  payload?: any,
-) => {
+export const apiRequestBlob = async (endpoint: string, payload?: any) => {
   try {
     showLoader();
 
     const headers: HeadersInit = {
       Authorization: `Bearer ${localStorage.getItem("authToken")}`,
       "Content-Type": "application/json",
-      "Accept-Encoding": "identity"
+      "Accept-Encoding": "identity",
     };
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
@@ -131,23 +132,26 @@ export const apiRequestBlob = async (
     showLog("API payload :", payload);
 
     const response = await fetch(requestUrl, {
-      method: 'POST',
+      method: "POST",
       headers,
       ...(payload !== undefined && { body: JSON.stringify(payload) }),
     });
 
     hideLoader();
     if (response.ok) {
-
-      const contentDisposition = response.headers.get('Content-Disposition');
+      const contentDisposition = response.headers.get("Content-Disposition");
       const filename = contentDisposition
-        ? contentDisposition.split('filename=')[1]?.replace(/['"]/g, '')
-        : 'report.xlsx';
+        ? contentDisposition.split("filename=")[1]?.replace(/['"]/g, "")
+        : "report.xlsx";
 
       const contentType = response.headers.get("Content-Type") || "";
-      showLog('contentType', contentType);
+      showLog("contentType", contentType);
 
-      if (contentType.includes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
+      if (
+        contentType.includes(
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+      ) {
         const base64Data = await response.text();
         const binaryData = atob(base64Data);
 
@@ -159,7 +163,7 @@ export const apiRequestBlob = async (
         const blob = new Blob([byteArray], { type: contentType });
 
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);

@@ -15,21 +15,31 @@ export type ExpensesFilters = {
   sortOrder?: "asc" | "desc";
 };
 
-const parseExpensesResponse = (payload: any): { records: ExpenseModel[]; totalPages: number; totalItems?: number } => {
+const parseExpensesResponse = (
+  payload: any
+): { records: ExpenseModel[]; totalPages: number; totalItems?: number } => {
   const d = payload ?? {};
-  const inner = d.data != null && typeof d.data === "object" && !Array.isArray(d.data) ? d.data : {};
+  const inner =
+    d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+      ? d.data
+      : {};
   const records = inner.records ?? d.records ?? [];
   const totalPagesVal = inner.totalPages ?? d.totalPages ?? 0;
   const totalItemsRaw = inner.totalItems ?? d.totalItems;
   const totalItems =
-    totalItemsRaw === undefined || totalItemsRaw === null || totalItemsRaw === ""
+    totalItemsRaw === undefined ||
+    totalItemsRaw === null ||
+    totalItemsRaw === ""
       ? undefined
       : Number(totalItemsRaw);
 
   return {
     records: Array.isArray(records) ? records : [],
     totalPages: Number(totalPagesVal) || 0,
-    totalItems: totalItems !== undefined && !Number.isNaN(totalItems) ? totalItems : undefined,
+    totalItems:
+      totalItems !== undefined && !Number.isNaN(totalItems)
+        ? totalItems
+        : undefined,
   };
 };
 
@@ -39,7 +49,12 @@ export const fetchExpenses = async (
   filters: ExpensesFilters,
   requestOpts?: { skipLoader?: boolean },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean; expenses: ExpenseModel[]; totalPages: number; totalItems?: number }> => {
+): Promise<{
+  response: boolean;
+  expenses: ExpenseModel[];
+  totalPages: number;
+  totalItems?: number;
+}> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
@@ -57,20 +72,26 @@ export const fetchExpenses = async (
             primarySort.id === "category"
               ? "category_name"
               : primarySort.id === "subCategory"
-                ? "sub_category_name"
-                : primarySort.id === "expenseName"
-                  ? "expense_name"
-                  : primarySort.id === "expenseAmount"
-                    ? "expense_amount"
-                    : primarySort.id === "expenseDate"
-                      ? "expense_date"
-                      : primarySort.id === "franchiseName"
-                        ? "franchise_name"
-                        : primarySort.id,
+              ? "sub_category_name"
+              : primarySort.id === "expenseName"
+              ? "expense_name"
+              : primarySort.id === "expenseAmount"
+              ? "expense_amount"
+              : primarySort.id === "expenseDate"
+              ? "expense_date"
+              : primarySort.id === "franchiseName"
+              ? "franchise_name"
+              : primarySort.id,
         }
       : {}),
     ...(primarySort || filters.sortOrder
-      ? { sort_order: primarySort ? (primarySort.desc ? "desc" : "asc") : filters.sortOrder }
+      ? {
+          sort_order: primarySort
+            ? primarySort.desc
+              ? "desc"
+              : "asc"
+            : filters.sortOrder,
+        }
       : {}),
   });
 
@@ -83,7 +104,9 @@ export const fetchExpenses = async (
   );
 
   if (response?.success) {
-    const { records, totalPages, totalItems } = parseExpensesResponse(response.data);
+    const { records, totalPages, totalItems } = parseExpensesResponse(
+      response.data
+    );
     return { response: true, expenses: records, totalPages, totalItems };
   }
 
@@ -96,7 +119,13 @@ export const fetchAllExpensesMatching = async (
   batchSize = 250,
   opts?: { skipLoader?: boolean; sortBy?: ServerTableSortBy }
 ): Promise<ExpenseModel[] | null> => {
-  const first = await fetchExpenses(1, batchSize, filters, { skipLoader: opts?.skipLoader ?? true }, opts?.sortBy ?? []);
+  const first = await fetchExpenses(
+    1,
+    batchSize,
+    filters,
+    { skipLoader: opts?.skipLoader ?? true },
+    opts?.sortBy ?? []
+  );
   if (!first.response) return null;
 
   let all = [...first.expenses];
@@ -104,7 +133,13 @@ export const fetchAllExpensesMatching = async (
 
   for (let p = 2; p <= totalPages; p++) {
     // eslint-disable-next-line no-await-in-loop
-    const next = await fetchExpenses(p, batchSize, filters, { skipLoader: opts?.skipLoader ?? true }, opts?.sortBy ?? []);
+    const next = await fetchExpenses(
+      p,
+      batchSize,
+      filters,
+      { skipLoader: opts?.skipLoader ?? true },
+      opts?.sortBy ?? []
+    );
     if (!next.response) break;
     all = all.concat(next.expenses);
   }
@@ -117,7 +152,9 @@ export const createOrUpdateExpense = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_EXPENSE(id!) : ApiPaths.CREATE_EXPENSE;
+  const path = isEditable
+    ? ApiPaths.UPDATE_EXPENSE(id!)
+    : ApiPaths.CREATE_EXPENSE;
   const method = isEditable ? "PUT" : "POST";
   const response = await apiRequest(path, method, payload);
   return Boolean(response?.success);
@@ -128,7 +165,9 @@ export const fetchExpenseById = async (
   requestOpts?: { skipLoader?: boolean; franchiseId?: string }
 ): Promise<{ response: boolean; expense?: ExpenseModel }> => {
   const franchiseId = requestOpts?.franchiseId?.trim();
-  const query = franchiseId ? `?${new URLSearchParams({ franchise_id: franchiseId }).toString()}` : "";
+  const query = franchiseId
+    ? `?${new URLSearchParams({ franchise_id: franchiseId }).toString()}`
+    : "";
   const response = await apiRequest(
     `${ApiPaths.GET_EXPENSE_BY_ID(id)}${query}`,
     "GET",
@@ -144,10 +183,17 @@ export const fetchExpenseById = async (
   return { response: true, expense };
 };
 
-export const deleteExpenseById = async (id: string, franchiseId?: string): Promise<boolean> => {
+export const deleteExpenseById = async (
+  id: string,
+  franchiseId?: string
+): Promise<boolean> => {
   const fid = franchiseId?.trim();
-  const query = fid ? `?${new URLSearchParams({ franchise_id: fid }).toString()}` : "";
-  const response = await apiRequest(`${ApiPaths.DELETE_EXPENSE(id)}${query}`, "DELETE");
+  const query = fid
+    ? `?${new URLSearchParams({ franchise_id: fid }).toString()}`
+    : "";
+  const response = await apiRequest(
+    `${ApiPaths.DELETE_EXPENSE(id)}${query}`,
+    "DELETE"
+  );
   return Boolean(response?.success);
 };
-

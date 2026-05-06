@@ -1,6 +1,8 @@
 import type { StaffSettingsModel } from "../models/SettingsModel";
 
-export const staffMockSeed: Array<Omit<StaffSettingsModel, "id" | "createdDate">> = [
+export const staffMockSeed: Array<
+  Omit<StaffSettingsModel, "id" | "createdDate">
+> = [
   {
     staffId: "STAFF-001",
     name: "Operations Lead",

@@ -62,7 +62,9 @@ const GeneralSettings = () => {
                   <span className="fw-medium">No of Quotes</span>
                 </Col>
                 <Col xs={5} className="text-end">
-                  <span className="text-muted">{settingsData.no_of_quotes}</span>
+                  <span className="text-muted">
+                    {settingsData.no_of_quotes}
+                  </span>
                 </Col>
               </Row>
 
@@ -77,7 +79,10 @@ const GeneralSettings = () => {
             </div>
 
             <div className="text-end">
-              <Button className="custom-btn-primary" onClick={handleUpdateClick}>
+              <Button
+                className="custom-btn-primary"
+                onClick={handleUpdateClick}
+              >
                 Update
               </Button>
             </div>

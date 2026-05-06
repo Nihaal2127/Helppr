@@ -64,7 +64,12 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
   };
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           Edit partner details
@@ -73,7 +78,11 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
         <p className="text-muted small mb-3">Quote ID: {quoteId}</p>
-        <form noValidate name="quote-edit-partner-details-form" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          noValidate
+          name="quote-edit-partner-details-form"
+          onSubmit={handleSubmit(onSubmit)}
+        >
           <CustomTextField
             label="Partner name"
             controlId="partner_name"
@@ -98,7 +107,9 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
             error={errors.partner_phone}
             validation={{
               validate: (v: string) =>
-                !v?.trim() || /^[\d\s\-+()]+$/.test(v.trim()) || "Enter a valid phone number",
+                !v?.trim() ||
+                /^[\d\s\-+()]+$/.test(v.trim()) ||
+                "Enter a valid phone number",
             }}
           />
           <CustomTextField
@@ -109,11 +120,18 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
             error={errors.partner_city}
           />
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
-              </Button> 
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

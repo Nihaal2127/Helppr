@@ -3,12 +3,14 @@ import { FinancialModel } from "../models/FinancialModel";
 const CheckboxColumn = (
   data: FinancialModel[],
   selectedOrders: string[],
-  setSelectedOrderIds: React.Dispatch<React.SetStateAction<string[]>>,
+  setSelectedOrderIds: React.Dispatch<React.SetStateAction<string[]>>
 ) => {
   const selectAll = selectedOrders.length === data.length && data.length > 0;
 
   const handleSelectAll = () => {
-    const ids = selectAll ? [] : Array.from(new Set(data.map((item) => item._id)));
+    const ids = selectAll
+      ? []
+      : Array.from(new Set(data.map((item) => item._id)));
     setSelectedOrderIds(ids);
   };
 
@@ -26,7 +28,6 @@ const CheckboxColumn = (
 
   return {
     Header: () => (
-
       <input
         type="checkbox"
         checked={selectAll}

@@ -21,11 +21,10 @@ const CustomFormSwitch: React.FC<CustomFormSwitchProps> = ({
   asCol = true,
   fieldName,
   checked,
-  onChange
+  onChange,
 }) => {
   return (
     <>
-
       <style>{`
         .custom-switch-color .form-check-input:checked {
           background-color: var(--primary-color)!important;

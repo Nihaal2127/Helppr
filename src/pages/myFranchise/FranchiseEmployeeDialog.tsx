@@ -7,10 +7,16 @@ import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
-import { getFranchiseEmployeeScreenMenuItems, isFranchiseEmployeeExcludedScreenKey } from "../../layout/franchiseEmployeeScreenPermissions";
+import {
+  getFranchiseEmployeeScreenMenuItems,
+  isFranchiseEmployeeExcludedScreenKey,
+} from "../../layout/franchiseEmployeeScreenPermissions";
 import { menuKeysFromAvailablePages } from "../../services/userService";
 import type { EmployeeRow } from "../../services/myFranchiseService";
-import { createFranchiseEmployee, updateFranchiseEmployee } from "../../services/myFranchiseService";
+import {
+  createFranchiseEmployee,
+  updateFranchiseEmployee,
+} from "../../services/myFranchiseService";
 
 type EmployeeFormValues = {
   name: string;
@@ -43,7 +49,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
 
   const [isEditing, setIsEditing] = useState(isAdd);
 
-  const franchiseScreenMenuItems = useMemo(() => getFranchiseEmployeeScreenMenuItems(), []);
+  const franchiseScreenMenuItems = useMemo(
+    () => getFranchiseEmployeeScreenMenuItems(),
+    []
+  );
 
   const {
     register,
@@ -88,7 +97,9 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         phone: employee.phone,
         email: employee.email,
         is_active: String(employee.is_active),
-        chat_enabled: Boolean(employee.is_active && (employee.chat_enabled ?? true)),
+        chat_enabled: Boolean(
+          employee.is_active && (employee.chat_enabled ?? true)
+        ),
       });
       const fromKeys = employee.screenPermissionKeys?.length
         ? employee.screenPermissionKeys
@@ -101,13 +112,15 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const modalTitle = isAdd
     ? "Add Employee"
     : isEditing
-      ? "Edit Employee"
-      : "Employee Information";
+    ? "Edit Employee"
+    : "Employee Information";
 
   const parseSubmitPayload = (data: EmployeeFormValues) => {
     const is_active = String(data.is_active ?? "") === "true";
     const chat_enabled = is_active ? Boolean(data.chat_enabled) : false;
-    const keys = screenPermissionKeys.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
+    const keys = screenPermissionKeys.filter(
+      (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+    );
     return {
       name: data.name.trim(),
       phone: data.phone.trim(),
@@ -172,7 +185,9 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
 
   const renderViewBody = () => {
     if (!employee) return null;
-    const chatOn = Boolean(employee.is_active && (employee.chat_enabled ?? true));
+    const chatOn = Boolean(
+      employee.is_active && (employee.chat_enabled ?? true)
+    );
     return (
       <section className="custom-other-details" style={{ padding: "10px" }}>
         <Row className="d-flex justify-content-between align-items-center mb-2">
@@ -198,20 +213,25 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
                 employee.accessible_screens?.length
                   ? employee.accessible_screens.map((s) => s.page).join(", ")
                   : employee.screenPermissionKeys?.length
-                    ? employee.screenPermissionKeys
-                        .map(
-                          (k) =>
-                            franchiseScreenMenuItems.find((i) => i.key === k)?.label ?? k
-                        )
-                        .join(", ")
-                    : "—"
+                  ? employee.screenPermissionKeys
+                      .map(
+                        (k) =>
+                          franchiseScreenMenuItems.find((i) => i.key === k)
+                            ?.label ?? k
+                      )
+                      .join(", ")
+                  : "—"
               }
             />
             <DetailsRow title="Chat" value={chatOn ? "Enabled" : "Disabled"} />
             <Row className="row custom-personal-row">
               <label className="col custom-personal-row-title">Status</label>
               <label className="col custom-personal-row-value text-truncate">
-                <span className={employee.is_active ? "custom-active" : "custom-inactive"}>
+                <span
+                  className={
+                    employee.is_active ? "custom-active" : "custom-inactive"
+                  }
+                >
                   {employee.is_active ? "Active" : "Inactive"}
                 </span>
               </label>
@@ -268,9 +288,15 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
               className="franchise-chat-switch"
               checked={isActiveBool ? Boolean(chatEnabled) : false}
               disabled={!isActiveBool}
-              title={isActiveBool ? "Chat on / off" : "Inactive employees cannot use chat"}
+              title={
+                isActiveBool
+                  ? "Chat on / off"
+                  : "Inactive employees cannot use chat"
+              }
               onChange={(e) => {
-                setValue("chat_enabled", e.target.checked, { shouldValidate: true });
+                setValue("chat_enabled", e.target.checked, {
+                  shouldValidate: true,
+                });
               }}
             />
           </Col>
@@ -280,17 +306,24 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           label="Status"
           name="is_active"
           options={getStatusOptions()}
-          defaultValue={isAdd ? "true" : employee ? String(employee.is_active) : "true"}
+          defaultValue={
+            isAdd ? "true" : employee ? String(employee.is_active) : "true"
+          }
           isEditable
           setValue={setValue}
         />
         <Col xs={12} className="mb-1">
           <div className="staff-permission-section">
-            <div className="staff-permission-section__head fw-medium mb-1 mt-3">Screen permissions</div>
+            <div className="staff-permission-section__head fw-medium mb-1 mt-3">
+              Screen permissions
+            </div>
             <div className="staff-permission-section__body">
               <div
                 className="d-grid"
-                style={{ gap: "10px 20px", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
+                style={{
+                  gap: "10px 20px",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                }}
               >
                 {franchiseScreenMenuItems.map(({ key, label }) => (
                   <Form.Check
@@ -339,7 +372,12 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   );
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           {modalTitle}
@@ -356,11 +394,19 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
 
 FranchiseEmployeeDialog.showAdd = (onRefreshData: () => void) => {
   openDialog("franchise-employee-modal", (close) => (
-    <FranchiseEmployeeDialog mode="add" employee={null} onClose={close} onRefreshData={onRefreshData} />
+    <FranchiseEmployeeDialog
+      mode="add"
+      employee={null}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
   ));
 };
 
-FranchiseEmployeeDialog.showView = (employee: EmployeeRow, onRefreshData: () => void) => {
+FranchiseEmployeeDialog.showView = (
+  employee: EmployeeRow,
+  onRefreshData: () => void
+) => {
   openDialog("franchise-employee-modal", (close) => (
     <FranchiseEmployeeDialog
       mode="view-edit"

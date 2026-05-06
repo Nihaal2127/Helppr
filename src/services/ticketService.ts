@@ -7,15 +7,20 @@ import type { ServerTableSortBy } from "../helper/serverTableSort";
 export const fetchTicket = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string; sort?: string; },
+  filters: { keyword?: string; status?: string; sort?: string },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, tickets: TicketModel[]; totalPages: number }> => {
+): Promise<{
+  response: boolean;
+  tickets: TicketModel[];
+  totalPages: number;
+}> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.keyword && { keyword: filters.keyword }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
@@ -42,8 +47,13 @@ export const fetchTicket = async (
   }
 };
 
-export const fetchTicketById = async (id: string): Promise<{ response: boolean, ticket: TicketModel | null; }> => {
-  const response = await apiRequest(`${ApiPaths.GET_TICKET_BY_ID()}/${id}`, "GET");
+export const fetchTicketById = async (
+  id: string
+): Promise<{ response: boolean; ticket: TicketModel | null }> => {
+  const response = await apiRequest(
+    `${ApiPaths.GET_TICKET_BY_ID()}/${id}`,
+    "GET"
+  );
   if (response.success) {
     return {
       response: true,
@@ -56,7 +66,6 @@ export const fetchTicketById = async (id: string): Promise<{ response: boolean, 
     };
   }
 };
-
 
 export const deleteTicket = async (id: string): Promise<boolean> => {
   const response = await apiRequest(ApiPaths.DELETE_TICKET(id), "DELETE");
@@ -73,7 +82,9 @@ export const createOrUpdateTicket = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
-  const path = isEditable ? ApiPaths.UPDATE_TICKET_STATUS(id!) : ApiPaths.CREATE_TICKET;
+  const path = isEditable
+    ? ApiPaths.UPDATE_TICKET_STATUS(id!)
+    : ApiPaths.CREATE_TICKET;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, payload);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Modal, Button, Row, Col, Table, Spinner } from "react-bootstrap";
+import { Modal, Button, Row, Col, Spinner } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
@@ -11,7 +11,6 @@ import { submitPartnerWalletPayout } from "../../../services/partnerPayoutServic
 import { FinancialModel } from "../../../models/FinancialModel";
 import { UserModel } from "../../../models/UserModel";
 import { AppConstant } from "../../../constant/AppConstant";
-import { formatDate } from "../../../helper/utility";
 import { showErrorAlert } from "../../../helper/alertHelper";
 
 type AddPayoutDialogProps = {
@@ -29,7 +28,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   const [loadingPartners, setLoadingPartners] = useState(true);
   const [loadingPending, setLoadingPending] = useState(false);
   const [amount, setAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "razorpay">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "razorpay">(
+    "cash"
+  );
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,7 +53,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
       }
       let all = [...first.users];
       for (let page = 2; page <= first.totalPages; page++) {
-        const next = await fetchUser(false, 2, page, pageSize, { status: "true" });
+        const next = await fetchUser(false, 2, page, pageSize, {
+          status: "true",
+        });
         if (cancelled) return;
         if (next.response) {
           all = all.concat(next.users);
@@ -119,7 +122,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
     }
     if (!loadingPending && num > walletAmount + 0.0001) {
       showErrorAlert(
-        `Amount cannot exceed wallet amount (${AppConstant.currencySymbol}${walletAmount.toFixed(2)}).`
+        `Amount cannot exceed wallet amount (${
+          AppConstant.currencySymbol
+        }${walletAmount.toFixed(2)}).`
       );
       return;
     }
@@ -173,7 +178,13 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                   options={partnerOptions}
                   fieldName="partner_id"
                   defaultValue={partnerId}
-                  setValue={setValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
+                  setValue={
+                    setValue as (
+                      name: string,
+                      value: any,
+                      options?: { shouldValidate?: boolean }
+                    ) => void
+                  }
                   asCol={false}
                   menuPortal
                   onChange={(e) => setPartnerId(e.target.value)}
@@ -189,7 +200,10 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                     {loadingPending ? (
                       <Spinner animation="border" size="sm" />
                     ) : (
-                      <div className="fs-5" style={{ color: "var(--primary-txt-color)" }}>
+                      <div
+                        className="fs-5"
+                        style={{ color: "var(--primary-txt-color)" }}
+                      >
                         {sym}
                         {totalPending.toFixed(2)}
                       </div>
@@ -289,20 +303,30 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                       />
                       {/* <Form.Text className="text-muted">Wallet amount − enter amount</Form.Text> */}
                     </Col>
-                <Col xs={12} md={4}>
-                  <CustomFormSelect
-                    label="Payment method"
-                    controlId="payment_method"
-                    register={register as unknown as UseFormRegister<any>}
-                    options={paymentMethodOptions}
-                    fieldName="payment_method"
-                    defaultValue={paymentMethod}
-                    setValue={setValue as (name: string, value: any, options?: { shouldValidate?: boolean }) => void}
-                    asCol={false}
-                    menuPortal
-                    onChange={(e) => setPaymentMethod(e.target.value as "cash" | "razorpay")}
-                  />
-                </Col>
+                    <Col xs={12} md={4}>
+                      <CustomFormSelect
+                        label="Payment method"
+                        controlId="payment_method"
+                        register={register as unknown as UseFormRegister<any>}
+                        options={paymentMethodOptions}
+                        fieldName="payment_method"
+                        defaultValue={paymentMethod}
+                        setValue={
+                          setValue as (
+                            name: string,
+                            value: any,
+                            options?: { shouldValidate?: boolean }
+                          ) => void
+                        }
+                        asCol={false}
+                        menuPortal
+                        onChange={(e) =>
+                          setPaymentMethod(
+                            e.target.value as "cash" | "razorpay"
+                          )
+                        }
+                      />
+                    </Col>
                   </Row>
                 </Col>
                 <Col xs={12}>
@@ -332,9 +356,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                 disabled={submitting}
               >
                 Cancel
-              </Button> 
+              </Button>
 
-            {partnerId ? (
+              {partnerId ? (
                 <Button
                   type="submit"
                   className="custom-btn-primary"
@@ -342,7 +366,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                 >
                   {submitting ? "Submitting…" : "Submit"}
                 </Button>
-            ) : null}
+              ) : null}
             </Col>
           </Row>
         </form>

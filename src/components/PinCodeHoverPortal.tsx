@@ -12,10 +12,18 @@ export type PinCodeHoverPortalProps = {
  * Renders the hover list in `document.body` with `position: fixed` so it appears above
  * table scroll containers, sticky headers, and scrollbars — not clipped by `overflow: auto`.
  */
-export function PinCodeHoverPortal({ items, children, listStyle = "ul" }: PinCodeHoverPortalProps) {
+export function PinCodeHoverPortal({
+  items,
+  children,
+  listStyle = "ul",
+}: PinCodeHoverPortalProps) {
   const triggerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState({ top: 0, left: 0, placement: "below" as "below" | "above" });
+  const [anchor, setAnchor] = useState({
+    top: 0,
+    left: 0,
+    placement: "below" as "below" | "above",
+  });
   const hideTimerRef = useRef<number | null>(null);
 
   const clearHideTimer = useCallback(() => {
@@ -83,7 +91,10 @@ export function PinCodeHoverPortal({ items, children, listStyle = "ul" }: PinCod
             style={{
               top: anchor.top,
               left: anchor.left,
-              transform: anchor.placement === "below" ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+              transform:
+                anchor.placement === "below"
+                  ? "translate(-50%, 0)"
+                  : "translate(-50%, -100%)",
             }}
             onMouseEnter={onEnterPanel}
             onMouseLeave={onLeavePanel}

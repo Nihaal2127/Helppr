@@ -1,4 +1,3 @@
-
 export interface CountModel {
   total_state: number | 0;
   active_state: number | 0;
@@ -57,5 +56,3 @@ export interface CountModel {
   active_requestedservice: number | 0;
   inactive_requestedservice: number | 0;
 }
-
-

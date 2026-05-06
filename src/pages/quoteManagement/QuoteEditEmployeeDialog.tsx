@@ -21,7 +21,11 @@ type QuoteEditEmployeeDialogProps = {
 type FormValues = QuoteEmployeePatch;
 
 const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
-  show: (quoteId: string, defaults: Partial<QuoteEmployeePatch>, onSaved: (patch: QuoteEmployeePatch) => void) => void;
+  show: (
+    quoteId: string,
+    defaults: Partial<QuoteEmployeePatch>,
+    onSaved: (patch: QuoteEmployeePatch) => void
+  ) => void;
 } = ({ quoteId, defaults, onClose, onSaved }) => {
   const {
     register,
@@ -58,7 +62,12 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
   };
 
   return (
-    <Modal show={true} onHide={onClose} centered dialogClassName="custom-big-modal">
+    <Modal
+      show={true}
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           Edit employee
@@ -103,19 +112,28 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
                 asCol={false}
                 validation={{
                   validate: (v: string) =>
-                    !v?.trim() || /^[\d\s\-+()]+$/.test(v.trim()) || "Enter a valid phone number",
+                    !v?.trim() ||
+                    /^[\d\s\-+()]+$/.test(v.trim()) ||
+                    "Enter a valid phone number",
                 }}
               />
             </Col>
           </Row>
 
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
-              </Button> 
+              </Button>
 
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>
@@ -142,4 +160,3 @@ QuoteEditEmployeeDialog.show = (
 };
 
 export default QuoteEditEmployeeDialog;
-

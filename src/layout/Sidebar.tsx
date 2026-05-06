@@ -3,12 +3,19 @@ import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { mainMenuItems, profileMenuItems } from "./menuItems";
-import { clearLocalStorage, getLocalStorage, setLocalStorage } from "../helper/localStorageHelper";
+import {
+  clearLocalStorage,
+  getLocalStorage,
+  setLocalStorage,
+} from "../helper/localStorageHelper";
 import { AppConstant } from "../constant/AppConstant";
 import { isMockAuthSession } from "../helper/authSessionHelper";
 import { logout } from "../services/adminService";
 import { ROUTES } from "../routes/Routes";
-import { isMainMenuItemVisibleForRole, parseAllowedMenuKeys } from "../routes/roleAccess";
+import {
+  isMainMenuItemVisibleForRole,
+  parseAllowedMenuKeys,
+} from "../routes/roleAccess";
 import { openConfirmDialog } from "../components/CustomConfirmDialog";
 import clsx from "clsx";
 
@@ -20,13 +27,18 @@ const Sidebar: React.FC = () => {
   };
 
   const role = getLocalStorage(AppConstant.userRole);
-  const allowedMenuKeys = parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys));
+  const allowedMenuKeys = parseAllowedMenuKeys(
+    getLocalStorage(AppConstant.userAccessibleMenuKeys)
+  );
   /** Same allow-list as `isAuthenticatedPathAllowed` in `routes/roleAccess.ts` (path-level guard). */
   const filteredMainMenuItems = mainMenuItems.filter(({ key }) =>
     isMainMenuItemVisibleForRole(key, role, allowedMenuKeys)
   );
 
-  const handleLogoutClick = async (event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
+  const handleLogoutClick = async (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    key: string
+  ) => {
     if (key === "logout") {
       event.preventDefault();
       openConfirmDialog(
@@ -42,13 +54,13 @@ const Sidebar: React.FC = () => {
             setLocalStorage(AppConstant.isAdmin, isAdmin);
             navigate(ROUTES.LOGIN.path, { replace: true });
           }
-        });
+        }
+      );
     }
   };
 
   return (
     <>
-
       <nav id="sidebar" className="sidebar">
         <h1>helper!</h1>
 
@@ -62,8 +74,16 @@ const Sidebar: React.FC = () => {
         <div className="p-4 pt-2">
           <ul className="list-unstyled components mb-5" id="nav-links">
             {filteredMainMenuItems.map(({ key, path, label }) => (
-              <li key={key || label} className={clsx({ active: isActive(path) })}>
-                <NavLink to={path} className={({ isActive }) => (isActive ? "sidebar-active" : "")}>
+              <li
+                key={key || label}
+                className={clsx({ active: isActive(path) })}
+              >
+                <NavLink
+                  to={path}
+                  className={({ isActive }) =>
+                    isActive ? "sidebar-active" : ""
+                  }
+                >
                   {label}
                 </NavLink>
               </li>

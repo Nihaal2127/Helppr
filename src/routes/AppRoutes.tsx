@@ -23,12 +23,22 @@ function ProtectedRouteElement({
     return <>{children}</>;
   }
   if (!isAuthenticated) {
-    return <Navigate to={ROUTES.LOGIN.path} replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate
+        to={ROUTES.LOGIN.path}
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
   }
   const role = getLocalStorage(AppConstant.userRole);
-  const allowedMenuKeys = parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys));
+  const allowedMenuKeys = parseAllowedMenuKeys(
+    getLocalStorage(AppConstant.userAccessibleMenuKeys)
+  );
   if (!isAuthenticatedPathAllowed(location.pathname, role, allowedMenuKeys)) {
-    return <Navigate to={getDefaultAuthorizedPath(role, allowedMenuKeys)} replace />;
+    return (
+      <Navigate to={getDefaultAuthorizedPath(role, allowedMenuKeys)} replace />
+    );
   }
   return <>{children}</>;
 }
@@ -43,7 +53,9 @@ const AppRoutes = ({ isAuthenticated }: { isAuthenticated: boolean }) => {
             <Navigate
               to={getDefaultAuthorizedPath(
                 getLocalStorage(AppConstant.userRole),
-                parseAllowedMenuKeys(getLocalStorage(AppConstant.userAccessibleMenuKeys))
+                parseAllowedMenuKeys(
+                  getLocalStorage(AppConstant.userAccessibleMenuKeys)
+                )
               )}
               replace
             />
@@ -58,14 +70,20 @@ const AppRoutes = ({ isAuthenticated }: { isAuthenticated: boolean }) => {
           key={idx}
           path={route.path}
           element={
-            <ProtectedRouteElement route={route} isAuthenticated={isAuthenticated}>
+            <ProtectedRouteElement
+              route={route}
+              isAuthenticated={isAuthenticated}
+            >
               {route.element as ReactNode}
             </ProtectedRouteElement>
           }
         />
       ))}
 
-      <Route path="*" element={<Navigate to={ROUTES.ERROR404.path} replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={ROUTES.ERROR404.path} replace />}
+      />
     </Routes>
   );
 };

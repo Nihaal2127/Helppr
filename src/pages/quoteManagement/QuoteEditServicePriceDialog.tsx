@@ -18,7 +18,11 @@ type FormValues = {
 };
 
 const QuoteEditServicePriceDialog: React.FC<QuoteEditServicePriceDialogProps> & {
-  show: (quoteId: string, defaultPrice: number, onSaved: (price: number) => void) => void;
+  show: (
+    quoteId: string,
+    defaultPrice: number,
+    onSaved: (price: number) => void
+  ) => void;
 } = ({ quoteId, defaultPrice, onClose, onSaved }) => {
   const {
     register,
@@ -55,7 +59,11 @@ const QuoteEditServicePriceDialog: React.FC<QuoteEditServicePriceDialogProps> & 
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
         <p className="text-muted small mb-3 mb-md-4">Quote ID: {quoteId}</p>
-        <form noValidate name="quote-edit-service-price-form" onSubmit={handleSubmit(onSubmit)}>
+        <form
+          noValidate
+          name="quote-edit-service-price-form"
+          onSubmit={handleSubmit(onSubmit)}
+        >
           <Row className="align-items-center mt-2">
             <Col sm={4} className="d-flex align-items-center">
               <label className="custom-profile-lable">Service price</label>
@@ -101,17 +109,26 @@ const QuoteEditServicePriceDialog: React.FC<QuoteEditServicePriceDialogProps> & 
                   />
                 </InputGroup>
                 {errors.service_price?.message && (
-                  <div className="text-danger small mt-1">{errors.service_price.message}</div>
+                  <div className="text-danger small mt-1">
+                    {errors.service_price.message}
+                  </div>
                 )}
               </Form.Group>
             </Col>
           </Row>
           <Row className="mt-4">
-            <Col xs={12} className="text-center d-flex justify-content-end gap-3">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
               <Button type="submit" className="custom-btn-primary">
                 Save
-              </Button> 
-              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
                 Cancel
               </Button>
             </Col>

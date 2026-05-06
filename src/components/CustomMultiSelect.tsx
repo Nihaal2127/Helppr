@@ -36,78 +36,85 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   menuPortal = false,
   selectedChipsMaxHeight,
 }) => {
-
   const customStyles = useMemo(
     () => ({
-    control: (provided: any) => ({
-      ...provided,
-      borderColor: "var(--primary-color)",
-      "&:hover": {
+      control: (provided: any) => ({
+        ...provided,
         borderColor: "var(--primary-color)",
-      },
-      boxShadow: "none",
-      borderRadius: "8px",
-      fontSize: "14px",
-      fontWeight: "normal",
-      width: "100%",
-      height: "auto",
-      minHeight: selectedChipsMaxHeight ? "38px" : provided.minHeight,
-      lineHeight: "18px",
-      backgroundColor: "var(--bg-color)",
-      fontFamily: "'Inter'",
-      color: "var(--content-txt-color)",
-      marginBottom: "10px",
-      alignItems: selectedChipsMaxHeight ? "center" : provided.alignItems,
-    }),
-    valueContainer: (provided: any) => ({
-      ...provided,
-      ...(selectedChipsMaxHeight
+        "&:hover": {
+          borderColor: "var(--primary-color)",
+        },
+        boxShadow: "none",
+        borderRadius: "8px",
+        fontSize: "14px",
+        fontWeight: "normal",
+        width: "100%",
+        height: "auto",
+        minHeight: selectedChipsMaxHeight ? "38px" : provided.minHeight,
+        lineHeight: "18px",
+        backgroundColor: "var(--bg-color)",
+        fontFamily: "'Inter'",
+        color: "var(--content-txt-color)",
+        marginBottom: "10px",
+        alignItems: selectedChipsMaxHeight ? "center" : provided.alignItems,
+      }),
+      valueContainer: (provided: any) => ({
+        ...provided,
+        ...(selectedChipsMaxHeight
+          ? {
+              maxHeight: selectedChipsMaxHeight,
+              overflowY: "auto",
+              overflowX: "hidden",
+              flexWrap: "wrap",
+              paddingTop: 4,
+              paddingBottom: 4,
+            }
+          : {}),
+      }),
+      // indicatorsContainer: (provided: any) => ({
+      //   ...provided,
+      //   ...(selectedChipsMaxHeight
+      //     ? {
+      //         alignSelf: "flex-start",
+      //         paddingTop: 6,
+      //       }
+      //     : {}),
+      // }),
+      option: (provided: any, state: any) => ({
+        ...provided,
+        backgroundColor: state.isSelected
+          ? "var(--txtfld-border)"
+          : state.isFocused
+          ? "var(--primary-color)"
+          : "",
+        color: state.isSelected
+          ? "var(--bg-color)"
+          : state.isFocused
+          ? "var(--bg-color)"
+          : "var(--primary-color)",
+        "&:hover": {
+          backgroundColor: "var(--primary-color)",
+          color: "var(--bg-color)",
+        },
+      }),
+      singleValue: (provided: any) => ({
+        ...provided,
+        color: "var(--content-txt-color)",
+      }),
+      placeholder: (provided: any) => ({
+        ...provided,
+        // color: AppColor.selectPlaceholderColor,
+        fontSize: "14px",
+        color: "var(--placeholder-txt)",
+        fontFamily: "Inter",
+      }),
+      ...(menuPortal
         ? {
-            maxHeight: selectedChipsMaxHeight,
-            overflowY: "auto",
-            overflowX: "hidden",
-            flexWrap: "wrap",
-            paddingTop: 4,
-            paddingBottom: 4,
+            menuPortal: (provided: any) => ({ ...provided, zIndex: 9999 }),
+            menu: (provided: any) => ({ ...provided, zIndex: 9999 }),
           }
         : {}),
     }),
-    // indicatorsContainer: (provided: any) => ({
-    //   ...provided,
-    //   ...(selectedChipsMaxHeight
-    //     ? {
-    //         alignSelf: "flex-start",
-    //         paddingTop: 6,
-    //       }
-    //     : {}),
-    // }),
-    option: (provided: any, state: any) => ({
-      ...provided,
-      backgroundColor: state.isSelected ? "var(--txtfld-border)" : state.isFocused ? "var(--primary-color)" : "",
-      color: state.isSelected ? "var(--bg-color)" : state.isFocused ? "var(--bg-color)" : "var(--primary-color)",
-      "&:hover": {
-        backgroundColor: "var(--primary-color)",
-        color: "var(--bg-color)",
-      },
-    }),
-    singleValue: (provided: any) => ({
-      ...provided,
-      color: "var(--content-txt-color)",
-    }),
-    placeholder: (provided: any) => ({
-      ...provided,
-      // color: AppColor.selectPlaceholderColor,
-      fontSize: "14px",
-      color: "var(--placeholder-txt)",
-      fontFamily: "Inter",
-    }),
-    ...(menuPortal
-      ? {
-          menuPortal: (provided: any) => ({ ...provided, zIndex: 9999 }),
-          menu: (provided: any) => ({ ...provided, zIndex: 9999 }),
-        }
-      : {}),
-  }),
     [menuPortal, selectedChipsMaxHeight]
   );
 
@@ -129,7 +136,9 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       {...(asCol ? { xs: 12, md: 4 } : {})}
       controlId={controlId}
     >
-      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
+      {label?.trim() && (
+        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      )}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"

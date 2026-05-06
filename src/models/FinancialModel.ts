@@ -24,7 +24,7 @@ export interface FinancialModel {
   tax: number | 0;
   user_paltform_fee: number | 0;
   partner_commison_platform_fee: number | 0;
-  service_price:number | 0;
+  service_price: number | 0;
   total_price: number | 0;
   partner_earning: number | 0;
   admin_earning: number | 0;
@@ -49,5 +49,3 @@ export interface FinancialModel {
   created_at: string | null;
   updated_at: string | null;
 }
-
-

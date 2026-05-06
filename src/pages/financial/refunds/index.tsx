@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
@@ -34,25 +33,27 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
 };
 
 const RefundsPage = () => {
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{ franchise_id: string }>({
+  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
+    franchise_id: string;
+  }>({
     defaultValues: { franchise_id: "all" },
   });
 
-  const {
-    register: quoteFilterRegister,
-    setValue: setQuoteFilterValue,
-  } = useForm<{
-    from_date: string;
-    to_date: string;
-  }>({
-    defaultValues: { from_date: "", to_date: "" },
-  });
+  const { register: quoteFilterRegister, setValue: setQuoteFilterValue } =
+    useForm<{
+      from_date: string;
+      to_date: string;
+    }>({
+      defaultValues: { from_date: "", to_date: "" },
+    });
 
   const fetchRef = useRef(false);
 
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [refundRows, setRefundRows] = useState<RefundRow[]>([]);
-  const [refundOrderOptions, setRefundOrderOptions] = useState<RefundOrderOption[]>([]);
+  const [refundOrderOptions, setRefundOrderOptions] = useState<
+    RefundOrderOption[]
+  >([]);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [submittingRefund, setSubmittingRefund] = useState(false);
 
@@ -115,21 +116,21 @@ const RefundsPage = () => {
 
   const handleVoidOrder = useCallback(
     (row: RefundRow) => {
-    const id = row.order_id || row._id;
-    const display = row.order_unique_id ?? id ?? "-";
+      const id = row.order_id || row._id;
+      const display = row.order_unique_id ?? id ?? "-";
 
-    if (!id) return;
+      if (!id) return;
 
-    openConfirmDialog(
-      `Are you sure you want to void this order (${display})?`,
-      "Void",
-      "Cancel",
-      async () => {
-        await deleteOrder(String(id));
-        setCurrentPage(1);
-        await loadRefundRows();
-      }
-    );
+      openConfirmDialog(
+        `Are you sure you want to void this order (${display})?`,
+        "Void",
+        "Cancel",
+        async () => {
+          await deleteOrder(String(id));
+          setCurrentPage(1);
+          await loadRefundRows();
+        }
+      );
     },
     [loadRefundRows]
   );
@@ -205,7 +206,8 @@ const RefundsPage = () => {
       {
         Header: "S.No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
       {
         Header: "Order ID",
@@ -226,7 +228,9 @@ const RefundsPage = () => {
         Header: "Refund Amount",
         accessor: "refund_amount",
         Cell: ({ row }: { row: any }) =>
-          row.original.refund_amount !== undefined ? money(row.original.refund_amount) : "—",
+          row.original.refund_amount !== undefined
+            ? money(row.original.refund_amount)
+            : "—",
       },
       {
         Header: "From Admin Commission",
@@ -247,7 +251,8 @@ const RefundsPage = () => {
       {
         Header: "Date",
         accessor: "created_at",
-        Cell: ({ row }: { row: any }) => formatDate(row.original.created_at || ""),
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.created_at || ""),
       },
       {
         Header: "Action",
@@ -271,7 +276,11 @@ const RefundsPage = () => {
         register={headerRegister as unknown as UseFormRegister<any>}
         setValue={setHeaderValue as (name: string, value: any) => void}
         rightActions={
-          <Button type="button" className="custom-btn-secondary w-auto btn btn-primary" onClick={() => setShowRefundModal(true)}>
+          <Button
+            type="button"
+            className="custom-btn-secondary w-auto btn btn-primary"
+            onClick={() => setShowRefundModal(true)}
+          >
             Add Refund
           </Button>
         }
@@ -295,8 +304,12 @@ const RefundsPage = () => {
                   setFromDate(next);
                   setCurrentPage(1);
                 }}
-                register={quoteFilterRegister as unknown as UseFormRegister<any>}
-                setValue={setQuoteFilterValue as (name: string, value: any) => void}
+                register={
+                  quoteFilterRegister as unknown as UseFormRegister<any>
+                }
+                setValue={
+                  setQuoteFilterValue as (name: string, value: any) => void
+                }
                 asCol={false}
                 groupClassName="mb-0 w-100 fw-medium"
                 placeholderText="From Date"
@@ -314,8 +327,12 @@ const RefundsPage = () => {
                   setToDate(next);
                   setCurrentPage(1);
                 }}
-                register={quoteFilterRegister as unknown as UseFormRegister<any>}
-                setValue={setQuoteFilterValue as (name: string, value: any) => void}
+                register={
+                  quoteFilterRegister as unknown as UseFormRegister<any>
+                }
+                setValue={
+                  setQuoteFilterValue as (name: string, value: any) => void
+                }
                 asCol={false}
                 groupClassName="mb-0 w-100 fw-medium"
                 placeholderText="To Date"
@@ -352,7 +369,9 @@ const RefundsPage = () => {
       />
 
       {ordersLoading ? (
-        <div className="bg-white border rounded p-4 text-center">Loading...</div>
+        <div className="bg-white border rounded p-4 text-center">
+          Loading...
+        </div>
       ) : (
         <CustomTable
           columns={refundColumns}

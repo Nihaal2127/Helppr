@@ -8,7 +8,10 @@
  */
 export const USE_MOCK_FRANCHISE_CATALOG = false;
 
-export const MOCK_FRANCHISE_CATEGORY_DROPDOWN: { value: string; label: string }[] = [
+export const MOCK_FRANCHISE_CATEGORY_DROPDOWN: {
+  value: string;
+  label: string;
+}[] = [
   { value: "cat_grocery", label: "Grocery" },
   { value: "cat_dairy", label: "Dairy" },
   { value: "cat_bakery", label: "Bakery" },

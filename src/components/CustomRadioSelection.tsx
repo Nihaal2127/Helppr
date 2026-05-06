@@ -39,24 +39,24 @@ export const CustomRadioSelection: React.FC<CustomRadioSelectionProps> = ({
   const flexDirection = options.length === 2 ? "row" : "column";
 
   return (
-    <Form.Group style={{ marginTop : "10px"}}>
-      {label?.trim() && <Form.Label className="fw-medium mb-1">{label}</Form.Label>}
+    <Form.Group style={{ marginTop: "10px" }}>
+      {label?.trim() && (
+        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      )}
       <div className={`d-flex`} style={{ flexDirection, gap: "8px" }}>
         {options.map((option, index) => (
           <Form.Check
             key={`${name}_${index}`}
             type="radio"
             id={`${name}_${index}`}
-            label={
-              <span className="custom-radio-text">{option.label}</span>
-            }
+            label={<span className="custom-radio-text">{option.label}</span>}
             value={option.value.toString()}
             checked={selectedValue === option.value}
             onChange={() => {
               setSelectedValue(option.value);
               setValue(name, option.value);
             }}
-            className={`custom-radio-check ${option.containerClass || ''}`}
+            className={`custom-radio-check ${option.containerClass || ""}`}
           />
         ))}
       </div>

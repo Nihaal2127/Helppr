@@ -56,7 +56,11 @@ function splitDateParts(raw?: string): string[] {
   return parts.filter(Boolean);
 }
 
-function buildSingleDayLine(dateIso: string, timeFrom: string, timeTo: string): string {
+function buildSingleDayLine(
+  dateIso: string,
+  timeFrom: string,
+  timeTo: string
+): string {
   const dStr = formatDayDdMmmYyyy(dateIso);
   if (!dStr) return "-";
 
@@ -128,7 +132,10 @@ export function formatQuoteScheduledDisplay(row: {
   return buildRangeLines(parts[0], parts[1], from, to);
 }
 
-export function formatQuoteScheduleForTable(row: QuoteRow, tab: QuoteTabKey): string {
+export function formatQuoteScheduleForTable(
+  row: QuoteRow,
+  tab: QuoteTabKey
+): string {
   if (tab === "success" || tab === "accepted") {
     const scheduled = formatQuoteScheduledDisplay({
       scheduled_date: row.scheduled_date,
@@ -176,7 +183,9 @@ export function formatServiceAddressLines(q: {
 }): string {
   const line1 = [q.door_no, q.street].filter(Boolean).join(", ");
   const line2 = [q.area, q.landmark].filter(Boolean).join(", ");
-  const line3 = [q.city, q.pincode].filter(Boolean).join(q.pincode ? " - " : "");
+  const line3 = [q.city, q.pincode]
+    .filter(Boolean)
+    .join(q.pincode ? " - " : "");
   const lines = [line1, line2, line3].filter((x) => x && String(x).trim());
   return lines.length ? lines.join("\n") : "-";
 }

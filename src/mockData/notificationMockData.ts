@@ -36,4 +36,3 @@ export const notificationsMockSeed: Array<
     audience: "admin",
   },
 ];
-

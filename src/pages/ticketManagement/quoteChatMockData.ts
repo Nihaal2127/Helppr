@@ -322,4 +322,3 @@ export const groupChatDetails: Record<string, GroupChatDetails> = {
     currentEmployeeName: "Ritika Sharma",
   },
 };
-

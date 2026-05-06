@@ -4,12 +4,10 @@ import { StateModel } from "../models/StateModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-export const fetchStateDropDown = async (
-): Promise<{ value: string; label: string }[]> => {
-  const response = await apiRequest(
-    `${ApiPaths.GET_STATE_DROP_DOWN()}`,
-    "GET"
-  );
+export const fetchStateDropDown = async (): Promise<
+  { value: string; label: string }[]
+> => {
+  const response = await apiRequest(`${ApiPaths.GET_STATE_DROP_DOWN()}`, "GET");
 
   if (response.success) {
     return response.data.records.map((state: any) => ({
@@ -25,16 +23,17 @@ export const fetchStateDropDown = async (
 export const fetchState = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string; sort?: string; },
+  filters: { name?: string; status?: string; sort?: string },
   sortBy: ServerTableSortBy = []
-): Promise<{ response: boolean, states: StateModel[]; totalPages: number }> => {
+): Promise<{ response: boolean; states: StateModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(filters.name && { name: filters.name }),
     ...(filters.name && { keyword: filters.name }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),

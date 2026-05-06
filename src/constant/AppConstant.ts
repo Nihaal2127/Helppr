@@ -1,41 +1,42 @@
 export const AppConstant = {
-    BASE_URL: "https://dtvx6yflf1.execute-api.ap-south-1.amazonaws.com/staging/api",//Help Pr Live
-    IMAGE_BASE_URL: "https://d20g1bd5nfpo8h.cloudfront.net/",//Help Pr Live
-    // BASE_URL: "http://localhost:5001/api",
-    // BASE_URL: "https://raamisegei.execute-api.us-east-1.amazonaws.com/dev/api",
-    // IMAGE_BASE_URL: "https://d2d4noj5f8gqer.cloudfront.net/",
-    authToken: "authToken",
-    deviceToken: "deviceToken",
-    
-    isAdmin: "isAdmin",
+  BASE_URL:
+    "https://dtvx6yflf1.execute-api.ap-south-1.amazonaws.com/staging/api", //Help Pr Live
+  IMAGE_BASE_URL: "https://d20g1bd5nfpo8h.cloudfront.net/", //Help Pr Live
+  // BASE_URL: "http://localhost:5001/api",
+  // BASE_URL: "https://raamisegei.execute-api.us-east-1.amazonaws.com/dev/api",
+  // IMAGE_BASE_URL: "https://d2d4noj5f8gqer.cloudfront.net/",
+  authToken: "authToken",
+  deviceToken: "deviceToken",
 
-    /** "admin" | "franchise_admin" | "employee" | "staff" — set on login from API user `type` (see `mapWebUserTypeToSessionRole`). */
-    userRole: "userRole",
-    userAccessibleMenuKeys: "userAccessibleMenuKeys",
-    adminId: "adminId",
-    partnerId: "partnerId",
-    createdById: "createdById",
-    isAuthenticated: "isAuthenticated",
-    canAccessExpenseSheet: "canAccessExpenseSheet",
-    CART_KEY: "cart",
-    currencySymbol: "₹",
-    percentageSymbol: "%",
-    companyName: "Helper",
-    helplineNumber: "+61434380737",
-    supportEmail: "info@sostyres.com.au",
-    companyLocation: " 8/41 Lensworth St, Coopers plains,4108, Australia",
+  isAdmin: "isAdmin",
 
-    /**
-     * Verification tab (`/user/getVerificationAll`): when `true`, use the real API.
-     * Set to `false` to use in-app mock rows and summary counts for UI design when the endpoint errors.
-     */
-    USE_REAL_VERIFICATION_API: false,
+  /** "admin" | "franchise_admin" | "employee" | "staff" — set on login from API user `type` (see `mapWebUserTypeToSessionRole`). */
+  userRole: "userRole",
+  userAccessibleMenuKeys: "userAccessibleMenuKeys",
+  adminId: "adminId",
+  partnerId: "partnerId",
+  createdById: "createdById",
+  isAuthenticated: "isAuthenticated",
+  canAccessExpenseSheet: "canAccessExpenseSheet",
+  CART_KEY: "cart",
+  currencySymbol: "₹",
+  percentageSymbol: "%",
+  companyName: "Helper",
+  helplineNumber: "+61434380737",
+  supportEmail: "info@sostyres.com.au",
+  companyLocation: " 8/41 Lensworth St, Coopers plains,4108, Australia",
+
+  /**
+   * Verification tab (`/user/getVerificationAll`): when `true`, use the real API.
+   * Set to `false` to use in-app mock rows and summary counts for UI design when the endpoint errors.
+   */
+  USE_REAL_VERIFICATION_API: false,
 };
 
 /** Values stored under AppConstant.userRole */
 export const UserRole = {
-    ADMIN: "admin",
-    FRANCHISE_ADMIN: "franchise_admin",
-    EMPLOYEE: "employee",
-    STAFF: "staff",
+  ADMIN: "admin",
+  FRANCHISE_ADMIN: "franchise_admin",
+  EMPLOYEE: "employee",
+  STAFF: "staff",
 } as const;

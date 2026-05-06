@@ -4,9 +4,11 @@ import { showLog } from "../helper/utility";
 
 export const createOrUpdateDocument = async (
   data: FormData,
-  isEditable: boolean,
+  isEditable: boolean
 ): Promise<{ fileList: String[]; response: boolean }> => {
-  const path = isEditable ? ApiPaths.UPDATE_DOCUMENT_UPLOAD : ApiPaths.DOCUMENT_UPLOAD;
+  const path = isEditable
+    ? ApiPaths.UPDATE_DOCUMENT_UPLOAD
+    : ApiPaths.DOCUMENT_UPLOAD;
   const method = isEditable ? "PUT" : "POST";
 
   const response = await apiRequest(path, method, data, true);

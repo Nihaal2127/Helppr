@@ -23,10 +23,12 @@ export const fetchAreaDropDown = async (
   const data = (response as any).data;
   const records = data?.records ?? (Array.isArray(data) ? data : []);
   if (response.success && Array.isArray(records)) {
-    return records.map((area: any) => ({
-      value: String(area._id ?? area.id ?? ""),
-      label: String(area.name ?? area.label ?? ""),
-    })).filter((o: { value: string; label: string }) => o.value);
+    return records
+      .map((area: any) => ({
+        value: String(area._id ?? area.id ?? ""),
+        label: String(area.name ?? area.label ?? ""),
+      }))
+      .filter((o: { value: string; label: string }) => o.value);
   } else {
     showLog(response.message || "Failed to fetch area");
     return [];
@@ -36,7 +38,14 @@ export const fetchAreaDropDown = async (
 export const fetchArea = async (
   page: number,
   pageSize: number,
-  filters: { name?: string; status?: string; sort?: string; state_id?: string; city_id?: string; franchise_id?: string },
+  filters: {
+    name?: string;
+    status?: string;
+    sort?: string;
+    state_id?: string;
+    city_id?: string;
+    franchise_id?: string;
+  },
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean; areas: AreaModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
@@ -49,7 +58,8 @@ export const fetchArea = async (
     limit: String(pageSize),
     ...(filters.name && { name: filters.name }),
     ...(filters.name && { keyword: filters.name }),
-    ...(filters.status && filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(filters.status &&
+      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.state_id && { state_id: filters.state_id }),
     ...(filters.city_id && { city_id: filters.city_id }),

@@ -69,18 +69,31 @@ export async function fetchPartnerWalletPayoutHistory(
     }
     const d = response.data ?? {};
     const inner =
-      d.data != null && typeof d.data === "object" && !Array.isArray(d.data) ? d.data : null;
-    const rawRecords = inner?.records ?? d.records ?? (Array.isArray(d.data) ? d.data : null);
-    const list = Array.isArray(rawRecords) ? rawRecords : Array.isArray(d) ? d : [];
+      d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+        ? d.data
+        : null;
+    const rawRecords =
+      inner?.records ?? d.records ?? (Array.isArray(d.data) ? d.data : null);
+    const list = Array.isArray(rawRecords)
+      ? rawRecords
+      : Array.isArray(d)
+      ? d
+      : [];
     const totalPagesVal = inner?.totalPages ?? d.totalPages ?? 1;
-    const rows: PartnerWalletPayoutHistoryRow[] = list.map((r: any, i: number) => ({
-      _id: String(r._id ?? r.id ?? `p-${i}`),
-      created_at: r.created_at ?? r.date ?? r.payout_date ?? "",
-      amount: Number(r.amount ?? r.payout_amount ?? 0),
-      payment_method: String(r.payment_method ?? r.method ?? "—"),
-      description: r.description != null ? String(r.description) : undefined,
-    }));
-    return { response: true, rows, totalPages: Math.max(1, Number(totalPagesVal) || 1) };
+    const rows: PartnerWalletPayoutHistoryRow[] = list.map(
+      (r: any, i: number) => ({
+        _id: String(r._id ?? r.id ?? `p-${i}`),
+        created_at: r.created_at ?? r.date ?? r.payout_date ?? "",
+        amount: Number(r.amount ?? r.payout_amount ?? 0),
+        payment_method: String(r.payment_method ?? r.method ?? "—"),
+        description: r.description != null ? String(r.description) : undefined,
+      })
+    );
+    return {
+      response: true,
+      rows,
+      totalPages: Math.max(1, Number(totalPagesVal) || 1),
+    };
   } catch {
     return { response: false, rows: [], totalPages: 0 };
   }
@@ -96,7 +109,8 @@ export async function fetchAllPartnerWalletPayoutHistory(
   const all: PartnerWalletPayoutHistoryRow[] = [];
   let page = 1;
   for (let i = 0; i < maxPages; i++) {
-    const { response, rows, totalPages } = await fetchPartnerWalletPayoutHistory(partnerId, page, pageSize);
+    const { response, rows, totalPages } =
+      await fetchPartnerWalletPayoutHistory(partnerId, page, pageSize);
     if (!response) break;
     all.push(...rows);
     if (rows.length < pageSize || page >= totalPages) break;

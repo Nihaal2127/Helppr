@@ -1,12 +1,11 @@
-import { OrderModel } from '../../models/OrderModel';
+import { OrderModel } from "../../models/OrderModel";
 import { formatDate, formatUtcToLocalTime } from "../../helper/utility";
 import logoDark from "../../assets/icons/login_logo.svg";
-import { AppConstant } from '../../constant/AppConstant';
-import { OrderPaymentModeEnum } from '../../constant/PaymentEnum';
-import { OrderStatusEnum } from '../../constant/OrderStatusEnum';
+import { AppConstant } from "../../constant/AppConstant";
+import { OrderPaymentModeEnum } from "../../constant/PaymentEnum";
+import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
 
 export const invoicePdfTemplate = (invoiceData: OrderModel): string => {
-
   return `
   <html>
     <head>
@@ -117,15 +116,28 @@ export const invoicePdfTemplate = (invoiceData: OrderModel): string => {
            <div style="margin-bottom: 8px;">
             <div style="float: left; text-align: left; width: 50%;">
               <strong>Order Id:</strong> ${invoiceData?.unique_id}<br />
-               <strong>Order Date:</strong> ${invoiceData?.order_date ? formatDate(invoiceData?.order_date ?? "") : "-"}<br />
-               <strong>Order Status:</strong> ${OrderStatusEnum.get(invoiceData.order_status)?.label ?? "-"}
+               <strong>Order Date:</strong> ${
+                 invoiceData?.order_date
+                   ? formatDate(invoiceData?.order_date ?? "")
+                   : "-"
+               }<br />
+               <strong>Order Status:</strong> ${
+                 OrderStatusEnum.get(invoiceData.order_status)?.label ?? "-"
+               }
               <br />
             </div>
 
             <div style="float: right; text-align: right; width: 50%;">
              <strong>Payment Status:</strong> 
-              ${invoiceData.is_paid ? '<span style="color: green;">Paid</span>' : '<span style="color: red;">Unpaid</span>'}<br />
-              <strong>Payment Method:</strong> ${OrderPaymentModeEnum.get(Number(invoiceData.payment_mode_id))?.label ?? "-"}<br />
+              ${
+                invoiceData.is_paid
+                  ? '<span style="color: green;">Paid</span>'
+                  : '<span style="color: red;">Unpaid</span>'
+              }<br />
+              <strong>Payment Method:</strong> ${
+                OrderPaymentModeEnum.get(Number(invoiceData.payment_mode_id))
+                  ?.label ?? "-"
+              }<br />
               <br />
             </div>
             <div style="clear: both;"></div>
@@ -142,9 +154,15 @@ export const invoicePdfTemplate = (invoiceData: OrderModel): string => {
         <section class="invoice-section">
            <div>
             <h2>Use Information</h2>
-            <strong>User Name:</strong> ${invoiceData?.user_info.name ?? "-"}<br />
-            <strong>Phone Number:</strong> ${invoiceData?.user_info.phone_number ?? "-"}<br />
-            <strong>Location:</strong> ${invoiceData?.user_info.city_name ?? "-"}<br />
+            <strong>User Name:</strong> ${
+              invoiceData?.user_info.name ?? "-"
+            }<br />
+            <strong>Phone Number:</strong> ${
+              invoiceData?.user_info.phone_number ?? "-"
+            }<br />
+            <strong>Location:</strong> ${
+              invoiceData?.user_info.city_name ?? "-"
+            }<br />
           </div>
         </section>
 
@@ -161,31 +179,61 @@ export const invoicePdfTemplate = (invoiceData: OrderModel): string => {
               </tr>
             </thead>
             <tbody>
-              ${invoiceData.service_items.map((item, index) => `
+              ${invoiceData.service_items
+                .map(
+                  (item, index) => `
                 <tr>
                   <td>${index + 1}</td>
-                  <td>${formatDate(item.service_date ? item.service_date : "")}</td>
+                  <td>${formatDate(
+                    item.service_date ? item.service_date : ""
+                  )}</td>
                   <td >${item.service_info?.name}</td>
                   <td>${formatUtcToLocalTime(item.service_from_time)}</td>
                   <td>${formatUtcToLocalTime(item.service_to_time)}</td>
-                  <td>${AppConstant.currencySymbol} ${item.sub_total.toFixed(2)}</td>
+                  <td>${AppConstant.currencySymbol} ${item.sub_total.toFixed(
+                    2
+                  )}</td>
                 </tr>
-              `).join('')}
+              `
+                )
+                .join("")}
               <tr>
                 <td colSpan="3">
                   <div style="text-align: left;">
                     <strong>${AppConstant.companyName}</strong> <br />
-                    <strong>Helpline Number:</strong> ${AppConstant.helplineNumber} <br />
-                    <strong>Support Email:</strong> ${AppConstant.supportEmail} <br />
-                    <strong>Location:</strong> ${AppConstant.companyLocation} <br />
+                    <strong>Helpline Number:</strong> ${
+                      AppConstant.helplineNumber
+                    } <br />
+                    <strong>Support Email:</strong> ${
+                      AppConstant.supportEmail
+                    } <br />
+                    <strong>Location:</strong> ${
+                      AppConstant.companyLocation
+                    } <br />
                   </div>                         
                 </td>
                  <td colSpan="3">
                   <div style="text-align: right;" >
-                     <strong>Service Amount:</strong> ${AppConstant.currencySymbol} ${invoiceData?.sub_total ? invoiceData?.sub_total.toFixed(2) : 0}<br />
-                    <strong>User Platform Fee:</strong> ${AppConstant.currencySymbol} ${invoiceData?.user_paltform_fee ? invoiceData?.user_paltform_fee.toFixed(2) : 0}<br />
-                    <strong>Taxes:</strong> ${AppConstant.currencySymbol} ${invoiceData?.tax ? invoiceData?.tax.toFixed(2) : 0}<br />
-                    <strong>Total Price:</strong> ${AppConstant.currencySymbol} ${invoiceData?.total_price ? invoiceData?.total_price.toFixed(2) : 0}
+                     <strong>Service Amount:</strong> ${
+                       AppConstant.currencySymbol
+                     } ${
+    invoiceData?.sub_total ? invoiceData?.sub_total.toFixed(2) : 0
+  }<br />
+                    <strong>User Platform Fee:</strong> ${
+                      AppConstant.currencySymbol
+                    } ${
+    invoiceData?.user_paltform_fee
+      ? invoiceData?.user_paltform_fee.toFixed(2)
+      : 0
+  }<br />
+                    <strong>Taxes:</strong> ${AppConstant.currencySymbol} ${
+    invoiceData?.tax ? invoiceData?.tax.toFixed(2) : 0
+  }<br />
+                    <strong>Total Price:</strong> ${
+                      AppConstant.currencySymbol
+                    } ${
+    invoiceData?.total_price ? invoiceData?.total_price.toFixed(2) : 0
+  }
                   </div>                         
                 </td>
               </tr>

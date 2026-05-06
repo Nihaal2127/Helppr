@@ -1,0 +1,1151 @@
+# 📄 Chat Module SRS (Software Requirements Specification)
+
+## 1. Overview
+
+This document defines the architecture, data models, APIs, and real-time communication design for a **multi-platform chat system** supporting:
+
+* Web (React)
+* Mobile (Flutter - iOS & Android)
+
+The system is designed for:
+
+* 1–1 chats (support chats)
+* Group chats (orders, quotes, disputes)
+* Dynamic participant roles
+* Chat transfer and conversion between contexts
+
+---
+
+## 2. System Architecture
+
+### 2.1 High-Level Components
+
+* **Frontend (Web):** React
+* **Mobile Apps:** Flutter (iOS & Android)
+* **Backend:** Node.js (Express)
+* **Database:** MongoDB
+* **Real-time Layer:** WebSockets (Socket.IO)
+* **File Storage:** S3 / Cloudinary
+* **Push Notifications:** Firebase Cloud Messaging (FCM)
+
+---
+
+### 2.2 Communication Layers
+
+#### REST APIs
+
+Used for:
+
+* Authentication
+* Chat creation
+* Message history
+* File uploads
+* Chat updates (transfer, conversion)
+
+#### WebSockets
+
+Used for:
+
+* Real-time messaging
+* Typing indicators
+* Read receipts
+* Chat updates (assignment, role changes)
+
+---
+
+## 3. Core Concepts
+
+### 3.1 Unified Chat Model
+
+All chat types are stored in a **single collection**.
+
+#### Chat Schema
+
+```
+{
+  _id: ObjectId,
+  type: "support" | "order" | "quote" | "dispute",
+  isGroup: Boolean,
+
+  participants: [userId],
+
+  roles: [
+    {
+      userId: ObjectId,
+      role: "customer" | "employee" | "admin" | "partner"
+    }
+  ],
+
+  context: {
+    orderId: ObjectId | null,
+    quoteId: ObjectId | null,
+    disputeId: ObjectId | null
+  },
+
+  assignedTo: ObjectId | null,
+
+  status: "open" | "closed" | "pending",
+
+  linkedChats: [chatId],
+
+  lastMessage: Object,
+  updatedAt: Date,
+  createdAt: Date
+}
+```
+
+---
+
+### 3.2 Message Schema
+
+```
+{
+  _id: ObjectId,
+  chatId: ObjectId,
+  senderId: ObjectId,
+
+  type: "text" | "file" | "image" | "system",
+
+  content: String,
+  fileUrl: String,
+
+  metadata: Object,
+
+  createdAt: Date
+}
+```
+
+---
+
+### 3.3 Read Tracking
+
+```
+{
+  userId: ObjectId,
+  chatId: ObjectId,
+  lastReadAt: Date
+}
+```
+
+---
+
+## 4. Chat Types
+
+### 4.1 Support Chat (1–1 Dynamic)
+
+* User remains constant
+* Assigned employee can change
+* Uses `assignedTo` field
+
+---
+
+### 4.2 Group Chats
+
+Used for:
+
+* Orders
+* Quotes
+* Disputes
+
+Participants may include:
+
+* Customer
+* Employee
+* Admin
+* Partner
+
+---
+
+## 5. Chat Transfer & Conversion
+
+### 5.1 Reassignment (Same Chat)
+
+```
+assignedTo = newEmployeeId
+```
+
+* No message movement
+* History preserved
+
+---
+
+### 5.2 Context Conversion
+
+Example:
+Support → Order
+
+```
+chat.type = "order"
+chat.context.orderId = "123"
+```
+
+---
+
+### 5.3 Chat Linking
+
+```
+linkedChats: [chatId]
+```
+
+Used to associate related conversations without merging them.
+
+---
+
+### 5.4 System Messages
+
+Used for audit trail:
+
+```
+{
+  type: "system",
+  content: "Chat transferred to Employee X"
+}
+```
+
+---
+
+## 6. Real-Time Design
+
+### 6.1 Connection
+
+* Clients connect using JWT authentication
+* Each user joins:
+
+  * Personal room → `userId`
+  * Chat rooms → `chatId`
+
+---
+
+### 6.2 Core Events
+
+#### Client → Server
+
+* `send_message`
+* `join_chat`
+* `leave_chat`
+* `typing`
+* `read_messages`
+
+#### Server → Client
+
+* `receive_message`
+* `new_chat`
+* `chat_assigned`
+* `member_added`
+* `member_removed`
+* `chat_updated`
+
+---
+
+### 6.3 Message Flow
+
+1. Client emits `send_message`
+2. Server saves message
+3. Server emits to `chatId` room
+
+---
+
+## 7. File Sharing
+
+### Flow:
+
+1. Client requests upload URL
+2. Uploads file to storage (S3/Cloudinary)
+3. Sends file URL in message
+
+---
+
+## 8. API Design
+
+### 8.1 Create Chat
+
+```
+POST /chats
+```
+
+---
+
+### 8.2 Get Messages
+
+```
+GET /messages?chatId=123&after=timestamp
+```
+
+---
+
+### 8.3 Transfer Chat
+
+```
+POST /chats/:id/transfer
+```
+
+---
+
+### 8.4 Convert Chat Type
+
+```
+POST /chats/:id/convert
+```
+
+---
+
+### 8.5 Add/Remove Members
+
+```
+POST /chats/:id/members
+DELETE /chats/:id/members/:userId
+```
+
+---
+
+## 9. Push Notifications
+
+Used when users are offline.
+
+### Trigger:
+
+* New message
+* Assignment changes
+* Group updates
+
+---
+
+## 10. Permissions (RBAC)
+
+Role-based access:
+
+| Role     | Permissions           |
+| -------- | --------------------- |
+| Customer | Send/receive messages |
+| Employee | Respond, manage chats |
+| Admin    | Full control          |
+| Partner  | Respond   |
+
+---
+
+## 11. Scalability Considerations
+
+* Use Redis for WebSocket scaling
+* Index MongoDB:
+
+  * `chatId + createdAt`
+  * `participants`
+* Paginate messages
+* Avoid embedding messages in chat documents
+
+---
+
+## 12. Error Handling & Reliability
+
+* Handle socket reconnections
+* Sync missed messages via API
+* Ensure idempotent message handling
+* Retry failed uploads
+
+---
+
+## 13. Security
+
+* JWT authentication (REST + sockets)
+* Validate inputs
+* Rate limit messages
+* Secure file uploads
+
+---
+
+## 14. MVP Scope
+
+### Phase 1
+
+* 1–1 support chat
+* Real-time messaging
+* Basic UI (React)
+
+### Phase 2
+
+* Group chats
+* Flutter integration
+* File sharing
+
+### Phase 3
+
+* Push notifications
+* Read receipts
+* Chat transfer & conversion
+
+---
+
+## 15. Future Enhancements
+
+* Chat queues & auto-assignment
+* SLA tracking
+* Analytics & reporting
+* Message search
+* Reactions & replies
+
+---
+
+## 16. Key Design Principles
+
+* Single chat model for all types
+* Role-based permissions (not hardcoded logic)
+* Context-driven chat meaning
+* No message duplication
+* Real-time + fallback sync via APIs
+
+---
+
+## 17. Summary
+
+This system is designed as a **scalable, multi-platform communication layer** supporting:
+
+* Dynamic participant management
+* Business-context chats (orders, disputes, etc.)
+* Real-time and offline communication
+* Extensibility for future enterprise features
+
+---
+
+**End of Document**
+
+
+
+
+Phase wise
+
+# 📄 Chat Module – Phase-wise Implementation Plan (SRS Addendum)
+
+---
+
+## 1. Purpose
+
+This document breaks down the chat system into **clear implementation phases**, allowing incremental development, testing, and scaling across:
+
+* React (Web)
+* Flutter (iOS & Android)
+* Express (Backend)
+* MongoDB (Database)
+
+Each phase is **independently deliverable** and builds toward a production-grade system.
+
+---
+
+# 🧩 Phase 0 – Foundation Setup
+
+## Objective
+
+Prepare core infrastructure and baseline project structure.
+
+## Scope
+
+* Backend project setup (Express)
+* MongoDB connection
+* Basic folder structure
+* Environment configuration
+* Logging & error handling
+
+## Deliverables
+
+* Running backend server
+* DB connection established
+* Base project structure
+
+## Notes
+
+* No chat functionality yet
+* Prepare for modular architecture
+
+---
+
+# 🧩 Phase 1 – Authentication & User System
+
+## Objective
+
+Enable secure user access across platforms.
+
+## Features
+
+* User registration/login
+* JWT authentication
+* Role assignment (customer, employee, admin, partner)
+
+## APIs
+
+* `POST /auth/login`
+* `POST /auth/register`
+* `GET /me`
+
+## Deliverables
+
+* Auth working in React
+* Token-based access control
+
+## Dependencies
+
+* Required for all future phases
+
+---
+
+# 🧩 Phase 2 – Basic 1–1 Chat (Support Chat MVP)
+
+## Objective
+
+Implement core messaging between a user and an assigned employee.
+
+## Features
+
+* Create support chat
+* Assign employee (`assignedTo`)
+* Send/receive messages (real-time)
+* Message persistence
+* Basic chat UI (React)
+
+## Data
+
+* Chat model (type: "support")
+* Message model
+
+## Real-Time
+
+Use WebSockets via Socket.IO:
+
+* `send_message`
+* `receive_message`
+
+## Deliverables
+
+* Working 1–1 chat (web)
+* Messages stored in DB
+
+## Notes
+
+* No Flutter yet
+* No file sharing
+
+---
+
+# 🧩 Phase 3 – Message History & Sync
+
+## Objective
+
+Ensure reliability for offline users.
+
+## Features
+
+* Fetch message history
+* Incremental sync (`after` timestamp)
+* Pagination
+
+## APIs
+
+* `GET /messages?chatId=&after=`
+
+## Deliverables
+
+* Reload-safe chat
+* Backend sync logic
+
+## Importance
+
+* Critical for Flutter/mobile support later
+
+---
+
+# 🧩 Phase 4 – Flutter Integration
+
+## Objective
+
+Extend chat functionality to mobile apps.
+
+## Features
+
+* Socket connection in Flutter
+* JWT-based socket auth
+* Message send/receive
+* Sync missed messages
+
+## Deliverables
+
+* Chat working in Flutter (iOS & Android)
+* Same backend used
+
+## Notes
+
+* Maintain shared event contract
+
+---
+
+# 🧩 Phase 5 – File & Media Sharing
+
+## Objective
+
+Enable file/image messaging across platforms.
+
+## Features
+
+* File upload via backend (signed URLs)
+* Storage integration (S3/Cloudinary)
+* Send file messages
+
+## Message Update
+
+```js
+type: "file" | "image"
+fileUrl: String
+```
+
+## Deliverables
+
+* File sharing in React & Flutter
+
+## Notes
+
+* Do NOT store files in MongoDB
+
+---
+
+# 🧩 Phase 6 – Group Chats
+
+## Objective
+
+Support multi-user conversations.
+
+## Features
+
+* Create group chat
+* Add/remove members
+* Roles per user
+* Group messaging
+
+## Chat Update
+
+```js
+isGroup: true
+roles: [{ userId, role }]
+```
+
+## Real-Time
+
+* Room-based messaging (`chatId`)
+
+## Deliverables
+
+* Group chat functional (web + mobile)
+
+---
+
+# 🧩 Phase 7 – Roles & Permissions (RBAC)
+
+## Objective
+
+Control access based on user roles.
+
+## Roles
+
+* Customer
+* Employee
+* Admin
+* Partner
+
+## Features
+
+* Permission checks (backend)
+* Role-based UI behavior
+
+## Deliverables
+
+* Secure and structured chat interactions
+
+---
+
+# 🧩 Phase 8 – Chat Transfer (Support System)
+
+## Objective
+
+Enable dynamic reassignment of chats.
+
+## Features
+
+* Transfer chat to another employee
+* Update `assignedTo`
+* Emit real-time updates
+
+## API
+
+* `POST /chats/:id/transfer`
+
+## System Message
+
+```js
+"Chat transferred to Employee X"
+```
+
+## Deliverables
+
+* Seamless support handover
+
+---
+
+# 🧩 Phase 9 – Chat Context (Order / Quote / Dispute)
+
+## Objective
+
+Attach business meaning to chats.
+
+## Features
+
+* Chat types:
+
+  * support
+  * order
+  * quote
+  * dispute
+* Context linking:
+
+```js
+context: { orderId, quoteId, disputeId }
+```
+
+## API
+
+* `POST /chats/:id/convert`
+
+## Deliverables
+
+* Business-driven chat system
+
+---
+
+# 🧩 Phase 10 – Chat Linking
+
+## Objective
+
+Associate related chats without merging.
+
+## Features
+
+```js
+linkedChats: [chatId]
+```
+
+## Use Cases
+
+* Support → Dispute linkage
+* Order → Quote reference
+
+## Deliverables
+
+* Flexible chat relationships
+
+---
+
+# 🧩 Phase 11 – Read Receipts & Unread Count
+
+## Objective
+
+Improve UX with message tracking.
+
+## Features
+
+* Track `lastReadAt`
+* Calculate unread messages
+* Emit read events
+
+## API / Events
+
+* `read_messages`
+
+## Deliverables
+
+* Accurate unread counts
+
+---
+
+# 🧩 Phase 12 – Push Notifications (Mobile)
+
+## Objective
+
+Notify offline users.
+
+## Integration
+
+Firebase Cloud Messaging (FCM)
+
+## Triggers
+
+* New message
+* Chat transfer
+* Group updates
+
+## Deliverables
+
+* Real-time alerts on mobile
+
+---
+
+# 🧩 Phase 13 – Online / Offline Presence
+
+## Objective
+
+Track user availability.
+
+## Features
+
+* Online status via sockets
+* Last seen timestamp
+
+## Events
+
+* connect / disconnect
+
+## Deliverables
+
+* Presence indicators
+
+---
+
+# 🧩 Phase 14 – System Messages & Audit Trail
+
+## Objective
+
+Track system-level changes.
+
+## Examples
+
+* Chat transferred
+* User added/removed
+* Chat converted
+
+## Deliverables
+
+* Transparent chat history
+
+---
+
+# 🧩 Phase 15 – Scalability & Optimization
+
+## Objective
+
+Prepare for production scale.
+
+## Features
+
+* Redis adapter for sockets
+* DB indexing
+* Message pagination
+* Load balancing
+
+## Deliverables
+
+* Horizontally scalable system
+
+---
+
+# 🧩 Phase 16 – Advanced Features (Optional)
+
+## Features
+
+* Typing indicators
+* Message reactions
+* Replies / threading
+* Search messages
+* Chat queues (support)
+
+---
+
+# 🧩 Phase 17 – Security Hardening
+
+## Features
+
+* Rate limiting
+* Input validation
+* Secure file uploads
+* Token expiration handling
+
+---
+
+# 🧩 Phase 18 – Monitoring & Analytics
+
+## Features
+
+* Logs & metrics
+* Chat activity tracking
+* Error monitoring
+
+---
+
+# 🧩 Phase Summary
+
+| Phase | Focus         |
+| ----- | ------------- |
+| 0     | Setup         |
+| 1     | Auth          |
+| 2     | 1–1 Chat      |
+| 3     | Sync          |
+| 4     | Flutter       |
+| 5     | Files         |
+| 6     | Groups        |
+| 7     | Roles         |
+| 8     | Transfer      |
+| 9     | Context       |
+| 10    | Linking       |
+| 11    | Read receipts |
+| 12    | Notifications |
+| 13    | Presence      |
+| 14    | Audit         |
+| 15    | Scaling       |
+| 16+   | Advanced      |
+
+---
+
+# 📌 Final Notes
+
+* Always maintain a **single chat model**
+* Keep **frontend platforms thin**
+* Centralize logic in backend
+* Design for **offline + real-time hybrid**
+
+---
+
+**End of Phase-wise Document**
+
+
+
+
+
+curor prompt for backend implementation
+
+You are working inside an existing production-grade Node.js (Express.js) backend project.
+
+Your task is to implement a **Chat Module** following a scalable, modular architecture. Do NOT modify unrelated modules. Keep everything isolated under a new `/chat` module.
+
+---
+
+# 🧩 1. MODULE STRUCTURE
+
+Create the following structure:
+
+/src/modules/chat
+/controllers
+/services
+/models
+/routes
+/sockets
+/validators
+/utils
+
+Follow the same coding patterns used in existing modules (naming, error handling, response format).
+
+---
+
+# 🧩 2. DATABASE MODELS (MONGOOSE)
+
+Implement the following schemas:
+
+## Chat Schema
+
+* type: enum ["support", "order", "quote", "dispute"]
+* isGroup: Boolean
+* participants: [ObjectId]
+* roles: [{ userId: ObjectId, role: enum ["customer", "employee", "admin", "partner"] }]
+* context:
+
+  * orderId: ObjectId (optional)
+  * quoteId: ObjectId (optional)
+  * disputeId: ObjectId (optional)
+* assignedTo: ObjectId (optional)
+* status: enum ["open", "closed", "pending"]
+* linkedChats: [ObjectId]
+* lastMessage: Mixed
+* timestamps
+
+## Message Schema
+
+* chatId: ObjectId (indexed)
+* senderId: ObjectId
+* type: enum ["text", "image", "file", "system"]
+* content: String
+* fileUrl: String
+* metadata: Mixed
+* timestamps
+
+## Read Tracking Schema
+
+* userId: ObjectId
+* chatId: ObjectId
+* lastReadAt: Date
+
+Add proper indexes:
+
+* messages: (chatId, createdAt)
+* chats: (participants)
+
+---
+
+# 🧩 3. SERVICES LAYER
+
+Implement business logic in services (NO logic in controllers):
+
+## chat.service.js
+
+* createChat(payload)
+* getUserChats(userId)
+* getChatById(chatId)
+* addParticipants(chatId, userIds)
+* removeParticipant(chatId, userId)
+* transferChat(chatId, newAssignedTo)
+* convertChat(chatId, type, context)
+* linkChats(chatId, linkedChatId)
+
+## message.service.js
+
+* sendMessage(payload)
+* getMessages(chatId, { after, limit })
+* createSystemMessage(chatId, content)
+
+## read.service.js
+
+* markAsRead(userId, chatId)
+* getUnreadCount(userId, chatId)
+
+---
+
+# 🧩 4. CONTROLLERS
+
+Thin controllers that call services.
+
+## chat.controller.js
+
+* createChat
+* getChats
+* getChat
+* transferChat
+* convertChat
+* addMembers
+* removeMember
+
+## message.controller.js
+
+* sendMessage
+* getMessages
+
+---
+
+# 🧩 5. ROUTES
+
+Create routes and mount under `/api/chat`
+
+## chat.routes.js
+
+POST   /           → create chat
+GET    /           → list user chats
+GET    /:id        → get chat
+POST   /:id/transfer
+POST   /:id/convert
+POST   /:id/members
+DELETE /:id/members/:userId
+
+## message.routes.js
+
+POST   /messages
+GET    /messages
+
+Use existing auth middleware (JWT).
+
+---
+
+# 🧩 6. SOCKET.IO IMPLEMENTATION
+
+Create `/sockets/chat.socket.js`
+
+## Requirements:
+
+* Authenticate socket using JWT (from handshake)
+* On connection:
+
+  * join user room (userId)
+
+## Events:
+
+### Client → Server
+
+* "join_chat" (chatId)
+* "leave_chat" (chatId)
+* "send_message"
+* "read_messages"
+
+### Server → Client
+
+* "receive_message"
+* "chat_assigned"
+* "member_added"
+* "member_removed"
+* "chat_updated"
+
+## Logic:
+
+* join_chat → socket.join(chatId)
+
+* send_message:
+
+  1. validate payload
+  2. save message via service
+  3. emit to room (chatId)
+
+* transferChat:
+  emit "chat_assigned"
+
+* read_messages:
+  update read tracking
+
+---
+
+# 🧩 7. VALIDATION
+
+Use existing validation library (Joi/Zod/etc).
+
+Validate:
+
+* create chat payload
+* send message payload
+* transfer payload
+
+---
+
+# 🧩 8. ERROR HANDLING
+
+* Use centralized error handler
+* Throw structured errors from services
+* Do NOT send raw errors
+
+---
+
+# 🧩 9. INTEGRATION
+
+* Register routes in main router
+* Register socket module in main socket setup
+* Ensure no breaking changes to existing modules
+
+---
+
+# 🧩 10. CONSTRAINTS
+
+* Do NOT duplicate chat types into separate collections
+* Do NOT embed messages inside chat
+* Keep logic reusable for React + Flutter
+* Follow existing project coding standards strictly
+
+---
+
+# 🧩 11. OUTPUT EXPECTATION
+
+Generate:
+
+* All files with proper imports/exports
+* Clean, production-ready code
+* Comments where necessary
+* No pseudo code
+
+---
+
+Start implementing step-by-step, beginning with models, then services, then controllers, then routes, then sockets.
