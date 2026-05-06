@@ -480,9 +480,13 @@ export async function fetchPartnerSubscriptions(
     status?: string;
     sort?: string;
     planType?: string;
+    /** UI passes Area _id (`fetchAreaDropDown`) or "all". */
     location?: string;
     fromDate?: string;
     toDate?: string;
+    /** Optional server-side scoping when supported by backend. */
+    cityId?: string;
+    franchiseId?: string;
   },
   sortBy: ServerTableSortBy = []
 ): Promise<{
@@ -591,6 +595,22 @@ export async function fetchPartnerSubscriptions(
   const planT = (filters.planType ?? "").trim();
   if (planT && planT !== "all" && /^[a-f\d]{24}$/i.test(planT)) {
     params.set("subscription_plan_id", planT);
+  }
+  const areaId = (filters.location ?? "").trim();
+  if (areaId && areaId !== "all" && /^[a-f\d]{24}$/i.test(areaId)) {
+    params.set("area_id", areaId);
+  }
+  const fromDate = (filters.fromDate ?? "").trim();
+  const toDate = (filters.toDate ?? "").trim();
+  if (fromDate) params.set("from_date", fromDate);
+  if (toDate) params.set("to_date", toDate);
+  const cityId = (filters.cityId ?? "").trim();
+  if (cityId && /^[a-f\d]{24}$/i.test(cityId)) {
+    params.set("city_id", cityId);
+  }
+  const franchiseId = (filters.franchiseId ?? "").trim();
+  if (franchiseId && /^[a-f\d]{24}$/i.test(franchiseId)) {
+    params.set("franchise_id", franchiseId);
   }
   if (filters.sort) params.set("sort", filters.sort);
   if (primarySort?.id) {

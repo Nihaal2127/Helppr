@@ -19,6 +19,8 @@ interface CustomFormSelectProps {
     options?: { shouldValidate?: boolean }
   ) => void;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  /** Disables the select (read-only). */
+  isDisabled?: boolean;
   asCol?: boolean;
   noBottomMargin?: boolean;
   /** Fixed width (e.g. `"220px"`). Constrains the control and stops the inner search input from stretching with flex. */
@@ -41,6 +43,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   setValue,
   onChange,
   isValue = false,
+  isDisabled = false,
   asCol = true,
   noBottomMargin = false,
   selectWidth,
@@ -113,10 +116,8 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       }),
       control: (provided: any) => ({
         ...provided,
-        borderColor: "var(--primary-color)",
-        "&:hover": {
-          borderColor: "var(--primary-color)",
-        },
+        borderColor: isDisabled ? "var(--txtfld-border)" : "var(--primary-color)",
+        "&:hover": { borderColor: isDisabled ? "var(--txtfld-border)" : "var(--primary-color)" },
         boxShadow: "none",
         borderRadius: "8px",
         fontSize: "14px",
@@ -222,7 +223,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
           }
         : {}),
     }),
-    [selectWidth, noBottomMargin, menuPortal]
+    [selectWidth, noBottomMargin, menuPortal, isDisabled]
   );
 
   const formGroupStyle = selectWidth
@@ -254,6 +255,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
         options={options}
         value={selectedOption}
         onChange={handleChange}
+        isDisabled={isDisabled}
         placeholder={placeholder || `Select ${controlId}`}
         onBlur={() => {
           if (!selectedOption && setValue) {

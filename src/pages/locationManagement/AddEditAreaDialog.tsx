@@ -283,13 +283,17 @@ const AddEditAreaDialog: React.FC<Props> & {
 
   const onSubmitEvent = async (data: AreaFormValues) => {
     const pinCodes = (data.pincode || []).map((p) => p.trim()).filter(Boolean);
+    const isActive =
+      typeof data.is_active === "boolean"
+        ? data.is_active
+        : String(data.is_active ?? "") === "true";
 
     const payload = {
       name: data.name,
       state_id: data.state_id,
       city_id: data.city_id,
       pincodes: pinCodes,
-      is_active: data.is_active,
+      is_active: isActive,
     };
 
     let response;

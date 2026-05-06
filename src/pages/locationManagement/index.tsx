@@ -668,18 +668,18 @@ const LocationManagement = () => {
           </Button>
         ) : undefined
       }
-      onDownloadClick={async () => {
-        selectedBox === "box-state"
-          ? await exportData(ApiPaths.EXPORT_STATE)
-          : selectedBox === "box-area"
-          ? await exportData(ApiPaths.EXPORT_AREA)
-          : await exportData(ApiPaths.EXPORT_CITY);
-      }}
-      onSortClick={(value: "-1" | "1") => {
-        handleFilterChange({ sort: value });
-      }}
-      onMoreClick={() => {}}
-      onSearch={(value: string) => handleFilterChange({ name: value })}
+    //   onDownloadClick={async () => {
+    //     selectedBox === "box-state"
+    //       ? await exportData(ApiPaths.EXPORT_STATE)
+    //       : selectedBox === "box-area"
+    //       ? await exportData(ApiPaths.EXPORT_AREA)
+    //       : await exportData(ApiPaths.EXPORT_CITY);
+    //   }}
+    //   onSortClick={(value: "-1" | "1") => {
+    //     handleFilterChange({ sort: value });
+    //   }}
+    //   onMoreClick={() => {}}
+    //   onSearch={(value: string) => handleFilterChange({ name: value })}
     />
   ) : null;
 

@@ -24,12 +24,16 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
   fetchPartnerSubscriptions,
+  fetchSubscriptionPlanDropDown,
   fetchSubscriptionPlans,
   voidPartnerSubscription,
   voidSubscriptionPlan,
 } from "../../../services/partnerManagementService";
 import { fetchAreaDropDown } from "../../../services/areaService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import { AppConstant, UserRole } from "../../../constant/AppConstant";
+import { getLocalStorage } from "../../../helper/localStorageHelper";
+import { fetchUserById } from "../../../services/userService";
 
 /** Days from today until `endDateStr` (date-only); negative if already past. */
 const getRemainingCalendarDays = (endDateStr: string): number | null => {
@@ -101,6 +105,10 @@ type SubscriptionPlansProps = {
 
 const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const { register, setValue } = useForm<any>();
+  const currentUserRole = getLocalStorage(AppConstant.userRole);
+  const isFranchiseAdminSession = currentUserRole === UserRole.FRANCHISE_ADMIN;
+  const isSuperAdminOrStaff =
+    currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
   const [selectedBox, setSelectedBox] = useState<
     "plans" | "partner_subscription_list"
   >("plans");
@@ -133,6 +141,13 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const [locationAreaOptions, setLocationAreaOptions] = useState<
     { value: string; label: string }[]
   >([{ value: "all", label: "All" }]);
+  const [planTypeOptions, setPlanTypeOptions] = useState<
+    { value: string; label: string }[]
+  >([{ value: "all", label: "All" }]);
+  const [sessionFranchiseId] = useState(() =>
+    String(getLocalStorage(AppConstant.partnerId) ?? "").trim()
+  );
+  const [sessionCityId, setSessionCityId] = useState("");
 
   const [planFilters, setPlanFilters] = useState<{
     name?: string;
@@ -159,8 +174,38 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       if (cancelled) return;
       setLocationAreaOptions([
         { value: "all", label: "All" },
-        ...rows.map((a) => ({ value: a.label, label: a.label })),
+        ...rows,
       ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isFranchiseAdminSession) return;
+    (async () => {
+      const currentUserId = String(
+        getLocalStorage(AppConstant.createdById) ?? ""
+      ).trim();
+      if (!currentUserId) return;
+      const res = await fetchUserById(currentUserId);
+      if (cancelled || !res.response || !res.user) return;
+      const cid = String((res.user as any).city_id ?? "").trim();
+      if (cid) setSessionCityId(cid);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFranchiseAdminSession]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const options = await fetchSubscriptionPlanDropDown();
+      if (cancelled) return;
+      setPlanTypeOptions([{ value: "all", label: "All" }, ...options]);
     })();
     return () => {
       cancelled = true;
@@ -180,7 +225,11 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         fetchPartnerSubscriptions(
           currentPage,
           pageSize,
-          partnerFilters,
+          {
+            ...partnerFilters,
+            franchiseId: isFranchiseAdminSession ? sessionFranchiseId : undefined,
+            cityId: isFranchiseAdminSession ? sessionCityId : undefined,
+          },
           partnerSubSortBy
         ),
       ]);
@@ -270,13 +319,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         <CustomFormSelect
           label="Plan Type"
           controlId="partner_sub_plan_type_filter"
-          options={[
-            { value: "all", label: "All" },
-            { value: "basic", label: "Basic" },
-            { value: "silver", label: "Silver" },
-            { value: "gold", label: "Gold" },
-            { value: "platinum", label: "Platinum" },
-          ]}
+          options={planTypeOptions}
           register={register}
           fieldName="partner_sub_plan_type_filter"
           asCol={false}
@@ -290,30 +333,32 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           }
         />
       </Col>
-      <Col
-        xs={12}
-        sm={6}
-        md="auto"
-        className="order-payments-filter-col"
-        style={{ minWidth: 200 }}
-      >
-        <CustomFormSelect
-          label="Location (area)"
-          controlId="partner_sub_location_filter"
-          options={locationAreaOptions}
-          register={register}
-          fieldName="partner_sub_location_filter"
-          asCol={false}
-          noBottomMargin
-          defaultValue={partnerFilters.location || "all"}
-          setValue={setValue}
-          placeholder="All locations"
-          menuPortal
-          onChange={(e) =>
-            handlePartnerSubscriptionFilterChange({ location: e.target.value })
-          }
-        />
-      </Col>
+      {!isFranchiseAdminSession ? (
+        <Col
+          xs={12}
+          sm={6}
+          md="auto"
+          className="order-payments-filter-col"
+          style={{ minWidth: 200 }}
+        >
+          <CustomFormSelect
+            label="Location (area)"
+            controlId="partner_sub_location_filter"
+            options={locationAreaOptions}
+            register={register}
+            fieldName="partner_sub_location_filter"
+            asCol={false}
+            noBottomMargin
+            defaultValue={partnerFilters.location || "all"}
+            setValue={setValue}
+            placeholder="All locations"
+            menuPortal
+            onChange={(e) =>
+              handlePartnerSubscriptionFilterChange({ location: e.target.value })
+            }
+          />
+        </Col>
+      ) : null}
       <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
         <CustomFormSelect
           label="Status"
@@ -396,7 +441,8 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           disabled={
             (partnerFilters.planType ?? "all") === "all" &&
             (partnerFilters.status ?? "all") === "all" &&
-            (partnerFilters.location ?? "all") === "all" &&
+            ((partnerFilters.location ?? "all") === "all" ||
+              isFranchiseAdminSession) &&
             !partnerFilters.fromDate &&
             !partnerFilters.toDate &&
             !partnerFilters.name?.trim()
@@ -412,9 +458,11 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             setValue("partner_sub_status_filter", "all", {
               shouldValidate: false,
             });
-            setValue("partner_sub_location_filter", "all", {
-              shouldValidate: false,
-            });
+            if (!isFranchiseAdminSession) {
+              setValue("partner_sub_location_filter", "all", {
+                shouldValidate: false,
+              });
+            }
             setValue("partner_sub_start_date_filter", "", {
               shouldValidate: false,
             });
@@ -511,6 +559,20 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Partner Name", accessor: "partner_name", sort: true },
+      ...(isSuperAdminOrStaff
+        ? [
+            {
+              Header: "Location (Area)",
+              accessor: "location",
+              sort: false,
+              Cell: ({ row }: { row: any }) => {
+                const r = row.original as PartnerSubscriptionModel;
+                const v = String(r.location ?? r.address ?? "").trim();
+                return v || "-";
+              },
+            },
+          ]
+        : []),
       {
         Header: "Subscription Plan",
         accessor: "subscription_plan",
@@ -575,7 +637,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         ),
       },
     ],
-    [currentPage, pageSize, refreshData]
+    [currentPage, isSuperAdminOrStaff, pageSize, refreshData]
   );
 
   return (
@@ -661,17 +723,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         searchHint={
           activeBox === "plans" ? "Search Plan Name" : "Search Partner Name"
         }
-        onDownloadClick={async () => {
-          console.log("Download clicked");
-        }}
-        onSortClick={(value: "1" | "-1") => {
-          if (activeBox === "plans") {
-            handlePlanFilterChange({ sort: value });
-          } else {
-            handlePartnerSubscriptionFilterChange({ sort: value });
-          }
-        }}
-        onMoreClick={() => {}}
+       
         onSearch={(value: string) => {
           if (activeBox === "plans") {
             handlePlanFilterChange({ name: value });

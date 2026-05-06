@@ -259,6 +259,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           register={register}
           error={errors.name}
           validation={{ required: "Name is required" }}
+          value={watch("name") ?? ""}
+          onChange={(v) =>
+            setValue("name", v, { shouldDirty: true, shouldValidate: false })
+          }
         />
         <CustomTextField
           label="Phone"
@@ -267,6 +271,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           register={register}
           error={errors.phone}
           validation={{ required: "Phone is required" }}
+          value={watch("phone") ?? ""}
+          onChange={(v) =>
+            setValue("phone", v, { shouldDirty: true, shouldValidate: false })
+          }
         />
         <CustomTextField
           label="Email"
@@ -276,6 +284,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           error={errors.email}
           validation={{ required: "Email is required" }}
           inputType="email"
+          value={watch("email") ?? ""}
+          onChange={(v) =>
+            setValue("email", v, { shouldDirty: true, shouldValidate: false })
+          }
         />
         <Row className="align-items-center mb-3">
           <Col sm={4} className="d-flex align-items-center">

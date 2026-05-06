@@ -50,9 +50,13 @@ const AddEditStateDialog: React.FC<AddEditStateDialogProps> & {
   }, [isEditable, state, setValue]);
 
   const onSubmitEvent = async (data: StateModel) => {
+    const isActive =
+      typeof data.is_active === "boolean"
+        ? data.is_active
+        : String(data.is_active ?? "") === "true";
     const payload = {
       name: data.name,
-      is_active: data.is_active,
+      is_active: isActive,
     };
     let response;
 

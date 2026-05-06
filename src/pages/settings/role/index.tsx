@@ -196,6 +196,8 @@ const RoleManagement = () => {
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
     FranchiseDropDownOption[]
   >([]);
+  const [unassignedFranchiseDropdownOptions, setUnassignedFranchiseDropdownOptions] =
+    useState<FranchiseDropDownOption[]>([]);
   const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
   const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
   const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] =
@@ -325,6 +327,18 @@ const RoleManagement = () => {
       const options = await fetchFranchiseDropDown();
       if (cancelled) return;
       setFranchiseDropdownOptions(options);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const options = await fetchFranchiseDropDown({ onlyUnassigned: true });
+      if (cancelled) return;
+      setUnassignedFranchiseDropdownOptions(options);
     })();
     return () => {
       cancelled = true;
@@ -517,7 +531,7 @@ const RoleManagement = () => {
 
   const assignedFranchiseOptions = useMemo(() => {
     const uniqueFranchises = Array.from(
-      new Set(franchiseDropdownOptions.map((option) => option.label))
+      new Set(unassignedFranchiseDropdownOptions.map((option) => option.label))
     );
 
     const options = uniqueFranchises.map((franchise) => ({
@@ -536,7 +550,10 @@ const RoleManagement = () => {
     }
 
     return [{ value: "", label: "Select Franchise" }, ...options];
-  }, [franchiseDropdownOptions, form.assignedFranchise]);
+  }, [
+    unassignedFranchiseDropdownOptions,
+    form.assignedFranchise,
+  ]);
 
   const franchiseMetaByName = useMemo(() => {
     const map = new Map<string, FranchiseDropDownOption>();
@@ -1156,6 +1173,7 @@ const RoleManagement = () => {
                   asCol={false}
                   defaultValue={form.assignedFranchise}
                   setValue={setValue}
+                  isDisabled={Boolean(editing) && form.roleType === "franchise_admin"}
                   onChange={(e) =>
                     setForm((p) => ({
                       ...p,

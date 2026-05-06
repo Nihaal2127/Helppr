@@ -129,9 +129,9 @@ function mapFranchiseRow(
   } as FranchiseModel;
 }
 
-export const fetchFranchiseDropDown = async (): Promise<
-  FranchiseDropDownOption[]
-> => {
+export const fetchFranchiseDropDown = async (
+  options?: { onlyUnassigned?: boolean }
+): Promise<FranchiseDropDownOption[]> => {
   const currentUserRole = String(
     getLocalStorage(AppConstant.userRole) ?? ""
   ).trim();
@@ -151,8 +151,12 @@ export const fetchFranchiseDropDown = async (): Promise<
     }));
   }
 
+  const query = new URLSearchParams();
+  if (options?.onlyUnassigned) {
+    query.set("only_unassigned", "true");
+  }
   const response = await apiRequest(
-    `${ApiPaths.GET_FRANCHISE_DROP_DOWN()}`,
+    `${ApiPaths.GET_FRANCHISE_DROP_DOWN()}${query.toString() ? `?${query.toString()}` : ""}`,
     "GET"
   );
 
