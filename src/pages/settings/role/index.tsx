@@ -113,6 +113,7 @@ const EMPTY_SUMMARY_COUNTS: SummaryCounts = {
 
 const compareNullableText = (a?: string, b?: string) =>
   (a ?? "").localeCompare(b ?? "", undefined, { sensitivity: "base" });
+const isMongoObjectId = (value: string) => /^[a-f\d]{24}$/i.test(value.trim());
 
 function applyRoleSortFallback(
   rows: RoleSettingsModel[],
@@ -403,7 +404,14 @@ const RoleManagement = () => {
         SETTINGS_ROLE_PAGE_SIZE,
         selectedBox === "box-staff"
           ? { keyword: staffKeyword, status: staffStatus }
-          : { keyword, status },
+          : {
+              keyword,
+              status,
+              franchiseId:
+                franchiseFilter && franchiseFilter !== "all"
+                  ? franchiseFilter
+                  : undefined,
+            },
         selectedBox === "box-staff" ? staffSortBy : roleSortBy
       );
       if (cancelled) return;
@@ -453,6 +461,7 @@ const RoleManagement = () => {
     staffStatus,
     roleSortBy,
     staffSortBy,
+    franchiseFilter,
   ]);
 
   useEffect(() => {
@@ -488,9 +497,15 @@ const RoleManagement = () => {
     return roleRows.filter((item) => {
       // Keyword and status are already applied on backend (`/user/getAll` query params).
       const matchesType = roleType === "all" || item.roleType === roleType;
-      const matchesFranchise =
-        franchiseFilter === "all" ||
-        (item.assignedFranchise || "") === franchiseFilter;
+      const matchesFranchise = (() => {
+        if (franchiseFilter === "all") return true;
+        const filterValue = String(franchiseFilter ?? "").trim();
+        if (!filterValue) return true;
+        if (isMongoObjectId(filterValue)) {
+          return String(item.franchise_id ?? "").trim() === filterValue;
+        }
+        return (item.assignedFranchise || "") === filterValue;
+      })();
       return matchesType && matchesFranchise;
     });
   }, [roleRows, roleType, franchiseFilter]);
@@ -745,6 +760,13 @@ const RoleManagement = () => {
         titlePrefix={<SettingsNav />}
         register={register}
         setValue={setValue}
+        onLocationChange={(selectedFranchise) => {
+          // Header franchise filter is intended for the role table (not Staff section).
+          setSelectedBox("box-franchise-admin");
+          setRoleType("franchise_admin");
+          setFranchiseFilter(selectedFranchise);
+          setRoleCurrentPage(1);
+        }}
       />
 
       <div className="box-container settings-role-box-container">
@@ -927,23 +949,6 @@ const RoleManagement = () => {
                   setValue={setValue}
                   onChange={(e) => {
                     setStatus(e.target.value as "all" | "active" | "inactive");
-                    setRoleCurrentPage(1);
-                  }}
-                />
-              </div>
-              <div style={{ width: "220px", minWidth: "220px" }}>
-                <CustomFormSelect
-                  label="Franchise"
-                  controlId="role_franchise_filter"
-                  options={franchiseFilterOptions}
-                  register={register}
-                  fieldName="role_franchise_filter"
-                  asCol={false}
-                  noBottomMargin
-                  defaultValue={franchiseFilter}
-                  setValue={setValue}
-                  onChange={(e) => {
-                    setFranchiseFilter(e.target.value);
                     setRoleCurrentPage(1);
                   }}
                 />

@@ -495,7 +495,7 @@ const ExpensesPage = () => {
 
     if (!categoryId) return showErrorAlert("Category id not found for selected category.");
     if (!subCategoryId) return showErrorAlert("Sub category id not found for selected sub category.");
-    if (!payloadFranchiseId) return showErrorAlert("Franchise id not found.");
+    if (!payloadFranchiseId) return showErrorAlert("Franchise not found.");
 
     const payload = {
       franchise_id: payloadFranchiseId,
@@ -737,7 +737,7 @@ const ExpensesPage = () => {
              <div className="row g-2">
               <div className="col-md-6">
                 <CustomFormSelect
-                  label="Category1"
+                  label="Category"
                   controlId="expense_modal_category"
                   options={[
                     { value: "", label: "Select Category" },

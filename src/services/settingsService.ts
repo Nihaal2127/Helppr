@@ -241,7 +241,11 @@ export const fetchSettingsSectionPageByType = async (
   type: number,
   page: number,
   limit: number,
-  filters?: { keyword?: string; status?: "all" | "active" | "inactive" },
+  filters?: {
+    keyword?: string;
+    status?: "all" | "active" | "inactive";
+    franchiseId?: string;
+  },
   sortBy: ServerTableSortBy = []
 ): Promise<SettingsSectionPageResult | null> => {
   const primarySort = sortBy[0];
@@ -264,6 +268,7 @@ export const fetchSettingsSectionPageByType = async (
     ...(filters?.status && filters.status !== "all"
       ? { is_active: filters.status === "active" ? "true" : "false" }
       : {}),
+    ...(filters?.franchiseId ? { franchise_id: filters.franchiseId } : {}),
     ...(mappedSortField ? { sort_by: mappedSortField } : {}),
     ...(mappedSortField ? { sortBy: mappedSortField } : {}),
     ...(primarySort ? { sort_order: primarySort.desc ? "desc" : "asc" } : {}),
