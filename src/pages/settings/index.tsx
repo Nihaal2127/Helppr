@@ -36,6 +36,7 @@ const Settings = () => {
           title="Settings"
           register={register}
           setValue={setValue}
+          hideFranchiseDropdown
         />
 
         <div className="custom-grid-box-div">

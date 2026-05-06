@@ -136,6 +136,7 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
         title="Content Management"
         register={register}
         setValue={setValue}
+        hideFranchiseDropdown
       />
 
       <div className="card border-0 shadow-sm">

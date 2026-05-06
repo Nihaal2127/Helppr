@@ -26,6 +26,8 @@ interface CustomHeaderProps {
   ) => void;
   onLocationChange?: (selectedLocation: string) => void;
   rightActions?: React.ReactNode;
+  /** Hide top-right franchise selector for pages that should not expose it. */
+  hideFranchiseDropdown?: boolean;
 }
 
 const CustomHeader = ({
@@ -35,6 +37,7 @@ const CustomHeader = ({
   setValue,
   onLocationChange,
   rightActions,
+  hideFranchiseDropdown = false,
 }: CustomHeaderProps) => {
   const navigate = useNavigate();
   const currentUserRole = getLocalStorage(AppConstant.userRole);
@@ -104,7 +107,7 @@ const CustomHeader = ({
         className="d-flex justify-content-end align-items-center gap-3 p-0 m-0"
       >
         {rightActions}
-        {isAdminUser && register && setValue && (
+        {isAdminUser && register && setValue && !hideFranchiseDropdown && (
           <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
             <CustomFormSelect
               label=""

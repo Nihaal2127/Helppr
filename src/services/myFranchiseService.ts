@@ -1,4 +1,7 @@
 import { fetchArea } from "./areaService";
+import { fetchCategory } from "./categoryService";
+import { fetchService } from "./servicesService";
+import { fetchFranchiseById } from "./franchiseService";
 import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
 import { showErrorAlert } from "../helper/alertHelper";
 import { getLocalStorage } from "../helper/localStorageHelper";
@@ -226,6 +229,97 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   return all.map(mapApiAreaToFranchiseAreaRow);
 }
 
+async function fetchCategoryRowsForMyFranchise(): Promise<CategoryRow[] | null> {
+  const fid = await resolveSessionFranchiseId();
+  if (!fid) return [];
+  const franchise = await fetchFranchiseById(fid);
+  if (!franchise) return [];
+  const categoryIds = Array.from(
+    new Set([
+      ...((franchise.category_ids ?? []).map(String) || []),
+      ...((franchise.categories ?? []).map(String) || []),
+    ])
+  )
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (categoryIds.length === 0) return [];
+
+  const pageSize = 200;
+  const maxPages = 50;
+  const all: any[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetchCategory(page, pageSize, {}, []);
+    if (!res.response) return null;
+    all.push(...(res.categories ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+  }
+
+  return all
+    .filter((raw: any) => categoryIds.includes(String(raw?._id ?? "").trim()))
+    .map((raw: any) => {
+      const id = String(raw?._id ?? raw?.id ?? "").trim();
+      const isActiveRaw = raw?.is_active;
+      const isActive =
+        typeof isActiveRaw === "boolean"
+          ? isActiveRaw
+          : String(isActiveRaw).toLowerCase() === "true" ||
+            String(isActiveRaw) === "1";
+      return {
+        _id: id,
+        category_id: String(raw?.category_id ?? id).trim() || id,
+        name: String(raw?.name ?? "").trim() || "-",
+        is_active: isActive,
+      } as CategoryRow;
+    });
+}
+
+async function fetchServiceRowsForMyFranchise(): Promise<ServiceRow[] | null> {
+  const fid = await resolveSessionFranchiseId();
+  if (!fid) return [];
+  const franchise = await fetchFranchiseById(fid);
+  if (!franchise) return [];
+  const serviceIds = Array.from(
+    new Set([
+      ...((franchise.service_ids ?? []).map(String) || []),
+      ...((franchise.services ?? []).map(String) || []),
+    ])
+  )
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (serviceIds.length === 0) return [];
+
+  const pageSize = 200;
+  const maxPages = 50;
+  const all: any[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetchService(page, pageSize, {}, []);
+    if (!res.response) return null;
+    all.push(...(res.services ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+  }
+
+  return all
+    .filter((raw: any) => serviceIds.includes(String(raw?._id ?? "").trim()))
+    .map((raw: any) => {
+      const id = String(raw?._id ?? raw?.id ?? "").trim();
+      const isActiveRaw = raw?.is_active;
+      const isActive =
+        typeof isActiveRaw === "boolean"
+          ? isActiveRaw
+          : String(isActiveRaw).toLowerCase() === "true" ||
+            String(isActiveRaw) === "1";
+      return {
+        _id: id,
+        service_id: String(raw?.service_id ?? id).trim() || id,
+        name: String(raw?.name ?? "").trim() || "-",
+        category_name: String(raw?.category_name ?? "").trim() || "-",
+        is_active: isActive,
+      } as ServiceRow;
+    });
+}
+
 function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
   const id = String(raw?._id ?? raw?.id ?? "").trim();
   const phone = String(raw?.phone_number ?? raw?.phone ?? "").trim();
@@ -299,15 +393,20 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
 }
 
 export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
-  const apiEmployeeRows = await fetchEmployeeRowsForMyFranchise();
-  // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
-  const apiAreaRows = await fetchAreaRowsForMyFranchise();
+  const [apiEmployeeRows, apiAreaRows, apiServiceRows, apiCategoryRows] =
+    await Promise.all([
+      fetchEmployeeRowsForMyFranchise(),
+      // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
+      fetchAreaRowsForMyFranchise(),
+      fetchServiceRowsForMyFranchise(),
+      fetchCategoryRowsForMyFranchise(),
+    ]);
 
   return {
     employees: apiEmployeeRows ?? [],
     areas: apiAreaRows ?? [],
-    services: [],
-    categories: [],
+    services: apiServiceRows ?? [],
+    categories: apiCategoryRows ?? [],
     requested_services: [],
     requested_categories: [],
   };
