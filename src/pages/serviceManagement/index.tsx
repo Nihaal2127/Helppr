@@ -8,85 +8,32 @@ import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { CategoryModel } from "../../models/CategoryModel";
 import { ServiceModel } from "../../models/ServiceModel";
-import { fetchCategory, deleteCategory } from "../../services/categoryService";
+import {
+  fetchCategory,
+  deleteCategory,
+  fetchCategoryById,
+} from "../../services/categoryService";
 import {
   deleteService,
   fetchService,
-  fetchServiceDropDown,
+  fetchServiceById,
 } from "../../services/servicesService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { getCount } from "../../services/getCountService";
-import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
 
-/* ADDED: static requested category data */
-const staticRequestedCategoryList = [
-  {
-    _id: "1",
-    request_id: "REQC001",
-    name: "Drone Photography",
-    desc: "Need professional drone photography services",
-    createdAt: "2026-03-01",
-    status: "Pending",
-    is_active: false,
-    state_ids: [],
-    city_ids: [],
-    image_url: "",
-    requested_categories: "",
-    services: 0,
-    helpers: 0,
-  },
-  {
-    _id: "2",
-    request_id: "REQC002",
-    name: "Pet Grooming",
-    desc: "Home pet grooming service",
-    createdAt: "2026-03-05",
-    status: "Pending",
-    is_active: false,
-    state_ids: [],
-    city_ids: [],
-    image_url: "",
-    requested_categories: "",
-    services: 0,
-    helpers: 0,
-  },
-];
-
-/* ADDED: static requested service data */
-const staticRequestedServiceList = [
-  {
-    _id: "1",
-    request_id: "REQS001",
-    name: "AC Repair",
-    desc: "AC repair service",
-    category_name: "Home",
-    createdAt: "2026-03-02",
-    status: "Pending",
-    is_active: false,
-    price: 0,
-    helpers: 0,
-  },
-  {
-    _id: "2",
-    request_id: "REQS002",
-    name: "Laptop Repair",
-    desc: "Laptop motherboard repair",
-    category_name: "Electronics",
-    createdAt: "2026-03-06",
-    status: "Pending",
-    is_active: false,
-    price: 0,
-    helpers: 0,
-  },
-];
-
 /* ADDED: pending status cell */
-const pendingStatusCell = () => () =>
-  <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
+const requestStatusCell = () => ({ row }: { row: any }) => {
+  const isRejected = row?.original?.is_rejected;
+  if (isRejected === true) {
+    return <span style={{ color: "red", fontWeight: 600 }}>Rejected</span>;
+  }
+  if (isRejected === false) {
+    return <span style={{ color: "green", fontWeight: 600 }}>Approved</span>;
+  }
+  return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
+};
 
 const ServiceManagement = () => {
   const { register, setValue } = useForm<any>();
@@ -99,39 +46,24 @@ const ServiceManagement = () => {
   /* ADDED: requested table states */
   const [showRequestedCategory, setShowRequestedCategory] = useState(false);
   const [showRequestedService, setShowRequestedService] = useState(false);
-  const [requestedCategoryList, setRequestedCategoryList] = useState<any[]>([]);
-  const [requestedServiceList, setRequestedServiceList] = useState<any[]>([]);
+  const [requestedCategoryList, setRequestedCategoryList] = useState<
+    CategoryModel[]
+  >([]);
+  const [requestedServiceList, setRequestedServiceList] = useState<
+    ServiceModel[]
+  >([]);
+  const [activeFilters, setActiveFilters] = useState<{
+    keyword?: string;
+    status?: string;
+    sort?: string;
+  }>({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [isTableLoading, setIsTableLoading] = useState(false);
   const fetchRef = useRef(false);
-  const [serviceIdToName, setServiceIdToName] = useState<
-    Record<string, string>
-  >({});
-  const [serviceNameList, setServiceNameList] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-
-  useEffect(() => {
-    if (selectedBox !== "box-category") return;
-    let cancelled = false;
-    (async () => {
-      const opts = await fetchServiceDropDown();
-      if (cancelled) return;
-      const map: Record<string, string> = {};
-      const names: string[] = [];
-      opts.forEach((o) => {
-        if (o.value && o.value !== "select-all") map[o.value] = o.label;
-        if (o.label) names.push(o.label);
-      });
-      setServiceIdToName(map);
-      setServiceNameList(names);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedBox]);
 
   const fetchData = useCallback(
     async (
@@ -147,60 +79,56 @@ const ServiceManagement = () => {
       setIsTableLoading(true);
 
       try {
-        const { responseCount, countModel } = await getCount(2);
-
-        if (responseCount && countModel) {
-          setCategoryData({
-            Total: countModel.total_category ?? 0,
-            Active: countModel.active_category ?? 0,
-            Inactive: countModel.inactive_category ?? 0,
-            requested_category:
-              countModel.total_requestedcategory ??
-              staticRequestedCategoryList.length,
-          });
-
-          setServiceData({
-            Total: countModel.total_service ?? 0,
-            Active: countModel.active_service ?? 0,
-            Inactive: countModel.inactive_service ?? 0,
-            requested_service:
-              countModel.total_requestedservice ??
-              staticRequestedServiceList.length,
-          });
-        } else {
-          setCategoryData({
-            Total: 0,
-            Active: 0,
-            Inactive: 0,
-            requested_category: staticRequestedCategoryList.length,
-          });
-
-          setServiceData({
-            Total: 0,
-            Active: 0,
-            Inactive: 0,
-            requested_service: staticRequestedServiceList.length,
-          });
-        }
-
         if (selected === "box-category") {
-          const { response, categories, totalPages } = await fetchCategory(
+          const { response, categories, totalPages, totalRecords } =
+            await fetchCategory(
             currentPage,
             pageSize,
-            { ...filters }
+            {
+              ...filters,
+              ...(showRequestedCategory ? { is_request: "true" } : {}),
+            },
+            sortBy
           );
           if (response) {
-            setCategoryList(categories || []);
+            if (showRequestedCategory) {
+              setRequestedCategoryList(categories || []);
+            } else {
+              setCategoryList(categories || []);
+            }
+            const rows = categories || [];
+            setCategoryData({
+              Total: totalRecords ?? 0,
+              Active: rows.filter((c) => c.is_active).length,
+              Inactive: rows.filter((c) => !c.is_active).length,
+              requested_category: rows.filter((c) => c.is_request).length,
+            });
             setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-service") {
-          const { response, services, totalPages } = await fetchService(
+          const { response, services, totalPages, totalRecords } =
+            await fetchService(
             currentPage,
             pageSize,
-            { ...filters }
+            {
+              ...filters,
+              ...(showRequestedService ? { is_request: "true" } : {}),
+            },
+            sortBy
           );
           if (response) {
-            setServiceList(services || []);
+            if (showRequestedService) {
+              setRequestedServiceList(services || []);
+            } else {
+              setServiceList(services || []);
+            }
+            const rows = services || [];
+            setServiceData({
+              Total: totalRecords ?? 0,
+              Active: rows.filter((s) => s.is_active).length,
+              Inactive: rows.filter((s) => !s.is_active).length,
+              requested_service: rows.filter((s) => s.is_request).length,
+            });
             setTotalPages(totalPages || 0);
           }
         }
@@ -209,20 +137,24 @@ const ServiceManagement = () => {
         setIsTableLoading(false);
       }
     },
-    [currentPage, pageSize]
+    [
+      currentPage,
+      pageSize,
+      showRequestedCategory,
+      showRequestedService,
+      sortBy,
+    ]
   );
 
   const refreshData = useCallback(
     async (selected: string) => {
-      await fetchData(selected, {});
+      await fetchData(selected, activeFilters);
     },
-    [fetchData]
+    [fetchData, activeFilters]
   );
 
   useEffect(() => {
-    if (!showRequestedCategory && !showRequestedService) {
-      void refreshData(selectedBox);
-    }
+    void refreshData(selectedBox);
   }, [
     selectedBox,
     pageSize,
@@ -244,32 +176,28 @@ const ServiceManagement = () => {
     setCurrentPage(1);
     setTotalPages(0);
     setSortBy([]);
-
-    /* ADDED: close requested tables when using normal filters */
-    setShowRequestedCategory(false);
-    setShowRequestedService(false);
-
-    fetchRef.current = false;
-
-    if (Object.keys(filters).length === 0) {
-      await fetchData(selectedTarget, {});
-    } else {
-      await fetchData(selectedTarget, filters);
+    setActiveFilters(filters);
+    if (targetBox && targetBox !== selectedBox) {
+      setSelectedBox(targetBox);
     }
   };
 
   /* ADDED: open requested category table */
   const openRequestedCategory = useCallback(() => {
+    setSelectedBox("box-category");
     setShowRequestedCategory(true);
     setShowRequestedService(false);
-    setRequestedCategoryList(staticRequestedCategoryList);
+    setCurrentPage(1);
+    setSortBy([]);
   }, []);
 
   /* ADDED: open requested service table */
   const openRequestedService = useCallback(() => {
+    setSelectedBox("box-service");
     setShowRequestedService(true);
     setShowRequestedCategory(false);
-    setRequestedServiceList(staticRequestedServiceList);
+    setCurrentPage(1);
+    setSortBy([]);
   }, []);
 
   const categoryColumns = React.useMemo(
@@ -288,33 +216,33 @@ const ServiceManagement = () => {
         accessor: "services",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original;
-          const countVal = cat.services ?? null;
-          const countNum =
-            typeof countVal === "number" ? countVal : Number(countVal);
-          const countDisplay =
-            countVal !== undefined && countVal !== null
-              ? String(countVal)
-              : "-";
+          const countDisplay = "-";
 
           // Prefer real service names if API provides them; otherwise show a static fallback.
           let names: string[] = [];
 
+          if (Array.isArray(cat.services) && cat.services.length > 0) {
+            names = cat.services
+              .map((s: any) =>
+                typeof s === "object" && s !== null
+                  ? String(s.name ?? s.label ?? "")
+                  : String(s)
+              )
+              .filter(Boolean);
+          }
+
           if (
+            names.length === 0 &&
             Array.isArray(cat.service_names) &&
             cat.service_names.length > 0
           ) {
             names = cat.service_names
-              .map((n: any) => String(n))
+              .map((n: any) =>
+                typeof n === "object" && n !== null
+                  ? String(n.name ?? n.label ?? "")
+                  : String(n)
+              )
               .filter(Boolean);
-          } else if (
-            Array.isArray(cat.service_ids) &&
-            cat.service_ids.length > 0
-          ) {
-            names = cat.service_ids
-              .map((id: any) => serviceIdToName[String(id)])
-              .filter(Boolean) as string[];
-          } else if (!Number.isNaN(countNum) && countNum > 0) {
-            names = serviceNameList.slice(0, Math.floor(countNum));
           }
 
           if (!names || names.length === 0) return countDisplay;
@@ -358,10 +286,13 @@ const ServiceManagement = () => {
         Cell: ({ row }: { row: any }) => (
           <CustomActionColumn
             row={row}
-            onView={() => {
+            onView={async () => {
+              const { response, category } = await fetchCategoryById(
+                row.original._id
+              );
               AddEditCategoryDialog.show(
                 true,
-                row.original,
+                response && category ? category : row.original,
                 () => refreshData("box-category"),
                 true
               );
@@ -386,7 +317,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [currentPage, pageSize, serviceIdToName, serviceNameList, refreshData]
+    [currentPage, pageSize, refreshData]
   );
 
   const serviceColumns = React.useMemo(
@@ -411,10 +342,13 @@ const ServiceManagement = () => {
         Cell: ({ row }: { row: any }) => (
           <CustomActionColumn
             row={row}
-            onView={() => {
+            onView={async () => {
+              const { response, service } = await fetchServiceById(
+                row.original._id
+              );
               AddEditServiceDialog.show(
                 true,
-                row.original,
+                response && service ? service : row.original,
                 () => refreshData("box-service"),
                 true
               );
@@ -456,12 +390,13 @@ const ServiceManagement = () => {
       {
         Header: "Date",
         accessor: "createdAt",
-        Cell: ({ row }: { row: any }) => formatDate(row.original.createdAt),
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.createdAt || row.original.created_at),
       },
       {
         Header: "Status",
         accessor: "status",
-        Cell: pendingStatusCell(),
+        Cell: requestStatusCell(),
       },
       {
         Header: "Action",
@@ -469,14 +404,17 @@ const ServiceManagement = () => {
         Cell: ({ row }: { row: any }) => (
           <CustomActionColumn
             row={row}
-            onView={() =>
+            onView={async () => {
+              const { response, category } = await fetchCategoryById(
+                row.original._id
+              );
               AddEditCategoryDialog.show(
                 true,
-                row.original,
+                response && category ? category : row.original,
                 openRequestedCategory,
                 true
-              )
-            }
+              );
+            }}
             // onEdit={() => {
             //     AddEditCategoryDialog.show(true, row.original, openRequestedCategory);
             // }}
@@ -486,9 +424,10 @@ const ServiceManagement = () => {
                 "Void",
                 "Cancel",
                 async () => {
-                  setRequestedCategoryList((prev) =>
-                    prev.filter((item) => item._id !== row.original._id)
-                  );
+                  const response = await deleteCategory(row.original._id);
+                  if (response) {
+                    refreshData("box-category");
+                  }
                 }
               );
             }}
@@ -496,7 +435,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedCategory]
+    [openRequestedCategory, refreshData]
   );
 
   /* ADDED: requested service columns */
@@ -514,12 +453,13 @@ const ServiceManagement = () => {
       {
         Header: "Date",
         accessor: "createdAt",
-        Cell: ({ row }: { row: any }) => formatDate(row.original.createdAt),
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.createdAt || row.original.created_at),
       },
       {
         Header: "Status",
         accessor: "status",
-        Cell: pendingStatusCell(),
+        Cell: requestStatusCell(),
       },
       {
         Header: "Action",
@@ -527,23 +467,27 @@ const ServiceManagement = () => {
         Cell: ({ row }: { row: any }) => (
           <CustomActionColumn
             row={row}
-            onView={() =>
+            onView={async () => {
+              const { response, service } = await fetchServiceById(
+                row.original._id
+              );
               AddEditServiceDialog.show(
                 true,
-                row.original,
+                response && service ? service : row.original,
                 openRequestedService,
                 true
-              )
-            }
+              );
+            }}
             onDelete={async () => {
               openConfirmDialog(
                 "Are you sure you want to void this service? ",
                 "Void",
                 "Cancel",
                 async () => {
-                  setRequestedServiceList((prev) =>
-                    prev.filter((item) => item._id !== row.original._id)
-                  );
+                  const response = await deleteService(row.original._id);
+                  if (response) {
+                    refreshData("box-service");
+                  }
                 }
               );
             }}
@@ -551,7 +495,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedService]
+    [openRequestedService, refreshData]
   );
 
   return (
@@ -624,46 +568,8 @@ const ServiceManagement = () => {
               ? "Search Category name, Services"
               : "Search Service name, Category"
           }`}
-          onDownloadClick={async () => {
-            if (showRequestedCategory) {
-              await exportData(ApiPaths.EXPORT_CATEGORY);
-            } else if (showRequestedService) {
-              await exportData(ApiPaths.EXPORT_SERVICE);
-            } else {
-              selectedBox === "box-category"
-                ? await exportData(ApiPaths.EXPORT_CATEGORY)
-                : await exportData(ApiPaths.EXPORT_SERVICE);
-            }
-          }}
-          onSortClick={(value) => {
-            if (!showRequestedCategory && !showRequestedService) {
-              handleFilterChange({ sort: value });
-            }
-          }}
-          onMoreClick={() => {}}
           onSearch={(value) => {
-            if (showRequestedCategory) {
-              const searchValue = value.toLowerCase();
-              const filteredData = staticRequestedCategoryList.filter(
-                (item) =>
-                  item.request_id.toLowerCase().includes(searchValue) ||
-                  item.name.toLowerCase().includes(searchValue) ||
-                  item.desc.toLowerCase().includes(searchValue)
-              );
-              setRequestedCategoryList(filteredData);
-            } else if (showRequestedService) {
-              const searchValue = value.toLowerCase();
-              const filteredData = staticRequestedServiceList.filter(
-                (item) =>
-                  item.request_id.toLowerCase().includes(searchValue) ||
-                  item.name.toLowerCase().includes(searchValue) ||
-                  item.desc.toLowerCase().includes(searchValue) ||
-                  item.category_name.toLowerCase().includes(searchValue)
-              );
-              setRequestedServiceList(filteredData);
-            } else {
-              handleFilterChange({ keyword: value });
-            }
+            handleFilterChange({ keyword: value });
           }}
         />
 
@@ -688,23 +594,19 @@ const ServiceManagement = () => {
           }
           pageSize={pageSize}
           currentPage={currentPage}
-          totalPages={
-            showRequestedCategory || showRequestedService ? 1 : totalPages
-          }
+          totalPages={totalPages}
           onPageChange={(page: number) => setCurrentPage(page)}
           onLimitChange={(pageSize: number) => {
             setPageSize(pageSize);
             setCurrentPage(1);
           }}
-          manualSortBy={!showRequestedCategory && !showRequestedService}
+          manualSortBy
           sortBy={sortBy}
           onSortChange={(next) => {
             setSortBy(next);
             setCurrentPage(1);
           }}
-          isLoading={
-            !showRequestedCategory && !showRequestedService && isTableLoading
-          }
+          isLoading={isTableLoading}
           theadClass="table-light"
         />
       </div>

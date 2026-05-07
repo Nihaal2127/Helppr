@@ -31,12 +31,19 @@ export const fetchServiceDropDown = async (
 export const fetchService = async (
   page: number,
   pageSize: number,
-  filters: { keyword?: string; status?: string; sort?: string },
+  filters: {
+    keyword?: string;
+    status?: string;
+    sort?: string;
+    is_request?: string;
+    is_rejected?: string;
+  },
   sortBy: ServerTableSortBy = []
 ): Promise<{
   response: boolean;
   services: ServiceModel[];
   totalPages: number;
+  totalRecords: number;
 }> => {
   const primarySort = sortBy[0];
   const params = new URLSearchParams({
@@ -46,6 +53,10 @@ export const fetchService = async (
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
+    ...(filters.is_request !== undefined &&
+      filters.is_request !== "" && { is_request: filters.is_request }),
+    ...(filters.is_rejected !== undefined &&
+      filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
   });
@@ -60,6 +71,12 @@ export const fetchService = async (
       response: true,
       services: response.data.records,
       totalPages: response.data.totalPages,
+      totalRecords: Number(
+        response.data.totalRecords ??
+          response.data.total ??
+          response.data.count ??
+          (Array.isArray(response.data.records) ? response.data.records.length : 0)
+      ),
     };
   } else {
     showLog(response.message || "Failed to fetch service");
@@ -67,6 +84,7 @@ export const fetchService = async (
       response: false,
       services: [],
       totalPages: 0,
+      totalRecords: 0,
     };
   }
 };
@@ -81,13 +99,34 @@ export const deleteService = async (id: string): Promise<boolean> => {
   }
 };
 
+export const fetchServiceById = async (
+  id: string
+): Promise<{ response: boolean; service: ServiceModel | null }> => {
+  const response = await apiRequest(ApiPaths.GET_SERVICE_BY_ID(id), "GET");
+  if (response.success) {
+    return {
+      response: true,
+      service: response.data.record ?? null,
+    };
+  }
+  return { response: false, service: null };
+};
+
 export const createOrUpdateService = async (
   payload: any,
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
+  const isRequestRow = payload?.is_request === true;
+  const isModerationCall = payload?.is_rejected === true || payload?.is_rejected === false;
   const path = isEditable
-    ? ApiPaths.UPDATE_SERVICE(id!)
+    ? isModerationCall
+      ? ApiPaths.UPDATE_SERVICE(id!)
+      : isRequestRow
+      ? ApiPaths.UPDATE_SERVICE_REQUEST(id!)
+      : ApiPaths.UPDATE_SERVICE(id!)
+    : isRequestRow
+    ? ApiPaths.CREATE_SERVICE_REQUEST
     : ApiPaths.CREATE_SERVICE;
   const method = isEditable ? "PUT" : "POST";
 

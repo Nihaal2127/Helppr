@@ -140,6 +140,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                       type="button"
                       className="btn btn-sm btn-outline-secondary"
                       onClick={() => inputRefs.current[index]?.click()}
+                      style={{ minWidth: 110, whiteSpace: "nowrap" }}
                     >
                       Choose File
                     </button>
@@ -147,7 +148,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                       className="small text-truncate"
                       style={{
                         color: statusMeta.color,
-                        maxWidth: "280px",
+                        maxWidth: "320px",
                       }}
                       title={statusMeta.title}
                     >

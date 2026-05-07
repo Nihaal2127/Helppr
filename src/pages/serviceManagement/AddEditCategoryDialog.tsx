@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -13,11 +13,15 @@ import {
 import { AppConstant } from "../../constant/AppConstant";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
-import { createOrUpdateCategory } from "../../services/categoryService";
+import {
+  createOrUpdateCategory,
+  createOrUpdateCategoryWithRecord,
+} from "../../services/categoryService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import { openDialog } from "../../helper/DialogManager";
+import AddEditServiceDialog from "./AddEditServiceDialog";
 
 type AddEditCategoryDialogProps = {
   isEditable: boolean;
@@ -31,6 +35,9 @@ type CategoryFormValues = CategoryModel & {
   approval_status?: "approved" | "rejected";
   rejection_reason?: string;
 };
+
+const SELECT_ALL_OPTION = "select-all";
+const ADD_SERVICE_OPTION = "add-service";
 
 const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   show: (
@@ -48,7 +55,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   const {
     register,
     handleSubmit,
+    reset,
     setValue,
+    getValues,
     formState: { errors },
     watch,
   } = useForm<CategoryFormValues>({
@@ -59,7 +68,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       desc: category?.desc || "",
       is_active: category?.is_active ?? true,
       franchise_id: category?.franchise_id || "",
-      approval_status: category?.is_active === false ? "rejected" : "approved",
+      approval_status:
+        category?.is_rejected === true
+          ? "rejected"
+          : category?.is_rejected === false
+          ? "approved"
+          : category?.is_active === false
+          ? "rejected"
+          : "approved",
       rejection_reason: (category as any)?.rejection_reason ?? "",
     },
   });
@@ -70,29 +86,63 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     { value: string; label: string }[]
   >([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
+  const [draftCategoryId, setDraftCategoryId] = useState<string>("");
+  const [draftImageUrl, setDraftImageUrl] = useState<string>("");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const serviceOpts = await fetchServiceDropDown();
-      if (cancelled) return;
-      setServiceOptions([
-        { value: "select-all", label: "Select All" },
-        ...serviceOpts,
-      ]);
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadServiceOptions = useCallback(async () => {
+    const serviceOpts = await fetchServiceDropDown();
+    const options = [
+      { value: SELECT_ALL_OPTION, label: "Select All" },
+      ...serviceOpts,
+      { value: ADD_SERVICE_OPTION, label: "+ Add Service" },
+    ];
+    setServiceOptions(options);
+    return options;
   }, []);
 
   useEffect(() => {
+    if (!category) return;
+    reset({
+      name: category.name || "",
+      desc: category.desc || "",
+      is_active: category.is_active ?? true,
+      franchise_id: category.franchise_id || "",
+      approval_status:
+        category.is_rejected === true
+          ? "rejected"
+          : category.is_rejected === false
+          ? "approved"
+          : category.is_active === false
+          ? "rejected"
+          : "approved",
+      rejection_reason: (category as any)?.rejection_reason ?? "",
+    } as any);
+  }, [category, localViewMode, reset]);
+
+  useEffect(() => {
+    if (localViewMode || serviceOptions.length > 0) return;
+    void loadServiceOptions();
+  }, [localViewMode, serviceOptions.length, loadServiceOptions]);
+
+  useEffect(() => {
     if (isEditable && category) {
-      // Ensure consistent comparison with dropdown values (usually strings).
-      setServiceIds((category.service_ids ?? []).map(String));
+      // Supports both old shape (`service_ids`) and API detail shape (`services: [{ _id, name }]`).
+      const idsFromServiceIds = Array.isArray((category as any).service_ids)
+        ? (category as any).service_ids.map(String)
+        : [];
+      const idsFromServicesArray = Array.isArray((category as any).services)
+        ? (category as any).services
+            .map((s: any) => String(s?._id ?? ""))
+            .filter(Boolean)
+        : [];
+      setServiceIds(
+        idsFromServiceIds.length > 0 ? idsFromServiceIds : idsFromServicesArray
+      );
       setValue("franchise_id", category.franchise_id || "", {
         shouldValidate: false,
       });
+      setDraftCategoryId("");
+      setDraftImageUrl("");
     } else {
       setServiceIds([]);
       setValue("franchise_id", "", { shouldValidate: false });
@@ -115,7 +165,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     if (serviceIds.length > 0) return;
 
     const fallbackIds = serviceOptions
-      .filter((s) => s.value !== "select-all")
+      .filter(
+        (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
+      )
       .slice(0, count)
       .map((s) => String(s.value));
 
@@ -128,40 +180,155 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     }
   }, [isEditable, category?.is_active, setValue]);
 
-  const handleServiceSelection = (
+  const handleServiceSelection = async (
     selectedOptions: { value: string; label: string }[]
   ) => {
+    const currentCategoryName = String(watch("name") ?? "").trim();
+    const categoryIdFromRecord =
+      (category as any)?._id ??
+      (category as any)?.category_id ??
+      (category as any)?.id ??
+      "";
+    const currentCategoryId = String(
+      draftCategoryId || categoryIdFromRecord || ""
+    ).trim();
     const isSelectAllSelected = selectedOptions.some(
-      (option) => option.value === "select-all"
+      (option) => option.value === SELECT_ALL_OPTION
     );
+
+    const hasAddServiceOption = selectedOptions.some(
+      (option) => option.value === ADD_SERVICE_OPTION
+    );
+    const optionsWithoutAdd = selectedOptions.filter(
+      (option) => option.value !== ADD_SERVICE_OPTION
+    );
+
+    if (hasAddServiceOption) {
+      let resolvedCategoryId = currentCategoryId;
+      if (!resolvedCategoryId) {
+        const name = String(getValues("name") ?? "").trim();
+        const desc = String(getValues("desc") ?? "").trim();
+        const franchise_id = String(getValues("franchise_id") ?? "").trim();
+        if (!name || !desc) {
+          showErrorAlert("Enter category name and description first.");
+          return;
+        }
+        if (fileInputs.length === 0) {
+          showErrorAlert("Upload category image first.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("type", "2");
+        fileInputs.forEach((file) => formData.append("files", file));
+        const { response, fileList } = await createOrUpdateDocument(
+          formData,
+          false
+        );
+        if (!response || fileList.length === 0) {
+          showErrorAlert("Unable to upload category image.");
+          return;
+        }
+
+        const draftRes = await createOrUpdateCategoryWithRecord(
+          {
+            name,
+            desc,
+            service_ids: [],
+            is_active: true,
+            ...(franchise_id ? { franchise_id } : {}),
+            image_url: String(fileList[0]),
+          },
+          false
+        );
+        resolvedCategoryId = String(
+          (draftRes.record as any)?._id ??
+            (draftRes.record as any)?.category_id ??
+            ""
+        ).trim();
+        if (!draftRes.response || !resolvedCategoryId) {
+          showErrorAlert("Please save category first, then add service.");
+          return;
+        }
+        setDraftCategoryId(resolvedCategoryId);
+        setDraftImageUrl(String(fileList[0]));
+      }
+
+      const previousServiceIds = new Set(
+        serviceOptions
+          .filter(
+            (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
+          )
+          .map((s) => s.value)
+      );
+
+      AddEditServiceDialog.show(
+        false,
+        null,
+        async () => {
+          const refreshedOptions = await loadServiceOptions();
+          setServiceIds((prev) => {
+            const next = new Set(prev);
+            refreshedOptions
+              .filter(
+                (s) =>
+                  s.value !== SELECT_ALL_OPTION &&
+                  s.value !== ADD_SERVICE_OPTION &&
+                  !previousServiceIds.has(s.value)
+              )
+              .forEach((s) => next.add(s.value));
+            return Array.from(next);
+          });
+          onRefreshData();
+        },
+        false,
+        {
+          id: resolvedCategoryId,
+          label: category?.name || currentCategoryName || "Current Category",
+        }
+      );
+    }
 
     let selectedIds: string[] = [];
 
     if (isSelectAllSelected) {
       const allServices = serviceOptions.filter(
-        (s) => s.value !== "select-all"
+        (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
       );
       const isAllSelected =
-        selectedOptions.length - 1 === allServices.length &&
+        optionsWithoutAdd.length - 1 === allServices.length &&
         allServices.every((svc) =>
-          selectedOptions.some((selected) => selected.value === svc.value)
+          optionsWithoutAdd.some((selected) => selected.value === svc.value)
         );
 
       selectedIds = isAllSelected ? [] : allServices.map((svc) => svc.value);
     } else {
-      selectedIds = selectedOptions.map((option) => option.value);
+      selectedIds = optionsWithoutAdd.map((option) => option.value);
     }
 
     setServiceIds(selectedIds);
   };
 
   const selectedServiceOptions = useMemo(
-    () => serviceOptions.filter((svc) => serviceIds.includes(svc.value)),
+    () =>
+      serviceOptions.filter(
+        (svc) =>
+          svc.value !== ADD_SERVICE_OPTION && serviceIds.includes(svc.value)
+      ),
     [serviceOptions, serviceIds]
   );
 
   const linkedServiceNamesForView = useMemo(() => {
     if (!category) return [];
+    if (
+      Array.isArray((category as any).services) &&
+      (category as any).services.length > 0 &&
+      typeof (category as any).services[0] === "object"
+    ) {
+      return (category as any).services
+        .map((s: any) => String(s?.name ?? ""))
+        .filter(Boolean);
+    }
     if (
       Array.isArray(category.service_names) &&
       category.service_names.length > 0
@@ -174,19 +341,17 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     return ids
       .map(
         (id) =>
-          serviceOptions.find((s) => s.value === id && s.value !== "select-all")
-            ?.label
+          serviceOptions.find(
+            (s) =>
+              s.value === id &&
+              s.value !== SELECT_ALL_OPTION &&
+              s.value !== ADD_SERVICE_OPTION
+          )?.label
       )
       .filter(Boolean) as string[];
   }, [category, serviceOptions, serviceIds]);
 
-  const approvalStatus = watch("approval_status");
-
   const onSubmitEvent = async (data: CategoryFormValues) => {
-    if (!data.franchise_id) {
-      showErrorAlert("Please select franchise");
-      return;
-    }
     if (serviceIds.length === 0) {
       showErrorAlert("Please select at least one service");
       return;
@@ -214,38 +379,34 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       }
     }
 
-    if (!isEditable && image_url === "") {
+    if (!isEditable && !draftCategoryId && image_url === "") {
       showErrorAlert("Please select image");
       return;
     }
     const payload = {
       name: data.name,
       desc: data.desc,
-      is_active: isEditable
-        ? data.approval_status !== "rejected"
-        : data.is_active,
-      ...(isEditable && {
-        rejection_reason:
-          data.approval_status === "rejected"
-            ? (data.rejection_reason ?? "").trim()
-            : "",
-      }),
+      is_active: data.is_active,
       service_ids: serviceIds,
       franchise_id: data.franchise_id,
-      ...(image_url !== "" && { image_url }),
+      ...((image_url !== "" || draftImageUrl !== "") && {
+        image_url: image_url || draftImageUrl,
+      }),
     };
 
     let responseCategory;
-    if (isEditable) {
+    if (isEditable || draftCategoryId) {
       if (!category?._id) {
-        showErrorAlert("Unable to update. ID is missing.");
-        return;
+        if (!draftCategoryId) {
+          showErrorAlert("Unable to update. ID is missing.");
+          return;
+        }
       }
 
       responseCategory = await createOrUpdateCategory(
         payload,
         true,
-        category?._id
+        draftCategoryId || category?._id
       );
     } else {
       responseCategory = await createOrUpdateCategory(payload, false);
@@ -278,8 +439,11 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
         {localViewMode && category ? (
-          <section className="custom-other-details" style={{ padding: "10px" }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
+          <section
+            className="custom-other-details"
+            style={{ padding: "14px 16px", borderRadius: 12 }}
+          >
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <h3 className="mb-0">Category Information</h3>
               {isEditable && (
                 <i
@@ -292,35 +456,34 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
               )}
             </div>
             <div className="row">
-              <div className="col-md-6 custom-helper-column">
+              <div className="col-md-7 custom-helper-column">
                 {/* <DetailsRow title="Category ID1" value={category.category_id ?? "-"} /> */}
                 <DetailsRow
                   title="Category Name"
                   value={category.name ?? "-"}
                 />
+                <Row className="row custom-personal-row mb-2">
+                  <label className="col custom-personal-row-title">Status</label>
+                  <label className="col custom-personal-row-value text-truncate">
+                    <span
+                      style={{
+                        color: category.is_active ? "#198754" : "#dc3545",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {category.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </label>
+                </Row>
                 <FullDetailsRow
                   title="Description"
                   value={category.desc ?? "-"}
                 />
-                <FullDetailsRow
-                  title="Services"
-                  value={
-                    linkedServiceNamesForView.length > 0
-                      ? linkedServiceNamesForView.join(", ")
-                      : category.services ?? "-"
-                  }
-                />
-              </div>
-              <div className="col-md-6 custom-helper-column">
-                <DetailsRow
-                  title="Status"
-                  value={category.is_active ? "Active" : "Inactive"}
-                />
                 {category.image_url ? (
-                  <div className="mt-2">
+                  <div className="mt-2 mb-2">
                     <p
                       className="mb-1"
-                      style={{ color: "var(--primary-color)", fontWeight: 600 }}
+                      style={{ color: "#000", fontWeight: 600 }}
                     >
                       Category image
                     </p>
@@ -328,16 +491,70 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                       src={`${AppConstant.IMAGE_BASE_URL}${
                         category.image_url
                       }?t=${Date.now()}`}
-                      alt=""
+                      alt="Category"
                       style={{
-                        maxWidth: 160,
-                        maxHeight: 160,
-                        borderRadius: 8,
-                        objectFit: "cover",
+                        width: "100%",
+                        maxWidth: 240,
+                        height: 160,
+                        borderRadius: 10,
+                        objectFit: "contain",
+                        background: "#fff",
+                        border: "1px solid var(--txtfld-border)",
                       }}
                     />
                   </div>
                 ) : null}
+                <Row className="row custom-personal-row">
+                  <label className="col custom-personal-row-title">
+                    Services
+                  </label>
+                  <label className="col custom-personal-row-value text-wrap"></label>
+                </Row>
+                <div
+                  style={{
+                    marginTop: -4,
+                    marginBottom: 12,
+                    maxHeight: 150,
+                    overflowY:
+                      linkedServiceNamesForView.length > 6 ? "auto" : "visible",
+                    border:
+                      linkedServiceNamesForView.length > 0
+                        ? "1px solid var(--txtfld-border)"
+                        : "none",
+                    borderRadius: linkedServiceNamesForView.length > 0 ? 8 : 0,
+                    padding: linkedServiceNamesForView.length > 0 ? 8 : 0,
+                  }}
+                >
+                  {linkedServiceNamesForView.length > 0 ? (
+                    linkedServiceNamesForView.map((svc: string, idx: number) => (
+                      <div
+                        key={svc}
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "start",
+                          padding: "4px 2px",
+                          borderBottom:
+                            idx !== linkedServiceNamesForView.length - 1
+                              ? "1px dashed var(--txtfld-border)"
+                              : "none",
+                        }}
+                      >
+                        <span style={{ color: "var(--primary-color)" }}>
+                          {idx + 1}.
+                        </span>
+                        <span style={{ color: "var(--content-txt-color)" }}>
+                          {svc}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              </div>
+              <div className="col-md-5 custom-helper-column">
+                {/* reserved for future right-side details */}
               </div>
             </div>
           </section>
@@ -355,6 +572,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   controlId="name"
                   placeholder="Enter Category Name"
                   register={register}
+                  value={watch("name") || ""}
+                  onChange={(value) =>
+                    setValue("name", value as any, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                  }
                   error={errors.name}
                   asCol={false}
                   validation={{ required: "Category name is required" }}
@@ -368,82 +593,75 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   options={serviceOptions}
                   value={selectedServiceOptions}
                   onChange={(selectedOptions) => {
-                    handleServiceSelection(selectedOptions);
+                    void handleServiceSelection(selectedOptions);
                   }}
                   asCol={false}
                   menuPortal
+                  stickyBottomOptionValue={ADD_SERVICE_OPTION}
                 />
               </Col>
 
               <Col md={6}>
-                <CustomImageUploader
-                  label="Upload Category Image"
-                  maxFiles={1}
-                  isEditable={isEditable}
-                  existingImages={
-                    category?.image_url ? [category.image_url] : []
-                  }
-                  onFileChange={(files, replaceUrlsFromUploader) => {
-                    setFileInputs(files);
-                    setReplaceUrl(replaceUrlsFromUploader);
+                <div
+                  style={{
+                    border: "1px solid var(--txtfld-border)",
+                    borderRadius: 10,
+                    padding: 10,
+                    background: "var(--bg-color)",
                   }}
-                />
-                <label style={{ color: "var(--primary-color)" }}>
-                  Image size should be 512*512
-                </label>
+                >
+                  <CustomImageUploader
+                    label="Upload Category Image"
+                    maxFiles={1}
+                    isEditable={isEditable}
+                    existingImages={
+                      category?.image_url ? [category.image_url] : []
+                    }
+                    onFileChange={(files, replaceUrlsFromUploader) => {
+                      setFileInputs(files);
+                      setReplaceUrl(replaceUrlsFromUploader);
+                    }}
+                  />
+                  <label
+                    style={{
+                      color: "#000",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      marginTop: 2,
+                    }}
+                  >
+                    Recommended image size: 512 x 512
+                  </label>
+                </div>
               </Col>
               <Col md={6}>
-                {isEditable ? (
-                  <CustomRadioSelection
-                    label="Approval Status"
-                    name="approval_status"
-                    options={[
-                      { label: "Approved", value: "approved" },
-                      { label: "Rejected", value: "rejected" },
-                    ]}
-                    defaultValue={
-                      category?.is_active === false ? "rejected" : "approved"
-                    }
-                    isEditable={isEditable}
-                    setValue={setValue}
-                  />
-                ) : (
-                  <CustomRadioSelection
-                    label="Status"
-                    name="is_active"
-                    options={getStatusOptions()}
-                    defaultValue={
-                      isEditable ? category?.is_active?.toString() : "true"
-                    }
-                    isEditable={isEditable}
-                    setValue={setValue}
-                  />
-                )}
+                <CustomRadioSelection
+                  label="Status"
+                  name="is_active"
+                  options={getStatusOptions()}
+                  defaultValue={
+                    category?.is_active !== undefined
+                      ? category.is_active.toString()
+                      : "true"
+                  }
+                  isEditable={isEditable}
+                  setValue={setValue}
+                />
               </Col>
-              {isEditable && approvalStatus === "rejected" && (
-                <Col md={12}>
-                  <CustomFormInput
-                    label="Rejection Reason"
-                    controlId="rejection_reason"
-                    placeholder="Enter reason for rejection"
-                    register={register}
-                    error={(errors as any).rejection_reason}
-                    asCol={false}
-                    validation={{
-                      validate: (value: string) =>
-                        value?.trim() ? true : "Rejection reason is required",
-                    }}
-                    as="textarea"
-                    rows={3}
-                  />
-                </Col>
-              )}
               <Col md={12}>
                 <CustomFormInput
                   label="Description"
                   controlId="desc"
                   placeholder="Enter Category Description"
                   register={register}
+                  value={watch("desc") || ""}
+                  onChange={(value) =>
+                    setValue("desc", value as any, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                  }
                   error={errors.desc}
                   asCol={false}
                   validation={{ required: "Category description is required" }}
@@ -479,7 +697,7 @@ AddEditCategoryDialog.show = (
   onRefreshData: () => void,
   isViewMode: boolean = false
 ) => {
-  openDialog("details-modal", (close) => (
+  openDialog("category-details-modal", (close) => (
     <AddEditCategoryDialog
       isEditable={isEditable}
       isViewMode={isViewMode}

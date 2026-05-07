@@ -13,12 +13,14 @@ import { TicketModel } from "../../models/TicketModel";
 import { fetchTicket, deleteTicket } from "../../services/ticketService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import TicketDetailsDialog from "./TicketDetailsDialog";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
-import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
 import { ROUTES } from "../../routes/Routes";
-import { formatDate, textUnderlineCell } from "../../helper/utility";
+import { formatDate } from "../../helper/utility";
+import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import {
+  contactTypeLabel,
+  disputeStatusUiLabel,
+  ticketToDisputeStatusUi,
+} from "./ticketDisputeHelpers";
 
 const DisputeChatListPage = () => {
   const navigate = useNavigate();
@@ -83,14 +85,38 @@ const DisputeChatListPage = () => {
           (currentPage - 1) * pageSize + row.index + 1,
       },
       {
-        Header: "Ticket ID",
-        accessor: "unique_id",
-        Cell: textUnderlineCell("unique_id", (row) => {
-          TicketDetailsDialog.show(row._id, () => fetchData({}));
-        }),
+        Header: "User Name",
+        accessor: "created_by_name",
+        Cell: ({ row }: { row: any }) => (
+          <span
+            role="button"
+            tabIndex={0}
+            style={{
+              color: "inherit",
+              textDecoration: "underline",
+              textDecorationThickness: "1px",
+              cursor: "pointer",
+            }}
+            onClick={() =>
+              UserDetailsDialog.show(row.original.created_by_id, () =>
+                fetchData({})
+              )
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                UserDetailsDialog.show(row.original.created_by_id, () =>
+                  fetchData({})
+                );
+              }
+            }}
+          >
+            {row.original.created_by_name}
+          </span>
+        ),
       },
       {
-        Header: "Query",
+        Header: "Description",
         accessor: "query",
         Cell: ({ row }: { row: any }) => (
           <div
@@ -106,72 +132,28 @@ const DisputeChatListPage = () => {
         ),
       },
       {
-        Header: "User ID",
-        accessor: "user_unique_id",
-        Cell: textUnderlineCell("user_unique_id", (row) => {
-          UserDetailsDialog.show(row.created_by_id, () => fetchData({}));
-        }),
-      },
-      { Header: "Created Name", accessor: "created_by_name" },
-      {
-        Header: "Resolved Name",
-        accessor: "resolved_by_name",
-        Cell: ({ row }: { row: any }) =>
-          row.original.resolved_by_name ? row.original.resolved_by_name : "-",
-      },
-      {
-        Header: "Close Date",
-        accessor: "close_date",
-        Cell: ({ row }: { row: any }) =>
-          formatDate(row.original.close_date ? row.original.close_date : ""),
-      },
-      {
-        Header: "Resolve Status",
-        accessor: "resolve_status",
-        Cell: ({ row }: { row: any }) => {
-          const value = row.original.resolve_status;
-          let text = "-";
-          let className = "";
-          let color = "";
-
-          if (value === 1) {
-            text = "Pending";
-            className = "custom-inactive";
-            color = "var(--btn-pending)";
-          } else if (value === 2) {
-            text = "Resolved";
-            className = "custom-active";
-          } else if (value === 3) {
-            text = "Unresolved";
-            className = "custom-inactive";
-          }
-
-          return (
-            <span className={className} style={{ color }}>
-              {text}
-            </span>
-          );
-        },
-      },
-      {
         Header: "Contact Type",
         accessor: "contact_type",
         Cell: ({ row }: { row: any }) => (
-          <span>{row.original.contact_type === 1 ? "Mail" : "Call"}</span>
+          <span>{contactTypeLabel(row.original.contact_type)}</span>
         ),
       },
       {
         Header: "Status",
         accessor: "status",
-        Cell: ({ row }: { row: any }) => (
-          <span
-            className={`custom-${
-              row.original.status === 1 ? "active" : "inactive"
-            }`}
-          >
-            {row.original.status === 1 ? "Open" : "Close"}
-          </span>
-        ),
+        Cell: ({ row }: { row: any }) => {
+          const ui = ticketToDisputeStatusUi(row.original);
+          const label = disputeStatusUiLabel(ui);
+          const pendingStyle =
+            ui === "pending" ? { color: "var(--btn-pending)" } : undefined;
+          const tone =
+            ui === "open" ? "active" : ui === "pending" ? "inactive" : "inactive";
+          return (
+            <span className={`custom-${tone}`} style={pendingStyle}>
+              {label}
+            </span>
+          );
+        },
       },
       {
         Header: "Created Date",
@@ -193,9 +175,9 @@ const DisputeChatListPage = () => {
             onEdit={
               row.original.status === 1
                 ? () => {
-                    EditTicketDialog.show(true, row.original, () =>
-                      fetchData({})
-                    );
+                    EditTicketDialog.show(true, row.original, () => {
+                      fetchData({});
+                    }, true);
                   }
                 : undefined
             }
@@ -244,14 +226,7 @@ const DisputeChatListPage = () => {
 
       <CustomUtilityBox
         title=""
-        searchHint="Search ticket name, ID, created name etc."
-        onDownloadClick={async () => {
-          await exportData(ApiPaths.EXPORT_TICKET);
-        }}
-        onSortClick={(value) => {
-          handleFilterChange({ sort: value });
-        }}
-        onMoreClick={() => {}}
+        searchHint="Search user name, description, etc."
         onSearch={(value) => handleFilterChange({ keyword: value })}
       />
 

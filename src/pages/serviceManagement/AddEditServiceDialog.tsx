@@ -22,6 +22,7 @@ type AddEditServiceDialogProps = {
   onClose: () => void;
   onRefreshData: () => void;
   isViewMode?: boolean;
+  lockCategory?: { id?: string; label?: string };
 };
 
 const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
@@ -29,9 +30,17 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     isEditable: boolean,
     service: ServiceModel | null,
     onRefreshData: () => void,
-    isViewMode?: boolean
+    isViewMode?: boolean,
+    lockCategory?: { id?: string; label?: string }
   ) => void;
-} = ({ isEditable, service, onClose, onRefreshData, isViewMode = false }) => {
+} = ({
+  isEditable,
+  service,
+  onClose,
+  onRefreshData,
+  isViewMode = false,
+  lockCategory,
+}) => {
   const [localViewMode, setLocalViewMode] = useState(isViewMode);
 
   useEffect(() => {
@@ -41,6 +50,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const {
     register,
     handleSubmit,
+    reset,
     setValue,
     watch,
     formState: { errors },
@@ -59,10 +69,39 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       min_deposit_value: ((service as any)?.min_deposit_value ?? "") as any,
       is_active: service?.is_active ?? true,
       category_id: service?.category_id || "",
-      approval_status: service?.is_active === false ? "rejected" : "approved",
+      approval_status:
+        service?.is_rejected === true
+          ? "rejected"
+          : service?.is_rejected === false
+          ? "approved"
+          : service?.is_active === false
+          ? "rejected"
+          : "approved",
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any,
   });
+
+  useEffect(() => {
+    reset({
+      name: service?.name || "",
+      desc: service?.desc || "",
+      tax: ((service as any)?.tax ?? "") as any,
+      commission: ((service as any)?.commission ?? "") as any,
+      min_deposit_type: (service as any)?.min_deposit_type || "",
+      min_deposit_value: ((service as any)?.min_deposit_value ?? "") as any,
+      is_active: service?.is_active ?? true,
+      category_id: service?.category_id || lockCategory?.id || "",
+      approval_status:
+        service?.is_rejected === true
+          ? "rejected"
+          : service?.is_rejected === false
+          ? "approved"
+          : service?.is_active === false
+          ? "rejected"
+          : "approved",
+      rejection_reason: (service as any)?.rejection_reason ?? "",
+    } as any);
+  }, [service, lockCategory?.id, localViewMode, reset]);
 
   const [categories, setCategory] = useState<
     { value: string; label: string }[]
@@ -97,12 +136,28 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     fetchRef.current = true;
 
     try {
+      if (lockCategory) {
+        setCategory([
+          {
+            value: lockCategory.id || "",
+            label: lockCategory.label || "Selected Category",
+          },
+        ]);
+        if (lockCategory.id) {
+          setValue("category_id", lockCategory.id as any, {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+        }
+        return;
+      }
       const categoryOptions = await fetchCategoryDropDown();
       setCategory(categoryOptions);
     } finally {
       fetchRef.current = false;
     }
-  }, []);
+  }, [lockCategory, setValue]);
 
   useEffect(() => {
     void fetchDataFromApi();
@@ -132,7 +187,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
   useEffect(() => {
     if (isEditable && service?.min_deposit_type) {
-      setValue("min deposit type" as any, (service as any).min_deposit_type, {
+      setValue("min_deposit_type" as any, (service as any).min_deposit_type, {
         shouldValidate: true,
         shouldDirty: true,
         shouldTouch: true,
@@ -148,6 +203,14 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       rejection_reason?: string;
     }
   ) => {
+    const resolvedCategoryId = String(
+      lockCategory?.id || data.category_id || ""
+    ).trim();
+    if (!resolvedCategoryId) {
+      showErrorAlert("Please save category first, then add service.");
+      return;
+    }
+
     let image_url = "";
 
     if (fileInputs.length > 0) {
@@ -187,13 +250,17 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       is_active: isEditable
         ? data.approval_status !== "rejected"
         : data.is_active,
+      ...(isEditable &&
+        service?.is_request && {
+          is_rejected: data.approval_status === "rejected",
+        }),
       ...(isEditable && {
         rejection_reason:
           data.approval_status === "rejected"
             ? (data.rejection_reason ?? "").trim()
             : "",
       }),
-      category_id: data.category_id,
+      category_id: resolvedCategoryId,
       ...(image_url !== "" && { image_url }),
     };
 
@@ -371,26 +438,41 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 />
               </Col>
 
-              <Col md={6}>
-                <CustomFormSelect
-                  label="Category"
-                  controlId="category"
-                  options={categories}
-                  register={register as unknown as UseFormRegister<any>}
-                  fieldName="category"
-                  error={errors.category_id}
-                  asCol={false}
-                  requiredMessage="Please select category"
-                  defaultValue={isEditable ? service?.category_id : ""}
-                  setValue={(name: string, value: any) => {
-                    setValue(name as any, value, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                      shouldTouch: true,
-                    });
-                  }}
-                />
-              </Col>
+              {!lockCategory ? (
+                <Col md={6}>
+                  <CustomFormSelect
+                    label="Category"
+                    controlId="category"
+                    options={categories}
+                    register={register as unknown as UseFormRegister<any>}
+                    fieldName="category_id"
+                    error={errors.category_id}
+                    asCol={false}
+                    requiredMessage="Please select category"
+                    defaultValue={isEditable ? service?.category_id : ""}
+                    setValue={(name: string, value: any) => {
+                      setValue(name as any, value, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      });
+                    }}
+                  />
+                </Col>
+              ) : (
+                <Col md={6}>
+                  <CustomFormInput
+                    label="Category"
+                    controlId="locked-category"
+                    placeholder=""
+                    value={lockCategory.label || "Selected Category"}
+                    register={register}
+                    error={undefined as any}
+                    asCol={false}
+                    isEditable={false}
+                  />
+                </Col>
+              )}
 
               <Col md={6} className="mb-3">
                 <label className="fw-medium mb-1">Tax</label>
@@ -653,13 +735,15 @@ AddEditServiceDialog.show = (
   isEditable: boolean,
   service: ServiceModel | null,
   onRefreshData: () => void,
-  isViewMode: boolean = false
+  isViewMode: boolean = false,
+  lockCategory?: { id?: string; label?: string }
 ) => {
-  openDialog("details-modal", (close) => (
+  openDialog("service-details-modal", (close) => (
     <AddEditServiceDialog
       isEditable={isEditable}
       isViewMode={isViewMode}
       service={service}
+      lockCategory={lockCategory}
       onClose={close}
       onRefreshData={onRefreshData}
     />

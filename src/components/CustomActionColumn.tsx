@@ -32,6 +32,7 @@ const CustomActionColumn = ({
           height={24}
           className="custom-table-action-view me-2"
           onClick={() => onView(row)}
+          style={{ cursor: "pointer" }}
         />
       )}
       {onEdit && (

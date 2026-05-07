@@ -1,6 +1,6 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { Modal, Button, Row, Col } from "react-bootstrap";
+import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { TicketModel } from "../../models/TicketModel";
 import CustomTextField from "../../components/CustomTextField";
@@ -10,32 +10,44 @@ import { createOrUpdateTicket } from "../../services/ticketService";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
+import {
+  disputeStatusUiToApi,
+  ticketToDisputeStatusUi,
+} from "./ticketDisputeHelpers";
 
 type EditTicketDialogProps = {
   isEditable: boolean;
   ticket: TicketModel | null;
   onClose: () => void;
   onRefreshData: () => void;
+  /** Dispute chat list: only Status + Contact Type; other fields preserved from ticket on save */
+  disputeFieldsOnly?: boolean;
 };
 
-const EditTicketDialog: React.FC<EditTicketDialogProps> & {
-  show: (
-    isEditable: boolean,
-    ticket: TicketModel | null,
-    onRefreshData: () => void
-  ) => void;
-} = ({ isEditable, ticket, onClose, onRefreshData }) => {
+function EditTicketDialogModal({
+  isEditable,
+  ticket,
+  onClose,
+  onRefreshData,
+  disputeFieldsOnly,
+}: EditTicketDialogProps) {
   const {
     register,
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<TicketModel>({
-    defaultValues: {
-      status: ticket?.status || 1,
-      resolve_status: ticket?.resolve_status || 1,
-      description: ticket?.description || "",
-    },
+  } = useForm<Record<string, unknown>>({
+    defaultValues: disputeFieldsOnly
+      ? {
+          disputeStatus: ticketToDisputeStatusUi(ticket),
+          contact_type: String(ticket?.contact_type ?? 1),
+        }
+      : {
+          status: ticket?.status || 1,
+          resolve_status: ticket?.resolve_status || 1,
+          description: ticket?.description || "",
+          contact_type: ticket?.contact_type ?? 1,
+        },
   });
 
   const status = [
@@ -47,14 +59,27 @@ const EditTicketDialog: React.FC<EditTicketDialogProps> & {
     { label: "Resolve", value: "2" },
     { label: "Unresolve", value: "3" },
   ];
-
-  const onSubmitEvent = async (data: TicketModel) => {
-    const payload = {
-      resolve_by_id: getLocalStorage(AppConstant.createdById),
-      status: Number(data.status),
-      resolve_status: Number(data.resolve_status),
-      description: data.description,
-    };
+  const onSubmitEvent = async (data: Record<string, unknown>) => {
+    const payload = disputeFieldsOnly
+      ? (() => {
+          const { status: st, resolve_status: rs } = disputeStatusUiToApi(
+            String(data.disputeStatus) as "open" | "pending" | "closed",
+            ticket
+          );
+          return {
+            resolve_by_id: getLocalStorage(AppConstant.createdById),
+            status: st,
+            resolve_status: rs,
+            contact_type: Number(data.contact_type ?? ticket?.contact_type ?? 1),
+            description: ticket?.description ?? "",
+          };
+        })()
+      : {
+          resolve_by_id: getLocalStorage(AppConstant.createdById),
+          status: Number(data.status),
+          resolve_status: Number(data.resolve_status),
+          description: data.description as string,
+        };
 
     let response;
     if (isEditable) {
@@ -95,32 +120,75 @@ const EditTicketDialog: React.FC<EditTicketDialogProps> & {
           onSubmit={handleSubmit(onSubmitEvent)}
         >
           <Row>
-            <CustomTextField
-              label="Description"
-              controlId="description"
-              placeholder="Enter Description"
-              as="textarea"
-              rows={5}
-              register={register}
-              error={errors.description}
-              validation={{ required: "Description is required" }}
-            />
-            <CustomTextFieldRadio
-              label="Status"
-              name="status"
-              options={status}
-              defaultValue={isEditable ? String(ticket?.status) : "1"}
-              isEditable={isEditable}
-              setValue={setValue}
-            />
-            <CustomTextFieldRadio
-              label="Resolve Status"
-              name="resolve_status"
-              options={resolveStatus}
-              defaultValue={isEditable ? String(ticket?.resolve_status) : "1"}
-              isEditable={isEditable}
-              setValue={setValue}
-            />
+            {!disputeFieldsOnly && (
+              <CustomTextField
+                label="Description"
+                controlId="description"
+                placeholder="Enter Description"
+                as="textarea"
+                rows={5}
+                register={register}
+                error={errors.description}
+                validation={{ required: "Description is required" }}
+              />
+            )}
+            {disputeFieldsOnly ? (
+              <>
+                <Row className="align-items-center">
+                  <Col sm={4} className="mt-2">
+                    <label className="custom-profile-lable">Status</label>
+                  </Col>
+                  <Col>
+                    <Form.Select
+                      {...register("disputeStatus")}
+                      className="mt-2"
+                      disabled={!isEditable}
+                    >
+                      <option value="open">Open</option>
+                      <option value="pending">Pending</option>
+                      <option value="closed">Closed</option>
+                    </Form.Select>
+                  </Col>
+                </Row>
+                <Row className="align-items-center">
+                  <Col sm={4} className="mt-2">
+                    <label className="custom-profile-lable">Contact Type</label>
+                  </Col>
+                  <Col>
+                    <Form.Select
+                      {...register("contact_type")}
+                      className="mt-2"
+                      disabled={!isEditable}
+                    >
+                      <option value="1">Mail</option>
+                      <option value="2">Call</option>
+                      <option value="3">Chat</option>
+                    </Form.Select>
+                  </Col>
+                </Row>
+              </>
+            ) : (
+              <>
+                <CustomTextFieldRadio
+                  label="Status"
+                  name="status"
+                  options={status}
+                  defaultValue={isEditable ? String(ticket?.status) : "1"}
+                  isEditable={isEditable}
+                  setValue={setValue}
+                />
+                <CustomTextFieldRadio
+                  label="Resolve Status"
+                  name="resolve_status"
+                  options={resolveStatus}
+                  defaultValue={
+                    isEditable ? String(ticket?.resolve_status) : "1"
+                  }
+                  isEditable={isEditable}
+                  setValue={setValue}
+                />
+              </>
+            )}
           </Row>
           <Row className="mt-4">
             <Col
@@ -143,21 +211,31 @@ const EditTicketDialog: React.FC<EditTicketDialogProps> & {
       </Modal.Body>
     </Modal>
   );
-};
+}
 
-EditTicketDialog.show = (
+function showEditTicketDialog(
   isEditable: boolean,
   ticket: TicketModel | null,
-  onRefreshData: () => void
-) => {
+  onRefreshData: () => void,
+  disputeFieldsOnly?: boolean
+) {
   openDialog("edit-ticket-modal", (close) => (
-    <EditTicketDialog
+    <EditTicketDialogModal
       isEditable={isEditable}
       ticket={ticket}
       onClose={close}
       onRefreshData={onRefreshData}
+      disputeFieldsOnly={disputeFieldsOnly}
     />
   ));
+}
+
+type EditTicketDialogWithShow = typeof EditTicketDialogModal & {
+  show: typeof showEditTicketDialog;
 };
+
+const EditTicketDialog = Object.assign(EditTicketDialogModal, {
+  show: showEditTicketDialog,
+}) as EditTicketDialogWithShow;
 
 export default EditTicketDialog;

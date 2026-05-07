@@ -497,7 +497,7 @@ const MyFranchise = () => {
   );
 
   const categorySelectOptions = useMemo(
-    () => categories.map((c) => ({ value: c.category_id, label: c.name })),
+    () => categories.map((c) => ({ value: c._id, label: c.name })),
     [categories]
   );
 

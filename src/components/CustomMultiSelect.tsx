@@ -19,6 +19,8 @@ interface CustomMultiSelectProps {
   menuPortal?: boolean;
   /** Cap height of the selected chips area and scroll (e.g. `"180px"` ≈ five chip rows). */
   selectedChipsMaxHeight?: string;
+  /** Keep one option fixed at menu bottom while others scroll. */
+  stickyBottomOptionValue?: string;
 }
 
 const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
@@ -35,6 +37,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   asCol = true,
   menuPortal = false,
   selectedChipsMaxHeight,
+  stickyBottomOptionValue,
 }) => {
   const customStyles = useMemo(
     () => ({
@@ -82,6 +85,17 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       // }),
       option: (provided: any, state: any) => ({
         ...provided,
+        ...(stickyBottomOptionValue &&
+        state?.data?.value === stickyBottomOptionValue
+          ? {
+              position: "sticky",
+              bottom: 0,
+              zIndex: 2,
+              borderTop: "1px solid var(--txtfld-border)",
+              backgroundColor: "var(--bg-color)",
+              fontWeight: 600,
+            }
+          : {}),
         backgroundColor: state.isSelected
           ? "var(--txtfld-border)"
           : state.isFocused
@@ -115,7 +129,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
           }
         : {}),
     }),
-    [menuPortal, selectedChipsMaxHeight]
+    [menuPortal, selectedChipsMaxHeight, stickyBottomOptionValue]
   );
 
   const handleChange = (

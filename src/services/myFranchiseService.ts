@@ -2,6 +2,8 @@ import { fetchArea } from "./areaService";
 import { fetchCategory } from "./categoryService";
 import { fetchService } from "./servicesService";
 import { fetchFranchiseById } from "./franchiseService";
+import { apiRequest } from "../remote/apiHelper";
+import { ApiPaths } from "../remote/apiPaths";
 import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
 import { showErrorAlert } from "../helper/alertHelper";
 import { getLocalStorage } from "../helper/localStorageHelper";
@@ -90,6 +92,60 @@ type MyFranchiseBoxData = {
   requested_services: RequestedServiceRow[];
   requested_categories: RequestedCategoryRow[];
 };
+
+function normalizeBooleanLike(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  return String(value ?? "").toLowerCase() === "true";
+}
+
+function mapApiServiceRow(raw: any): ServiceRow {
+  return {
+    _id: String(raw?._id ?? ""),
+    service_id: String(raw?.service_id ?? raw?._id ?? ""),
+    name: String(raw?.name ?? "").trim() || "-",
+    category_name: String(raw?.category_name ?? "").trim() || "-",
+    is_active: normalizeBooleanLike(raw?.is_active),
+  };
+}
+
+function mapApiCategoryRow(raw: any): CategoryRow {
+  return {
+    _id: String(raw?._id ?? ""),
+    category_id: String(raw?.category_id ?? raw?._id ?? ""),
+    name: String(raw?.name ?? "").trim() || "-",
+    is_active: normalizeBooleanLike(raw?.is_active),
+  };
+}
+
+function mapApiRequestedServiceRow(raw: any): RequestedServiceRow {
+  return {
+    _id: String(raw?._id ?? ""),
+    name: String(raw?.name ?? "").trim() || "-",
+    category_id: String(raw?.category_id ?? "").trim(),
+    category_name: String(raw?.category_name ?? "").trim() || "-",
+    description: String(raw?.desc ?? raw?.description ?? "").trim(),
+    image_url: raw?.image_url ? String(raw.image_url) : undefined,
+    status: "pending",
+  };
+}
+
+function mapApiRequestedCategoryRow(raw: any): RequestedCategoryRow {
+  return {
+    _id: String(raw?._id ?? ""),
+    name: String(raw?.name ?? "").trim() || "-",
+    service_ids: Array.isArray(raw?.service_ids)
+      ? raw.service_ids.map((id: any) => String(id))
+      : [],
+    service_names: Array.isArray(raw?.service_names)
+      ? raw.service_names.map((s: any) => String(s))
+      : [],
+    description: String(raw?.desc ?? raw?.description ?? "").trim(),
+    image_url: raw?.image_url ? String(raw.image_url) : undefined,
+    status: "pending",
+  };
+}
 
 /**
  * Map `/area/getAll` (or mock) record into the my-franchise table shape. API uses `name`;
@@ -392,23 +448,91 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
   return all.map(mapApiEmployeeToFranchiseEmployeeRow);
 }
 
+async function fetchAllCategoryRows(
+  isRequest: boolean
+): Promise<any[] | null> {
+  const limit = 100;
+  const maxPages = 30;
+  const all: any[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const response = await apiRequest(
+      `${ApiPaths.GET_CATEGORY()}?page=${page}&limit=${limit}&is_request=${String(
+        isRequest
+      )}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true,
+      true
+    );
+    if (!response.success) return null;
+    const records = response.data?.records;
+    if (!Array.isArray(records)) break;
+    all.push(...records);
+    const totalPages = Number(response.data?.totalPages ?? 0);
+    if (!totalPages || page >= totalPages) break;
+  }
+  return all;
+}
+
+async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
+  const limit = 100;
+  const maxPages = 30;
+  const all: any[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const response = await apiRequest(
+      `${ApiPaths.GET_SERVICE()}?page=${page}&limit=${limit}&is_request=${String(
+        isRequest
+      )}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true,
+      true
+    );
+    if (!response.success) return null;
+    const records = response.data?.records;
+    if (!Array.isArray(records)) break;
+    all.push(...records);
+    const totalPages = Number(response.data?.totalPages ?? 0);
+    if (!totalPages || page >= totalPages) break;
+  }
+  return all;
+}
+
 export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
-  const [apiEmployeeRows, apiAreaRows, apiServiceRows, apiCategoryRows] =
-    await Promise.all([
-      fetchEmployeeRowsForMyFranchise(),
-      // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
-      fetchAreaRowsForMyFranchise(),
-      fetchServiceRowsForMyFranchise(),
-      fetchCategoryRowsForMyFranchise(),
-    ]);
+  const [
+    apiEmployeeRows,
+    apiAreaRows,
+    apiServiceRows,
+    apiCategoryRows,
+    requestedCategoryRows,
+    requestedServiceRows,
+  ] = await Promise.all([
+    fetchEmployeeRowsForMyFranchise(),
+    // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
+    fetchAreaRowsForMyFranchise(),
+    fetchServiceRowsForMyFranchise(),
+    fetchCategoryRowsForMyFranchise(),
+    fetchAllCategoryRows(true),
+    fetchAllServiceRows(true),
+  ]);
 
   return {
     employees: apiEmployeeRows ?? [],
     areas: apiAreaRows ?? [],
     services: apiServiceRows ?? [],
     categories: apiCategoryRows ?? [],
-    requested_services: [],
-    requested_categories: [],
+    requested_services: (requestedServiceRows ?? [])
+      .filter((r) => r?.is_rejected == null)
+      .map(mapApiRequestedServiceRow),
+    requested_categories: (requestedCategoryRows ?? [])
+      .filter((r) => r?.is_rejected == null)
+      .map(mapApiRequestedCategoryRow),
   };
 }
 
@@ -425,18 +549,32 @@ export async function setServiceActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  void id;
-  void is_active;
-  return false;
+  const response = await apiRequest(
+    ApiPaths.UPDATE_SERVICE(id),
+    "PUT",
+    { is_active },
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export async function setCategoryActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  void id;
-  void is_active;
-  return false;
+  const response = await apiRequest(
+    ApiPaths.UPDATE_CATEGORY(id),
+    "PUT",
+    { is_active },
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 type FranchiseEmployeeInput = {
@@ -505,22 +643,61 @@ export type RequestedServiceInput = {
 export async function createRequestedService(
   input: RequestedServiceInput
 ): Promise<boolean> {
-  void input;
-  return false;
+  const franchiseId = await resolveSessionFranchiseId();
+  const payload = {
+    name: input.name.trim(),
+    category_id: input.category_id,
+    desc: input.description.trim(),
+    ...(input.image_url ? { image_url: input.image_url } : {}),
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
+    is_request: true,
+  };
+  const response = await apiRequest(
+    ApiPaths.CREATE_SERVICE_REQUEST,
+    "POST",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export async function updateRequestedService(
   id: string,
   input: RequestedServiceInput
 ): Promise<boolean> {
-  void id;
-  void input;
-  return false;
+  const payload = {
+    name: input.name.trim(),
+    category_id: input.category_id,
+    desc: input.description.trim(),
+    ...(input.image_url ? { image_url: input.image_url } : {}),
+    is_request: true,
+  };
+  const response = await apiRequest(
+    ApiPaths.UPDATE_SERVICE_REQUEST(id),
+    "PUT",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export async function voidRequestedService(id: string): Promise<boolean> {
-  void id;
-  return false;
+  const response = await apiRequest(
+    ApiPaths.DELETE_SERVICE(id),
+    "DELETE",
+    undefined,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export type RequestedCategoryInput = {
@@ -533,20 +710,59 @@ export type RequestedCategoryInput = {
 export async function createRequestedCategory(
   input: RequestedCategoryInput
 ): Promise<boolean> {
-  void input;
-  return false;
+  const franchiseId = await resolveSessionFranchiseId();
+  const payload = {
+    name: input.name.trim(),
+    service_ids: input.service_ids,
+    desc: input.description.trim(),
+    ...(input.image_url ? { image_url: input.image_url } : {}),
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
+    is_request: true,
+  };
+  const response = await apiRequest(
+    ApiPaths.CREATE_CATEGORY_REQUEST,
+    "POST",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export async function updateRequestedCategory(
   id: string,
   input: RequestedCategoryInput
 ): Promise<boolean> {
-  void id;
-  void input;
-  return false;
+  const payload = {
+    name: input.name.trim(),
+    service_ids: input.service_ids,
+    desc: input.description.trim(),
+    ...(input.image_url ? { image_url: input.image_url } : {}),
+    is_request: true,
+  };
+  const response = await apiRequest(
+    ApiPaths.UPDATE_CATEGORY_REQUEST(id),
+    "PUT",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
 
 export async function voidRequestedCategory(id: string): Promise<boolean> {
-  void id;
-  return false;
+  const response = await apiRequest(
+    ApiPaths.DELETE_CATEGORY(id),
+    "DELETE",
+    undefined,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
 }
