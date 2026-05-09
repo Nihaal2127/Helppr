@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -7,7 +7,9 @@ import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { getStatusOptions } from "../../helper/utility";
 import CustomFormSelect from "../../components/CustomFormSelect";
-import CustomImageUploader from "../../components/CustomImageUploader";
+import CustomImageUploader, {
+  resolveExistingImageSrc,
+} from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateService } from "../../services/servicesService";
@@ -15,6 +17,40 @@ import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { openDialog } from "../../helper/DialogManager";
 import { FullDetailsRow } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
+
+function mapPaymentTypeToMinDepositType(s: ServiceModel | null): string {
+  if (!s) return "";
+  const any = s as any;
+  return String(any.min_deposit_type ?? any.payment_type ?? "").trim();
+}
+
+function mapMinimumDepositValue(s: ServiceModel | null): string {
+  if (!s) return "";
+  const any = s as any;
+  const v = any.min_deposit_value ?? any.minimum_deposit;
+  if (v === undefined || v === null) return "";
+  return String(v);
+}
+
+/** Maps API `approval_status` and legacy `is_rejected` to form values. */
+function mapApprovalStatusFromService(
+  s: ServiceModel | null
+): "pending" | "approved" | "rejected" {
+  if (!s) return "approved";
+  const any = s as any;
+  const raw = String(any.approval_status ?? "").trim().toLowerCase();
+  if (raw === "pending") return "pending";
+  if (raw === "approved" || raw === "approve") return "approved";
+  if (raw === "rejected" || raw === "reject") return "rejected";
+  if (any.is_rejected === true) return "rejected";
+  if (any.is_rejected === false) return "approved";
+  if (any.is_request === true) return "pending";
+  return any.is_active === false ? "rejected" : "approved";
+}
+
+function requestStatusLabel(status: "pending" | "approved" | "rejected") {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 type AddEditServiceDialogProps = {
   isEditable: boolean;
@@ -56,7 +92,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     formState: { errors },
   } = useForm<
     ServiceModel & {
-      approval_status?: "approved" | "rejected";
+      approval_status?: "pending" | "approved" | "rejected";
       rejection_reason?: string;
     }
   >({
@@ -65,18 +101,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       desc: service?.desc || "",
       tax: ((service as any)?.tax ?? "") as any,
       commission: ((service as any)?.commission ?? "") as any,
-      min_deposit_type: (service as any)?.min_deposit_type || "",
-      min_deposit_value: ((service as any)?.min_deposit_value ?? "") as any,
+      min_deposit_type: mapPaymentTypeToMinDepositType(service),
+      min_deposit_value: mapMinimumDepositValue(service) as any,
       is_active: service?.is_active ?? true,
       category_id: service?.category_id || "",
-      approval_status:
-        service?.is_rejected === true
-          ? "rejected"
-          : service?.is_rejected === false
-          ? "approved"
-          : service?.is_active === false
-          ? "rejected"
-          : "approved",
+      approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any,
   });
@@ -87,18 +116,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       desc: service?.desc || "",
       tax: ((service as any)?.tax ?? "") as any,
       commission: ((service as any)?.commission ?? "") as any,
-      min_deposit_type: (service as any)?.min_deposit_type || "",
-      min_deposit_value: ((service as any)?.min_deposit_value ?? "") as any,
+      min_deposit_type: mapPaymentTypeToMinDepositType(service),
+      min_deposit_value: mapMinimumDepositValue(service) as any,
       is_active: service?.is_active ?? true,
       category_id: service?.category_id || lockCategory?.id || "",
-      approval_status:
-        service?.is_rejected === true
-          ? "rejected"
-          : service?.is_rejected === false
-          ? "approved"
-          : service?.is_active === false
-          ? "rejected"
-          : "approved",
+      approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any);
   }, [service, lockCategory?.id, localViewMode, reset]);
@@ -115,21 +137,57 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     service?.category_id &&
     categories.find((c) => c.value === service.category_id)?.label;
 
+  const resolvedPaymentType = mapPaymentTypeToMinDepositType(service);
+  const resolvedMinimumDeposit = mapMinimumDepositValue(service);
+
   const minDepositValueForView =
-    service?.min_deposit_type === "per_consultancy" &&
-    service.min_deposit_value !== undefined
-      ? `${service.min_deposit_value}`
+    resolvedPaymentType === "per_consultancy" && resolvedMinimumDeposit !== ""
+      ? resolvedMinimumDeposit
       : "";
 
-  const minDepositLabelForView = service?.min_deposit_type
-    ? service.min_deposit_type +
-      (service.min_deposit_type === "per_consultancy" && minDepositValueForView
-        ? ` (${minDepositValueForView})`
-        : "")
+  const minDepositLabelForView = resolvedPaymentType
+    ? resolvedMinimumDeposit !== ""
+      ? `${resolvedPaymentType} (${resolvedMinimumDeposit}${AppConstant.percentageSymbol})`
+      : resolvedPaymentType
     : "-";
 
-  const sanitizeNumericText = (raw: string) =>
-    raw.replace(/\D/g, "").slice(0, 3);
+  /** Percentage 0–100; allows decimals (e.g. 4.5). Max 2 fraction digits; caps at 100 while typing. */
+  const sanitizePercentageText = (raw: string) => {
+    const cleaned = raw.replace(/[^\d.]/g, "");
+    const firstDot = cleaned.indexOf(".");
+    let t =
+      firstDot === -1
+        ? cleaned
+        : cleaned.slice(0, firstDot + 1) +
+          cleaned.slice(firstDot + 1).replace(/\./g, "");
+    const hasDot = t.includes(".");
+    const [intRaw, ...rest] = t.split(".");
+    const intPart = (intRaw ?? "").replace(/\D/g, "").slice(0, 3);
+    const decPart = hasDot
+      ? rest.join("").replace(/\D/g, "").slice(0, 2)
+      : "";
+    let out: string;
+    if (!hasDot) {
+      out = intPart;
+    } else if (decPart.length > 0) {
+      out = `${intPart}.${decPart}`;
+    } else {
+      out = intPart === "" ? "0." : `${intPart}.`;
+    }
+    if (out === "" || out === ".") return "";
+    const n = parseFloat(out);
+    if (Number.isFinite(n) && n > 100) return "100";
+    return out;
+  };
+
+  const isValidPercentageString = (v: string) => {
+    const t = String(v ?? "").trim();
+    if (t === "" || t === ".") return false;
+    // Integers or decimals; allow trailing "." while editing (e.g. "4." → 4)
+    if (!/^\d+(\.\d*)?$/.test(t)) return false;
+    const n = parseFloat(t);
+    return Number.isFinite(n) && n >= 0 && n <= 100;
+  };
 
   const fetchDataFromApi = useCallback(async () => {
     if (fetchRef.current) return;
@@ -186,8 +244,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   }, [categories, service?.category_id, setValue]);
 
   useEffect(() => {
-    if (isEditable && service?.min_deposit_type) {
-      setValue("min_deposit_type" as any, (service as any).min_deposit_type, {
+    const t = mapPaymentTypeToMinDepositType(service);
+    if (isEditable && t) {
+      setValue("min_deposit_type" as any, t, {
         shouldValidate: true,
         shouldDirty: true,
         shouldTouch: true,
@@ -197,9 +256,15 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
   const approvalStatus = watch("approval_status");
 
+  const serviceImagePath = useMemo(() => {
+    if (!service) return "";
+    const s = service as any;
+    return String(s.image_url ?? s.image ?? s.imageUrl ?? "").trim();
+  }, [service]);
+
   const onSubmitEvent = async (
     data: ServiceModel & {
-      approval_status?: "approved" | "rejected";
+      approval_status?: "pending" | "approved" | "rejected";
       rejection_reason?: string;
     }
   ) => {
@@ -237,21 +302,30 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       return;
     }
 
+    const mdType = String((data as any).min_deposit_type ?? "").trim();
+    const mdRaw = (data as any).min_deposit_value;
+    const mdParsed =
+      mdRaw === "" || mdRaw === undefined || mdRaw === null
+        ? 0
+        : Number(mdRaw);
+
     const payload = {
       name: data.name,
       desc: data.desc,
       tax: Number((data as any).tax),
       commission: Number((data as any).commission),
-      min_deposit_type: (data as any).min_deposit_type,
+      min_deposit_type: mdType,
+      payment_type: mdType,
       min_deposit_value:
-        (data as any).min_deposit_type === "per_consultancy"
-          ? Number((data as any).min_deposit_value)
-          : 0,
+        mdType === "per_consultancy" ? mdParsed : 0,
+      minimum_deposit: mdParsed,
       is_active: isEditable
         ? data.approval_status !== "rejected"
         : data.is_active,
       ...(isEditable &&
-        service?.is_request && {
+        service?.is_request &&
+        data.approval_status &&
+        data.approval_status !== "pending" && {
           is_rejected: data.approval_status === "rejected",
         }),
       ...(isEditable && {
@@ -304,8 +378,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
       <Modal.Body className="px-4 pb-4 pt-0">
         {localViewMode && service ? (
-          <section className="custom-other-details" style={{ padding: "10px" }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
+          <section
+            className="custom-other-details modal-readonly-details"
+            style={{ padding: "14px 16px", borderRadius: 12 }}
+          >
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <h3 className="mb-0">Service Information</h3>
               {isEditable && (
                 <i
@@ -317,9 +394,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 />
               )}
             </div>
-            <div className="row">
-              <div className="col-md-6 custom-helper-column">
-                {/* <FullDetailsRow title="Service ID" value={service.service_id ?? "-"} /> */}
+
+            <Row className="g-3">
+              <Col xs={12} md={6}>
+                <FullDetailsRow title="Service Name" value={service.name ?? "-"} />
+              </Col>
+              <Col xs={12} md={6}>
                 <FullDetailsRow
                   title="Category"
                   value={
@@ -329,6 +409,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     "-"
                   }
                 />
+              </Col>
+              <Col xs={12} md={6}>
                 <FullDetailsRow
                   title="Tax"
                   value={
@@ -337,20 +419,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                       : "-"
                   }
                 />
-                <FullDetailsRow
-                  title="Min Deposit"
-                  value={minDepositLabelForView}
-                />
-              </div>
-              <div className="col-md-6 custom-helper-column">
-                <FullDetailsRow
-                  title="Service Name"
-                  value={service.name ?? "-"}
-                />
-                {/* <FullDetailsRow
-                                    title="States"
-                                    value={stateLabelsForView.length > 0 ? stateLabelsForView.join(", ") : "-"}
-                                /> */}
+              </Col>
+              <Col xs={12} md={6}>
                 <FullDetailsRow
                   title="Commission"
                   value={
@@ -360,63 +430,76 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                       : "-"
                   }
                 />
-
+              </Col>
+              <Col xs={12} md={6}>
+                <FullDetailsRow title="Min deposit" value={minDepositLabelForView} />
+              </Col>
+              <Col xs={12} md={6}>
                 <FullDetailsRow
                   title="Status"
                   value={service.is_active ? "Active" : "Inactive"}
                 />
-              </div>
-              <div className="col-md-12 custom-helper-column">
-                <Row className="row custom-personal-row">
-                  <label className="col-3 custom-personal-row-title">
-                    Description
-                  </label>
-                  <div
-                    className="col-9 custom-personal-row-value text-wrap"
-                    style={{
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
-                      width: "auto",
-                      maxWidth: "100%",
-                      overflow: "visible",
-                      textOverflow: "clip",
-                    }}
-                  >
-                    {service.desc ?? "-"}
-                  </div>
-                </Row>
-                {/* <Row className="row custom-personal-row">
-                                    <label className="col-3 custom-personal-row-title">Cities</label>
-                                    <label className="col-9 custom-personal-row-value text-wrap">
-                                        {cityLabelsForView.length > 0 ? cityLabelsForView.join(", ") : "-"}
-                                    </label>
-                                </Row> */}
-              </div>
-              <div className="col-md-12">
-                {service.image_url ? (
-                  <div className="mt-2">
-                    <p
-                      className="mb-1"
-                      style={{ color: "var(--primary-color)", fontWeight: 600 }}
-                    >
-                      Service image
-                    </p>
-                    <img
-                      src={`${AppConstant.IMAGE_BASE_URL}${
-                        service.image_url
-                      }?t=${Date.now()}`}
-                      alt=""
-                      style={{
-                        maxWidth: 160,
-                        maxHeight: 160,
-                        borderRadius: 8,
-                        objectFit: "cover",
-                      }}
+              </Col>
+              {(service as any).is_request ? (
+                <>
+                  <Col xs={12} md={6}>
+                    <FullDetailsRow
+                      title="Request status"
+                      value={requestStatusLabel(
+                        mapApprovalStatusFromService(service)
+                      )}
                     />
-                  </div>
-                ) : null}
-              </div>
-            </div>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <FullDetailsRow
+                      title="Requested by"
+                      value={
+                        (service as any).requested_by
+                          ? typeof (service as any).requested_by === "object" &&
+                            (service as any).requested_by !== null
+                            ? String(
+                                (service as any).requested_by.name ??
+                                  (service as any).requested_by.id ??
+                                  "-"
+                              )
+                            : String((service as any).requested_by)
+                          : "-"
+                      }
+                    />
+                  </Col>
+                </>
+              ) : null}
+            </Row>
+
+            <Row className="g-3 mt-1">
+              <Col xs={12}>
+                <FullDetailsRow title="Description" value={service.desc ?? "-"} />
+              </Col>
+            </Row>
+
+            {serviceImagePath ? (
+              <Row className="g-3 mt-3">
+                <Col xs={12}>
+                  <p
+                    className="mb-2"
+                    style={{ color: "var(--primary-color)", fontWeight: 600 }}
+                  >
+                    Service image
+                  </p>
+                  <img
+                    src={resolveExistingImageSrc(serviceImagePath)}
+                    alt=""
+                    style={{
+                      maxWidth: "min(100%, 280px)",
+                      maxHeight: 200,
+                      borderRadius: 8,
+                      objectFit: "cover",
+                      border: "1px solid var(--txtfld-border)",
+                    }}
+                  />
+                </Col>
+              </Row>
+            ) : null}
           </section>
         ) : (
           <form
@@ -487,17 +570,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                       placeholder="Enter Tax"
                       onInput={(e) => {
                         const target = e.currentTarget;
-                        target.value = sanitizeNumericText(target.value);
+                        target.value = sanitizePercentageText(target.value);
                       }}
                       {...register("tax" as any, {
                         required: "Tax is required",
                         validate: (v: string) => {
-                          if (!/^\d+$/.test(v ?? ""))
-                            return "Enter a valid number";
-                          const n = Number(v);
-                          if (Number.isNaN(n) || n < 1 || n > 100) {
-                            return "Tax must be between 1 and 100";
-                          }
+                          if (!isValidPercentageString(v))
+                            return "Enter 0–100 (decimals allowed, e.g. 4.5)";
                           return true;
                         },
                       })}
@@ -525,17 +604,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                       placeholder="Enter Commission"
                       onInput={(e) => {
                         const target = e.currentTarget;
-                        target.value = sanitizeNumericText(target.value);
+                        target.value = sanitizePercentageText(target.value);
                       }}
                       {...register("commission" as any, {
                         required: "Commission is required",
                         validate: (v: string) => {
-                          if (!/^\d+$/.test(v ?? ""))
-                            return "Enter a valid number";
-                          const n = Number(v);
-                          if (Number.isNaN(n) || n < 1 || n > 100) {
-                            return "Commission must be between 1 and 100";
-                          }
+                          if (!isValidPercentageString(v))
+                            return "Enter 0–100 (decimals allowed, e.g. 4.5)";
                           return true;
                         },
                       })}
@@ -565,7 +640,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   error={(errors as any).min_deposit_type}
                   asCol={false}
                   requiredMessage="Please select payment type"
-                  defaultValue={(service as any)?.min_deposit_type || ""}
+                  defaultValue={mapPaymentTypeToMinDepositType(service)}
                   setValue={(name: string, value: any) => {
                     setValue(name as any, value, {
                       shouldValidate: true,
@@ -597,7 +672,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                       placeholder="Enter Minimum Deposit"
                       onInput={(e) => {
                         const target = e.currentTarget;
-                        target.value = sanitizeNumericText(target.value);
+                        target.value = sanitizePercentageText(target.value);
                       }}
                       {...register("min_deposit_value" as any, {
                         validate: (v: string, formValues: any) => {
@@ -612,12 +687,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                           } else if (isEmpty) {
                             return true;
                           }
-                          if (!/^\d+$/.test(v ?? ""))
-                            return "Enter a valid number";
-                          const n = Number(v);
-                          if (n < 1 || n > 100) {
-                            return "Minimum deposit must be between 1 and 100";
-                          }
+                          if (!isValidPercentageString(v))
+                            return "Enter 0–100 (decimals allowed, e.g. 4.5)";
                           return true;
                         },
                       })}
@@ -634,33 +705,37 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
               <Col md={6}>
                 <CustomImageUploader
-                  label="Upload Service Image"
+                  label="Service image"
                   maxFiles={1}
                   isEditable={isEditable}
-                  existingImages={service?.image_url ? [service.image_url] : []}
+                  existingImages={serviceImagePath ? [serviceImagePath] : []}
                   onFileChange={(files, replaceUrls) => {
                     setFileInputs(files);
                     setReplaceUrl(replaceUrls);
                   }}
                 />
-
-                <label style={{ color: "var(--primary-color)" }}>
-                  Image size should be 512*512
-                </label>
               </Col>
 
               <Col md={6} className="mb-3">
                 {isEditable ? (
                   <CustomRadioSelection
-                    label="Approval Status"
-                    name="approval_status"
-                    options={[
-                      { label: "Approved", value: "approved" },
-                      { label: "Rejected", value: "rejected" },
-                    ]}
-                    defaultValue={
-                      service?.is_active === false ? "rejected" : "approved"
+                    label={
+                      service?.is_request ? "Request status" : "Approval status"
                     }
+                    name="approval_status"
+                    options={
+                      service?.is_request
+                        ? [
+                            { label: "Pending", value: "pending" },
+                            { label: "Approved", value: "approved" },
+                            { label: "Rejected", value: "rejected" },
+                          ]
+                        : [
+                            { label: "Approved", value: "approved" },
+                            { label: "Rejected", value: "rejected" },
+                          ]
+                    }
+                    defaultValue={mapApprovalStatusFromService(service)}
                     isEditable={isEditable}
                     setValue={setValue}
                   />

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Button, Col } from "react-bootstrap";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { Button, Col, Row } from "react-bootstrap";
 import { AppConstant } from "../constant/AppConstant";
 import { showErrorAlert } from "../helper/alertHelper";
 import {
@@ -16,7 +16,7 @@ interface CustomImageUploaderProps {
   onFileChange: (files: File[], replaceUrls: string[]) => void;
 }
 
-function resolveExistingImageSrc(url?: string): string {
+export function resolveExistingImageSrc(url?: string): string {
   const u = (url ?? "").trim();
   if (!u) return "";
   if (
@@ -26,29 +26,36 @@ function resolveExistingImageSrc(url?: string): string {
   ) {
     return `${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
   }
-  return `${AppConstant.IMAGE_BASE_URL}${u}?t=${Date.now()}`;
+  if (u.startsWith("//")) {
+    return `https:${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  }
+  const base = AppConstant.IMAGE_BASE_URL.replace(/\/?$/, "/");
+  const path = u.replace(/^\//, "");
+  return `${base}${path}?t=${Date.now()}`;
 }
 
-function uploadStatusMeta(file: File | null, existingUrl?: string) {
-  if (file) {
-    return {
-      text: `Image selected: ${file.name}`,
-      color: "var(--btn-success)",
-      title: file.name,
+function LocalFilePreview({ file }: { file: File }) {
+  const [objectUrl, setObjectUrl] = useState("");
+  useLayoutEffect(() => {
+    const u = URL.createObjectURL(file);
+    setObjectUrl(u);
+    return () => {
+      URL.revokeObjectURL(u);
     };
-  }
-  if ((existingUrl ?? "").trim()) {
-    return {
-      text: "Image already uploaded",
-      color: "var(--content-txt-color)",
-      title: "Image already uploaded",
-    };
-  }
-  return {
-    text: "No file chosen",
-    color: "var(--placeholder-txt)",
-    title: "No file chosen",
-  };
+  }, [file]);
+  if (!objectUrl) return null;
+  return (
+    <img
+      alt=""
+      src={objectUrl}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+      }}
+    />
+  );
 }
 
 const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
@@ -58,11 +65,13 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
   existingImages = [],
   onFileChange,
 }) => {
-  const [fileInputs, setFileInputs] = useState<(File | null)[]>([]);
+  const [fileInputs, setFileInputs] = useState<(File | null)[]>([null]);
   const [replaceUrls, setReplaceUrls] = useState<string[]>([]);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const initKeyRef = useRef<string>("");
   const existingImagesKey = existingImages.join("|");
+  const maxKb = Math.floor(getSupportedImageMaxSizeBytes() / 1024);
+  const extLabel = getSupportedImageExtensions().join(", ");
 
   useEffect(() => {
     const initKey = `${isEditable ? "1" : "0"}|${existingImagesKey}`;
@@ -76,7 +85,6 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
       : [null];
     setFileInputs(initialFileInputs);
     setReplaceUrls([]);
-    // existingImagesKey tracks URL contents; omitting `existingImages` avoids resets when parent passes unstable array refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditable, existingImages.length, existingImagesKey]);
 
@@ -106,108 +114,274 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     );
   };
 
+  const handleClearSlot = (index: number) => {
+    const input = inputRefs.current[index];
+    if (input) input.value = "";
+    handleFileChange(index, null);
+  };
+
   const addFileInput = () => {
     if (fileInputs.length < maxFiles) {
       setFileInputs((prev) => [...prev, null]);
     }
   };
 
+  const openPicker = (index: number) => {
+    inputRefs.current[index]?.click();
+  };
+
+  const previewSize = maxFiles === 1 ? 132 : 100;
+  const isSingle = maxFiles === 1;
+
   return (
-    <Col sm={12}>
-      <div className="mb-3">
-        <label className="me-3 mb-1 mt-3 fw-medium">{label}</label>
-        {fileInputs.map((file, index) => (
-          <div key={index} className="d-flex align-items-center mb-2">
-            {(() => {
-              const statusMeta = uploadStatusMeta(file, existingImages[index]);
+    <Row className="w-100 g-0 mx-0">
+      <Col xs={12} className="px-0">
+        <div className="mb-3">
+          <label
+            className="form-label fw-medium mb-2 d-block"
+            style={{ color: "var(--content-txt-color)" }}
+          >
+            {label}
+          </label>
+
+          <div
+            style={
+              isSingle
+                ? { width: "100%" }
+                : {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                    gap: 12,
+                    maxWidth: "100%",
+                  }
+            }
+          >
+            {fileInputs.map((file, index) => {
+              const existing = (existingImages[index] ?? "").trim();
+              const hasPreview = Boolean(file || existing);
+
               return (
-                <>
-                  {isEditable && existingImages[index] && !file ? (
-                    <div className="me-2">
-                      <img
-                        alt=""
-                        src={resolveExistingImageSrc(existingImages[index])}
-                        style={{
-                          width: "50px",
-                          height: "50px",
-                          objectFit: "cover",
-                        }}
-                      />
+                <div
+                  key={index}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    border: "1px solid var(--txtfld-border)",
+                    background: "var(--bg-color)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                    width: isSingle ? "100%" : undefined,
+                    maxWidth: isSingle ? "100%" : undefined,
+                    position: "relative",
+                    display: isSingle ? "flex" : undefined,
+                    flexDirection: isSingle ? "row" : undefined,
+                    alignItems: isSingle ? "stretch" : undefined,
+                    gap: isSingle ? 14 : undefined,
+                  }}
+                >
+                <div
+                  style={{
+                    position: "relative",
+                    flexShrink: 0,
+                    alignSelf: isSingle ? "center" : undefined,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={
+                      isSingle
+                        ? "border-0 p-0 bg-transparent d-block"
+                        : "w-100 border-0 p-0 text-center bg-transparent"
+                    }
+                    onClick={() => openPicker(index)}
+                    aria-label="Choose image file"
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div
+                      style={{
+                        width: previewSize,
+                        height: previewSize,
+                        margin: isSingle ? 0 : "0 auto",
+                        borderRadius: 8,
+                        border: hasPreview
+                          ? "1px solid var(--txtfld-border)"
+                          : "2px dashed var(--txtfld-border)",
+                        overflow: "hidden",
+                        background: "rgba(0,0,0,0.02)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+                      }}
+                    >
+                      {file ? (
+                        <LocalFilePreview file={file} />
+                      ) : existing ? (
+                        <img
+                          alt=""
+                          src={resolveExistingImageSrc(existing)}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="d-flex flex-column align-items-center justify-content-center px-2 py-2"
+                          style={{ width: "100%", height: "100%" }}
+                        >
+                          <i
+                            className="bi bi-cloud-arrow-up"
+                            style={{
+                              fontSize: isSingle ? "1.65rem" : "1.35rem",
+                              color: "var(--primary-color)",
+                              opacity: 0.92,
+                              lineHeight: 1,
+                            }}
+                            aria-hidden
+                          />
+                          <span
+                            className="text-center"
+                            style={{
+                              color: "var(--placeholder-txt)",
+                              fontSize: 10,
+                              lineHeight: 1.25,
+                              marginTop: 6,
+                            }}
+                          >
+                            Tap to upload
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  ) : null}
-                  <div className="form-control d-flex align-items-center gap-2 py-1">
+                  </button>
+
+                  {file ? (
                     <button
                       type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => inputRefs.current[index]?.click()}
-                      style={{ minWidth: 110, whiteSpace: "nowrap" }}
-                    >
-                      Choose File
-                    </button>
-                    <span
-                      className="small text-truncate"
+                      className="position-absolute border-0 rounded-circle d-flex align-items-center justify-content-center"
+                      aria-label="Remove selected image"
+                      title="Remove"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleClearSlot(index);
+                      }}
                       style={{
-                        color: statusMeta.color,
-                        maxWidth: "320px",
+                        top: 4,
+                        right: 4,
+                        width: 26,
+                        height: 26,
+                        fontSize: 14,
+                        lineHeight: 1,
+                        background: "rgba(255,255,255,0.95)",
+                        color: "#b02a37",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+                        cursor: "pointer",
                       }}
-                      title={statusMeta.title}
                     >
-                      {statusMeta.text}
-                    </span>
-                    <input
-                      type="file"
-                      ref={(el) => {
-                        inputRefs.current[index] = el;
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+
+                {isSingle ? (
+                  <div
+                    className="d-flex flex-column justify-content-center"
+                    style={{ flex: "1 1 0", minWidth: 0, gap: 8 }}
+                  >
+                    <p
+                      className="small mb-0"
+                      style={{ color: "var(--placeholder-txt)", lineHeight: 1.45 }}
+                    >
+                      {extLabel} · up to {maxKb} KB
+                    </p>
+                    {file ? (
+                      <p
+                        className="small fw-medium mb-0 text-truncate"
+                        style={{ color: "var(--content-txt-color)" }}
+                        title={file.name}
+                      >
+                        {file.name}
+                      </p>
+                    ) : existing ? (
+                      <p
+                        className="small mb-0"
+                        style={{ color: "var(--content-txt-color)", lineHeight: 1.45 }}
+                      >
+                        Preview shows your current image. Pick a new file to replace it.
+                      </p>
+                    ) : (
+                      <p
+                        className="small mb-0"
+                        style={{ color: "var(--content-txt-color)", lineHeight: 1.45 }}
+                      >
+                        Tap the preview or use the link below to choose a file.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-link p-0 text-decoration-none align-self-start"
+                      style={{
+                        color: "var(--primary-color)",
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
                       }}
-                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const selectedFile = e.target.files?.[0] || null;
-                        if (
-                          selectedFile &&
-                          !isSupportedImageFile(selectedFile)
-                        ) {
-                          showErrorAlert(
-                            `Only ${getSupportedImageExtensions().join(
-                              ", "
-                            )} formats up to ${Math.floor(
-                              getSupportedImageMaxSizeBytes() / 1024
-                            )}KB are supported.`
-                          );
-                          e.target.value = "";
-                          return;
-                        }
-                        handleFileChange(index, selectedFile);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        openPicker(index);
                       }}
-                    />
+                    >
+                      {hasPreview ? "Replace image" : "Browse files"}
+                    </button>
                   </div>
-                </>
-              );
-            })()}
-            {/* <Button
-              variant="danger"
-              className="ms-2"
-              onClick={() => removeFileInput(index)}
-            >
-              Remove
-            </Button> */}
-          </div>
-        ))}
+                ) : null}
+
+                <input
+                  type="file"
+                  ref={(el) => {
+                    inputRefs.current[index] = el;
+                  }}
+                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0] || null;
+                    if (
+                      selectedFile &&
+                      !isSupportedImageFile(selectedFile)
+                    ) {
+                      showErrorAlert(
+                        `Only ${extLabel} formats up to ${maxKb} KB are supported.`
+                      );
+                      e.target.value = "";
+                      return;
+                    }
+                    handleFileChange(index, selectedFile);
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
         {maxFiles > 1 && fileInputs.length < maxFiles && (
           <Button
+            type="button"
             variant="primary"
             style={{
               backgroundColor: "var(--primary-color)",
               border: "none",
-              marginTop: "10px",
+              marginTop: 12,
             }}
             onClick={addFileInput}
           >
-            + Add
+            + Add another
           </Button>
         )}
-      </div>
-    </Col>
+        </div>
+      </Col>
+    </Row>
   );
 };
 

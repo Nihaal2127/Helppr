@@ -14,10 +14,12 @@ export interface CountModel {
   total_category: number | 0;
   active_category: number | 0;
   inactive_category: number | 0;
+  requested_category?: number | 0;
 
   total_service: number | 0;
   active_service: number | 0;
   inactive_service: number | 0;
+  requested_service?: number | 0;
 
   total_user: number | 0;
   active_user: number | 0;

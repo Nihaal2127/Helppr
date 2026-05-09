@@ -49,7 +49,7 @@ export const fetchService = async (
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.keyword && { keyword: filters.keyword }),
+    ...(filters.keyword && { search: filters.keyword }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),

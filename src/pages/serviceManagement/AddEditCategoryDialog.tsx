@@ -37,7 +37,6 @@ type CategoryFormValues = CategoryModel & {
 };
 
 const SELECT_ALL_OPTION = "select-all";
-const ADD_SERVICE_OPTION = "add-service";
 
 const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   show: (
@@ -94,7 +93,6 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     const options = [
       { value: SELECT_ALL_OPTION, label: "Select All" },
       ...serviceOpts,
-      { value: ADD_SERVICE_OPTION, label: "+ Add Service" },
     ];
     setServiceOptions(options);
     return options;
@@ -165,9 +163,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     if (serviceIds.length > 0) return;
 
     const fallbackIds = serviceOptions
-      .filter(
-        (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
-      )
+      .filter((s) => s.value !== SELECT_ALL_OPTION)
       .slice(0, count)
       .map((s) => String(s.value));
 
@@ -180,10 +176,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     }
   }, [isEditable, category?.is_active, setValue]);
 
-  const handleServiceSelection = async (
-    selectedOptions: { value: string; label: string }[]
-  ) => {
-    const currentCategoryName = String(watch("name") ?? "").trim();
+  const openAddServiceForCategory = useCallback(async () => {
+    const currentCategoryName = String(getValues("name") ?? "").trim();
     const categoryIdFromRecord =
       (category as any)?._id ??
       (category as any)?.category_id ??
@@ -192,118 +186,147 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     const currentCategoryId = String(
       draftCategoryId || categoryIdFromRecord || ""
     ).trim();
+
+    let resolvedCategoryId = currentCategoryId;
+    if (!resolvedCategoryId) {
+      const name = String(getValues("name") ?? "").trim();
+      const desc = String(getValues("desc") ?? "").trim();
+      const franchise_id = String(getValues("franchise_id") ?? "").trim();
+      if (!name || !desc) {
+        showErrorAlert("Enter category name and description first.");
+        return;
+      }
+      if (fileInputs.length === 0) {
+        showErrorAlert("Upload category image first.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("type", "2");
+      fileInputs.forEach((file) => formData.append("files", file));
+      const { response, fileList } = await createOrUpdateDocument(
+        formData,
+        false
+      );
+      if (!response || fileList.length === 0) {
+        showErrorAlert("Unable to upload category image.");
+        return;
+      }
+
+      const draftRes = await createOrUpdateCategoryWithRecord(
+        {
+          name,
+          desc,
+          service_ids: [],
+          is_active: true,
+          ...(franchise_id ? { franchise_id } : {}),
+          image_url: String(fileList[0]),
+        },
+        false
+      );
+      resolvedCategoryId = String(
+        (draftRes.record as any)?._id ??
+          (draftRes.record as any)?.category_id ??
+          ""
+      ).trim();
+      if (!draftRes.response || !resolvedCategoryId) {
+        showErrorAlert("Please save category first, then add service.");
+        return;
+      }
+      setDraftCategoryId(resolvedCategoryId);
+      setDraftImageUrl(String(fileList[0]));
+    }
+
+    const previousServiceIds = new Set(
+      serviceOptions
+        .filter((s) => s.value !== SELECT_ALL_OPTION)
+        .map((s) => s.value)
+    );
+
+    AddEditServiceDialog.show(
+      false,
+      null,
+      async () => {
+        const refreshedOptions = await loadServiceOptions();
+        setServiceIds((prev) => {
+          const next = new Set(prev);
+          refreshedOptions
+            .filter(
+              (s) =>
+                s.value !== SELECT_ALL_OPTION &&
+                !previousServiceIds.has(s.value)
+            )
+            .forEach((s) => next.add(s.value));
+          return Array.from(next);
+        });
+        onRefreshData();
+      },
+      false,
+      {
+        id: resolvedCategoryId,
+        label: category?.name || currentCategoryName || "Current Category",
+      }
+    );
+  }, [
+    category,
+    draftCategoryId,
+    fileInputs,
+    getValues,
+    loadServiceOptions,
+    onRefreshData,
+    serviceOptions,
+    setDraftCategoryId,
+    setDraftImageUrl,
+    setServiceIds,
+  ]);
+
+  const addServiceMenuFooter = useMemo(
+    () => (
+      <button
+        type="button"
+        className="w-100 text-start border-0 bg-transparent py-2 px-3"
+        style={{
+          color: "var(--primary-color)",
+          fontWeight: 600,
+          fontSize: 14,
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onClick={() => void openAddServiceForCategory()}
+      >
+        + Add Service
+      </button>
+    ),
+    [openAddServiceForCategory]
+  );
+
+  const handleServiceSelection = async (
+    selectedOptions: { value: string; label: string }[]
+  ) => {
     const isSelectAllSelected = selectedOptions.some(
       (option) => option.value === SELECT_ALL_OPTION
     );
-
-    const hasAddServiceOption = selectedOptions.some(
-      (option) => option.value === ADD_SERVICE_OPTION
-    );
-    const optionsWithoutAdd = selectedOptions.filter(
-      (option) => option.value !== ADD_SERVICE_OPTION
-    );
-
-    if (hasAddServiceOption) {
-      let resolvedCategoryId = currentCategoryId;
-      if (!resolvedCategoryId) {
-        const name = String(getValues("name") ?? "").trim();
-        const desc = String(getValues("desc") ?? "").trim();
-        const franchise_id = String(getValues("franchise_id") ?? "").trim();
-        if (!name || !desc) {
-          showErrorAlert("Enter category name and description first.");
-          return;
-        }
-        if (fileInputs.length === 0) {
-          showErrorAlert("Upload category image first.");
-          return;
-        }
-
-        const formData = new FormData();
-        formData.append("type", "2");
-        fileInputs.forEach((file) => formData.append("files", file));
-        const { response, fileList } = await createOrUpdateDocument(
-          formData,
-          false
-        );
-        if (!response || fileList.length === 0) {
-          showErrorAlert("Unable to upload category image.");
-          return;
-        }
-
-        const draftRes = await createOrUpdateCategoryWithRecord(
-          {
-            name,
-            desc,
-            service_ids: [],
-            is_active: true,
-            ...(franchise_id ? { franchise_id } : {}),
-            image_url: String(fileList[0]),
-          },
-          false
-        );
-        resolvedCategoryId = String(
-          (draftRes.record as any)?._id ??
-            (draftRes.record as any)?.category_id ??
-            ""
-        ).trim();
-        if (!draftRes.response || !resolvedCategoryId) {
-          showErrorAlert("Please save category first, then add service.");
-          return;
-        }
-        setDraftCategoryId(resolvedCategoryId);
-        setDraftImageUrl(String(fileList[0]));
-      }
-
-      const previousServiceIds = new Set(
-        serviceOptions
-          .filter(
-            (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
-          )
-          .map((s) => s.value)
-      );
-
-      AddEditServiceDialog.show(
-        false,
-        null,
-        async () => {
-          const refreshedOptions = await loadServiceOptions();
-          setServiceIds((prev) => {
-            const next = new Set(prev);
-            refreshedOptions
-              .filter(
-                (s) =>
-                  s.value !== SELECT_ALL_OPTION &&
-                  s.value !== ADD_SERVICE_OPTION &&
-                  !previousServiceIds.has(s.value)
-              )
-              .forEach((s) => next.add(s.value));
-            return Array.from(next);
-          });
-          onRefreshData();
-        },
-        false,
-        {
-          id: resolvedCategoryId,
-          label: category?.name || currentCategoryName || "Current Category",
-        }
-      );
-    }
 
     let selectedIds: string[] = [];
 
     if (isSelectAllSelected) {
       const allServices = serviceOptions.filter(
-        (s) => s.value !== SELECT_ALL_OPTION && s.value !== ADD_SERVICE_OPTION
+        (s) => s.value !== SELECT_ALL_OPTION
+      );
+      const picked = selectedOptions.filter(
+        (o) => o.value !== SELECT_ALL_OPTION
       );
       const isAllSelected =
-        optionsWithoutAdd.length - 1 === allServices.length &&
+        picked.length === allServices.length &&
         allServices.every((svc) =>
-          optionsWithoutAdd.some((selected) => selected.value === svc.value)
+          picked.some((selected) => selected.value === svc.value)
         );
 
       selectedIds = isAllSelected ? [] : allServices.map((svc) => svc.value);
     } else {
-      selectedIds = optionsWithoutAdd.map((option) => option.value);
+      selectedIds = selectedOptions.map((option) => option.value);
     }
 
     setServiceIds(selectedIds);
@@ -313,7 +336,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     () =>
       serviceOptions.filter(
         (svc) =>
-          svc.value !== ADD_SERVICE_OPTION && serviceIds.includes(svc.value)
+          svc.value !== SELECT_ALL_OPTION && serviceIds.includes(svc.value)
       ),
     [serviceOptions, serviceIds]
   );
@@ -342,10 +365,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       .map(
         (id) =>
           serviceOptions.find(
-            (s) =>
-              s.value === id &&
-              s.value !== SELECT_ALL_OPTION &&
-              s.value !== ADD_SERVICE_OPTION
+            (s) => s.value === id && s.value !== SELECT_ALL_OPTION
           )?.label
       )
       .filter(Boolean) as string[];
@@ -440,7 +460,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       <Modal.Body className="px-4 pb-4 pt-0">
         {localViewMode && category ? (
           <section
-            className="custom-other-details"
+            className="custom-other-details modal-readonly-details"
             style={{ padding: "14px 16px", borderRadius: 12 }}
           >
             <div className="d-flex justify-content-between align-items-center mb-3">
@@ -455,14 +475,13 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               )}
             </div>
-            <div className="row">
-              <div className="col-md-7 custom-helper-column">
-                {/* <DetailsRow title="Category ID1" value={category.category_id ?? "-"} /> */}
-                <DetailsRow
-                  title="Category Name"
-                  value={category.name ?? "-"}
-                />
-                <Row className="row custom-personal-row mb-2">
+
+            <Row className="g-3">
+              <Col xs={12} md={6}>
+                <DetailsRow title="Category Name" value={category.name ?? "-"} />
+              </Col>
+              <Col xs={12} md={6}>
+                <Row className="row custom-personal-row mb-0">
                   <label className="col custom-personal-row-title">Status</label>
                   <label className="col custom-personal-row-value text-truncate">
                     <span
@@ -475,46 +494,42 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                     </span>
                   </label>
                 </Row>
-                <FullDetailsRow
-                  title="Description"
-                  value={category.desc ?? "-"}
-                />
-                {category.image_url ? (
-                  <div className="mt-2 mb-2">
-                    <p
-                      className="mb-1"
-                      style={{ color: "#000", fontWeight: 600 }}
-                    >
-                      Category image
-                    </p>
-                    <img
-                      src={`${AppConstant.IMAGE_BASE_URL}${
-                        category.image_url
-                      }?t=${Date.now()}`}
-                      alt="Category"
-                      style={{
-                        width: "100%",
-                        maxWidth: 240,
-                        height: 160,
-                        borderRadius: 10,
-                        objectFit: "contain",
-                        background: "#fff",
-                        border: "1px solid var(--txtfld-border)",
-                      }}
-                    />
-                  </div>
-                ) : null}
-                <Row className="row custom-personal-row">
-                  <label className="col custom-personal-row-title">
-                    Services
-                  </label>
-                  <label className="col custom-personal-row-value text-wrap"></label>
-                </Row>
+              </Col>
+              <Col xs={12}>
+                <FullDetailsRow title="Description" value={category.desc ?? "-"} />
+              </Col>
+              {category.image_url ? (
+                <Col xs={12} md={6}>
+                  <p
+                    className="mb-2"
+                    style={{ color: "var(--primary-color)", fontWeight: 600 }}
+                  >
+                    Category image
+                  </p>
+                  <img
+                    src={`${AppConstant.IMAGE_BASE_URL}${
+                      category.image_url
+                    }?t=${Date.now()}`}
+                    alt="Category"
+                    style={{
+                      width: "100%",
+                      maxWidth: 280,
+                      maxHeight: 200,
+                      borderRadius: 10,
+                      objectFit: "contain",
+                      background: "#fff",
+                      border: "1px solid var(--txtfld-border)",
+                    }}
+                  />
+                </Col>
+              ) : null}
+              <Col xs={12}>
+                <p className="fw-semibold mb-2" style={{ color: "var(--content-txt-color)" }}>
+                  Services
+                </p>
                 <div
                   style={{
-                    marginTop: -4,
-                    marginBottom: 12,
-                    maxHeight: 150,
+                    maxHeight: 180,
                     overflowY:
                       linkedServiceNamesForView.length > 6 ? "auto" : "visible",
                     border:
@@ -522,7 +537,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                         ? "1px solid var(--txtfld-border)"
                         : "none",
                     borderRadius: linkedServiceNamesForView.length > 0 ? 8 : 0,
-                    padding: linkedServiceNamesForView.length > 0 ? 8 : 0,
+                    padding: linkedServiceNamesForView.length > 0 ? 10 : 0,
                   }}
                 >
                   {linkedServiceNamesForView.length > 0 ? (
@@ -533,7 +548,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                           display: "flex",
                           gap: 8,
                           alignItems: "start",
-                          padding: "4px 2px",
+                          padding: "6px 4px",
                           borderBottom:
                             idx !== linkedServiceNamesForView.length - 1
                               ? "1px dashed var(--txtfld-border)"
@@ -549,14 +564,11 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                       </div>
                     ))
                   ) : (
-                    <span />
+                    <span className="text-muted small">-</span>
                   )}
                 </div>
-              </div>
-              <div className="col-md-5 custom-helper-column">
-                {/* reserved for future right-side details */}
-              </div>
-            </div>
+              </Col>
+            </Row>
           </section>
         ) : (
           <form
@@ -597,42 +609,23 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   }}
                   asCol={false}
                   menuPortal
-                  stickyBottomOptionValue={ADD_SERVICE_OPTION}
+                  menuFooter={addServiceMenuFooter}
                 />
               </Col>
 
               <Col md={6}>
-                <div
-                  style={{
-                    border: "1px solid var(--txtfld-border)",
-                    borderRadius: 10,
-                    padding: 10,
-                    background: "var(--bg-color)",
+                <CustomImageUploader
+                  label="Category image"
+                  maxFiles={1}
+                  isEditable={isEditable}
+                  existingImages={
+                    category?.image_url ? [category.image_url] : []
+                  }
+                  onFileChange={(files, replaceUrlsFromUploader) => {
+                    setFileInputs(files);
+                    setReplaceUrl(replaceUrlsFromUploader);
                   }}
-                >
-                  <CustomImageUploader
-                    label="Upload Category Image"
-                    maxFiles={1}
-                    isEditable={isEditable}
-                    existingImages={
-                      category?.image_url ? [category.image_url] : []
-                    }
-                    onFileChange={(files, replaceUrlsFromUploader) => {
-                      setFileInputs(files);
-                      setReplaceUrl(replaceUrlsFromUploader);
-                    }}
-                  />
-                  <label
-                    style={{
-                      color: "#000",
-                      fontSize: 12,
-                      fontWeight: 500,
-                      marginTop: 2,
-                    }}
-                  >
-                    Recommended image size: 512 x 512
-                  </label>
-                </div>
+                />
               </Col>
               <Col md={6}>
                 <CustomRadioSelection

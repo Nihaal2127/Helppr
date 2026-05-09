@@ -4,15 +4,14 @@ import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
 
 export const getCount = async (
-  type: number
+  /** Omit to send `{}`. Otherwise `{ type }` (number or string, e.g. `"service-management"`). */
+  type?: number | string
 ): Promise<{
   countModel: CountModel | null | null;
   responseCount: boolean;
 }> => {
   try {
-    const payload = {
-      type: type,
-    };
+    const payload = type === undefined ? {} : { type };
     const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);
     if (response.success) {
       return {

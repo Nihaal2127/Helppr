@@ -1,7 +1,77 @@
-import React, { useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState } from "react";
 import { Form, Col } from "react-bootstrap";
-import Select, { MultiValue, ActionMeta } from "react-select";
+import Select, {
+  components,
+  MultiValue,
+  ActionMeta,
+  MenuListProps,
+  GroupBase,
+} from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
+
+/** Passed to custom MenuList without putting unknown props on react-select's Select (TS-safe; works with menuPortal). */
+const MultiSelectMenuFooterContext = createContext<React.ReactNode | undefined>(
+  undefined
+);
+
+const MENU_FOOTER_RESERVE_PX = 48;
+
+function MenuListWithStickyFooter<
+  Option,
+  IsMulti extends boolean,
+  Group extends GroupBase<Option>
+>(props: MenuListProps<Option, IsMulti, Group>) {
+  const menuFooter = useContext(MultiSelectMenuFooterContext);
+  if (!menuFooter) {
+    return <components.MenuList {...props} />;
+  }
+
+  const { children, innerProps, innerRef, maxHeight } = props;
+  const menuCap =
+    typeof maxHeight === "number" && Number.isFinite(maxHeight)
+      ? maxHeight
+      : 280;
+  const scrollMax = Math.max(0, menuCap - MENU_FOOTER_RESERVE_PX);
+
+  const { style: incomingStyle, ...restInnerProps } = innerProps;
+
+  const mergedScrollStyle: React.CSSProperties = {
+    ...((incomingStyle && typeof incomingStyle === "object"
+      ? incomingStyle
+      : {}) as React.CSSProperties),
+    maxHeight: scrollMax,
+    overflowY: "auto",
+    overflowX: "hidden",
+    WebkitOverflowScrolling: "touch",
+    minHeight: 0,
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: menuCap,
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <div {...restInnerProps} ref={innerRef} style={mergedScrollStyle}>
+        {children}
+      </div>
+      <div
+        style={{
+          flexShrink: 0,
+          borderTop: "1px solid var(--txtfld-border, #ced4da)",
+          background: "var(--bg-color)",
+        }}
+      >
+        {menuFooter}
+      </div>
+    </div>
+  );
+}
 
 interface CustomMultiSelectProps {
   label: string;
@@ -19,8 +89,10 @@ interface CustomMultiSelectProps {
   menuPortal?: boolean;
   /** Cap height of the selected chips area and scroll (e.g. `"180px"` ≈ five chip rows). */
   selectedChipsMaxHeight?: string;
-  /** Keep one option fixed at menu bottom while others scroll. */
-  stickyBottomOptionValue?: string;
+  /** Excluded from "all options selected" / menu auto-close checks (e.g. pseudo action rows). */
+  logicIgnoreOptionValues?: string[];
+  /** Pinned below the scrollable option list inside the dropdown menu. */
+  menuFooter?: React.ReactNode;
 }
 
 const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
@@ -37,7 +109,8 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   asCol = true,
   menuPortal = false,
   selectedChipsMaxHeight,
-  stickyBottomOptionValue,
+  logicIgnoreOptionValues,
+  menuFooter,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const customStyles = useMemo(
@@ -75,28 +148,8 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
             }
           : {}),
       }),
-      // indicatorsContainer: (provided: any) => ({
-      //   ...provided,
-      //   ...(selectedChipsMaxHeight
-      //     ? {
-      //         alignSelf: "flex-start",
-      //         paddingTop: 6,
-      //       }
-      //     : {}),
-      // }),
       option: (provided: any, state: any) => ({
         ...provided,
-        ...(stickyBottomOptionValue &&
-        state?.data?.value === stickyBottomOptionValue
-          ? {
-              position: "sticky",
-              bottom: 0,
-              zIndex: 2,
-              borderTop: "1px solid var(--txtfld-border)",
-              backgroundColor: "var(--bg-color)",
-              fontWeight: 600,
-            }
-          : {}),
         backgroundColor: state.isSelected
           ? "var(--txtfld-border)"
           : state.isFocused
@@ -118,7 +171,6 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       }),
       placeholder: (provided: any) => ({
         ...provided,
-        // color: AppColor.selectPlaceholderColor,
         fontSize: "14px",
         color: "var(--placeholder-txt)",
         fontFamily: "Inter",
@@ -130,7 +182,15 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
           }
         : {}),
     }),
-    [menuPortal, selectedChipsMaxHeight, stickyBottomOptionValue]
+    [menuPortal, selectedChipsMaxHeight]
+  );
+
+  const selectComponents = useMemo(
+    () =>
+      menuFooter
+        ? { MenuList: MenuListWithStickyFooter }
+        : undefined,
+    [menuFooter]
   );
 
   const handleChange = (
@@ -144,10 +204,11 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
     }
     onChange(selectedOptions);
 
-    // Auto-close on "Select All" or when all concrete options are selected.
     const selectedValues = new Set(selectedOptions.map((o) => String(o.value)));
+    const ignoreLogic = new Set(logicIgnoreOptionValues ?? []);
     const nonSelectAllOptions = options.filter(
-      (o) => String(o.value) !== "select-all"
+      (o) =>
+        String(o.value) !== "select-all" && !ignoreLogic.has(String(o.value))
     );
     const hasSelectAll = selectedValues.has("select-all");
     const allConcreteSelected =
@@ -167,38 +228,41 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       {label?.trim() && (
         <Form.Label className="fw-medium mb-1">{label}</Form.Label>
       )}
-      <Select
-        className="react-select react-select-container"
-        classNamePrefix="react-select"
-        isMulti
-        {...(register && fieldName
-          ? register(
-              fieldName,
-              requiredMessage ? { required: requiredMessage } : {}
-            )
-          : {})}
-        options={options}
-        value={value}
-        onChange={handleChange}
-        styles={customStyles}
-        menuPortalTarget={
-          menuPortal && typeof document !== "undefined" ? document.body : null
-        }
-        menuPosition={menuPortal ? "fixed" : undefined}
-        maxMenuHeight={280}
-        menuShouldScrollIntoView={false}
-        menuIsOpen={isMenuOpen}
-        onMenuOpen={() => setIsMenuOpen(true)}
-        onMenuClose={() => setIsMenuOpen(false)}
-        closeMenuOnSelect={false}
-        blurInputOnSelect={false}
-        placeholder={`Select ${controlId}`}
-        onBlur={() => {
-          if (setValue && fieldName) {
-            setValue(fieldName, value || []);
+      <MultiSelectMenuFooterContext.Provider value={menuFooter}>
+        <Select
+          className="react-select react-select-container"
+          classNamePrefix="react-select"
+          isMulti
+          {...(register && fieldName
+            ? register(
+                fieldName,
+                requiredMessage ? { required: requiredMessage } : {}
+              )
+            : {})}
+          components={selectComponents}
+          options={options}
+          value={value}
+          onChange={handleChange}
+          styles={customStyles}
+          menuPortalTarget={
+            menuPortal && typeof document !== "undefined" ? document.body : null
           }
-        }}
-      />
+          menuPosition={menuPortal ? "fixed" : undefined}
+          maxMenuHeight={280}
+          menuShouldScrollIntoView={false}
+          menuIsOpen={isMenuOpen}
+          onMenuOpen={() => setIsMenuOpen(true)}
+          onMenuClose={() => setIsMenuOpen(false)}
+          closeMenuOnSelect={false}
+          blurInputOnSelect={false}
+          placeholder={`Select ${controlId}`}
+          onBlur={() => {
+            if (setValue && fieldName) {
+              setValue(fieldName, value || []);
+            }
+          }}
+        />
+      </MultiSelectMenuFooterContext.Provider>
       {error && (
         <Form.Control.Feedback type="invalid" style={{ display: "block" }}>
           {error.message}

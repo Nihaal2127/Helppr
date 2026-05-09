@@ -18,19 +18,39 @@ import {
   fetchService,
   fetchServiceById,
 } from "../../services/servicesService";
+import { getCount } from "../../services/getCountService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
 
-/* ADDED: pending status cell */
 const requestStatusCell = () => ({ row }: { row: any }) => {
-  const isRejected = row?.original?.is_rejected;
-  if (isRejected === true) {
+  const o = row?.original;
+  const raw = String(o?.approval_status ?? "")
+    .trim()
+    .toLowerCase();
+  if (
+    raw === "rejected" ||
+    raw === "reject" ||
+    o?.is_rejected === true
+  ) {
     return <span style={{ color: "red", fontWeight: 600 }}>Rejected</span>;
   }
-  if (isRejected === false) {
+  if (
+    raw === "approved" ||
+    raw === "approve" ||
+    o?.is_rejected === false
+  ) {
     return <span style={{ color: "green", fontWeight: 600 }}>Approved</span>;
+  }
+  if (raw === "pending") {
+    return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
+  }
+  if (
+    o?.is_request &&
+    (o?.is_rejected === null || o?.is_rejected === undefined)
+  ) {
+    return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
   }
   return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
 };
@@ -62,8 +82,28 @@ const ServiceManagement = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [isTableLoading, setIsTableLoading] = useState(false);
-  const fetchRef = useRef(false);
+  const fetchGenerationRef = useRef(0);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
+
+  /** Overall totals from `POST /api/getCount` with `{ type: "service-management" }` — independent of table filters. */
+  const refreshSummaryCounts = useCallback(async () => {
+    const { responseCount, countModel } = await getCount("service-management");
+    if (!responseCount || !countModel) return;
+    setCategoryData({
+      Total: countModel.total_category ?? 0,
+      Active: countModel.active_category ?? 0,
+      Inactive: countModel.inactive_category ?? 0,
+      requested_category:
+        countModel.requested_category ?? countModel.total_requestedcategory ?? 0,
+    });
+    setServiceData({
+      Total: countModel.total_service ?? 0,
+      Active: countModel.active_service ?? 0,
+      Inactive: countModel.inactive_service ?? 0,
+      requested_service:
+        countModel.requested_service ?? countModel.total_requestedservice ?? 0,
+    });
+  }, []);
 
   const fetchData = useCallback(
     async (
@@ -74,13 +114,12 @@ const ServiceManagement = () => {
         sort?: string;
       }
     ) => {
-      if (fetchRef.current) return;
-      fetchRef.current = true;
+      const generation = ++fetchGenerationRef.current;
       setIsTableLoading(true);
 
       try {
         if (selected === "box-category") {
-          const { response, categories, totalPages, totalRecords } =
+          const { response, categories, totalPages } =
             await fetchCategory(
             currentPage,
             pageSize,
@@ -91,22 +130,16 @@ const ServiceManagement = () => {
             sortBy
           );
           if (response) {
+            if (generation !== fetchGenerationRef.current) return;
             if (showRequestedCategory) {
               setRequestedCategoryList(categories || []);
             } else {
               setCategoryList(categories || []);
             }
-            const rows = categories || [];
-            setCategoryData({
-              Total: totalRecords ?? 0,
-              Active: rows.filter((c) => c.is_active).length,
-              Inactive: rows.filter((c) => !c.is_active).length,
-              requested_category: rows.filter((c) => c.is_request).length,
-            });
             setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-service") {
-          const { response, services, totalPages, totalRecords } =
+          const { response, services, totalPages } =
             await fetchService(
             currentPage,
             pageSize,
@@ -117,24 +150,19 @@ const ServiceManagement = () => {
             sortBy
           );
           if (response) {
+            if (generation !== fetchGenerationRef.current) return;
             if (showRequestedService) {
               setRequestedServiceList(services || []);
             } else {
               setServiceList(services || []);
             }
-            const rows = services || [];
-            setServiceData({
-              Total: totalRecords ?? 0,
-              Active: rows.filter((s) => s.is_active).length,
-              Inactive: rows.filter((s) => !s.is_active).length,
-              requested_service: rows.filter((s) => s.is_request).length,
-            });
             setTotalPages(totalPages || 0);
           }
         }
       } finally {
-        fetchRef.current = false;
-        setIsTableLoading(false);
+        if (generation === fetchGenerationRef.current) {
+          setIsTableLoading(false);
+        }
       }
     },
     [
@@ -152,6 +180,18 @@ const ServiceManagement = () => {
     },
     [fetchData, activeFilters]
   );
+
+  const refreshTableAfterMutation = useCallback(
+    async (box: string) => {
+      await refreshSummaryCounts();
+      await refreshData(box);
+    },
+    [refreshSummaryCounts, refreshData]
+  );
+
+  useEffect(() => {
+    void refreshSummaryCounts();
+  }, [refreshSummaryCounts]);
 
   useEffect(() => {
     void refreshData(selectedBox);
@@ -293,7 +333,7 @@ const ServiceManagement = () => {
               AddEditCategoryDialog.show(
                 true,
                 response && category ? category : row.original,
-                () => refreshData("box-category"),
+                () => void refreshTableAfterMutation("box-category"),
                 true
               );
             }}
@@ -308,7 +348,7 @@ const ServiceManagement = () => {
                 async () => {
                   const response = await deleteCategory(row.original._id);
                   if (response) {
-                    refreshData("box-category");
+                    void refreshTableAfterMutation("box-category");
                   }
                 }
               );
@@ -317,7 +357,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [currentPage, pageSize, refreshData]
+    [currentPage, pageSize, refreshTableAfterMutation]
   );
 
   const serviceColumns = React.useMemo(
@@ -349,7 +389,7 @@ const ServiceManagement = () => {
               AddEditServiceDialog.show(
                 true,
                 response && service ? service : row.original,
-                () => refreshData("box-service"),
+                () => void refreshTableAfterMutation("box-service"),
                 true
               );
             }}
@@ -364,7 +404,7 @@ const ServiceManagement = () => {
                 async () => {
                   const response = await deleteService(row.original._id);
                   if (response) {
-                    refreshData("box-service");
+                    void refreshTableAfterMutation("box-service");
                   }
                 }
               );
@@ -373,7 +413,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [currentPage, pageSize, refreshData]
+    [currentPage, pageSize, refreshTableAfterMutation]
   );
 
   /* ADDED: requested category columns */
@@ -426,7 +466,7 @@ const ServiceManagement = () => {
                 async () => {
                   const response = await deleteCategory(row.original._id);
                   if (response) {
-                    refreshData("box-category");
+                    void refreshTableAfterMutation("box-category");
                   }
                 }
               );
@@ -435,7 +475,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedCategory, refreshData]
+    [openRequestedCategory, refreshTableAfterMutation]
   );
 
   /* ADDED: requested service columns */
@@ -486,7 +526,7 @@ const ServiceManagement = () => {
                 async () => {
                   const response = await deleteService(row.original._id);
                   if (response) {
-                    refreshData("box-service");
+                    void refreshTableAfterMutation("box-service");
                   }
                 }
               );
@@ -495,7 +535,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedService, refreshData]
+    [openRequestedService, refreshTableAfterMutation]
   );
 
   return (
@@ -539,10 +579,10 @@ const ServiceManagement = () => {
               onAddClick={() => {
                 id === "box-category"
                   ? AddEditCategoryDialog.show(false, null, () =>
-                      refreshData(selectedBox)
+                      void refreshTableAfterMutation(selectedBox)
                     )
                   : AddEditServiceDialog.show(false, null, () =>
-                      refreshData(selectedBox)
+                      void refreshTableAfterMutation(selectedBox)
                     );
               }}
             />

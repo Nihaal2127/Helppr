@@ -2152,6 +2152,28 @@ body:has(.modal.show ~ .modal.show) {
   font-family: "Inter";
 }
 
+/* Service / category read-only modal: grid-friendly rows (overrides fixed value width) */
+.modal-readonly-details {
+  .custom-personal-row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .custom-personal-row-value {
+    width: auto !important;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .custom-personal-row > label.col:not(.custom-personal-row-title) {
+    width: auto !important;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
 .custom-radio-button {
   display: flex;
   flex-direction: column;
