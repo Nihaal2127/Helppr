@@ -4,8 +4,6 @@ import { FranchiseModel } from "../models/FranchiseModels";
 import { showLog } from "../helper/utility";
 import { franchiseMockSeed } from "../mockData/franchiseMockData";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
-import { AppConstant, UserRole } from "../constant/AppConstant";
-import { getLocalStorage } from "../helper/localStorageHelper";
 
 const USE_MOCK_FRANCHISE_API = false;
 
@@ -132,16 +130,6 @@ function mapFranchiseRow(
 export const fetchFranchiseDropDown = async (
   options?: { onlyUnassigned?: boolean }
 ): Promise<FranchiseDropDownOption[]> => {
-  const currentUserRole = String(
-    getLocalStorage(AppConstant.userRole) ?? ""
-  ).trim();
-  if (
-    currentUserRole === UserRole.FRANCHISE_ADMIN ||
-    currentUserRole === UserRole.EMPLOYEE
-  ) {
-    return [];
-  }
-
   if (USE_MOCK_FRANCHISE_API) {
     return mockFranchises.map((f: any) => ({
       value: f._id,
@@ -168,8 +156,60 @@ export const fetchFranchiseDropDown = async (
       city_id: franchise.city_id ? String(franchise.city_id) : undefined,
     }));
   } else {
-    showLog(response.message || "Failed to fetch franchise");
-    return [];
+    // Some roles/environments deny `/franchise/getDropDown` (403) while allowing `/franchise/getAll`.
+    // Fallback to getAll so dropdown behavior matches super-admin visibility.
+    if (options?.onlyUnassigned) {
+      showLog(response.message || "Failed to fetch franchise");
+      return [];
+    }
+    const pageSize = 200;
+    let page = 1;
+    const rows: any[] = [];
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop
+      const listRes = await apiRequest(
+        `${ApiPaths.GET_FRANCHISE()}?${new URLSearchParams({
+          page: String(page),
+          limit: String(pageSize),
+        }).toString()}`,
+        "GET",
+        undefined,
+        false,
+        true,
+        true
+      );
+      if (!listRes.success) break;
+      const payload = (listRes as any).data ?? {};
+      const inner =
+        payload &&
+        typeof payload.data === "object" &&
+        !Array.isArray(payload.data)
+          ? payload.data
+          : payload;
+      const records = Array.isArray(inner.records)
+        ? inner.records
+        : Array.isArray(payload.records)
+        ? payload.records
+        : [];
+      rows.push(...records);
+      const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
+      if (!totalPages || page >= totalPages) break;
+      page += 1;
+      if (page > 100) break;
+    }
+    const unique = new Map<string, FranchiseDropDownOption>();
+    rows.forEach((franchise: any) => {
+      const value = String(franchise?._id ?? franchise?.id ?? "").trim();
+      if (!value) return;
+      if (unique.has(value)) return;
+      unique.set(value, {
+        value,
+        label: String(franchise?.name ?? "").trim() || value,
+        state_id: franchise?.state_id ? String(franchise.state_id) : undefined,
+        city_id: franchise?.city_id ? String(franchise.city_id) : undefined,
+      });
+    });
+    return Array.from(unique.values());
   }
 };
 
@@ -226,8 +266,7 @@ export const fetchFranchise = async (
     /** When set, list is scoped to this franchise (header dropdown). */
     franchise_id?: string;
   },
-  sortBy: ServerTableSortBy = [],
-  options?: { includeAdminContacts?: boolean }
+  sortBy: ServerTableSortBy = []
 ): Promise<{
   response: boolean;
   franchises: FranchiseModel[];
@@ -307,9 +346,7 @@ export const fetchFranchise = async (
 
     const totalPages = Math.ceil(data.length / pageSize) || 0;
     const start = (page - 1) * pageSize;
-    const adminContacts = options?.includeAdminContacts === false
-      ? new Map<string, AdminContact>()
-      : await fetchAllFranchiseAdmins();
+    const adminContacts = await fetchAllFranchiseAdmins();
     const records = data
       .slice(start, start + pageSize)
       .map((r) => mapFranchiseRow(r, adminContacts));
@@ -381,9 +418,7 @@ export const fetchFranchise = async (
       totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
-    const adminContacts = options?.includeAdminContacts === false
-      ? new Map<string, AdminContact>()
-      : await fetchAllFranchiseAdmins();
+    const adminContacts = await fetchAllFranchiseAdmins();
     const fidFilter = String(filters.franchise_id ?? "").trim();
     let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
     if (fidFilter) {

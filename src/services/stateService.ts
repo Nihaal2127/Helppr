@@ -27,16 +27,20 @@ export const fetchState = async (
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean; states: StateModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
+  const nameQuery = String(filters.name ?? "").trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.name && { name: filters.name }),
-    ...(filters.name && { keyword: filters.name }),
+    ...(nameQuery && { name: nameQuery }),
+    ...(nameQuery && { keyword: nameQuery }),
+    ...(nameQuery && { search: nameQuery }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
+    ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(primarySort && { sortOrder: primarySort.desc ? "desc" : "asc" }),
   });
 
   const response = await apiRequest(

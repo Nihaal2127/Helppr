@@ -122,6 +122,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
         borderRadius: "8px",
         fontSize: "14px",
         fontWeight: "normal",
+        cursor: 'pointer',
         width: "100%",
         ...(selectWidth ? { minWidth: 0 } : {}),
         height: "35px",
@@ -176,13 +177,15 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       },
       option: (provided: any, state: any) => ({
         ...provided,
+        cursor: "pointer",
         backgroundColor: state.isSelected
           ? "var(--txtfld-border)"
           : state.isFocused
           ? "var(--primary-color)"
           : "",
+        // Dropdown menu item text color
         color: state.isSelected
-          ? "var(--bg-color)"
+          ? "var(--primary-color)"
           : state.isFocused
           ? "var(--bg-color)"
           : "var(--primary-color)",

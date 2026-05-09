@@ -18,6 +18,7 @@ interface CustomTextFieldProps {
   as?: string;
   rows?: number;
   maxLength?: number;
+  autoComplete?: string;
   /** Indian PIN: numeric keyboard hint and optional stricter defaults when used with `maxLength={6}`. */
   isIndianPincodeField?: boolean;
 }
@@ -38,6 +39,7 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
   as,
   rows,
   maxLength,
+  autoComplete,
   isIndianPincodeField,
 }) => {
   const resolvedInputType = isIndianPincodeField ? "tel" : inputType;
@@ -62,6 +64,7 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
           as={as}
           rows={rows}
           maxLength={maxLength}
+          autoComplete={autoComplete}
         />
       </Col>
     </Row>

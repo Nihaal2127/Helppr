@@ -16,6 +16,7 @@ import "./assets/scss/Sidebar.scss";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { routes } from "./routes/Routes";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import { refreshSessionAccessibleMenuKeys } from "./services/userService";
 
 function App() {
   const { width } = useViewport();
@@ -29,6 +30,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
     !!getLocalStorage(AppConstant.authToken)
   );
+  const [sidebarAccessVersion, setSidebarAccessVersion] = useState(0);
 
   useEffect(() => {
     const fetchPermission = async () => {
@@ -70,6 +72,20 @@ function App() {
     }
   }, [location.pathname, navigate]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !isRouteProtected || isAuthRoute) return;
+    let cancelled = false;
+    void (async () => {
+      const changed = await refreshSessionAccessibleMenuKeys();
+      if (!cancelled && changed) {
+        setSidebarAccessVersion((v) => v + 1);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isRouteProtected, isAuthRoute, location.pathname]);
+
   return (
     <div
       className={`custom-app-layout ${
@@ -81,7 +97,7 @@ function App() {
       {!isAuthRoute && !is404Page && !is500Page && isRouteProtected && (
         <aside className="custom-sidebar">
           <Suspense fallback={null}>
-            <Sidebar />
+            <Sidebar key={`sidebar-access-${sidebarAccessVersion}`} />
           </Suspense>
         </aside>
       )}

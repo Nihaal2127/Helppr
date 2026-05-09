@@ -57,6 +57,7 @@ export function isAuthenticatedPathAllowed(
   if (p === "/profile" || p.startsWith("/profile/")) return true;
 
   const r = (role && String(role).trim()) || UserRole.EMPLOYEE;
+  const allowKey = allowedMenuKeys && allowedMenuKeys.size > 0 ? keyForPath(p) : null;
 
   if (r === UserRole.ADMIN) {
     return !isAdminDeniedPath(p);
@@ -65,7 +66,9 @@ export function isAuthenticatedPathAllowed(
     return !isStaffDeniedPath(p);
   }
   if (r === UserRole.STAFF) {
-    if (isStaffDeniedPath(p)) return false;
+    // Staff: backend can explicitly allow screens via `accessible_screens`.
+    // If allow-list includes this path's menu key, do not apply static deny prefixes.
+    if (isStaffDeniedPath(p) && !(allowKey && allowedMenuKeys?.has(allowKey))) return false;
   }
   if (r === UserRole.EMPLOYEE) {
     if (isEmployeeDeniedPath(p)) return false;
@@ -78,7 +81,7 @@ export function isAuthenticatedPathAllowed(
   }
 
   if (allowedMenuKeys && allowedMenuKeys.size > 0) {
-    const key = keyForPath(p);
+    const key = allowKey ?? keyForPath(p);
     if (key && !allowedMenuKeys.has(key)) return false;
   }
   return true;

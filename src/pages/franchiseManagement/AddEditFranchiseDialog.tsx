@@ -15,7 +15,10 @@ import {
 } from "../../services/franchiseService";
 import { assignFranchiseToAdminUser } from "../../services/settingsService";
 import { fetchAreaDropDown } from "../../services/areaService";
-import { fetchCategoryDropDown } from "../../services/categoryService";
+import {
+  fetchCategory,
+  fetchCategoryDropDown,
+} from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
@@ -23,6 +26,11 @@ import {
   fetchUser,
   WEB_MANAGEMENT_USER_TYPE,
 } from "../../services/userService";
+import {
+  MOCK_FRANCHISE_CATEGORY_DROPDOWN,
+  MOCK_FRANCHISE_SERVICES_LIST,
+  USE_MOCK_FRANCHISE_CATALOG,
+} from "../../mockData/franchiseCatalogMock";
 import { openDialog } from "../../helper/DialogManager";
 
 type AddEditFranchiseDialogProps = {
@@ -44,22 +52,6 @@ type ServiceLite = {
   category_id: string;
   category_name?: string;
 };
-
-type FranchiseCatalogCache = {
-  categoryOptions: OptionType[];
-  allServices: ServiceLite[];
-};
-
-// Avoid duplicate API calls when modal mounts multiple times (StrictMode/HMR/open-close).
-let cachedFranchiseStates: OptionType[] | null = null;
-let cachedFranchiseAdmins: OptionType[] | null = null;
-let franchiseStatesAdminsInFlight: Promise<{
-  states: OptionType[];
-  admins: OptionType[];
-}> | null = null;
-
-let cachedFranchiseCatalog: FranchiseCatalogCache | null = null;
-let franchiseCatalogInFlight: Promise<FranchiseCatalogCache> | null = null;
 
 type ViewCategoryServicesGroup = {
   categoryId: string;
@@ -236,14 +228,6 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     let cancelled = false;
     void (async () => {
       try {
-        if (cachedFranchiseStates && cachedFranchiseAdmins) {
-          if (!cancelled) {
-            setStateOptions(cachedFranchiseStates);
-            setAdminOptions(cachedFranchiseAdmins);
-          }
-          return;
-        }
-
         const loadAllFranchiseAdmins = async (): Promise<OptionType[]> => {
           const pageSize = 200;
           let page = 1;
@@ -286,28 +270,17 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
           );
         };
 
-        if (!franchiseStatesAdminsInFlight) {
-          franchiseStatesAdminsInFlight = Promise.all([
-            fetchStateDropDown(),
-            loadAllFranchiseAdmins(),
-          ]).then(([states, usersResult]) => ({
-            states,
-            admins: usersResult,
-          }));
-        }
-
-        const { states, admins } = await franchiseStatesAdminsInFlight;
+        const [states, usersResult] = await Promise.all([
+          fetchStateDropDown(),
+          loadAllFranchiseAdmins(),
+        ]);
         if (cancelled) return;
-        cachedFranchiseStates = states;
-        cachedFranchiseAdmins = admins;
         setStateOptions(states);
-        setAdminOptions(admins);
+        setAdminOptions(usersResult);
       } catch {
         if (cancelled) return;
         setStateOptions(STATIC_STATE_OPTIONS);
         setAdminOptions([]);
-      } finally {
-        franchiseStatesAdminsInFlight = null;
       }
     })();
     return () => {
@@ -500,66 +473,90 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     let cancelled = false;
     void (async () => {
       try {
-        if (cachedFranchiseCatalog) {
-          if (!cancelled) {
-            setCategoryOptions(cachedFranchiseCatalog.categoryOptions);
-            setAllServices(cachedFranchiseCatalog.allServices);
-          }
+        if (USE_MOCK_FRANCHISE_CATALOG) {
+          const cats = MOCK_FRANCHISE_CATEGORY_DROPDOWN.map((c) => ({ ...c }));
+          if (cancelled) return;
+          const catList = Array.isArray(cats)
+            ? cats.filter((c: any) => c?.value)
+            : [];
+          setCategoryOptions([
+            { value: "select-all", label: "Select All" },
+            ...catList,
+          ]);
+          setAllServices(
+            MOCK_FRANCHISE_SERVICES_LIST.map((s: any) => ({
+              _id: String(s._id),
+              name: String(s.name ?? ""),
+              category_id: String(s.category_id ?? ""),
+              category_name: s.category_name
+                ? String(s.category_name)
+                : undefined,
+            }))
+          );
           return;
         }
 
-        if (!franchiseCatalogInFlight) {
-          franchiseCatalogInFlight = (async () => {
-            const dropCats = await fetchCategoryDropDown();
-            const catList = (Array.isArray(dropCats) ? dropCats : [])
-              .filter((c) => c?.value && c.value !== "select-all")
-              .sort((a, b) =>
-                a.label.localeCompare(b.label, undefined, {
-                  sensitivity: "base",
-                })
-              );
-            const mergedServices: unknown[] = [];
-            let spage = 1;
-            const slimit = 500;
-            for (;;) {
-              // eslint-disable-next-line no-await-in-loop
-              const svcRes = await fetchService(spage, slimit, {});
-              if (!svcRes.response || !Array.isArray(svcRes.services)) break;
-              mergedServices.push(...svcRes.services);
-              if (!svcRes.totalPages || spage >= svcRes.totalPages) break;
-              spage += 1;
-              if (spage > 50) break;
-            }
-
-            return {
-              categoryOptions: [
-                { value: "select-all", label: "Select All" },
-                ...catList,
-              ],
-              allServices: mergedServices.map((s: any) => ({
-                _id: String(s._id),
-                name: String(s.name ?? ""),
-                category_id: String(s.category_id ?? ""),
-                category_name: s.category_name
-                  ? String(s.category_name)
-                  : undefined,
-              })),
-            };
-          })();
+        const catById = new Map<string, OptionType>();
+        let cpage = 1;
+        const climit = 200;
+        for (;;) {
+          const cres = await fetchCategory(cpage, climit, {}, []);
+          if (cancelled) return;
+          if (!cres.response) break;
+          for (const c of cres.categories) {
+            const id = String((c as { _id?: string })._id ?? "").trim();
+            if (id)
+              catById.set(id, {
+                value: id,
+                label: String((c as { name?: string }).name ?? "").trim() || id,
+              });
+          }
+          if (!cres.totalPages || cpage >= cres.totalPages) break;
+          cpage += 1;
+          if (cpage > 50) break;
         }
-
-        const catalog = await franchiseCatalogInFlight;
+        const dropCats = await fetchCategoryDropDown();
         if (cancelled) return;
-        cachedFranchiseCatalog = catalog;
-        setCategoryOptions(catalog.categoryOptions);
-        setAllServices(catalog.allServices);
+        for (const c of dropCats) {
+          if (c.value && c.value !== "select-all" && !catById.has(c.value)) {
+            catById.set(c.value, c);
+          }
+        }
+        const catList = Array.from(catById.values()).sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+        );
+        setCategoryOptions([
+          { value: "select-all", label: "Select All" },
+          ...catList,
+        ]);
+
+        const mergedServices: unknown[] = [];
+        let spage = 1;
+        const slimit = 500;
+        for (;;) {
+          const svcRes = await fetchService(spage, slimit, {});
+          if (cancelled) return;
+          if (!svcRes.response || !Array.isArray(svcRes.services)) break;
+          mergedServices.push(...svcRes.services);
+          if (!svcRes.totalPages || spage >= svcRes.totalPages) break;
+          spage += 1;
+          if (spage > 50) break;
+        }
+        setAllServices(
+          mergedServices.map((s: any) => ({
+            _id: String(s._id),
+            name: String(s.name ?? ""),
+            category_id: String(s.category_id ?? ""),
+            category_name: s.category_name
+              ? String(s.category_name)
+              : undefined,
+          }))
+        );
       } catch {
         if (!cancelled) {
           setCategoryOptions([{ value: "select-all", label: "Select All" }]);
           setAllServices([]);
         }
-      } finally {
-        franchiseCatalogInFlight = null;
       }
     })();
     return () => {
@@ -1017,6 +1014,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   error={errors.name}
                   asCol={false}
                   validation={{ required: "Franchise name is required" }}
+                  value={watch("name") ?? ""}
+                  onChange={(value) =>
+                    setValue("name", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
               </Col>
               <Col md={6}>
@@ -1136,6 +1140,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   validation={{ required: "Description is required" }}
                   as="textarea"
                   rows={3}
+                  value={watch("desc") ?? ""}
+                  onChange={(value) =>
+                    setValue("desc", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
               </Col>
             </Row>

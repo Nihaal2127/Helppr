@@ -51,10 +51,8 @@ export interface CountModel {
   total_requestedcategory: number | 0;
   active_requestedcategory: number | 0;
   inactive_requestedcategory: number | 0;
-  requested_category?: number | 0;
 
   total_requestedservice: number | 0;
   active_requestedservice: number | 0;
   inactive_requestedservice: number | 0;
-  requested_service?: number | 0;
 }

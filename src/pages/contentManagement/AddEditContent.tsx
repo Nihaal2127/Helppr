@@ -76,7 +76,7 @@ const AddEditContent = () => {
 
     await hydrateEditor(saveResult.id);
     setIsSaving(false);
-    showInfoAlert("Content is saved and editor is refreshed with latest data.");
+    // showInfoAlert("Content is saved and editor is refreshed with latest data.");
   };
 
   const quillModules = {
@@ -96,6 +96,7 @@ const AddEditContent = () => {
         title="Content Management"
         register={register}
         setValue={setValue}
+        hideFranchiseDropdown
       />
 
       <div className="card shadow-sm border-0 flex-grow-1 d-flex flex-column">

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Row, Col } from "react-bootstrap";
 import CustomFormSelect from "../components/CustomFormSelect";
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../routes/Routes";
 import {
   fetchRecentNotifications,
   getUnreadNotificationCount,
@@ -12,8 +13,6 @@ import { formatDate } from "../helper/utility";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../services/franchiseService";
-
-const NOTIFICATIONS_PATH = "/notifications";
 
 interface CustomHeaderProps {
   title: string;
@@ -43,6 +42,7 @@ const CustomHeader = ({
   const navigate = useNavigate();
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isAdminUser = currentUserRole === UserRole.ADMIN;
+  const isStaffUser = currentUserRole === UserRole.STAFF;
   const [selectedFranchise, setSelectedFranchise] = useState<string>("all");
   const [franchiseList, setFranchiseList] = useState<
     { value: string; label: string }[]
@@ -108,22 +108,25 @@ const CustomHeader = ({
         className="d-flex justify-content-end align-items-center gap-3 p-0 m-0"
       >
         {rightActions}
-        {isAdminUser && register && setValue && !hideFranchiseDropdown && (
-          <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
-            <CustomFormSelect
-              label=""
-              controlId="Franchise"
-              options={franchiseList}
-              register={register}
-              fieldName="franchise_id"
-              defaultValue={selectedFranchise}
-              setValue={setValue}
-              onChange={handleChange}
-              asCol={false}
-              noBottomMargin
-            />
-          </div>
-        )}
+        {(isAdminUser || isStaffUser) &&
+  register &&
+  setValue &&
+  !hideFranchiseDropdown && (
+    <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
+      <CustomFormSelect
+        label=""
+        controlId="Franchise"
+        options={franchiseList}
+        register={register}
+        fieldName="franchise_id"
+        defaultValue={selectedFranchise}
+        setValue={setValue}
+        onChange={handleChange}
+        asCol={false}
+        noBottomMargin
+      />
+    </div>
+)}
         <div ref={notificationRef} className="position-relative">
           <button
             type="button"
@@ -172,7 +175,7 @@ const CustomHeader = ({
                         markNotificationAsRead(item.id);
                         refreshNotifications();
                         setIsNotificationOpen(false);
-                        navigate(NOTIFICATIONS_PATH);
+                        navigate(ROUTES.NOTIFICATIONS.path);
                       }}
                     >
                       <div className="custom-notification-item-title-row">
@@ -199,7 +202,7 @@ const CustomHeader = ({
                 className="custom-notification-view-all"
                 onClick={() => {
                   setIsNotificationOpen(false);
-                  navigate(NOTIFICATIONS_PATH);
+                  navigate(ROUTES.NOTIFICATIONS.path);
                 }}
               >
                 View all notifications

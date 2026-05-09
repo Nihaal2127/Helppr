@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Form, Col } from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -43,16 +43,16 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
 
   const datePickerRef = useRef<DatePicker | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleDateChange = (date: Date | null) => {
     setValue(controlId, date || null, { shouldValidate: true });
     onChange(date);
+    setIsOpen(false);
   };
 
   const handleIconClick = () => {
-    if (datePickerRef.current) {
-      datePickerRef.current.setOpen(true);
-    }
+    setIsOpen(true);
   };
 
   return (
@@ -65,8 +65,12 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}
+            open={isOpen}
             selected={selectedDate ? new Date(selectedDate) : null}
             onChange={handleDateChange}
+            onSelect={() => setIsOpen(false)}
+            onClickOutside={() => setIsOpen(false)}
+            onInputClick={() => setIsOpen(true)}
             dateFormat="dd/MM/yyyy"
             placeholderText={placeholderText}
             className={`form-control ${
@@ -81,6 +85,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
               })
             }
             showPopperArrow={false}
+            shouldCloseOnSelect
           />
           <span
             className="position-absolute top-50 end-0 translate-middle-y me-3"

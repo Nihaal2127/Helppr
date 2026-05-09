@@ -10,10 +10,15 @@ const USE_MOCK_AREA_API = false;
 export const fetchAreaDropDown = async (
   cityId?: string,
   stateId?: string
-): Promise<{ value: string; label: string }[]> => {
+): Promise<
+  { value: string; label: string; pincodes?: string[]; pincode?: string }[]
+> => {
   const q = new URLSearchParams();
   if (cityId?.trim()) q.set("city_id", cityId.trim());
   if (stateId?.trim()) q.set("state_id", stateId.trim());
+  // Postman collections differ; support both styles.
+  if (cityId?.trim()) q.set("cityId", cityId.trim());
+  if (stateId?.trim()) q.set("stateId", stateId.trim());
   const qs = q.toString();
   const response = await apiRequest(
     `${ApiPaths.GET_AREA_DROP_DOWN()}${qs ? `?${qs}` : ""}`,
@@ -27,6 +32,10 @@ export const fetchAreaDropDown = async (
       .map((area: any) => ({
         value: String(area._id ?? area.id ?? ""),
         label: String(area.name ?? area.label ?? ""),
+        pincodes: Array.isArray(area.pincodes)
+          ? area.pincodes.map((x: unknown) => String(x ?? "").trim()).filter(Boolean)
+          : [],
+        pincode: String(area.pincode ?? "").trim(),
       }))
       .filter((o: { value: string; label: string }) => o.value);
   } else {
@@ -49,6 +58,7 @@ export const fetchArea = async (
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean; areas: AreaModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
+  const nameQuery = String(filters.name ?? "").trim();
   if (USE_MOCK_AREA_API) {
     return fetchMockAreas(page, pageSize, filters);
   }
@@ -56,8 +66,10 @@ export const fetchArea = async (
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.name && { name: filters.name }),
-    ...(filters.name && { keyword: filters.name }),
+    ...(nameQuery && { name: nameQuery }),
+    ...(nameQuery && { keyword: nameQuery }),
+    ...(nameQuery && { search: nameQuery }),
+    ...(nameQuery && { areaname: nameQuery }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
@@ -65,7 +77,9 @@ export const fetchArea = async (
     ...(filters.city_id && { city_id: filters.city_id }),
     ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
+    ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(primarySort && { sortOrder: primarySort.desc ? "desc" : "asc" }),
   });
 
   const response = await apiRequest(

@@ -10,14 +10,17 @@ export interface UserModel {
   landmark: string | null;
   state_id: string | null;
   city_id: string | null;
+  area_id?: string | null;
   state_name: string | null;
   city_name: string | null;
+  area_name?: string | null;
   pincode: string | null;
   profile_url: string | null;
   user_id: string | null;
   registration_id: string | null;
   is_from_web: boolean;
   is_active: boolean;
+  is_blocked?: boolean;
   is_business: boolean;
   type: number;
   registration_type: string | null;
@@ -87,10 +90,16 @@ export interface UserModel {
   /** Additional saved addresses when the API returns them (e.g. after add from user view). */
   extra_addresses?:
     | {
+        _id?: string | null;
         state_id?: string | null;
         city_id?: string | null;
+        area_id?: string | null;
+        state_name?: string | null;
+        city_name?: string | null;
+        area_name?: string | null;
         pincode?: string | null;
         address?: string | null;
+        address_status?: boolean | string | null;
       }[]
     | null;
 }

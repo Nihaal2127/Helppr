@@ -98,8 +98,14 @@ const UserManagement = () => {
           selectedSortBy
         );
         if (response) {
-          setUserList(users);
-          setTotalPages(totalPages);
+          const list = Array.isArray(users) ? users : [];
+          const blockedOnly =
+            String(statusFilter ?? "").trim().toLowerCase() === "blocked";
+          const normalized = blockedOnly
+            ? list.filter((u: any) => Boolean((u as any)?.is_blocked))
+            : list;
+          setUserList(normalized);
+          setTotalPages(blockedOnly ? 1 : totalPages);
         } else {
           setUserList([]);
           setTotalPages(0);
@@ -208,6 +214,29 @@ const UserManagement = () => {
         Header: "Balance Amount",
         accessor: "balance_amount",
         Cell: priceCell("balance_amount"),
+      },
+      {
+        Header: "Status",
+        accessor: "is_active",
+        Cell: ({ row }: { row: any }) =>
+          statusCell("is_active")({
+            row: {
+              ...row,
+              original: {
+                ...row.original,
+                // Blocked users are always shown as inactive in table status.
+                is_active: Boolean((row.original as any)?.is_blocked)
+                  ? false
+                  : row.original?.is_active,
+              },
+            },
+          } as any),
+      },
+      {
+        Header: "Blocked",
+        accessor: "is_blocked",
+        Cell: ({ row }: { row: any }) =>
+          Boolean((row.original as any)?.is_blocked) ? "Yes" : "No",
       },
 
       {
@@ -377,8 +406,7 @@ const UserManagement = () => {
               : "Verifications"
           }
           searchHint={"Search name "}
-          onSortClick={() => {}}
-          onMoreClick={() => {}}
+        
           onSearch={(value) => {
             setSearchKeyword(value);
             setCurrentPage(1);

@@ -29,7 +29,11 @@ import { fetchArea, deleteArea } from "../../services/areaService";
 import AddEditAreaDialog from "./AddEditAreaDialog";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { useForm, UseFormRegister } from "react-hook-form";
-import { fetchFranchiseDropDown } from "../../services/franchiseService";
+import {
+  fetchFranchise,
+  fetchFranchiseDropDown,
+} from "../../services/franchiseService";
+import type { ServerTableSortBy } from "../../helper/serverTableSort";
 
 type LocationFilters = {
   name?: string;
@@ -68,11 +72,19 @@ const LocationManagement = () => {
   const [areaFranchiseOptions, setAreaFranchiseOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [franchiseAreaIdsById, setFranchiseAreaIdsById] = useState<
+    Map<string, Set<string>>
+  >(new Map());
   const [selectedAreaStateId, setSelectedAreaStateId] = useState("");
   const [selectedAreaCityId, setSelectedAreaCityId] = useState("");
   const [selectedAreaFranchiseId, setSelectedAreaFranchiseId] = useState("");
   const [activeFilters, setActiveFilters] = useState<LocationFilters>({});
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const [stateTableSortBy, setStateTableSortBy] = useState<ServerTableSortBy>(
+    []
+  );
+  const [cityTableSortBy, setCityTableSortBy] = useState<ServerTableSortBy>([]);
+  const [areaTableSortBy, setAreaTableSortBy] = useState<ServerTableSortBy>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
@@ -129,21 +141,19 @@ const LocationManagement = () => {
           Active: countModel.active_city,
           Inactive: countModel.inactive_city,
         });
-        // Area counts are recomputed from the mock list below when box-area is active.
-        if (selected !== "box-area") {
-          setAreaData({
-            Total: countModel.total_area,
-            Active: countModel.active_area,
-            Inactive: countModel.inactive_area,
-          });
-        }
+        setAreaData({
+          Total: countModel.total_area,
+          Active: countModel.active_area,
+          Inactive: countModel.inactive_area,
+        });
       }
 
       if (selected === "box-state") {
         const { response, states, totalPages } = await fetchState(
           currentPage,
           pageSize,
-          { ...filters }
+          { ...filters },
+          stateTableSortBy
         );
         if (response) {
           setStateList(states);
@@ -153,7 +163,8 @@ const LocationManagement = () => {
         const { response, cities, totalPages } = await fetchCity(
           currentPage,
           pageSize,
-          { ...filters }
+          { ...filters },
+          cityTableSortBy
         );
         if (response) {
           setCityList(cities);
@@ -163,27 +174,59 @@ const LocationManagement = () => {
         const { response, areas, totalPages } = await fetchArea(
           currentPage,
           pageSize,
-          filters
+          filters,
+          areaTableSortBy
         );
         if (response && Array.isArray(areas)) {
-          setAreaList(areas);
-          setTotalPages(totalPages);
-
-          const total = areas.length;
-          const active = areas.filter(
-            (area: any) => area && area.is_active
-          ).length;
-          const inactive = total - active;
-          setAreaData({ Total: total, Active: active, Inactive: inactive });
+          let scopedAreas = areas;
+          const selectedFranchiseId = String(
+            filters.franchise_id ?? ""
+          ).trim();
+          if (selectedFranchiseId) {
+            const allowedAreaIds = franchiseAreaIdsById.get(selectedFranchiseId);
+            if (allowedAreaIds && allowedAreaIds.size > 0) {
+              scopedAreas = areas.filter((row: any) =>
+                allowedAreaIds.has(String(row?._id ?? row?.id ?? "").trim())
+              );
+              setTotalPages(1);
+            } else if (allowedAreaIds && allowedAreaIds.size === 0) {
+              scopedAreas = [];
+              setTotalPages(0);
+            } else {
+              // Fallback when franchise->area map is unavailable:
+              // filter by row's own franchise reference if present.
+              scopedAreas = areas.filter((row: any) => {
+                const rowFranchiseId = String(
+                  row?.franchise_id ??
+                    row?.franchiseId ??
+                    row?.franchise?._id ??
+                    ""
+                ).trim();
+                return rowFranchiseId
+                  ? rowFranchiseId === selectedFranchiseId
+                  : true;
+              });
+              setTotalPages(1);
+            }
+          } else {
+            setTotalPages(totalPages);
+          }
+          setAreaList(scopedAreas);
         } else {
           setAreaList([]);
           setTotalPages(0);
-          setAreaData({ Total: 0, Active: 0, Inactive: 0 });
         }
       }
       fetchRef.current = false;
     },
-    [currentPage, pageSize]
+    [
+      areaTableSortBy,
+      cityTableSortBy,
+      currentPage,
+      franchiseAreaIdsById,
+      pageSize,
+      stateTableSortBy,
+    ]
   );
 
   useEffect(() => {
@@ -228,6 +271,30 @@ const LocationManagement = () => {
       setAreaStateOptions(states);
       const franchises = await fetchFranchiseDropDown();
       setAreaFranchiseOptions(franchises);
+      // Fallback map: selected franchise -> assigned area ids.
+      const pageSize = 200;
+      const maxPages = 30;
+      const areaMap = new Map<string, Set<string>>();
+      for (let page = 1; page <= maxPages; page += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await fetchFranchise(page, pageSize, {}, []);
+        if (!res.response) break;
+        for (const row of res.franchises ?? []) {
+          const fid = String((row as any)?._id ?? "").trim();
+          if (!fid) continue;
+          const areaIdsRaw = Array.isArray((row as any)?.area_id)
+            ? (row as any).area_id
+            : (row as any)?.area_id
+            ? [(row as any).area_id]
+            : [];
+          const ids = new Set<string>(
+            areaIdsRaw.map((v: unknown) => String(v ?? "").trim()).filter(Boolean)
+          );
+          areaMap.set(fid, ids);
+        }
+        if (!res.totalPages || page >= res.totalPages) break;
+      }
+      setFranchiseAreaIdsById(areaMap);
       if (!selectedAreaStateId) {
         setAreaCityOptions([]);
         return;
@@ -321,6 +388,7 @@ const LocationManagement = () => {
       {
         Header: "Status",
         accessor: "is_active",
+       
         Cell: statusCell("is_active"),
       },
       {
@@ -368,11 +436,12 @@ const LocationManagement = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "State Name", accessor: "state_name" },
-      { Header: "City Name", accessor: "name" },
+      { Header: "State Name", accessor: "state_name", sort: true },
+      { Header: "City Name", accessor: "name", sort: true },
       {
         Header: "Status",
         accessor: "is_active",
+       
         Cell: statusCell("is_active"),
       },
       {
@@ -469,10 +538,11 @@ const LocationManagement = () => {
       {
         Header: "State",
         accessor: "state_name",
+        sort: true,
         Cell: ({ row }: any) => row?.original?.state_name ?? "-",
       },
-      { Header: "City", accessor: "city_name" },
-      { Header: "Area", accessor: "name" },
+      { Header: "City", accessor: "city_name", sort: true },
+      { Header: "Area", accessor: "name", sort: true },
       {
         Header: "Pin code",
         accessor: "pincodes",
@@ -481,6 +551,7 @@ const LocationManagement = () => {
       {
         Header: "Status",
         accessor: "is_active",
+       
         Cell: statusCell("is_active"),
       },
       {
@@ -668,18 +739,7 @@ const LocationManagement = () => {
           </Button>
         ) : undefined
       }
-    //   onDownloadClick={async () => {
-    //     selectedBox === "box-state"
-    //       ? await exportData(ApiPaths.EXPORT_STATE)
-    //       : selectedBox === "box-area"
-    //       ? await exportData(ApiPaths.EXPORT_AREA)
-    //       : await exportData(ApiPaths.EXPORT_CITY);
-    //   }}
-    //   onSortClick={(value: "-1" | "1") => {
-    //     handleFilterChange({ sort: value });
-    //   }}
-    //   onMoreClick={() => {}}
-    //   onSearch={(value: string) => handleFilterChange({ name: value })}
+   
     />
   ) : null;
 
@@ -717,6 +777,7 @@ const LocationManagement = () => {
             title="Location Management"
             register={headerRegister}
             setValue={setHeaderValue}
+            hideFranchiseDropdown
           />
         ) : (
           <h4>Location Management</h4>
@@ -746,6 +807,9 @@ const LocationManagement = () => {
                     setSelectedAreaCityId("");
                     setSelectedAreaFranchiseId("");
                     setAreaCityOptions([]);
+                    setStateTableSortBy([]);
+                    setCityTableSortBy([]);
+                    setAreaTableSortBy([]);
                     handleFilterChange({}, true);
                     setUtilitySearchKey((k) => k + 1);
                   }}
@@ -813,6 +877,24 @@ const LocationManagement = () => {
             onPageChange={(page: number) => setCurrentPage(page)}
             onLimitChange={(pageSize: number) => {
               setPageSize(pageSize);
+              setCurrentPage(1);
+            }}
+            manualSortBy
+            sortBy={
+              selectedBox === "box-state"
+                ? stateTableSortBy
+                : selectedBox === "box-city"
+                ? cityTableSortBy
+                : areaTableSortBy
+            }
+            onSortChange={(next: ServerTableSortBy) => {
+              if (selectedBox === "box-state") {
+                setStateTableSortBy(next);
+              } else if (selectedBox === "box-city") {
+                setCityTableSortBy(next);
+              } else {
+                setAreaTableSortBy(next);
+              }
               setCurrentPage(1);
             }}
             theadClass="table-light"

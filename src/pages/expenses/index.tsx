@@ -56,6 +56,16 @@ type ExpenseFormState = {
   paymentModeId: string; // "1" | "2"
 };
 
+type ExpenseFormErrors = {
+  franchiseId?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  expenseName?: string;
+  expenseDate?: string;
+  paymentModeId?: string;
+  expenseAmount?: string;
+};
+
 const emptyForm: ExpenseFormState = {
   franchiseId: "",
   categoryId: "",
@@ -107,6 +117,7 @@ const ExpensesPage = () => {
   const [editingExpense, setEditingExpense] = useState<ExpenseModel | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [form, setForm] = useState<ExpenseFormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<ExpenseFormErrors>({});
   const fetchRef = useRef(false);
 
   const listParamsRef = useRef<ExpensesFilters>({});
@@ -275,6 +286,7 @@ const ExpensesPage = () => {
       if (!expense) {
         setEditingExpense(null);
         setForm({ ...emptyForm, franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId });
+        setFormErrors({});
         setShowForm(true);
         return;
       }
@@ -289,13 +301,16 @@ const ExpensesPage = () => {
         if (latest.response && latest.expense) {
           setEditingExpense(latest.expense);
           setForm(prefillFormFromExpense(latest.expense));
+          setFormErrors({});
         } else {
           setEditingExpense(expense);
           setForm(prefillFormFromExpense(expense));
+          setFormErrors({});
         }
       } else {
         setEditingExpense(expense);
         setForm(prefillFormFromExpense(expense));
+        setFormErrors({});
       }
       setShowForm(true);
     },
@@ -315,13 +330,16 @@ const ExpensesPage = () => {
         if (latest.response && latest.expense) {
           setEditingExpense(latest.expense);
           setForm(prefillFormFromExpense(latest.expense));
+          setFormErrors({});
         } else {
           setEditingExpense(expense);
           setForm(prefillFormFromExpense(expense));
+          setFormErrors({});
         }
       } else {
         setEditingExpense(expense);
         setForm(prefillFormFromExpense(expense));
+        setFormErrors({});
       }
       setShowForm(true);
     },
@@ -425,7 +443,7 @@ const ExpensesPage = () => {
           <CustomActionColumn
             row={row}
             onView={() => handleOpenView(row.original as ExpenseModel)}
-            onEdit={() => handleOpenEdit(row.original as ExpenseModel)}
+            // onEdit={() => handleOpenEdit(row.original as ExpenseModel)}
             // onDelete={() => {
             //   openConfirmDialog(
             //     "Are you sure you want to void this expense?",
@@ -471,13 +489,31 @@ const ExpensesPage = () => {
     const expenseDateYmd = form.expenseDate || "";
     const paymentModeIdNum = Number(form.paymentModeId);
 
-    if (!categoryName) return showErrorAlert("Please select Category");
-    if (!subCategoryName) return showErrorAlert("Please select Sub Category");
-    if (!expenseName) return showErrorAlert("Please enter Expense Name");
-    if (!form.expenseDate) return showErrorAlert("Please select Expense Date");
-    if (!form.paymentModeId) return showErrorAlert("Please select Payment Mode");
+    const nextErrors: ExpenseFormErrors = {};
+    if (isSuperAdminOrStaff && !form.franchiseId.trim()) {
+      nextErrors.franchiseId = "Franchise is required";
+    }
+    if (!form.categoryId.trim() || !categoryName) {
+      nextErrors.categoryId = "Category is required";
+    }
+    if (!form.subCategoryId.trim() || !subCategoryName) {
+      nextErrors.subCategoryId = "Sub Category is required";
+    }
+    if (!expenseName) {
+      nextErrors.expenseName = "Expense Name is required";
+    }
+    if (!form.expenseDate) {
+      nextErrors.expenseDate = "Expense Date is required";
+    }
+    if (!form.paymentModeId) {
+      nextErrors.paymentModeId = "Payment Mode is required";
+    }
     if (Number.isNaN(expenseAmountNum) || expenseAmountNum <= 0) {
-      return showErrorAlert("Expense Amount must be greater than 0");
+      nextErrors.expenseAmount = "Expense Amount must be greater than 0";
+    }
+    setFormErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
     }
     if (Number.isNaN(paymentModeIdNum)) {
       return showErrorAlert("Invalid Payment Mode");
@@ -514,6 +550,7 @@ const ExpensesPage = () => {
       setShowForm(false);
       setIsViewMode(false);
       setEditingExpense(null);
+      setFormErrors({});
       // Force refresh even if currentPage/filters stay the same.
       setCurrentPage(1);
       setTotalPages(0);
@@ -576,7 +613,7 @@ const ExpensesPage = () => {
       <CustomUtilityBox
         key={`expenses-utility-${utilitySearchKey}`}
         title="Expenses"
-        searchHint="Search expense name, category, franchise…"
+        searchHint="Search expense name, category, sub category"
         toolsInlineRow
         toolsInlineClassName="custom-utilty-tools-inline--expenses-wide-search"
         hideMoreIcon
@@ -626,6 +663,7 @@ const ExpensesPage = () => {
         onHide={() => {
           setShowForm(false);
           setIsViewMode(false);
+          setFormErrors({});
         }}
         centered
         size="lg"
@@ -638,6 +676,7 @@ const ExpensesPage = () => {
             onClose={() => {
               setShowForm(false);
               setIsViewMode(false);
+              setFormErrors({});
             }}
           />
         </Modal.Header>
@@ -677,7 +716,7 @@ const ExpensesPage = () => {
                     title="Expense Date"
                     value={formatDate(editingExpense.expense_date ?? (editingExpense as any).expenseDate ?? "")}
                   />
-                  <DetailsRow
+                  {/* <DetailsRow
                     title="Payment done by"
                     value={
                       editingExpense.payment_done_by_name ??
@@ -686,7 +725,7 @@ const ExpensesPage = () => {
                       editingExpense.created_by ??
                       "-"
                     }
-                  />
+                  /> */}
                   <DetailsRow
                     title="Payment mode"
                     value={
@@ -720,15 +759,24 @@ const ExpensesPage = () => {
                     options={[
                       { value: "", label: "Select Franchise" },
                       ...franchiseOptions
-                        .filter((item) => item.value !== "all")
+                        // In this modal, do not show "All Franchises" / any non-specific option.
+                        .filter((item) => item.value !== "all" && item.value !== "")
                         .map((item) => ({ value: item.value, label: item.label })),
                     ]}
                     register={register}
                     fieldName="expense_modal_franchise"
                     asCol={false}
                     defaultValue={form.franchiseId}
+                    error={
+                      formErrors.franchiseId
+                        ? ({ message: formErrors.franchiseId } as any)
+                        : undefined
+                    }
                     setValue={setValue}
-                    onChange={(e) => setForm((p) => ({ ...p, franchiseId: e.target.value }))}
+                    onChange={(e) => {
+                      setForm((p) => ({ ...p, franchiseId: e.target.value }));
+                      setFormErrors((prev) => ({ ...prev, franchiseId: undefined }));
+                    }}
                     menuPortal
                   />
                 </div>
@@ -754,6 +802,11 @@ const ExpensesPage = () => {
                   fieldName="expense_modal_category"
                   asCol={false}
                   defaultValue={form.categoryId}
+                  error={
+                    formErrors.categoryId
+                      ? ({ message: formErrors.categoryId } as any)
+                      : undefined
+                  }
                   setValue={setValue}
                   onChange={(e) => {
                     const newCategoryId = e.target.value;
@@ -766,6 +819,11 @@ const ExpensesPage = () => {
                       categoryName: pickedCategory?.categoryName || "",
                       subCategoryId: "",
                       subCategoryName: "",
+                    }));
+                    setFormErrors((prev) => ({
+                      ...prev,
+                      categoryId: undefined,
+                      subCategoryId: undefined,
                     }));
                   }}
                 />
@@ -798,6 +856,11 @@ const ExpensesPage = () => {
                     fieldName="expense_modal_sub_category"
                     asCol={false}
                     defaultValue={form.subCategoryId}
+                    error={
+                      formErrors.subCategoryId
+                        ? ({ message: formErrors.subCategoryId } as any)
+                        : undefined
+                    }
                     setValue={setValue}
                     onChange={(e) => {
                       const newSubCategoryId = e.target.value;
@@ -811,6 +874,7 @@ const ExpensesPage = () => {
                         subCategoryId: newSubCategoryId,
                         subCategoryName: pickedSubCategory?.subCategoryName || "",
                       }));
+                      setFormErrors((prev) => ({ ...prev, subCategoryId: undefined }));
                     }}
                   />
                 </div>
@@ -823,8 +887,16 @@ const ExpensesPage = () => {
                   placeholder="Enter Expense Name"
                   register={register}
                   asCol={false}
+                  error={
+                    formErrors.expenseName
+                      ? ({ message: formErrors.expenseName } as any)
+                      : undefined
+                  }
                   value={form.expenseName}
-                  onChange={(value) => setForm((p) => ({ ...p, expenseName: value }))}
+                  onChange={(value) => {
+                    setForm((p) => ({ ...p, expenseName: value }));
+                    setFormErrors((prev) => ({ ...prev, expenseName: undefined }));
+                  }}
                 />
               </div>
 
@@ -849,9 +921,19 @@ const ExpensesPage = () => {
                   placeholder="Enter Expense Amount"
                   register={register}
                   asCol={false}
-                  inputType="number"
+                  inputType="text"
+                  error={
+                    formErrors.expenseAmount
+                      ? ({ message: formErrors.expenseAmount } as any)
+                      : undefined
+                  }
                   value={form.expenseAmount}
-                  onChange={(value) => setForm((p) => ({ ...p, expenseAmount: value }))}
+                  onChange={(value) => {
+                    // Only digits; blocks negative sign and non-numeric chars.
+                    const cleaned = String(value ?? "").replace(/[^\d]/g, "");
+                    setForm((p) => ({ ...p, expenseAmount: cleaned }));
+                    setFormErrors((prev) => ({ ...prev, expenseAmount: undefined }));
+                  }}
                 />
               </div>
 
@@ -861,9 +943,15 @@ const ExpensesPage = () => {
                   label=""
                   controlId="expense_modal_expense_date"
                   selectedDate={form.expenseDate || null}
+                  error={formErrors.expenseDate}
                   onChange={(date) => {
-                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    const value = date
+                      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+                          date.getDate()
+                        ).padStart(2, "0")}`
+                      : "";
                     setForm((p) => ({ ...p, expenseDate: value }));
+                    setFormErrors((prev) => ({ ...prev, expenseDate: undefined }));
                   }}
                   register={register}
                   setValue={setValue}
@@ -883,9 +971,15 @@ const ExpensesPage = () => {
                   fieldName="expense_modal_payment_mode"
                   asCol={false}
                   defaultValue={form.paymentModeId}
+                  error={
+                    formErrors.paymentModeId
+                      ? ({ message: formErrors.paymentModeId } as any)
+                      : undefined
+                  }
                   setValue={setValue}
                   onChange={(e) => {
                     setForm((p) => ({ ...p, paymentModeId: e.target.value }));
+                    setFormErrors((prev) => ({ ...prev, paymentModeId: undefined }));
                   }}
                 />
               </div>
@@ -896,7 +990,13 @@ const ExpensesPage = () => {
 
         {!isViewMode && (
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowForm(false);
+                setFormErrors({});
+              }}
+            >
               Cancel
             </Button>
             <Button className="btn-danger" onClick={handleSaveExpense}>

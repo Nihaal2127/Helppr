@@ -9,12 +9,15 @@ export const fetchCityDropDown = async (
 ): Promise<
   { value: string; label: string; state_id?: string; state_name?: string }[]
 > => {
-  const params = stateIdList
-    ? new URLSearchParams({ state_id: stateIdList.toString() })
-    : "";
+  const params = new URLSearchParams();
+  if (stateIdList && stateIdList.length > 0) {
+    const v = stateIdList.toString();
+    params.set("state_id", v);
+    params.set("stateId", v);
+  }
 
   const response = await apiRequest(
-    `${ApiPaths.GET_CITY_DROP_DOWN()}${params ? `?${params.toString()}` : ""}`,
+    `${ApiPaths.GET_CITY_DROP_DOWN()}${params.toString() ? `?${params.toString()}` : ""}`,
     "GET"
   );
 
@@ -38,17 +41,21 @@ export const fetchCity = async (
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean; cities: CityModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
+  const nameQuery = String(filters.name ?? "").trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.name && { name: filters.name }),
-    ...(filters.name && { keyword: filters.name }),
+    ...(nameQuery && { name: nameQuery }),
+    ...(nameQuery && { keyword: nameQuery }),
+    ...(nameQuery && { search: nameQuery }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.state_id && { state_id: filters.state_id }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
+    ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(primarySort && { sortOrder: primarySort.desc ? "desc" : "asc" }),
   });
 
   const response = await apiRequest(

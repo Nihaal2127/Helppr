@@ -18,6 +18,7 @@ import {
 import { showErrorAlert, showInfoAlert } from "../../helper/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
+import { fetchArea } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
@@ -25,14 +26,13 @@ import { fetchService } from "../../services/servicesService";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import CustomTextFieldUpload from "../../components/CustomTextFieldUpload";
+import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
 
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
 import {
-  indianPincodeRequiredRules,
   sanitizeIndianPincodeInput,
 } from "../../helper/pincodeValidation";
 
@@ -67,6 +67,10 @@ type ServiceLite = {
 
 /** Extra fields on the form when adding a partner (not part of `UserModel`). */
 type AddPartnerFormFields = {
+  area_id?: string;
+  is_blocked?: string | boolean;
+  password?: string;
+  confirm_password?: string;
   partner_bank_holder?: string;
   partner_bank_account_number?: string;
   partner_bank_ifsc?: string;
@@ -99,6 +103,7 @@ function AddEditUserDialogView({
     register,
     handleSubmit,
     setValue,
+    reset,
     watch,
     formState: { errors },
   } = useForm<AddEditUserFormValues>({
@@ -109,8 +114,10 @@ function AddEditUserDialogView({
       address: user?.address || "",
       state_id: user?.state_id || "",
       city_id: user?.city_id || "",
+      area_id: String((user as any)?.area_id ?? ""),
       pincode: user?.pincode || "",
       is_active: user?.is_active ?? true,
+      is_blocked: (user as any)?.is_blocked ?? false,
       partner_bank_holder: "",
       partner_bank_account_number: "",
       partner_bank_ifsc: "",
@@ -121,6 +128,8 @@ function AddEditUserDialogView({
   });
 
   const watchedCityId = watch("city_id");
+  const watchedStateId = watch("state_id");
+  const watchedAreaId = watch("area_id");
 
   const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
   const [allServices, setAllServices] = useState<ServiceLite[]>([]);
@@ -134,6 +143,13 @@ function AddEditUserDialogView({
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
   const [states, setState] = useState<{ value: string; label: string }[]>([]);
   const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
+  const [areas, setAreas] = useState<{ value: string; label: string }[]>([]);
+  const [areaPincodes, setAreaPincodes] = useState<Map<string, string[]>>(
+    new Map()
+  );
+  const [pincodeOptions, setPincodeOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
   const fetchRef = useRef(false);
   const fetchCityRef = useRef(false);
 
@@ -239,6 +255,94 @@ function AddEditUserDialogView({
       cancelled = true;
     };
   }, [isAddPartner, isPartnerEdit, watchedCityId, user?.city_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAreas = async () => {
+      const cityId = String(watchedCityId ?? "").trim();
+      const stateId = String(watchedStateId ?? "").trim();
+      if (!cityId) {
+        setAreas([]);
+        setAreaPincodes(new Map());
+        setPincodeOptions([]);
+        setValue("area_id", "", { shouldValidate: false });
+        return;
+      }
+
+      const areaOptions: { value: string; label: string }[] = [];
+      const pinMap = new Map<string, string[]>();
+      let page = 1;
+      const pageSize = 200;
+
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await fetchArea(
+          page,
+          pageSize,
+          { state_id: stateId, city_id: cityId },
+          []
+        );
+        if (!res.response) break;
+
+        const rowsScopedByCity = ((res.areas ?? []) as any[]).filter((row: any) => {
+          const rowCityId = String(row?.city_id ?? row?.city?.id ?? row?.city?._id ?? "").trim();
+          return rowCityId ? rowCityId === cityId : true;
+        });
+
+        for (const row of rowsScopedByCity) {
+          const id = String(row?._id ?? row?.id ?? "").trim();
+          if (!id) continue;
+          const label = String(row?.name ?? "").trim();
+          if (label) areaOptions.push({ value: id, label });
+          const rawPins = Array.isArray(row?.pincodes)
+            ? row.pincodes
+            : Array.isArray(row?.pin_codes)
+            ? row.pin_codes
+            : typeof row?.pincode === "string"
+            ? row.pincode.split(",")
+            : [];
+          const pins: string[] = Array.from(
+            new Set<string>(
+              rawPins.map((v: any) => String(v ?? "").trim()).filter(Boolean)
+            )
+          );
+          pinMap.set(id, pins);
+        }
+
+        if (!res.totalPages || page >= res.totalPages) break;
+        page += 1;
+        if (page > 50) break;
+      }
+
+      if (cancelled) return;
+      setAreas(areaOptions);
+      setAreaPincodes(pinMap);
+      const currentArea = String(watch("area_id") ?? "").trim();
+      if (currentArea && !areaOptions.some((a) => a.value === currentArea)) {
+        setValue("area_id", "", { shouldValidate: false });
+      }
+    };
+    void loadAreas();
+    return () => {
+      cancelled = true;
+    };
+  }, [watchedCityId, watchedStateId, setValue, watch]);
+
+  useEffect(() => {
+    const areaId = String(watchedAreaId ?? "").trim();
+    if (!areaId) {
+      setPincodeOptions([]);
+      setValue("pincode", "", { shouldValidate: false });
+      return;
+    }
+    const pins = areaPincodes.get(areaId) ?? [];
+    const options = pins.map((p) => ({ value: p, label: p }));
+    setPincodeOptions(options);
+    const currentPin = String(watch("pincode") ?? "").trim();
+    if (currentPin && !options.some((o) => o.value === currentPin)) {
+      setValue("pincode", "", { shouldValidate: false });
+    }
+  }, [watchedAreaId, areaPincodes, setValue, watch]);
 
   useEffect(() => {
     if (!isPartnerEdit || !user) return;
@@ -475,6 +579,11 @@ function AddEditUserDialogView({
         : typeof data.is_active === "boolean"
         ? data.is_active
         : true;
+    const isBlockedPayload =
+      typeof (data as any).is_blocked === "string"
+        ? String((data as any).is_blocked) === "true"
+        : Boolean((data as any).is_blocked);
+    const resolvedIsActivePayload = isBlockedPayload ? false : isActivePayload;
 
     const payload: Record<string, unknown> = {
       type: role,
@@ -487,9 +596,16 @@ function AddEditUserDialogView({
       address: data.address,
       state_id: data.state_id,
       city_id: data.city_id,
-      is_active: isActivePayload,
+      area_id: (data as any).area_id,
+      is_active: resolvedIsActivePayload,
+      is_blocked: isBlockedPayload,
       pincode: sanitizeIndianPincodeInput(String(data.pincode ?? "")),
       ...(profile_url !== "" && { profile_url }),
+      ...(!isEditable &&
+        String(data.password ?? "").trim() && {
+          password: String(data.password ?? "").trim(),
+          confirm_password: String(data.confirm_password ?? "").trim(),
+        }),
       ...(role === PARTNER_ROLE &&
         (isAddPartner
           ? (() => {
@@ -564,6 +680,34 @@ function AddEditUserDialogView({
     }
   }, [isEditable, user?.is_active, setValue]);
 
+  // Ensure Add opens blank and Update always hydrates selected user.
+  useEffect(() => {
+    reset({
+      name: isEditable ? user?.name || "" : "",
+      email: isEditable ? user?.email || "" : "",
+      phone_number: isEditable ? user?.phone_number || "" : "",
+      address: isEditable ? user?.address || "" : "",
+      state_id: isEditable ? user?.state_id || "" : "",
+      city_id: isEditable ? user?.city_id || "" : "",
+      area_id: isEditable ? String((user as any)?.area_id ?? "") : "",
+      pincode: isEditable ? user?.pincode || "" : "",
+      is_active: isEditable ? user?.is_active ?? true : true,
+      is_blocked: isEditable ? (user as any)?.is_blocked ?? false : false,
+      password: isEditable ? String((user as any)?.password ?? "") : "",
+      confirm_password: isEditable
+        ? String(
+            (user as any)?.confirm_password ?? (user as any)?.password ?? ""
+          )
+        : "",
+      partner_bank_holder: "",
+      partner_bank_account_number: "",
+      partner_bank_ifsc: "",
+      partner_bank_legal_name: "",
+      partner_bank_branch: "",
+      bank_account_is_active: "true",
+    });
+  }, [isEditable, user?._id, reset]);
+
   return (
     <>
       <Modal
@@ -585,8 +729,23 @@ function AddEditUserDialogView({
             noValidate
             name="profile-form"
             id="profile-form"
+            autoComplete={isEditable ? "on" : "off"}
             onSubmit={handleSubmit(onSubmitEvent)}
           >
+            {!isEditable ? (
+              <>
+                <input
+                  type="text"
+                  autoComplete="username"
+                  style={{ display: "none" }}
+                />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  style={{ display: "none" }}
+                />
+              </>
+            ) : null}
             {isAddPartner ? (
               <>
                 <Row className="g-3 mb-2">
@@ -670,20 +829,46 @@ function AddEditUserDialogView({
                 </Row>
                 <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Pincode"
-                      controlId="pincode"
-                      placeholder="Enter Pincode"
+                    <CustomTextFieldSelect
+                      label="Area"
+                      controlId="Area"
+                      options={[
+                        { value: "", label: "Select Area" },
+                        ...areas,
+                      ]}
                       register={register}
-                      error={errors.pincode}
-                      validation={indianPincodeRequiredRules()}
-                      isIndianPincodeField
-                      maxLength={6}
+                      fieldName="area_id"
+                      error={(errors as any).area_id}
+                      requiredMessage="Please select area"
+                      defaultValue={
+                        isEditable ? String((user as any)?.area_id ?? "") : ""
+                      }
+                      setValue={setValue as (name: string, value: any) => void}
                     />
                   </Col>
                   <Col xs={12} md={6}>
-                    <CustomTextFieldUpload
+                    <CustomTextFieldSelect
+                      label="Pincode"
+                      controlId="Pincode"
+                      options={[
+                        { value: "", label: "Select Pincode" },
+                        ...pincodeOptions,
+                      ]}
+                      register={register}
+                      fieldName="pincode"
+                      error={errors.pincode}
+                      requiredMessage="Please select pincode"
+                      defaultValue={isEditable ? String(user?.pincode ?? "") : ""}
+                      setValue={setValue as (name: string, value: any) => void}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
+                    <CustomImageUploader
                       label="Profile Photo"
+                      maxFiles={1}
+                      isEditable={Boolean(isEditable)}
                       {...(user?.profile_url
                         ? { existingImages: [user.profile_url] }
                         : [])}
@@ -704,6 +889,13 @@ function AddEditUserDialogView({
                   register={register}
                   error={errors.name}
                   validation={{ required: "Name is required" }}
+                  value={watch("name") ?? ""}
+                  onChange={(value) =>
+                    setValue("name", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
                 <CustomTextField
                   label="Email"
@@ -712,6 +904,14 @@ function AddEditUserDialogView({
                   register={register}
                   error={errors.email}
                   validation={{ required: "Email is required" }}
+                  autoComplete={isEditable ? "email" : "off"}
+                  value={watch("email") ?? ""}
+                  onChange={(value) =>
+                    setValue("email", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
                 <CustomTextField
                   label="Phone No"
@@ -720,6 +920,55 @@ function AddEditUserDialogView({
                   register={register}
                   error={errors.phone_number}
                   validation={{ required: "Phone no is required" }}
+                  value={watch("phone_number") ?? ""}
+                  onChange={(value) =>
+                    setValue("phone_number", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
+                />
+                <CustomTextField
+                  label="Password"
+                  controlId="password"
+                  placeholder="Enter Password"
+                  register={register}
+                  error={errors.password}
+                  validation={{
+                    required: !isEditable ? "Password is required" : false,
+                  }}
+                  inputType="password"
+                  autoComplete={isEditable ? "current-password" : "new-password"}
+                  value={watch("password") ?? ""}
+                  onChange={(value) =>
+                    setValue("password", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
+                />
+                <CustomTextField
+                  label="Confirm Password"
+                  controlId="confirm_password"
+                  placeholder="Enter Confirm Password"
+                  register={register}
+                  error={errors.confirm_password}
+                  validation={{
+                    required: !isEditable
+                      ? "Confirm password is required"
+                      : false,
+                    validate: (value: string) =>
+                      value === watch("password") || "Passwords do not match",
+                  }}
+                  inputType="password"
+                  autoComplete={isEditable ? "current-password" : "new-password"}
+                  value={watch("confirm_password") ?? ""}
+                  onChange={(value) =>
+                    setValue("confirm_password", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
                 <CustomTextFieldSelect
                   label="State"
@@ -748,15 +997,35 @@ function AddEditUserDialogView({
                   }
                   setValue={setValue as (name: string, value: any) => void}
                 />
-                <CustomTextField
-                  label="Pincode"
-                  controlId="pincode"
-                  placeholder="Enter Pincode"
+                <CustomTextFieldSelect
+                  label="Area"
+                  controlId="Area"
+                  options={[
+                    { value: "", label: "Select Area" },
+                    ...areas,
+                  ]}
                   register={register}
+                  fieldName="area_id"
+                  error={(errors as any).area_id}
+                  requiredMessage="Please select area"
+                  defaultValue={
+                    isEditable ? String((user as any)?.area_id ?? "") : ""
+                  }
+                  setValue={setValue as (name: string, value: any) => void}
+                />
+                <CustomTextFieldSelect
+                  label="Pincode"
+                  controlId="Pincode"
+                  options={[
+                    { value: "", label: "Select Pincode" },
+                    ...pincodeOptions,
+                  ]}
+                  register={register}
+                  fieldName="pincode"
                   error={errors.pincode}
-                  validation={indianPincodeRequiredRules()}
-                  isIndianPincodeField
-                  maxLength={6}
+                  requiredMessage="Please select pincode"
+                  defaultValue={isEditable ? String(user?.pincode ?? "") : ""}
+                  setValue={setValue as (name: string, value: any) => void}
                 />
                 <CustomTextField
                   label="Address"
@@ -767,9 +1036,43 @@ function AddEditUserDialogView({
                   validation={{ required: "Address is required" }}
                   as="textarea"
                   rows={3}
+                  value={watch("address") ?? ""}
+                  onChange={(value) =>
+                    setValue("address", value, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                 />
-                <CustomTextFieldUpload
+                {isEditable ? (
+                  <>
+                    <CustomTextFieldRadio
+                      label="Status"
+                      name="is_active"
+                      options={getStatusOptions()}
+                      defaultValue={String(watch("is_active") ?? user?.is_active ?? true)}
+                      isEditable={true}
+                      setValue={setValue}
+                    />
+                    <CustomTextFieldRadio
+                      label="Block"
+                      name="is_blocked"
+                      options={[
+                        { value: "true", label: "Yes" },
+                        { value: "false", label: "No" },
+                      ]}
+                      defaultValue={String(
+                        watch("is_blocked") ?? (user as any)?.is_blocked ?? false
+                      )}
+                      isEditable={true}
+                      setValue={setValue}
+                    />
+                  </>
+                ) : null}
+                <CustomImageUploader
                   label="Profile Photo"
+                  maxFiles={1}
+                  isEditable={Boolean(isEditable)}
                   {...(user?.profile_url
                     ? { existingImages: [user.profile_url] }
                     : [])}

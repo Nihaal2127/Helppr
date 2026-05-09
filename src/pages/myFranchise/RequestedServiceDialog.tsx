@@ -14,6 +14,7 @@ import {
   createRequestedService,
   updateRequestedService,
 } from "../../services/myFranchiseService";
+import { fetchCategoryDropDown } from "../../services/categoryService";
 import sampleServiceViewImage from "../../assets/icons/profile.svg";
 
 type CategoryOption = { value: string; label: string };
@@ -57,7 +58,29 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
 
   const [isEditing, setIsEditing] = useState(isAdd);
   const [fileInputs, setFileInputs] = useState<File[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [effectiveCategoryOptions, setEffectiveCategoryOptions] =
+    useState<CategoryOption[]>(categoryOptions);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const fromApi = await fetchCategoryDropDown();
+        if (!cancelled && Array.isArray(fromApi) && fromApi.length > 0) {
+          setEffectiveCategoryOptions(fromApi);
+          return;
+        }
+      } catch {
+        /* fall back to franchise categories */
+      }
+      if (!cancelled) {
+        setEffectiveCategoryOptions(categoryOptions);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryOptions]);
 
   useEffect(() => {
     setIsEditing(isAdd);
@@ -68,9 +91,6 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
     register,
     handleSubmit,
     setValue,
-    setError,
-    clearErrors,
-    getValues,
     reset,
     formState: { errors },
   } = useForm<RequestedServiceFormValues>({
@@ -84,7 +104,6 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   useEffect(() => {
     if (isAdd) {
       reset({ name: "", category_id: "", desc: "" });
-      setSelectedCategoryId("");
       return;
     }
     if (request && isEditing) {
@@ -93,7 +112,6 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
         category_id: request.category_id,
         desc: request.description ?? "",
       });
-      setSelectedCategoryId(String(request.category_id ?? ""));
     }
   }, [isAdd, request, isEditing, reset]);
 
@@ -110,31 +128,20 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
 
   const onSubmitForm = async (data: RequestedServiceFormValues) => {
     const name = data.name.trim();
-    const category_id = (
-      selectedCategoryId || String(getValues("category_id") ?? "")
-    ).trim();
+    const category_id = String(data.category_id ?? "").trim();
     const description = data.desc.trim();
     if (!name) {
-      setError("name", {
-        type: "required",
-        message: "Service name is required",
-      });
+      showErrorAlert("Service name is required");
       return;
     }
-    clearErrors("name");
     if (!category_id) {
-      setError("category_id", {
-        type: "required",
-        message: "Please select category",
-      });
+      showErrorAlert("Please select a category");
       return;
     }
-    clearErrors("category_id");
     if (!description) {
-      setError("desc", { type: "required", message: "Description is required" });
+      showErrorAlert("Description is required");
       return;
     }
-    clearErrors("desc");
 
     let image_url: string | undefined = request?.image_url;
     if (fileInputs.length > 0) {
@@ -160,6 +167,7 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
       });
       if (ok) {
         showSuccessAlert("Service request submitted");
+        onRefreshData();
         onClose();
       }
       return;
@@ -280,7 +288,7 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
           <CustomFormSelect
             label="Category"
             controlId="category"
-            options={categoryOptions}
+            options={effectiveCategoryOptions}
             register={register as unknown as UseFormRegister<any>}
             fieldName="category_id"
             error={errors.category_id as any}
@@ -289,40 +297,28 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
             placeholder="Select category"
             defaultValue={isAdd ? "" : request?.category_id ?? ""}
             setValue={(name: string, value: any) => {
-              setSelectedCategoryId(String(value ?? ""));
               setValue(name as keyof RequestedServiceFormValues, value, {
                 shouldValidate: true,
                 shouldDirty: true,
                 shouldTouch: true,
               });
-              clearErrors("category_id");
-            }}
-            onChange={(e) => {
-              const value = String(e.target.value ?? "");
-              setSelectedCategoryId(value);
-              setValue("category_id", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-              clearErrors("category_id");
             }}
             menuPortal
           />
         </Col>
         <Col md={12}>
           <CustomImageUploader
-            controlId="franchise-requested-service-image"
-            label="Service image"
-            hint="Recommended 512 × 512 px. JPG or PNG."
+            label="Upload Service Image"
             maxFiles={1}
-            asCol={false}
-            isEditable={isAdd || isEditing}
+            isEditable={!isAdd}
             existingImages={existingForUploader}
             onFileChange={(files, _replaceUrls) => {
               setFileInputs(files);
             }}
           />
+          <label style={{ color: "var(--primary-color)" }}>
+            Image size should be 512*512
+          </label>
           {request?.image_url &&
           String(request.image_url).startsWith("data:") ? (
             <div className="mt-2">

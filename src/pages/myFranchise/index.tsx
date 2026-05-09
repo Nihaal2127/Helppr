@@ -10,7 +10,6 @@ import { showSuccessAlert } from "../../helper/alertHelper";
 import { statusCell } from "../../helper/utility";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
-import { getCount } from "../../services/getCountService";
 import type {
   AreaRow,
   CategoryRow,
@@ -20,10 +19,7 @@ import type {
   ServiceRow,
 } from "../../services/myFranchiseService";
 import {
-  fetchMyFranchiseAreasData,
-  fetchMyFranchiseCategoriesData,
-  fetchMyFranchiseEmployeesData,
-  fetchMyFranchiseServicesData,
+  fetchMyFranchiseBoxData,
   setCategoryActive as apiSetCategoryActive,
   setEmployeeChatEnabled as apiSetEmployeeChatEnabled,
   setServiceActive as apiSetServiceActive,
@@ -31,6 +27,9 @@ import {
   voidRequestedCategory,
   voidRequestedService,
 } from "../../services/myFranchiseService";
+import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
+import RequestedCategoryDialog from "./RequestedCategoryDialog";
+import RequestedServiceDialog from "./RequestedServiceDialog";
 
 type BoxId = "box-employees" | "box-areas" | "box-services" | "box-categories";
 
@@ -170,99 +169,40 @@ const MyFranchise = () => {
   const [requestedCategories, setRequestedCategories] = useState<
     RequestedCategoryRow[]
   >([]);
-  const [myFranchiseCounts, setMyFranchiseCounts] = useState<{
-    employees?: Record<string, number>;
-    areas?: Record<string, number>;
-    services?: Record<string, number>;
-    categories?: Record<string, number>;
-  }>({});
-  const [loadedBoxes, setLoadedBoxes] = useState<Record<BoxId, boolean>>({
-    "box-employees": false,
-    "box-areas": false,
-    "box-services": false,
-    "box-categories": false,
-  });
-  const inFlightBoxRequestKeysRef = React.useRef<Set<string>>(new Set());
-  const didLoadInitialCountsRef = React.useRef(false);
-
-  const loadBoxData = useCallback(
-    async (boxId: BoxId, force = false) => {
-      if (!force && loadedBoxes[boxId]) return;
-      const requestKey = `${boxId}|${force ? "force" : "normal"}`;
-      if (inFlightBoxRequestKeysRef.current.has(requestKey)) return;
-      inFlightBoxRequestKeysRef.current.add(requestKey);
-
-      try {
-        if (boxId === "box-employees") {
-          setEmployees(await fetchMyFranchiseEmployeesData());
-        } else if (boxId === "box-areas") {
-          setAreas(await fetchMyFranchiseAreasData());
-        } else if (boxId === "box-services") {
-          const data = await fetchMyFranchiseServicesData();
-          setServices(data.services);
-          setRequestedServices(data.requestedServices);
-        } else if (boxId === "box-categories") {
-          const data = await fetchMyFranchiseCategoriesData();
-          setCategories(data.categories);
-          setRequestedCategories(data.requestedCategories);
-          // Categories grid uses service names in one column.
-          if (!services.length || force) {
-            setServices(data.services);
-          }
-        }
-        setLoadedBoxes((prev) => ({ ...prev, [boxId]: true }));
-      } finally {
-        inFlightBoxRequestKeysRef.current.delete(requestKey);
-      }
-    },
-    [loadedBoxes, services.length]
-  );
 
   const reloadFranchiseData = useCallback(async () => {
-    await loadBoxData(selectedBox, true);
-  }, [loadBoxData, selectedBox]);
-
-  useEffect(() => {
-    void loadBoxData("box-employees");
-  }, [loadBoxData]);
+    const data = await fetchMyFranchiseBoxData();
+    setEmployees(
+      (data.employees as unknown as EmployeeRow[]).map((e) => ({
+        ...e,
+        chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
+      }))
+    );
+    setAreas(data.areas as unknown as AreaRow[]);
+    setServices(data.services as unknown as ServiceRow[]);
+    setCategories(data.categories as unknown as CategoryRow[]);
+    setRequestedServices(data.requested_services as RequestedServiceRow[]);
+    setRequestedCategories(data.requested_categories as RequestedCategoryRow[]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      if (didLoadInitialCountsRef.current) return;
-      didLoadInitialCountsRef.current = true;
-      const { responseCount, countModel } = await getCount("my-franchise");
-      if (!responseCount || !countModel || cancelled) return;
-      setMyFranchiseCounts({
-        employees: {
-          Total: countModel.total_employee ?? 0,
-          Active: countModel.active_employee ?? 0,
-          Inactive: countModel.inactive_employee ?? 0,
-        },
-        areas: {
-          Total: countModel.total_area ?? 0,
-          Active: countModel.active_area ?? 0,
-          Inactive: countModel.inactive_area ?? 0,
-        },
-        services: {
-          Total: countModel.total_service ?? 0,
-          Active: countModel.active_service ?? 0,
-          Inactive: countModel.inactive_service ?? 0,
-          requested_service:
-            countModel.requested_service ??
-            countModel.total_requestedservice ??
-            0,
-        },
-        categories: {
-          Total: countModel.total_category ?? 0,
-          Active: countModel.active_category ?? 0,
-          Inactive: countModel.inactive_category ?? 0,
-          requested_category:
-            countModel.requested_category ??
-            countModel.total_requestedcategory ??
-            0,
-        },
-      });
+      const data = await fetchMyFranchiseBoxData();
+      if (cancelled) return;
+      setEmployees(
+        (data.employees as unknown as EmployeeRow[]).map((e) => ({
+          ...e,
+          chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
+        }))
+      );
+      setAreas(data.areas as unknown as AreaRow[]);
+      setServices(data.services as unknown as ServiceRow[]);
+      setCategories(data.categories as unknown as CategoryRow[]);
+      setRequestedServices(data.requested_services as RequestedServiceRow[]);
+      setRequestedCategories(
+        data.requested_categories as RequestedCategoryRow[]
+      );
     })();
     return () => {
       cancelled = true;
@@ -301,53 +241,42 @@ const MyFranchise = () => {
 
   const servicesSummary = useMemo(() => {
     const total = services.length;
-    const myRows = services.filter((s) => s.is_my_franchise);
-    const active = myRows.filter((s) => s.is_active).length;
+    const active = services.filter((s) => s.is_active).length;
     return {
       Total: total,
       Active: active,
-      Inactive: Math.max(0, myRows.length - active),
+      Inactive: total - active,
       requested_service: requestedServices.length,
     };
   }, [services, requestedServices]);
 
   const categoriesSummary = useMemo(() => {
     const total = categories.length;
-    const myRows = categories.filter((c) => c.is_my_franchise);
-    const active = myRows.filter((c) => c.is_active).length;
+    const active = categories.filter((c) => c.is_active).length;
     return {
       Total: total,
       Active: active,
-      Inactive: Math.max(0, myRows.length - active),
+      Inactive: total - active,
       requested_category: requestedCategories.length,
     };
   }, [categories, requestedCategories]);
 
   const handleBoxSelect = (divId: string) => {
-    const nextBox = divId as BoxId;
-    setSelectedBox(nextBox);
+    setSelectedBox(divId as BoxId);
     setServicesViewMode("catalog");
     setCategoriesViewMode("catalog");
     setStatusFilter(undefined);
     setSearchKeyword("");
     setAreaSortBy([]);
     setCurrentPage(1);
-    void loadBoxData(nextBox);
   };
 
-  const handleFilterChange = useCallback(
-    (filter: { status?: string }) => {
-      setStatusFilter(filter.status);
-      setServicesViewMode("catalog");
-      setCategoriesViewMode("catalog");
-      setCurrentPage(1);
-      // Fetch current tab on Active/Inactive click instead of relying only on stale local state.
-      if (filter.status !== undefined) {
-        void loadBoxData(selectedBox, true);
-      }
-    },
-    [loadBoxData, selectedBox]
-  );
+  const handleFilterChange = useCallback((filter: { status?: string }) => {
+    setStatusFilter(filter.status);
+    setServicesViewMode("catalog");
+    setCategoriesViewMode("catalog");
+    setCurrentPage(1);
+  }, []);
 
   const keyword = searchKeyword.trim().toLowerCase();
 
@@ -427,9 +356,8 @@ const MyFranchise = () => {
     return services.filter((row) => {
       const matchesStatus =
         statusFilter == null ||
-        (row.is_my_franchise &&
-          ((statusFilter === "true" && row.is_active) ||
-            (statusFilter === "false" && !row.is_active)));
+        (statusFilter === "true" && row.is_active) ||
+        (statusFilter === "false" && !row.is_active);
       const hay = [row.name, row.category_name].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
@@ -447,9 +375,8 @@ const MyFranchise = () => {
     return categories.filter((row) => {
       const matchesStatus =
         statusFilter == null ||
-        (row.is_my_franchise &&
-          ((statusFilter === "true" && row.is_active) ||
-            (statusFilter === "false" && !row.is_active)));
+        (statusFilter === "true" && row.is_active) ||
+        (statusFilter === "false" && !row.is_active);
       const svcHay = serviceNamesForCatalogCategory(row, services)
         .join(" ")
         .toLowerCase();
@@ -677,14 +604,9 @@ const MyFranchise = () => {
             row={row}
             onView={(r) => {
               const emp = r.original as EmployeeRow;
-              void (async () => {
-                const { default: FranchiseEmployeeDialog } = await import(
-                  "./FranchiseEmployeeDialog"
-                );
-                FranchiseEmployeeDialog.showView(emp, () => {
-                  void reloadFranchiseData();
-                });
-              })();
+              FranchiseEmployeeDialog.showView(emp, () => {
+                void reloadFranchiseData();
+              });
             }}
             onDelete={(r) => {
               const emp = r.original as EmployeeRow;
@@ -768,7 +690,6 @@ const MyFranchise = () => {
         accessor: "is_active",
         Cell: ({ row }: { row: any }) => {
           const svc = row.original as ServiceRow;
-          if (!svc.is_my_franchise) return <span>-</span>;
           return (
             <Form.Select
               size="sm"
@@ -811,18 +732,13 @@ const MyFranchise = () => {
           <CustomActionColumn
             row={row}
             onView={(r) => {
-              void (async () => {
-                const { default: RequestedServiceDialog } = await import(
-                  "./RequestedServiceDialog"
-                );
-                RequestedServiceDialog.showView(
-                  r.original as RequestedServiceRow,
-                  categorySelectOptions,
-                  () => {
-                    void reloadFranchiseData();
-                  }
-                );
-              })();
+              RequestedServiceDialog.showView(
+                r.original as RequestedServiceRow,
+                categorySelectOptions,
+                () => {
+                  void reloadFranchiseData();
+                }
+              );
             }}
             onDelete={(r) => {
               handleRequestedServiceVoid(
@@ -868,18 +784,13 @@ const MyFranchise = () => {
           <CustomActionColumn
             row={row}
             onView={(r) => {
-              void (async () => {
-                const { default: RequestedCategoryDialog } = await import(
-                  "./RequestedCategoryDialog"
-                );
-                RequestedCategoryDialog.showView(
-                  r.original as RequestedCategoryRow,
-                  franchiseServiceOptionsForCategoryDialog,
-                  () => {
-                    void reloadFranchiseData();
-                  }
-                );
-              })();
+              RequestedCategoryDialog.showView(
+                r.original as RequestedCategoryRow,
+                franchiseServiceOptionsForCategoryDialog,
+                () => {
+                  void reloadFranchiseData();
+                }
+              );
             }}
             onDelete={(r) => {
               handleRequestedCategoryVoid(
@@ -923,7 +834,6 @@ const MyFranchise = () => {
         accessor: "is_active",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
-          if (!cat.is_my_franchise) return <span>-</span>;
           return (
             <Form.Select
               size="sm"
@@ -977,58 +887,47 @@ const MyFranchise = () => {
       {
         id: "box-employees",
         title: "Employees",
-        data: myFranchiseCounts.employees ?? employeesSummary,
+        data: employeesSummary,
         isAddShow: true,
         addLabel: "Add Employee",
         onAdd: () => {
-          void (async () => {
-            const { default: FranchiseEmployeeDialog } = await import(
-              "./FranchiseEmployeeDialog"
-            );
-            FranchiseEmployeeDialog.showAdd(() => {
-              void reloadFranchiseData();
-            });
-          })();
+          FranchiseEmployeeDialog.showAdd(() => {
+            void reloadFranchiseData();
+          });
         },
       },
       {
         id: "box-areas",
         title: "Areas",
-        data: myFranchiseCounts.areas ?? areasSummary,
+        data: areasSummary,
         isAddShow: false,
         addLabel: "",
       },
       {
         id: "box-services",
         title: "Services",
-        data: myFranchiseCounts.services ?? servicesSummary,
+        data: servicesSummary,
         isAddShow: true,
         addLabel: "Add request",
         onAdd: () => {
-          void (async () => {
-            const { default: RequestedServiceDialog } = await import(
-              "./RequestedServiceDialog"
-            );
-            RequestedServiceDialog.showAdd(categorySelectOptions, () => {});
-          })();
+          RequestedServiceDialog.showAdd(categorySelectOptions, () => {
+            void reloadFranchiseData();
+          });
         },
       },
       {
         id: "box-categories",
         title: "Categories",
-        data: myFranchiseCounts.categories ?? categoriesSummary,
+        data: categoriesSummary,
         isAddShow: true,
         addLabel: "Add request",
         onAdd: () => {
-          void (async () => {
-            const { default: RequestedCategoryDialog } = await import(
-              "./RequestedCategoryDialog"
-            );
-            RequestedCategoryDialog.showAdd(
-              franchiseServiceOptionsForCategoryDialog,
-              () => {}
-            );
-          })();
+          RequestedCategoryDialog.showAdd(
+            franchiseServiceOptionsForCategoryDialog,
+            () => {
+              void reloadFranchiseData();
+            }
+          );
         },
       },
     ];
@@ -1037,7 +936,6 @@ const MyFranchise = () => {
     areasSummary,
     servicesSummary,
     categoriesSummary,
-    myFranchiseCounts,
     categorySelectOptions,
     franchiseServiceOptionsForCategoryDialog,
     reloadFranchiseData,
@@ -1060,6 +958,7 @@ const MyFranchise = () => {
             data={cfg.data}
             onSelect={(divId) => {
               handleBoxSelect(divId as BoxId);
+              handleFilterChange({});
             }}
             isSelected={selectedBox === cfg.id}
             onFilterChange={handleFilterChange}

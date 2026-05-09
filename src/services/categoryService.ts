@@ -35,7 +35,6 @@ export const fetchCategory = async (
     sort?: string;
     is_request?: string;
     is_rejected?: string;
-    approval_status?: string;
   },
   sortBy: ServerTableSortBy = []
 ): Promise<{
@@ -54,13 +53,8 @@ export const fetchCategory = async (
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.is_request !== undefined &&
       filters.is_request !== "" && { is_request: filters.is_request }),
-    ...((filters.approval_status ?? "") !== "" && {
-      approval_status: filters.approval_status,
-    }),
     ...(filters.is_rejected !== undefined &&
-      filters.is_rejected !== "" && {
-        approval_status: filters.is_rejected === "true" ? "rejected" : "approve",
-      }),
+      filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
   });
@@ -108,9 +102,18 @@ export const fetchCategoryById = async (
 ): Promise<{ response: boolean; category: CategoryModel | null }> => {
   const response = await apiRequest(ApiPaths.GET_CATEGORY_BY_ID(id), "GET");
   if (response.success) {
+    const payload = (response as any).data ?? {};
+    const record =
+      payload.record ??
+      payload.category ??
+      payload.data?.record ??
+      payload.data?.category ??
+      (payload.data && typeof payload.data === "object" && payload.data._id
+        ? payload.data
+        : null);
     return {
       response: true,
-      category: response.data.record ?? null,
+      category: (record as CategoryModel | null) ?? null,
     };
   }
   return { response: false, category: null };
@@ -130,26 +133,8 @@ export const createOrUpdateCategoryWithRecord = async (
   isEditable: boolean,
   id?: string
 ): Promise<{ response: boolean; record: CategoryModel | null }> => {
-  const normalizedApprovalStatus =
-    payload?.approval_status === "approved"
-      ? "approve"
-      : payload?.approval_status === "approve" ||
-        payload?.approval_status === "pending" ||
-        payload?.approval_status === "rejected"
-      ? payload.approval_status
-      : payload?.is_rejected === true
-      ? "rejected"
-      : payload?.is_rejected === false
-      ? "approve"
-      : undefined;
-  const normalizedPayload = {
-    ...payload,
-    ...(normalizedApprovalStatus ? { approval_status: normalizedApprovalStatus } : {}),
-  };
   const isRequestRow = payload?.is_request === true;
-  const isModerationCall =
-    normalizedApprovalStatus === "approve" ||
-    normalizedApprovalStatus === "rejected";
+  const isModerationCall = payload?.is_rejected === true || payload?.is_rejected === false;
   const path = isEditable
     ? isModerationCall
       ? ApiPaths.UPDATE_CATEGORY(id!)
@@ -161,7 +146,7 @@ export const createOrUpdateCategoryWithRecord = async (
     : ApiPaths.CREATE_CATEGORY;
   const method = isEditable ? "PUT" : "POST";
 
-  const response = await apiRequest(path, method, normalizedPayload);
+  const response = await apiRequest(path, method, payload);
   if (response.success) {
     return {
       response: true,

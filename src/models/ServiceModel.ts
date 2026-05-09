@@ -13,7 +13,6 @@ export interface ServiceModel {
   is_active: boolean;
   is_request?: boolean;
   is_rejected?: boolean | null;
-  approval_status?: "approve" | "approved" | "pending" | "rejected";
   rejection_reason?: string;
   deleted_at: string | null;
   created_at: string | null;

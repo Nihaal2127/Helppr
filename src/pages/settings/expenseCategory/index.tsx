@@ -21,7 +21,6 @@ import {
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
-import { showErrorAlert } from "../../../helper/alertHelper";
 import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
 
 const emptyForm = {
@@ -29,6 +28,12 @@ const emptyForm = {
   categoryName: "",
   subCategoryName: "",
   description: "",
+};
+
+type ExpenseCategoryFormErrors = {
+  franchiseId?: string;
+  categoryName?: string;
+  subCategoryName?: string;
 };
 
 const TABLE_PAGE_SIZE = 10;
@@ -52,6 +57,7 @@ const ExpenseCategoryManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ExpenseCategoryModel | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState<ExpenseCategoryFormErrors>({});
   const [isViewMode, setIsViewMode] = useState(false);
   const [selectedBox, setSelectedBox] = useState("box-expense-category");
   const [isLoading, setIsLoading] = useState(false);
@@ -66,12 +72,14 @@ const ExpenseCategoryManagement = () => {
     setIsViewMode(false);
     setEditing(null);
     setForm(emptyForm);
+    setFormErrors({});
   };
 
   const openAddForm = () => {
     setEditing(null);
     setIsViewMode(false);
     setForm(emptyForm);
+    setFormErrors({});
     setShowForm(true);
   };
 
@@ -80,6 +88,7 @@ const ExpenseCategoryManagement = () => {
       setEditing(null);
       setForm(emptyForm);
       setIsViewMode(false);
+      setFormErrors({});
       setShowForm(true);
       return;
     }
@@ -91,6 +100,7 @@ const ExpenseCategoryManagement = () => {
       subCategoryName: item.subCategoryName,
       description: item.description || "",
     });
+    setFormErrors({});
     setShowForm(true);
   };
 
@@ -409,6 +419,7 @@ const ExpenseCategoryManagement = () => {
                         subCategoryName: editing.subCategoryName,
                         description: editing.description || "",
                       });
+                      setFormErrors({});
                       setIsViewMode(false);
                     }}
                   />
@@ -449,9 +460,15 @@ const ExpenseCategoryManagement = () => {
                     fieldName="expense_category_franchise_id"
                     asCol={false}
                     defaultValue={form.franchiseId}
+                    error={
+                      formErrors.franchiseId
+                        ? ({ message: formErrors.franchiseId } as any)
+                        : undefined
+                    }
                     setValue={setValue}
                     onChange={(e) => {
                       setForm((p: typeof emptyForm) => ({ ...p, franchiseId: e.target.value }));
+                      setFormErrors((prev) => ({ ...prev, franchiseId: undefined }));
                     }}
                     menuPortal
                   />
@@ -464,8 +481,16 @@ const ExpenseCategoryManagement = () => {
                     placeholder="Enter Category Name"
                     register={register}
                     asCol={false}
+                    error={
+                      formErrors.categoryName
+                        ? ({ message: formErrors.categoryName } as any)
+                        : undefined
+                    }
                     value={form.categoryName}
-                    onChange={(value: string) => setForm((p) => ({ ...p, categoryName: value }))}
+                    onChange={(value: string) => {
+                      setForm((p) => ({ ...p, categoryName: value }));
+                      setFormErrors((prev) => ({ ...prev, categoryName: undefined }));
+                    }}
                   />
                 </div>
                 <div className="col-md-12">
@@ -476,8 +501,16 @@ const ExpenseCategoryManagement = () => {
                     placeholder="Enter Sub Category Name"
                     register={register}
                     asCol={false}
+                    error={
+                      formErrors.subCategoryName
+                        ? ({ message: formErrors.subCategoryName } as any)
+                        : undefined
+                    }
                     value={form.subCategoryName}
-                    onChange={(value: string) => setForm((p) => ({ ...p, subCategoryName: value }))}
+                    onChange={(value: string) => {
+                      setForm((p) => ({ ...p, subCategoryName: value }));
+                      setFormErrors((prev) => ({ ...prev, subCategoryName: undefined }));
+                    }}
                   />
                 </div>
                 <div className="col-md-12">
@@ -503,8 +536,14 @@ const ExpenseCategoryManagement = () => {
               <Button
                 className="btn-danger"
                 onClick={async () => {
-                  if (!form.franchiseId.trim() || !form.categoryName.trim() || !form.subCategoryName.trim()) {
-                    showErrorAlert("Franchise, Category Name and Sub Category Name are required.");
+                  const nextErrors: ExpenseCategoryFormErrors = {};
+                  if (!form.franchiseId.trim()) nextErrors.franchiseId = "Franchise is required";
+                  if (!form.categoryName.trim()) nextErrors.categoryName = "Category Name is required";
+                  if (!form.subCategoryName.trim()) {
+                    nextErrors.subCategoryName = "Sub Category Name is required";
+                  }
+                  setFormErrors(nextErrors);
+                  if (Object.keys(nextErrors).length > 0) {
                     return;
                   }
                   const selectedFranchise = franchiseOptions.find((item) => item.value === form.franchiseId);
@@ -523,6 +562,7 @@ const ExpenseCategoryManagement = () => {
                   setEditing(null);
                   setIsViewMode(false);
                   setShowForm(false);
+                  setFormErrors({});
                   refresh();
                 }}
               >

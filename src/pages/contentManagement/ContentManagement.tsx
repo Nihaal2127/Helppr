@@ -141,37 +141,7 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
 
       <div className="card border-0 shadow-sm">
         <div className="card-body">
-          <h6 className="fw-bold text-danger mb-3">Content List</h6>
-
-          <CustomUtilityBox
-            key={`content-utility-${utilitySearchKey}`}
-            title="Content"
-            searchHint="Search title or description"
-            searchOnlyToolbar
-            toolsInlineRow
-            onSearch={(value) => {
-              setKeyword(value);
-              setCurrentPage(1);
-            }}
-            afterSearchSlot={
-              <Button
-                variant="outline-secondary"
-                size="sm"
-                className="custom-btn-secondary partner-payout-clear-btn px-3"
-                type="button"
-                disabled={clearFiltersDisabled}
-                onClick={() => {
-                  setKeyword("");
-                  setSortBy([]);
-                  setCurrentPage(1);
-                  setUtilitySearchKey((k) => k + 1);
-                }}
-              >
-                Clear
-              </Button>
-            }
-          />
-
+        
           <CustomTable
             columns={columns}
             data={data}
@@ -187,10 +157,6 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
               setCurrentPage(1);
             }}
           />
-
-          {totalItems > 0 ? (
-            <div className="small text-muted mt-2">Total: {totalItems}</div>
-          ) : null}
         </div>
       </div>
     </div>

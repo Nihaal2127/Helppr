@@ -50,13 +50,22 @@ function resolveNamedLabels(
   namesKey: string,
   idsKey: string,
   altIdsKey: string | undefined,
-  idToLabel: Map<string, string>
+  idToLabel: Map<string, string>,
+  options?: { strictIdLookup?: boolean }
 ): string[] {
-  const nameList = normalizeLabelList(row[namesKey]);
-  if (nameList.length > 0) return nameList;
+  const strictIdLookup = options?.strictIdLookup === true;
+  if (!strictIdLookup) {
+    const nameList = normalizeLabelList(row[namesKey]);
+    if (nameList.length > 0) return nameList;
+  }
   const rawIds =
     altIdsKey !== undefined ? row[idsKey] ?? row[altIdsKey] : row[idsKey];
   const ids = normalizeLabelList(rawIds);
+  if (strictIdLookup) {
+    return ids
+      .map((id) => String(idToLabel.get(id) ?? "").trim())
+      .filter(Boolean);
+  }
   return ids.map((id) => idToLabel.get(id) ?? id);
 }
 
@@ -66,9 +75,10 @@ function categoriesTableCell(idToLabel: Map<string, string>) {
     const items = resolveNamedLabels(
       row.original ?? {},
       "category_names",
-      "category_ids",
       "categories",
-      idToLabel
+      "categories",
+      idToLabel,
+      { strictIdLookup: true }
     );
     if (items.length === 0) return <>-</>;
     if (items.length === 1) {
@@ -112,9 +122,10 @@ function servicesTableCell(idToLabel: Map<string, string>) {
     const items = resolveNamedLabels(
       row.original ?? {},
       "service_names",
-      "service_ids",
       "services",
-      idToLabel
+      "services",
+      idToLabel,
+      { strictIdLookup: true }
     );
     if (items.length === 0) return <>-</>;
     if (items.length === 1) {
@@ -207,7 +218,6 @@ const FranchiseManagement = () => {
   }>({});
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
-  const inFlightRequestKeysRef = useRef<Set<string>>(new Set());
 
   const isMountedRef = useRef(true);
 
@@ -231,35 +241,66 @@ const FranchiseManagement = () => {
       const catMap = new Map<string, string>();
       const svcMap = new Map<string, string>();
       const limit = 200;
-      let page = 1;
-      for (;;) {
-        const res = await fetchCategory(page, limit, {}, []);
-        if (cancelled) return;
-        if (!res.response) break;
-        for (const c of res.categories) {
-          const id = String((c as { _id?: string })._id ?? "").trim();
-          const name = String((c as { name?: string }).name ?? "").trim();
-          if (id) catMap.set(id, name || id);
+      const loadCategories = async (
+        filters: { is_request?: string; is_rejected?: string }
+      ) => {
+        let page = 1;
+        for (;;) {
+          const res = await fetchCategory(page, limit, filters, []);
+          if (cancelled) return;
+          if (!res.response) break;
+          for (const c of res.categories) {
+            const id = String(
+              (c as { _id?: string; id?: string })._id ??
+                (c as { _id?: string; id?: string }).id ??
+                ""
+            ).trim();
+            const name = String(
+              (c as { name?: string; label?: string }).name ??
+                (c as { name?: string; label?: string }).label ??
+                ""
+            ).trim();
+            if (id) catMap.set(id, name || id);
+          }
+          if (!res.totalPages || page >= res.totalPages) break;
+          page += 1;
+          if (page > 50) break;
         }
-        if (!res.totalPages || page >= res.totalPages) break;
-        page += 1;
-        if (page > 50) break;
-      }
+      };
+      const loadServices = async (
+        filters: { is_request?: string; is_rejected?: string }
+      ) => {
+        let page = 1;
+        for (;;) {
+          const res = await fetchService(page, limit, filters, []);
+          if (cancelled) return;
+          if (!res.response) break;
+          for (const s of res.services) {
+            const id = String(
+              (s as { _id?: string; id?: string })._id ??
+                (s as { _id?: string; id?: string }).id ??
+                ""
+            ).trim();
+            const name = String(
+              (s as { name?: string; label?: string }).name ??
+                (s as { name?: string; label?: string }).label ??
+                ""
+            ).trim();
+            if (id) svcMap.set(id, name || id);
+          }
+          if (!res.totalPages || page >= res.totalPages) break;
+          page += 1;
+          if (page > 50) break;
+        }
+      };
+      // Merge all known backend list modes so franchise-linked IDs resolve.
+      await loadCategories({});
+      await loadCategories({ is_request: "true" });
+      await loadCategories({ is_rejected: "true" });
       if (cancelled) return;
-      page = 1;
-      for (;;) {
-        const res = await fetchService(page, limit, {}, []);
-        if (cancelled) return;
-        if (!res.response) break;
-        for (const s of res.services) {
-          const id = String((s as { _id?: string })._id ?? "").trim();
-          const name = String((s as { name?: string }).name ?? "").trim();
-          if (id) svcMap.set(id, name || id);
-        }
-        if (!res.totalPages || page >= res.totalPages) break;
-        page += 1;
-        if (page > 50) break;
-      }
+      await loadServices({});
+      await loadServices({ is_request: "true" });
+      await loadServices({ is_rejected: "true" });
       if (!cancelled && isMountedRef.current) {
         setCategoryById(catMap);
         setServiceById(svcMap);
@@ -271,135 +312,90 @@ const FranchiseManagement = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
-    const requestKey = JSON.stringify({
-      currentPage,
-      pageSize,
-      filters,
-      sortBy,
-      headerFranchiseId,
-    });
-    if (inFlightRequestKeysRef.current.has(requestKey)) return;
-    inFlightRequestKeysRef.current.add(requestKey);
-
     const gen = ++franchiseManagementFetchGeneration;
     const fid = String(headerFranchiseId ?? "").trim();
     const apiFilters = {
       ...filters,
       ...(fid && fid !== "all" ? { franchise_id: fid } : {}),
     };
-    try {
-      if (fid && fid !== "all") {
-        let row = await fetchFranchiseById(fid);
-        if (!row) {
-          const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
-          const list = wide.franchises as any[];
-          row =
-            list.find((r) => String(r?._id ?? "") === fid) ??
-            (list.length === 1 ? list[0] : null);
-        }
-        if (!isMountedRef.current) return;
-        if (gen !== franchiseManagementFetchGeneration) return;
-
-        let rows: any[] = row ? [row] : [];
-        const kw = String(filters.search ?? "")
-          .trim()
-          .toLowerCase();
-        if (rows.length && kw) {
-          const blob = [
-            rows[0]?.name,
-            rows[0]?.admin_name,
-            rows[0]?.state_name,
-            rows[0]?.city_name,
-            rows[0]?.email,
-            rows[0]?.phone_number,
-          ]
-            .map((x) => String(x ?? "").toLowerCase())
-            .join(" ");
-          if (!blob.includes(kw)) rows = [];
-        }
-        if (rows.length && filters.status && filters.status !== "All") {
-          const want = filters.status.toLowerCase() === "true";
-          if (Boolean(rows[0].is_active) !== want) rows = [];
-        }
-
-        setFranchiseList(rows);
-        setTotalPages(rows.length ? 1 : 0);
-      } else {
-        const listRes = await fetchFranchise(currentPage, pageSize, apiFilters, sortBy);
-
-        if (!isMountedRef.current) return;
-        if (gen !== franchiseManagementFetchGeneration) return;
-
-        const { response, franchises, totalPages } = listRes;
-        if (response) {
-          setFranchiseList(franchises as any[]);
-          setTotalPages(totalPages);
-        } else {
-          setFranchiseList([]);
-          setTotalPages(0);
-        }
-      }
-    } finally {
-      inFlightRequestKeysRef.current.delete(requestKey);
-    }
-  }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
-
-  const refreshSummaryCounts = useCallback(async () => {
-    const fid = String(headerFranchiseId ?? "").trim();
     if (fid && fid !== "all") {
-      const row = await fetchFranchiseById(fid);
+      let row = await fetchFranchiseById(fid);
+      if (!row) {
+        const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
+        const list = wide.franchises as any[];
+        row =
+          list.find((r) => String(r?._id ?? "") === fid) ??
+          (list.length === 1 ? list[0] : null);
+      }
       if (!isMountedRef.current) return;
-      const total = row ? 1 : 0;
-      const active = row?.is_active ? 1 : 0;
+      if (gen !== franchiseManagementFetchGeneration) return;
+
+      let rows: any[] = row ? [row] : [];
+      const kw = String(filters.search ?? "")
+        .trim()
+        .toLowerCase();
+      if (rows.length && kw) {
+        const blob = [
+          rows[0]?.name,
+          rows[0]?.admin_name,
+          rows[0]?.state_name,
+          rows[0]?.city_name,
+          rows[0]?.email,
+          rows[0]?.phone_number,
+        ]
+          .map((x) => String(x ?? "").toLowerCase())
+          .join(" ");
+        if (!blob.includes(kw)) rows = [];
+      }
+      if (rows.length && filters.status && filters.status !== "All") {
+        const want = filters.status.toLowerCase() === "true";
+        if (Boolean(rows[0].is_active) !== want) rows = [];
+      }
+
+      setFranchiseList(rows);
+      setTotalPages(rows.length ? 1 : 0);
+      const total = rows.length;
+      const active = rows.filter((r) => r.is_active).length;
       setFranchiseData({
         Total: total,
         Active: active,
         Inactive: total - active,
       });
-      return;
+    } else {
+      const [listRes, totalRes, activeRes, inactiveRes] = await Promise.all([
+        fetchFranchise(currentPage, pageSize, apiFilters, sortBy),
+        fetchFranchise(1, 1, { ...apiFilters, status: undefined }, []),
+        fetchFranchise(1, 1, { ...apiFilters, status: "true" }, []),
+        fetchFranchise(1, 1, { ...apiFilters, status: "false" }, []),
+      ]);
+
+      if (!isMountedRef.current) return;
+      if (gen !== franchiseManagementFetchGeneration) return;
+
+      const { response, franchises, totalPages } = listRes;
+      if (response) {
+        setFranchiseList(franchises as any[]);
+        setTotalPages(totalPages);
+      } else {
+        setFranchiseList([]);
+        setTotalPages(0);
+      }
+
+      setFranchiseData({
+        Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
+        Active: Number(
+          activeRes.totalItems ?? activeRes.franchises.length ?? 0
+        ),
+        Inactive: Number(
+          inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
+        ),
+      });
     }
-
-    const [totalRes, activeRes, inactiveRes] = await Promise.all([
-      fetchFranchise(
-        1,
-        1,
-        { status: undefined },
-        [],
-        { includeAdminContacts: false }
-      ),
-      fetchFranchise(
-        1,
-        1,
-        { status: "true" },
-        [],
-        { includeAdminContacts: false }
-      ),
-      fetchFranchise(
-        1,
-        1,
-        { status: "false" },
-        [],
-        { includeAdminContacts: false }
-      ),
-    ]);
-
-    if (!isMountedRef.current) return;
-    setFranchiseData({
-      Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
-      Active: Number(activeRes.totalItems ?? activeRes.franchises.length ?? 0),
-      Inactive: Number(
-        inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
-      ),
-    });
-  }, [headerFranchiseId]);
+  }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
-
-  useEffect(() => {
-    void refreshSummaryCounts();
-  }, [refreshSummaryCounts]);
 
   const refreshData = useCallback(() => {
     void fetchData();

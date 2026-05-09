@@ -1,26 +1,28 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextField from "../../components/CustomTextField";
-import {
-  indianPincodeRequiredRules,
-  sanitizeIndianPincodeInput,
-} from "../../helper/pincodeValidation";
+import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
+import { sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
 
 export type UserViewAddressFormValues = {
   stateId: string;
   cityId: string;
+  areaId: string;
   postal: string;
   line: string;
+  addressStatus: "true" | "false";
 };
 
 type FormShape = {
   va_state: string;
   va_city: string;
+  va_area: string;
   va_pin: string;
   va_line: string;
+  va_address_status: "true" | "false";
 };
 
 type UserViewAddressModalProps = {
@@ -28,10 +30,11 @@ type UserViewAddressModalProps = {
   title: string;
   states: { value: string; label: string }[];
   cities: { value: string; label: string }[];
+  areas: { value: string; label: string; pincodes?: string[]; pincode?: string }[];
   onFetchCities: (stateId: string) => void | Promise<void>;
+  onFetchAreas: (cityId: string, stateId?: string) => void | Promise<void>;
   initial: UserViewAddressFormValues | null;
   onHide: () => void;
-  /** Return true when save succeeded so the modal can close. */
   onSave: (values: UserViewAddressFormValues) => Promise<boolean>;
 };
 
@@ -40,7 +43,9 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
   title,
   states,
   cities,
+  areas,
   onFetchCities,
+  onFetchAreas,
   initial,
   onHide,
   onSave,
@@ -53,44 +58,79 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
     watch,
     formState: { errors },
   } = useForm<FormShape>({
-    defaultValues: { va_state: "", va_city: "", va_pin: "", va_line: "" },
+    defaultValues: {
+      va_state: "",
+      va_city: "",
+      va_area: "",
+      va_pin: "",
+      va_line: "",
+      va_address_status: "true",
+    },
   });
 
-  const pinWatch = watch("va_pin");
+  const selectedAreaId = watch("va_area");
+  const pincodeOptions = useMemo(() => {
+    const selected = areas.find((a) => a.value === selectedAreaId);
+    if (!selected) return [];
+    const fromList = Array.isArray(selected.pincodes)
+      ? selected.pincodes
+      : [];
+    const merged = Array.from(
+      new Set(
+        [...fromList, selected.pincode ?? ""]
+          .map((x) => sanitizeIndianPincodeInput(String(x ?? "").trim()))
+          .filter(Boolean)
+      )
+    );
+    return merged.map((pin) => ({ value: pin, label: pin }));
+  }, [areas, selectedAreaId]);
 
   useEffect(() => {
     if (!show) return;
     reset({
       va_state: initial?.stateId ?? "",
       va_city: initial?.cityId ?? "",
+      va_area: initial?.areaId ?? "",
       va_pin: initial?.postal ?? "",
       va_line: initial?.line ?? "",
+      va_address_status: initial?.addressStatus ?? "true",
     });
     if (initial?.stateId) void onFetchCities(initial.stateId);
+    if (initial?.cityId) void onFetchAreas(initial.cityId, initial?.stateId);
     // Primitives only: parent used to pass an inline `onFetchCities` that changed every render and
     // retriggered this effect → setViewCities loop while the modal was open.
   }, [
     show,
     initial?.stateId,
     initial?.cityId,
+    initial?.areaId,
     initial?.postal,
     initial?.line,
     reset,
     onFetchCities,
+    onFetchAreas,
   ]);
 
   const submit = handleSubmit(async (data) => {
     const ok = await onSave({
       stateId: data.va_state,
       cityId: data.va_city,
+      areaId: data.va_area,
       postal: sanitizeIndianPincodeInput(data.va_pin ?? ""),
       line: (data.va_line ?? "").trim(),
+      addressStatus: data.va_address_status ?? "true",
     });
     if (ok) onHide();
   });
 
   return (
-    <Modal show={show} onHide={onHide} centered enforceFocus={false}>
+    <Modal
+      show={show}
+      onHide={onHide}
+      centered
+      enforceFocus={false}
+      dialogClassName="modal-vh-90"
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
           {title}
@@ -116,6 +156,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                   const v = e.target.value;
                   void onFetchCities(v);
                   setValue("va_city", "");
+                  setValue("va_area", "");
                 }}
               />
             </Col>
@@ -131,25 +172,48 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 defaultValue={initial?.cityId ?? ""}
                 setValue={setValue as (name: string, value: unknown) => void}
                 menuPortal
+                onChange={(e) => {
+                  const cityValue = e.target.value;
+                  const stateValue = watch("va_state");
+                  setValue("va_area", "");
+                  setValue("va_pin", "");
+                  void onFetchAreas(cityValue, stateValue);
+                }}
               />
             </Col>
             <Col xs={12}>
-              <CustomTextField
+              <CustomTextFieldSelect
+                label="Area"
+                controlId="va_area"
+                options={areas}
+                register={register}
+                fieldName="va_area"
+                error={errors.va_area}
+                requiredMessage="Please select area"
+                defaultValue={initial?.areaId ?? ""}
+                setValue={setValue as (name: string, value: unknown) => void}
+                menuPortal
+                onChange={(e) => {
+                  const selected = areas.find((a) => a.value === e.target.value);
+                  const firstPin = Array.isArray(selected?.pincodes)
+                    ? selected?.pincodes?.[0]
+                    : selected?.pincode;
+                  setValue("va_pin", sanitizeIndianPincodeInput(firstPin ?? ""));
+                }}
+              />
+            </Col>
+            <Col xs={12}>
+              <CustomTextFieldSelect
                 label="Pin code"
                 controlId="va_pin"
-                placeholder="6-digit PIN"
+                options={pincodeOptions}
                 register={register}
-                error={errors.va_pin}
-                validation={indianPincodeRequiredRules()}
-                isIndianPincodeField
-                maxLength={6}
-                value={pinWatch ?? ""}
-                onChange={(raw) =>
-                  setValue("va_pin", sanitizeIndianPincodeInput(raw), {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
+                fieldName="va_pin"
+                error={errors.va_pin as any}
+                requiredMessage="Please select pincode"
+                defaultValue={initial?.postal ?? ""}
+                setValue={setValue as (name: string, value: unknown) => void}
+                menuPortal
               />
             </Col>
             <Col xs={12}>
@@ -162,6 +226,19 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 validation={{ required: "Address is required" }}
                 as="textarea"
                 rows={3}
+              />
+            </Col>
+            <Col xs={12}>
+              <CustomTextFieldRadio
+                label="Status"
+                name="va_address_status"
+                options={[
+                  { value: "true", label: "Active" },
+                  { value: "false", label: "Inactive" },
+                ]}
+                defaultValue={watch("va_address_status") ?? "true"}
+                isEditable={true}
+                setValue={setValue}
               />
             </Col>
           </Row>

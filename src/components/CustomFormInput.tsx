@@ -22,6 +22,8 @@ interface CustomFormInputProps {
   inputStyle?: React.CSSProperties;
   /** Extra classes on Form.Control (e.g. focus/border overrides that need CSS). */
   inputClassName?: string;
+  /** Browser autofill hint. */
+  autoComplete?: string;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -41,6 +43,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   rows,
   inputStyle,
   inputClassName,
+  autoComplete,
 }) => {
   const isControlled = value !== undefined;
   const [inputValue, setInputValue] = useState<string>(String(value ?? ""));
@@ -79,6 +82,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
             onChangeRef.current?.(next);
           }}
           readOnly={!isEditable}
+          autoComplete={autoComplete}
           maxLength={maxLength}
           style={{
             boxShadow: "none",
@@ -153,6 +157,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           onChangeRef.current?.(next);
         }}
         readOnly={!isEditable}
+        autoComplete={autoComplete}
         maxLength={maxLength}
         as={as}
         rows={as === "textarea" ? rows : undefined}

@@ -27,34 +27,6 @@ export const getStatusOptions = () => [
   { label: "Inactive", value: "false" },
 ];
 
-/** Keeps only digits and clamps percentage input to 0..100. */
-export const sanitizePercentInput = (raw: string): string => {
-  const digits = String(raw ?? "").replace(/\D/g, "").slice(0, 3);
-  if (!digits) return "";
-  const n = Number(digits);
-  if (Number.isNaN(n)) return "";
-  return String(Math.min(100, Math.max(0, n)));
-};
-
-/** react-hook-form validator for required/optional percentage fields. */
-export const validatePercentRange = (
-  value: string,
-  opts?: { required?: boolean; label?: string }
-): true | string => {
-  const required = opts?.required ?? false;
-  const label = opts?.label ?? "Value";
-  const text = String(value ?? "").trim();
-
-  if (!text) return required ? `${label} is required` : true;
-  if (!/^\d+$/.test(text)) return "Enter a valid number";
-
-  const n = Number(text);
-  if (Number.isNaN(n) || n < 0 || n > 100) {
-    return `${label} must be between 0 and 100`;
-  }
-  return true;
-};
-
 const SUPPORTED_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"];
 const SUPPORTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
 const SUPPORTED_IMAGE_MAX_SIZE_BYTES = 512 * 1024;
@@ -185,63 +157,18 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
   );
 };
 
-/** Label above value, both flush-left — avoids indented “value column” for long text. */
-export function StackedLabelValueBlock({
-  label,
-  children,
-  whiteSpace = "normal",
-}: {
-  label: string;
-  children: ReactNode;
-  whiteSpace?: "pre-line" | "normal";
-}) {
-  const content =
-    children === null || children === undefined || children === ""
-      ? "-"
-      : children;
-  return (
-    <div className="w-100">
-      <div className="custom-personal-row-title mb-1">{label}</div>
-      <div
-        className="text-wrap"
-        style={{
-          fontSize: 16,
-          fontWeight: "normal",
-          fontFamily: "Inter, sans-serif",
-          color: "var(--txt-color)",
-          whiteSpace,
-          wordBreak: "break-word",
-        }}
-      >
-        {content}
-      </div>
-    </div>
-  );
-}
-
 /** Full-width label + value without `custom-personal-row` (long schedule / address text). */
 export function WideLabelValueBlock({
   label,
   children,
   whiteSpace = "normal",
   gap = "3rem",
-  variant = "inline",
 }: {
   label: string;
   children: ReactNode;
   whiteSpace?: "pre-line" | "normal";
   gap?: string;
-  /** `stacked`: label and body flush-left (used for category/service descriptions). */
-  variant?: "inline" | "stacked";
 }) {
-  if (variant === "stacked") {
-    return (
-      <StackedLabelValueBlock label={label} whiteSpace={whiteSpace}>
-        {children}
-      </StackedLabelValueBlock>
-    );
-  }
-
   const content =
     children === null || children === undefined || children === ""
       ? "-"

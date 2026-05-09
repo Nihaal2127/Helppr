@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Form, Col } from "react-bootstrap";
 import Select, { MultiValue, ActionMeta } from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
@@ -39,6 +39,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   selectedChipsMaxHeight,
   stickyBottomOptionValue,
 }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const customStyles = useMemo(
     () => ({
       control: (provided: any) => ({
@@ -134,7 +135,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
 
   const handleChange = (
     newValue: MultiValue<{ value: string; label: string }>,
-    _actionMeta: ActionMeta<{ value: string; label: string }>
+    actionMeta: ActionMeta<{ value: string; label: string }>
   ) => {
     const selectedOptions = [...newValue] as { value: string; label: string }[];
 
@@ -142,6 +143,19 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       setValue(fieldName, selectedOptions);
     }
     onChange(selectedOptions);
+
+    // Auto-close on "Select All" or when all concrete options are selected.
+    const selectedValues = new Set(selectedOptions.map((o) => String(o.value)));
+    const nonSelectAllOptions = options.filter(
+      (o) => String(o.value) !== "select-all"
+    );
+    const hasSelectAll = selectedValues.has("select-all");
+    const allConcreteSelected =
+      nonSelectAllOptions.length > 0 &&
+      nonSelectAllOptions.every((o) => selectedValues.has(String(o.value)));
+    if (actionMeta.action === "select-option" && (hasSelectAll || allConcreteSelected)) {
+      setIsMenuOpen(false);
+    }
   };
 
   return (
@@ -173,6 +187,9 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
         menuPosition={menuPortal ? "fixed" : undefined}
         maxMenuHeight={280}
         menuShouldScrollIntoView={false}
+        menuIsOpen={isMenuOpen}
+        onMenuOpen={() => setIsMenuOpen(true)}
+        onMenuClose={() => setIsMenuOpen(false)}
         closeMenuOnSelect={false}
         blurInputOnSelect={false}
         placeholder={`Select ${controlId}`}

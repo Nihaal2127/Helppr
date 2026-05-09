@@ -4,6 +4,11 @@ import { UserModel } from "../models/UserModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import {
+  getLocalStorage,
+  setLocalStorage,
+} from "../helper/localStorageHelper";
+import { AppConstant } from "../constant/AppConstant";
+import {
   shouldUseRealVerificationApi,
   getMockVerificationListPage,
 } from "../mockData/verificationTableMock";
@@ -251,6 +256,56 @@ export function menuKeysFromUserAccess(
   return Array.from(merged);
 }
 
+/**
+ * Refresh current session's accessible menu keys from `/user/get/:id`
+ * without forcing logout/login.
+ * Returns `true` when stored keys were updated.
+ */
+export async function refreshSessionAccessibleMenuKeys(): Promise<boolean> {
+  const authToken = String(getLocalStorage(AppConstant.authToken) ?? "").trim();
+  const currentUserId = String(getLocalStorage(AppConstant.adminId) ?? "").trim();
+  if (!authToken || !currentUserId) return false;
+
+  const response = await apiRequest(
+    `${ApiPaths.GET_USER_BY_ID()}/${currentUserId}`,
+    "GET",
+    undefined,
+    false,
+    true,
+    true
+  );
+  if (!response.success) return false;
+
+  const payload = (response as any).data ?? {};
+  const record =
+    payload.record ?? payload.data?.record ?? payload.user ?? payload.data ?? null;
+  if (!record || typeof record !== "object") return false;
+
+  const nextKeys = menuKeysFromUserAccess(record as UserAccessLike);
+  const prevRaw = getLocalStorage(AppConstant.userAccessibleMenuKeys);
+  let prevKeys: string[] = [];
+  try {
+    const parsed = prevRaw ? JSON.parse(prevRaw) : [];
+    prevKeys = Array.isArray(parsed) ? parsed.map((x) => String(x ?? "")) : [];
+  } catch {
+    prevKeys = [];
+  }
+
+  const prevNorm = Array.from(new Set(prevKeys.filter(Boolean))).sort();
+  const nextNorm = Array.from(new Set(nextKeys.filter(Boolean))).sort();
+  const changed =
+    prevNorm.length !== nextNorm.length ||
+    prevNorm.some((v, i) => v !== nextNorm[i]);
+
+  if (changed) {
+    setLocalStorage(
+      AppConstant.userAccessibleMenuKeys,
+      JSON.stringify(nextNorm)
+    );
+  }
+  return changed;
+}
+
 /** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
 export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
 
@@ -301,6 +356,7 @@ export const fetchPartnerDropDown = async (
 export type UserListFilters = {
   keyword?: string;
   status?: string;
+  is_blocked?: "true" | "false";
   sort?: string;
   franchise_id?: string;
   /** e.g. pending | cleared — sent when backend supports partner wallet filtering */
@@ -330,6 +386,14 @@ export const fetchUser = async (
     return primarySort.id;
   })();
 
+  const statusRaw = String(filters.status ?? "").trim().toLowerCase();
+  const blockedFilter =
+    statusRaw === "blocked"
+      ? "true"
+      : filters.is_blocked !== undefined
+      ? filters.is_blocked
+      : undefined;
+
   const params = new URLSearchParams({
     type: String(type),
     page: String(page),
@@ -340,7 +404,9 @@ export const fetchUser = async (
     ...(filters.keyword && { user_name: filters.keyword }),
     ...(filters.keyword && { partner_name: filters.keyword }),
     ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+      filters.status !== "All" &&
+      statusRaw !== "blocked" && { is_active: filters.status.toLowerCase() }),
+    ...(blockedFilter && { is_blocked: blockedFilter }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
     ...(filters.wallet_status &&
