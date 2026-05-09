@@ -37,6 +37,7 @@ export const fetchService = async (
     sort?: string;
     is_request?: string;
     is_rejected?: string;
+    approval_status?: string;
   },
   sortBy: ServerTableSortBy = []
 ): Promise<{
@@ -49,14 +50,19 @@ export const fetchService = async (
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    ...(filters.keyword && { keyword: filters.keyword }),
+    ...(filters.keyword && { search: filters.keyword }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.is_request !== undefined &&
       filters.is_request !== "" && { is_request: filters.is_request }),
+    ...((filters.approval_status ?? "") !== "" && {
+      approval_status: filters.approval_status,
+    }),
     ...(filters.is_rejected !== undefined &&
-      filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
+      filters.is_rejected !== "" && {
+        approval_status: filters.is_rejected === "true" ? "rejected" : "approve",
+      }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
   });
@@ -117,8 +123,26 @@ export const createOrUpdateService = async (
   isEditable: boolean,
   id?: string
 ): Promise<boolean> => {
+  const normalizedApprovalStatus =
+    payload?.approval_status === "approved"
+      ? "approve"
+      : payload?.approval_status === "approve" ||
+        payload?.approval_status === "pending" ||
+        payload?.approval_status === "rejected"
+      ? payload.approval_status
+      : payload?.is_rejected === true
+      ? "rejected"
+      : payload?.is_rejected === false
+      ? "approve"
+      : undefined;
+  const normalizedPayload = {
+    ...payload,
+    ...(normalizedApprovalStatus ? { approval_status: normalizedApprovalStatus } : {}),
+  };
   const isRequestRow = payload?.is_request === true;
-  const isModerationCall = payload?.is_rejected === true || payload?.is_rejected === false;
+  const isModerationCall =
+    normalizedApprovalStatus === "approve" ||
+    normalizedApprovalStatus === "rejected";
   const path = isEditable
     ? isModerationCall
       ? ApiPaths.UPDATE_SERVICE(id!)
@@ -130,7 +154,7 @@ export const createOrUpdateService = async (
     : ApiPaths.CREATE_SERVICE;
   const method = isEditable ? "PUT" : "POST";
 
-  const response = await apiRequest(path, method, payload);
+  const response = await apiRequest(path, method, normalizedPayload);
   if (response.success) {
     return true;
   }

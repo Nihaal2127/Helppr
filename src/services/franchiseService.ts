@@ -226,7 +226,8 @@ export const fetchFranchise = async (
     /** When set, list is scoped to this franchise (header dropdown). */
     franchise_id?: string;
   },
-  sortBy: ServerTableSortBy = []
+  sortBy: ServerTableSortBy = [],
+  options?: { includeAdminContacts?: boolean }
 ): Promise<{
   response: boolean;
   franchises: FranchiseModel[];
@@ -306,7 +307,9 @@ export const fetchFranchise = async (
 
     const totalPages = Math.ceil(data.length / pageSize) || 0;
     const start = (page - 1) * pageSize;
-    const adminContacts = await fetchAllFranchiseAdmins();
+    const adminContacts = options?.includeAdminContacts === false
+      ? new Map<string, AdminContact>()
+      : await fetchAllFranchiseAdmins();
     const records = data
       .slice(start, start + pageSize)
       .map((r) => mapFranchiseRow(r, adminContacts));
@@ -378,7 +381,9 @@ export const fetchFranchise = async (
       totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
-    const adminContacts = await fetchAllFranchiseAdmins();
+    const adminContacts = options?.includeAdminContacts === false
+      ? new Map<string, AdminContact>()
+      : await fetchAllFranchiseAdmins();
     const fidFilter = String(filters.franchise_id ?? "").trim();
     let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
     if (fidFilter) {

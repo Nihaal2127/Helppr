@@ -207,6 +207,7 @@ const FranchiseManagement = () => {
   }>({});
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const inFlightRequestKeysRef = useRef<Set<string>>(new Set());
 
   const isMountedRef = useRef(true);
 
@@ -270,90 +271,135 @@ const FranchiseManagement = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
+    const requestKey = JSON.stringify({
+      currentPage,
+      pageSize,
+      filters,
+      sortBy,
+      headerFranchiseId,
+    });
+    if (inFlightRequestKeysRef.current.has(requestKey)) return;
+    inFlightRequestKeysRef.current.add(requestKey);
+
     const gen = ++franchiseManagementFetchGeneration;
     const fid = String(headerFranchiseId ?? "").trim();
     const apiFilters = {
       ...filters,
       ...(fid && fid !== "all" ? { franchise_id: fid } : {}),
     };
+    try {
+      if (fid && fid !== "all") {
+        let row = await fetchFranchiseById(fid);
+        if (!row) {
+          const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
+          const list = wide.franchises as any[];
+          row =
+            list.find((r) => String(r?._id ?? "") === fid) ??
+            (list.length === 1 ? list[0] : null);
+        }
+        if (!isMountedRef.current) return;
+        if (gen !== franchiseManagementFetchGeneration) return;
+
+        let rows: any[] = row ? [row] : [];
+        const kw = String(filters.search ?? "")
+          .trim()
+          .toLowerCase();
+        if (rows.length && kw) {
+          const blob = [
+            rows[0]?.name,
+            rows[0]?.admin_name,
+            rows[0]?.state_name,
+            rows[0]?.city_name,
+            rows[0]?.email,
+            rows[0]?.phone_number,
+          ]
+            .map((x) => String(x ?? "").toLowerCase())
+            .join(" ");
+          if (!blob.includes(kw)) rows = [];
+        }
+        if (rows.length && filters.status && filters.status !== "All") {
+          const want = filters.status.toLowerCase() === "true";
+          if (Boolean(rows[0].is_active) !== want) rows = [];
+        }
+
+        setFranchiseList(rows);
+        setTotalPages(rows.length ? 1 : 0);
+      } else {
+        const listRes = await fetchFranchise(currentPage, pageSize, apiFilters, sortBy);
+
+        if (!isMountedRef.current) return;
+        if (gen !== franchiseManagementFetchGeneration) return;
+
+        const { response, franchises, totalPages } = listRes;
+        if (response) {
+          setFranchiseList(franchises as any[]);
+          setTotalPages(totalPages);
+        } else {
+          setFranchiseList([]);
+          setTotalPages(0);
+        }
+      }
+    } finally {
+      inFlightRequestKeysRef.current.delete(requestKey);
+    }
+  }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
+
+  const refreshSummaryCounts = useCallback(async () => {
+    const fid = String(headerFranchiseId ?? "").trim();
     if (fid && fid !== "all") {
-      let row = await fetchFranchiseById(fid);
-      if (!row) {
-        const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
-        const list = wide.franchises as any[];
-        row =
-          list.find((r) => String(r?._id ?? "") === fid) ??
-          (list.length === 1 ? list[0] : null);
-      }
+      const row = await fetchFranchiseById(fid);
       if (!isMountedRef.current) return;
-      if (gen !== franchiseManagementFetchGeneration) return;
-
-      let rows: any[] = row ? [row] : [];
-      const kw = String(filters.search ?? "")
-        .trim()
-        .toLowerCase();
-      if (rows.length && kw) {
-        const blob = [
-          rows[0]?.name,
-          rows[0]?.admin_name,
-          rows[0]?.state_name,
-          rows[0]?.city_name,
-          rows[0]?.email,
-          rows[0]?.phone_number,
-        ]
-          .map((x) => String(x ?? "").toLowerCase())
-          .join(" ");
-        if (!blob.includes(kw)) rows = [];
-      }
-      if (rows.length && filters.status && filters.status !== "All") {
-        const want = filters.status.toLowerCase() === "true";
-        if (Boolean(rows[0].is_active) !== want) rows = [];
-      }
-
-      setFranchiseList(rows);
-      setTotalPages(rows.length ? 1 : 0);
-      const total = rows.length;
-      const active = rows.filter((r) => r.is_active).length;
+      const total = row ? 1 : 0;
+      const active = row?.is_active ? 1 : 0;
       setFranchiseData({
         Total: total,
         Active: active,
         Inactive: total - active,
       });
-    } else {
-      const [listRes, totalRes, activeRes, inactiveRes] = await Promise.all([
-        fetchFranchise(currentPage, pageSize, apiFilters, sortBy),
-        fetchFranchise(1, 1, { ...apiFilters, status: undefined }, []),
-        fetchFranchise(1, 1, { ...apiFilters, status: "true" }, []),
-        fetchFranchise(1, 1, { ...apiFilters, status: "false" }, []),
-      ]);
-
-      if (!isMountedRef.current) return;
-      if (gen !== franchiseManagementFetchGeneration) return;
-
-      const { response, franchises, totalPages } = listRes;
-      if (response) {
-        setFranchiseList(franchises as any[]);
-        setTotalPages(totalPages);
-      } else {
-        setFranchiseList([]);
-        setTotalPages(0);
-      }
-
-      setFranchiseData({
-        Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
-        Active: Number(
-          activeRes.totalItems ?? activeRes.franchises.length ?? 0
-        ),
-        Inactive: Number(
-          inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
-        ),
-      });
+      return;
     }
-  }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
+
+    const [totalRes, activeRes, inactiveRes] = await Promise.all([
+      fetchFranchise(
+        1,
+        1,
+        { status: undefined },
+        [],
+        { includeAdminContacts: false }
+      ),
+      fetchFranchise(
+        1,
+        1,
+        { status: "true" },
+        [],
+        { includeAdminContacts: false }
+      ),
+      fetchFranchise(
+        1,
+        1,
+        { status: "false" },
+        [],
+        { includeAdminContacts: false }
+      ),
+    ]);
+
+    if (!isMountedRef.current) return;
+    setFranchiseData({
+      Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
+      Active: Number(activeRes.totalItems ?? activeRes.franchises.length ?? 0),
+      Inactive: Number(
+        inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
+      ),
+    });
+  }, [headerFranchiseId]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    void refreshSummaryCounts();
+  }, [refreshSummaryCounts]);
 
   const refreshData = useCallback(() => {
     void fetchData();

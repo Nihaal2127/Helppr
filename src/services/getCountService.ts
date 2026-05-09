@@ -4,7 +4,7 @@ import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
 
 export const getCount = async (
-  type: number
+  type: number | string
 ): Promise<{
   countModel: CountModel | null | null;
   responseCount: boolean;

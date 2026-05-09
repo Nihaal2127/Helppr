@@ -71,7 +71,8 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(divId);
+              // Avoid double-refresh: when already selected, don't re-trigger selection logic.
+              if (!isSelected) onSelect(divId);
 
               if (key === "requested_category" || key === "requested_service") {
                 onItemClick && onItemClick(key);
@@ -85,11 +86,6 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
                 status = "true";
               } else if (key === "Inactive") {
                 status = "false";
-              }
-
-              if (status === undefined && onItemClick) {
-                onItemClick(key);
-                return;
               }
 
               onFilterChange({ status });

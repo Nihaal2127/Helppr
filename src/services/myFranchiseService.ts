@@ -1,22 +1,28 @@
-import { fetchArea } from "./areaService";
-import { fetchCategory } from "./categoryService";
-import { fetchService } from "./servicesService";
-import { fetchFranchiseById } from "./franchiseService";
-import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
-import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
 import { showErrorAlert } from "../helper/alertHelper";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
-import {
-  createWebManagementUser,
-  fetchUser,
-  fetchUserById,
-  menuKeysFromUserAccess,
-  mapMenuKeysToAvailablePages,
-  WEB_MANAGEMENT_USER_TYPE,
-} from "./userService";
 import type { AvailablePageEntry } from "./userService";
+
+const WEB_MANAGEMENT_USER_TYPE = {
+  FRANCHISE_ADMIN: 1,
+  FRANCHISE_EMPLOYEE: 3,
+  SUPER_ADMIN: 5,
+  STAFF: 6,
+} as const;
+
+const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = new Set<string>([
+  "content-management",
+  "location-management",
+  "franchise-management",
+  "service-management",
+  "settings",
+]);
+
+async function callApiRequest(...args: any[]) {
+  const { apiRequest } = await import("../remote/apiHelper");
+  return (apiRequest as any)(...args);
+}
 
 // Keep shapes local to this service so UI doesn't import mock datasets.
 export type EmployeeRow = {
@@ -55,6 +61,8 @@ export type ServiceRow = {
   name: string;
   category_name: string;
   is_active: boolean;
+  /** True when this service is mapped to current franchise. */
+  is_my_franchise?: boolean;
 };
 
 export type CategoryRow = {
@@ -62,6 +70,8 @@ export type CategoryRow = {
   category_id: string;
   name: string;
   is_active: boolean;
+  /** True when this category is mapped to current franchise. */
+  is_my_franchise?: boolean;
 };
 
 export type RequestedServiceRow = {
@@ -84,6 +94,29 @@ export type RequestedCategoryRow = {
   status: "pending";
 };
 
+function mapApiServiceRow(raw: any): ServiceRow {
+  const id = String(raw?._id ?? raw?.id ?? "").trim();
+  return {
+    _id: id,
+    service_id: String(raw?.service_id ?? id).trim() || id,
+    name: String(raw?.name ?? "").trim() || "-",
+    category_name: String(raw?.category_name ?? "").trim() || "-",
+    is_active: normalizeBooleanLike(raw?.is_active),
+    is_my_franchise: false,
+  };
+}
+
+function mapApiCategoryRow(raw: any): CategoryRow {
+  const id = String(raw?._id ?? raw?.id ?? "").trim();
+  return {
+    _id: id,
+    category_id: String(raw?.category_id ?? id).trim() || id,
+    name: String(raw?.name ?? "").trim() || "-",
+    is_active: normalizeBooleanLike(raw?.is_active),
+    is_my_franchise: false,
+  };
+}
+
 type MyFranchiseBoxData = {
   employees: EmployeeRow[];
   areas: AreaRow[];
@@ -98,25 +131,6 @@ function normalizeBooleanLike(value: unknown): boolean {
   if (value === 1 || value === "1") return true;
   if (value === 0 || value === "0") return false;
   return String(value ?? "").toLowerCase() === "true";
-}
-
-function mapApiServiceRow(raw: any): ServiceRow {
-  return {
-    _id: String(raw?._id ?? ""),
-    service_id: String(raw?.service_id ?? raw?._id ?? ""),
-    name: String(raw?.name ?? "").trim() || "-",
-    category_name: String(raw?.category_name ?? "").trim() || "-",
-    is_active: normalizeBooleanLike(raw?.is_active),
-  };
-}
-
-function mapApiCategoryRow(raw: any): CategoryRow {
-  return {
-    _id: String(raw?._id ?? ""),
-    category_id: String(raw?.category_id ?? raw?._id ?? ""),
-    name: String(raw?.name ?? "").trim() || "-",
-    is_active: normalizeBooleanLike(raw?.is_active),
-  };
 }
 
 function mapApiRequestedServiceRow(raw: any): RequestedServiceRow {
@@ -231,6 +245,7 @@ async function resolveSessionFranchiseId(): Promise<string | undefined> {
   if (sessionFranchiseIdInFlight) return sessionFranchiseIdInFlight;
 
   sessionFranchiseIdInFlight = (async () => {
+    const { fetchUserById } = await import("./userService");
     const currentUserId = (
       getLocalStorage(AppConstant.createdById) || ""
     ).trim();
@@ -252,6 +267,7 @@ async function resolveSessionFranchiseId(): Promise<string | undefined> {
 }
 
 async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
+  const { fetchArea } = await import("./areaService");
   const filters: { franchise_id?: string } = {};
   const fid = await resolveSessionFranchiseId();
   if (fid) filters.franchise_id = fid;
@@ -286,6 +302,8 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
 }
 
 async function fetchCategoryRowsForMyFranchise(): Promise<CategoryRow[] | null> {
+  const { fetchCategory } = await import("./categoryService");
+  const { fetchFranchiseById } = await import("./franchiseService");
   const fid = await resolveSessionFranchiseId();
   if (!fid) return [];
   const franchise = await fetchFranchiseById(fid);
@@ -331,6 +349,8 @@ async function fetchCategoryRowsForMyFranchise(): Promise<CategoryRow[] | null> 
 }
 
 async function fetchServiceRowsForMyFranchise(): Promise<ServiceRow[] | null> {
+  const { fetchService } = await import("./servicesService");
+  const { fetchFranchiseById } = await import("./franchiseService");
   const fid = await resolveSessionFranchiseId();
   if (!fid) return [];
   const franchise = await fetchFranchiseById(fid);
@@ -388,10 +408,16 @@ function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
       ? isActiveRaw
       : String(isActiveRaw).toLowerCase() === "true" ||
         String(isActiveRaw) === "1";
-  const screenPermissionKeys = menuKeysFromUserAccess(
-    raw as Record<string, unknown>
-  );
-  const accessible_screens = mapMenuKeysToAvailablePages(screenPermissionKeys);
+  const availablePagesRaw = Array.isArray(raw?.available_pages)
+    ? raw.available_pages
+    : [];
+  const accessible_screens: AvailablePageEntry[] = availablePagesRaw
+    .map((p: any) => ({
+      page: String(p?.page ?? "").trim(),
+      url: String(p?.url ?? "").trim(),
+    }))
+    .filter((p: AvailablePageEntry) => p.page && p.url);
+  const screenPermissionKeys: string[] = [];
 
   return {
     _id: id,
@@ -427,6 +453,7 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
   const pageSize = 200;
   const maxPages = 50;
   const all: any[] = [];
+  const { fetchUser } = await import("./userService");
 
   for (let page = 1; page <= maxPages; page += 1) {
     // type=3 => franchise employee
@@ -454,12 +481,17 @@ async function fetchAllCategoryRows(
   const limit = 100;
   const maxPages = 30;
   const all: any[] = [];
+  const franchiseId = isRequest ? await resolveSessionFranchiseId() : "";
   for (let page = 1; page <= maxPages; page += 1) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      is_request: String(isRequest),
+      ...(franchiseId ? { franchise_id: franchiseId } : {}),
+    });
     // eslint-disable-next-line no-await-in-loop
-    const response = await apiRequest(
-      `${ApiPaths.GET_CATEGORY()}?page=${page}&limit=${limit}&is_request=${String(
-        isRequest
-      )}`,
+    const response = await callApiRequest(
+      `${ApiPaths.GET_CATEGORY()}?${params.toString()}`,
       "GET",
       undefined,
       false,
@@ -481,12 +513,17 @@ async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
   const limit = 100;
   const maxPages = 30;
   const all: any[] = [];
+  const franchiseId = isRequest ? await resolveSessionFranchiseId() : "";
   for (let page = 1; page <= maxPages; page += 1) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      is_request: String(isRequest),
+      ...(franchiseId ? { franchise_id: franchiseId } : {}),
+    });
     // eslint-disable-next-line no-await-in-loop
-    const response = await apiRequest(
-      `${ApiPaths.GET_SERVICE()}?page=${page}&limit=${limit}&is_request=${String(
-        isRequest
-      )}`,
+    const response = await callApiRequest(
+      `${ApiPaths.GET_SERVICE()}?${params.toString()}`,
       "GET",
       undefined,
       false,
@@ -505,19 +542,45 @@ async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
 }
 
 export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
+  const { fetchFranchiseById } = await import("./franchiseService");
+  const franchiseId = await resolveSessionFranchiseId();
+  let myCategoryIds = new Set<string>();
+  let myServiceIds = new Set<string>();
+  if (franchiseId) {
+    const franchise = await fetchFranchiseById(franchiseId);
+    if (franchise) {
+      myCategoryIds = new Set(
+        [
+          ...((franchise.category_ids ?? []).map(String) || []),
+          ...((franchise.categories ?? []).map(String) || []),
+        ]
+          .map((id) => id.trim())
+          .filter(Boolean)
+      );
+      myServiceIds = new Set(
+        [
+          ...((franchise.service_ids ?? []).map(String) || []),
+          ...((franchise.services ?? []).map(String) || []),
+        ]
+          .map((id) => id.trim())
+          .filter(Boolean)
+      );
+    }
+  }
+
   const [
     apiEmployeeRows,
     apiAreaRows,
-    apiServiceRows,
-    apiCategoryRows,
+    catalogCategoryRows,
+    catalogServiceRows,
     requestedCategoryRows,
     requestedServiceRows,
   ] = await Promise.all([
     fetchEmployeeRowsForMyFranchise(),
     // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
     fetchAreaRowsForMyFranchise(),
-    fetchServiceRowsForMyFranchise(),
-    fetchCategoryRowsForMyFranchise(),
+    fetchAllCategoryRows(false),
+    fetchAllServiceRows(false),
     fetchAllCategoryRows(true),
     fetchAllServiceRows(true),
   ]);
@@ -525,8 +588,16 @@ export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
   return {
     employees: apiEmployeeRows ?? [],
     areas: apiAreaRows ?? [],
-    services: apiServiceRows ?? [],
-    categories: apiCategoryRows ?? [],
+    services: (catalogServiceRows ?? []).map((raw) => {
+      const row = mapApiServiceRow(raw);
+      row.is_my_franchise = myServiceIds.has(row._id);
+      return row;
+    }),
+    categories: (catalogCategoryRows ?? []).map((raw) => {
+      const row = mapApiCategoryRow(raw);
+      row.is_my_franchise = myCategoryIds.has(row._id);
+      return row;
+    }),
     requested_services: (requestedServiceRows ?? [])
       .filter((r) => r?.is_rejected == null)
       .map(mapApiRequestedServiceRow),
@@ -534,6 +605,118 @@ export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
       .filter((r) => r?.is_rejected == null)
       .map(mapApiRequestedCategoryRow),
   };
+}
+
+async function resolveMyFranchiseMappings(): Promise<{
+  myCategoryIds: Set<string>;
+  myServiceIds: Set<string>;
+}> {
+  const { fetchFranchiseById } = await import("./franchiseService");
+  const franchiseId = await resolveSessionFranchiseId();
+  let myCategoryIds = new Set<string>();
+  let myServiceIds = new Set<string>();
+
+  if (!franchiseId) {
+    return { myCategoryIds, myServiceIds };
+  }
+
+  const franchise = await fetchFranchiseById(franchiseId);
+  if (!franchise) {
+    return { myCategoryIds, myServiceIds };
+  }
+
+  myCategoryIds = new Set(
+    [
+      ...((franchise.category_ids ?? []).map(String) || []),
+      ...((franchise.categories ?? []).map(String) || []),
+    ]
+      .map((id) => id.trim())
+      .filter(Boolean)
+  );
+  myServiceIds = new Set(
+    [
+      ...((franchise.service_ids ?? []).map(String) || []),
+      ...((franchise.services ?? []).map(String) || []),
+    ]
+      .map((id) => id.trim())
+      .filter(Boolean)
+  );
+
+  return { myCategoryIds, myServiceIds };
+}
+
+export async function fetchMyFranchiseEmployeesData(): Promise<EmployeeRow[]> {
+  const rows = await fetchEmployeeRowsForMyFranchise();
+  return (rows ?? []).map((e) => ({
+    ...e,
+    chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
+  }));
+}
+
+export async function fetchMyFranchiseAreasData(): Promise<AreaRow[]> {
+  return (await fetchAreaRowsForMyFranchise()) ?? [];
+}
+
+export async function fetchMyFranchiseServicesData(): Promise<{
+  services: ServiceRow[];
+  requestedServices: RequestedServiceRow[];
+}> {
+  const { myServiceIds } = await resolveMyFranchiseMappings();
+  const [catalogServiceRows, requestedServiceRows] = await Promise.all([
+    fetchAllServiceRows(false),
+    fetchAllServiceRows(true),
+  ]);
+
+  return {
+    services: (catalogServiceRows ?? []).map((raw) => {
+      const row = mapApiServiceRow(raw);
+      row.is_my_franchise = myServiceIds.has(row._id);
+      return row;
+    }),
+    requestedServices: (requestedServiceRows ?? [])
+      .filter((r) => r?.is_rejected == null)
+      .map(mapApiRequestedServiceRow),
+  };
+}
+
+export async function fetchMyFranchiseCategoriesData(): Promise<{
+  categories: CategoryRow[];
+  requestedCategories: RequestedCategoryRow[];
+  services: ServiceRow[];
+}> {
+  const [{ myCategoryIds, myServiceIds }, catalogCategoryRows, requestedCategoryRows, catalogServiceRows] =
+    await Promise.all([
+      resolveMyFranchiseMappings(),
+      fetchAllCategoryRows(false),
+      fetchAllCategoryRows(true),
+      fetchAllServiceRows(false),
+    ]);
+
+  return {
+    categories: (catalogCategoryRows ?? []).map((raw) => {
+      const row = mapApiCategoryRow(raw);
+      row.is_my_franchise = myCategoryIds.has(row._id);
+      return row;
+    }),
+    requestedCategories: (requestedCategoryRows ?? [])
+      .filter((r) => r?.is_rejected == null)
+      .map(mapApiRequestedCategoryRow),
+    services: (catalogServiceRows ?? []).map((raw) => {
+      const row = mapApiServiceRow(raw);
+      row.is_my_franchise = myServiceIds.has(row._id);
+      return row;
+    }),
+  };
+}
+
+/** Lightweight refresh used after creating/updating a service request in My Franchise. */
+export async function fetchMyFranchiseRequestedServices(): Promise<
+  RequestedServiceRow[]
+> {
+  const rows = await fetchAllServiceRows(true);
+  return (rows ?? [])
+    .filter((r) => r?.is_rejected == null)
+    .map(mapApiRequestedServiceRow);
 }
 
 export async function setEmployeeChatEnabled(
@@ -549,7 +732,7 @@ export async function setServiceActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.UPDATE_SERVICE(id),
     "PUT",
     { is_active },
@@ -565,7 +748,7 @@ export async function setCategoryActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.UPDATE_CATEGORY(id),
     "PUT",
     { is_active },
@@ -590,7 +773,10 @@ export async function createFranchiseEmployee(
   input: FranchiseEmployeeInput
 ): Promise<boolean> {
   const keys = (input.screenPermissionKeys ?? []).filter(
-    (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+    (k) => !FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS.has(k)
+  );
+  const { createWebManagementUser, mapMenuKeysToAvailablePages } = await import(
+    "./userService"
   );
   const accessible_screens = mapMenuKeysToAvailablePages(keys);
 
@@ -652,7 +838,7 @@ export async function createRequestedService(
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
     is_request: true,
   };
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.CREATE_SERVICE_REQUEST,
     "POST",
     payload,
@@ -675,7 +861,7 @@ export async function updateRequestedService(
     ...(input.image_url ? { image_url: input.image_url } : {}),
     is_request: true,
   };
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.UPDATE_SERVICE_REQUEST(id),
     "PUT",
     payload,
@@ -688,7 +874,7 @@ export async function updateRequestedService(
 }
 
 export async function voidRequestedService(id: string): Promise<boolean> {
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.DELETE_SERVICE(id),
     "DELETE",
     undefined,
@@ -719,7 +905,7 @@ export async function createRequestedCategory(
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
     is_request: true,
   };
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.CREATE_CATEGORY_REQUEST,
     "POST",
     payload,
@@ -742,7 +928,7 @@ export async function updateRequestedCategory(
     ...(input.image_url ? { image_url: input.image_url } : {}),
     is_request: true,
   };
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.UPDATE_CATEGORY_REQUEST(id),
     "PUT",
     payload,
@@ -755,7 +941,7 @@ export async function updateRequestedCategory(
 }
 
 export async function voidRequestedCategory(id: string): Promise<boolean> {
-  const response = await apiRequest(
+  const response = await callApiRequest(
     ApiPaths.DELETE_CATEGORY(id),
     "DELETE",
     undefined,

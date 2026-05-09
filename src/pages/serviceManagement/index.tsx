@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -22,9 +22,22 @@ import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import { getCount } from "../../services/getCountService";
 
 /* ADDED: pending status cell */
 const requestStatusCell = () => ({ row }: { row: any }) => {
+  const approvalStatus = String(row?.original?.approval_status ?? "")
+    .trim()
+    .toLowerCase();
+  if (approvalStatus === "rejected") {
+    return <span style={{ color: "red", fontWeight: 600 }}>Rejected</span>;
+  }
+  if (approvalStatus === "approve" || approvalStatus === "approved") {
+    return <span style={{ color: "green", fontWeight: 600 }}>Approved</span>;
+  }
+  if (approvalStatus === "pending") {
+    return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
+  }
   const isRejected = row?.original?.is_rejected;
   if (isRejected === true) {
     return <span style={{ color: "red", fontWeight: 600 }}>Rejected</span>;
@@ -62,8 +75,30 @@ const ServiceManagement = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [isTableLoading, setIsTableLoading] = useState(false);
-  const fetchRef = useRef(false);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
+  const inFlightRequestKeysRef = React.useRef<Set<string>>(new Set());
+
+  const refreshCounts = useCallback(async () => {
+    // Count endpoint returns true overall totals (not page-based).
+    const { responseCount, countModel } = await getCount("service-management");
+    if (!responseCount || !countModel) return false;
+
+    setCategoryData({
+      Total: countModel.total_category ?? 0,
+      Active: countModel.active_category ?? 0,
+      Inactive: countModel.inactive_category ?? 0,
+      requested_category:
+        countModel.requested_category ?? countModel.total_requestedcategory ?? 0,
+    });
+    setServiceData({
+      Total: countModel.total_service ?? 0,
+      Active: countModel.active_service ?? 0,
+      Inactive: countModel.inactive_service ?? 0,
+      requested_service:
+        countModel.requested_service ?? countModel.total_requestedservice ?? 0,
+    });
+    return true;
+  }, []);
 
   const fetchData = useCallback(
     async (
@@ -74,67 +109,71 @@ const ServiceManagement = () => {
         sort?: string;
       }
     ) => {
-      if (fetchRef.current) return;
-      fetchRef.current = true;
+      const requestKey = JSON.stringify({
+        selected,
+        currentPage,
+        pageSize,
+        filters,
+        showRequestedCategory,
+        showRequestedService,
+        sortBy,
+      });
+      // Prevent duplicate in-flight calls for same query params (e.g. React StrictMode effect replay).
+      if (inFlightRequestKeysRef.current.has(requestKey)) return;
+      inFlightRequestKeysRef.current.add(requestKey);
+
       setIsTableLoading(true);
 
       try {
+        const categoryFilters = {
+          ...filters,
+          ...(showRequestedCategory ? { is_request: "true" } : {}),
+        };
+        const serviceFilters = {
+          ...filters,
+          ...(showRequestedService ? { is_request: "true" } : {}),
+        };
+
+        const categorySort = selected === "box-category" ? sortBy : [];
+        const serviceSort = selected === "box-service" ? sortBy : [];
+
         if (selected === "box-category") {
-          const { response, categories, totalPages, totalRecords } =
-            await fetchCategory(
+          const catRes = await fetchCategory(
             currentPage,
             pageSize,
-            {
-              ...filters,
-              ...(showRequestedCategory ? { is_request: "true" } : {}),
-            },
-            sortBy
+            categoryFilters,
+            categorySort
           );
-          if (response) {
+          if (catRes.response) {
+            const rows = catRes.categories || [];
             if (showRequestedCategory) {
-              setRequestedCategoryList(categories || []);
+              setRequestedCategoryList(rows);
             } else {
-              setCategoryList(categories || []);
+              setCategoryList(rows);
             }
-            const rows = categories || [];
-            setCategoryData({
-              Total: totalRecords ?? 0,
-              Active: rows.filter((c) => c.is_active).length,
-              Inactive: rows.filter((c) => !c.is_active).length,
-              requested_category: rows.filter((c) => c.is_request).length,
-            });
-            setTotalPages(totalPages || 0);
+            setTotalPages(catRes.totalPages || 0);
           }
-        } else if (selected === "box-service") {
-          const { response, services, totalPages, totalRecords } =
-            await fetchService(
-            currentPage,
-            pageSize,
-            {
-              ...filters,
-              ...(showRequestedService ? { is_request: "true" } : {}),
-            },
-            sortBy
-          );
-          if (response) {
-            if (showRequestedService) {
-              setRequestedServiceList(services || []);
-            } else {
-              setServiceList(services || []);
-            }
-            const rows = services || [];
-            setServiceData({
-              Total: totalRecords ?? 0,
-              Active: rows.filter((s) => s.is_active).length,
-              Inactive: rows.filter((s) => !s.is_active).length,
-              requested_service: rows.filter((s) => s.is_request).length,
-            });
-            setTotalPages(totalPages || 0);
+          return;
+        }
+
+        const svcRes = await fetchService(
+          currentPage,
+          pageSize,
+          serviceFilters,
+          serviceSort
+        );
+        if (svcRes.response) {
+          const rows = svcRes.services || [];
+          if (showRequestedService) {
+            setRequestedServiceList(rows);
+          } else {
+            setServiceList(rows);
           }
+          setTotalPages(svcRes.totalPages || 0);
         }
       } finally {
-        fetchRef.current = false;
         setIsTableLoading(false);
+        inFlightRequestKeysRef.current.delete(requestKey);
       }
     },
     [
@@ -164,6 +203,10 @@ const ServiceManagement = () => {
     refreshData,
   ]);
 
+  useEffect(() => {
+    void refreshCounts();
+  }, [refreshCounts]);
+
   const handleFilterChange = async (
     filters: {
       keyword?: string;
@@ -172,7 +215,6 @@ const ServiceManagement = () => {
     },
     targetBox?: string
   ) => {
-    const selectedTarget = targetBox ?? selectedBox;
     setCurrentPage(1);
     setTotalPages(0);
     setSortBy([]);
@@ -188,7 +230,9 @@ const ServiceManagement = () => {
     setShowRequestedCategory(true);
     setShowRequestedService(false);
     setCurrentPage(1);
+    setTotalPages(0);
     setSortBy([]);
+    setActiveFilters({});
   }, []);
 
   /* ADDED: open requested service table */
@@ -197,7 +241,9 @@ const ServiceManagement = () => {
     setShowRequestedService(true);
     setShowRequestedCategory(false);
     setCurrentPage(1);
+    setTotalPages(0);
     setSortBy([]);
+    setActiveFilters({});
   }, []);
 
   const categoryColumns = React.useMemo(
@@ -515,14 +561,26 @@ const ServiceManagement = () => {
               title={capitalizeString(id.replace("box-", "").replace("-", " "))}
               data={id === "box-category" ? categoryData : serviceData}
               onSelect={(divId) => {
+                // Select only; avoid resetting filters twice (row-click already triggers filter change).
+                if (divId === selectedBox) return;
                 setSelectedBox(divId);
                 setShowRequestedCategory(false);
                 setShowRequestedService(false);
-                handleFilterChange({}, divId);
+                setCurrentPage(1);
+                setTotalPages(0);
+                setSortBy([]);
+                setActiveFilters({});
               }}
               isSelected={selectedBox === id}
               onFilterChange={(filter) => {
-                handleFilterChange(filter);
+                // Clicking Total/Active/Inactive should operate on overall list, not requested-only mode.
+                if (id === "box-category") {
+                  setShowRequestedCategory(false);
+                }
+                if (id === "box-service") {
+                  setShowRequestedService(false);
+                }
+                handleFilterChange(filter, id);
               }}
               onItemClick={(key) => {
                 if (id === "box-category" && key === "requested_category") {

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { Row, Col } from "react-bootstrap";
 import CustomFormSelect from "../components/CustomFormSelect";
 import { useNavigate } from "react-router-dom";
-import { ROUTES } from "../routes/Routes";
 import {
   fetchRecentNotifications,
   getUnreadNotificationCount,
@@ -13,6 +12,8 @@ import { formatDate } from "../helper/utility";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../services/franchiseService";
+
+const NOTIFICATIONS_PATH = "/notifications";
 
 interface CustomHeaderProps {
   title: string;
@@ -171,7 +172,7 @@ const CustomHeader = ({
                         markNotificationAsRead(item.id);
                         refreshNotifications();
                         setIsNotificationOpen(false);
-                        navigate(ROUTES.NOTIFICATIONS.path);
+                        navigate(NOTIFICATIONS_PATH);
                       }}
                     >
                       <div className="custom-notification-item-title-row">
@@ -198,7 +199,7 @@ const CustomHeader = ({
                 className="custom-notification-view-all"
                 onClick={() => {
                   setIsNotificationOpen(false);
-                  navigate(ROUTES.NOTIFICATIONS.path);
+                  navigate(NOTIFICATIONS_PATH);
                 }}
               >
                 View all notifications

@@ -7,8 +7,8 @@ import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import {
   DetailsRow,
-  FullDetailsRow,
   getStatusOptions,
+  WideLabelValueBlock,
 } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 import CustomImageUploader from "../../components/CustomImageUploader";
@@ -32,7 +32,7 @@ type AddEditCategoryDialogProps = {
 };
 
 type CategoryFormValues = CategoryModel & {
-  approval_status?: "approved" | "rejected";
+  approval_status?: "approve" | "rejected";
   rejection_reason?: string;
 };
 
@@ -69,19 +69,23 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       is_active: category?.is_active ?? true,
       franchise_id: category?.franchise_id || "",
       approval_status:
+        category?.approval_status === "rejected" ||
         category?.is_rejected === true
           ? "rejected"
-          : category?.is_rejected === false
-          ? "approved"
+          : category?.approval_status === "approve" ||
+            category?.approval_status === "approved" ||
+            category?.is_rejected === false
+          ? "approve"
           : category?.is_active === false
           ? "rejected"
-          : "approved",
+          : "approve",
       rejection_reason: (category as any)?.rejection_reason ?? "",
     },
   });
 
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
+  const [imageExplicitlyCleared, setImageExplicitlyCleared] = useState(false);
   const [serviceOptions, setServiceOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -108,13 +112,15 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       is_active: category.is_active ?? true,
       franchise_id: category.franchise_id || "",
       approval_status:
-        category.is_rejected === true
+        category.approval_status === "rejected" || category.is_rejected === true
           ? "rejected"
-          : category.is_rejected === false
-          ? "approved"
+          : category.approval_status === "approve" ||
+            category.approval_status === "approved" ||
+            category.is_rejected === false
+          ? "approve"
           : category.is_active === false
           ? "rejected"
-          : "approved",
+          : "approve",
       rejection_reason: (category as any)?.rejection_reason ?? "",
     } as any);
   }, [category, localViewMode, reset]);
@@ -143,9 +149,11 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       });
       setDraftCategoryId("");
       setDraftImageUrl("");
+      setImageExplicitlyCleared(false);
     } else {
       setServiceIds([]);
       setValue("franchise_id", "", { shouldValidate: false });
+      setImageExplicitlyCleared(false);
     }
   }, [isEditable, category, setValue]);
 
@@ -209,25 +217,20 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         const name = String(getValues("name") ?? "").trim();
         const desc = String(getValues("desc") ?? "").trim();
         const franchise_id = String(getValues("franchise_id") ?? "").trim();
-        if (!name || !desc) {
-          showErrorAlert("Enter category name and description first.");
-          return;
-        }
-        if (fileInputs.length === 0) {
-          showErrorAlert("Upload category image first.");
-          return;
-        }
 
-        const formData = new FormData();
-        formData.append("type", "2");
-        fileInputs.forEach((file) => formData.append("files", file));
-        const { response, fileList } = await createOrUpdateDocument(
-          formData,
-          false
-        );
-        if (!response || fileList.length === 0) {
-          showErrorAlert("Unable to upload category image.");
-          return;
+        let uploadedImageUrl = "";
+        if (fileInputs.length > 0) {
+          const formData = new FormData();
+          formData.append("type", "2");
+          fileInputs.forEach((file) => formData.append("files", file));
+          const { response, fileList } = await createOrUpdateDocument(
+            formData,
+            false
+          );
+          if (!response || fileList.length === 0) {
+            return;
+          }
+          uploadedImageUrl = String(fileList[0]);
         }
 
         const draftRes = await createOrUpdateCategoryWithRecord(
@@ -237,7 +240,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             service_ids: [],
             is_active: true,
             ...(franchise_id ? { franchise_id } : {}),
-            image_url: String(fileList[0]),
+            ...(uploadedImageUrl ? { image_url: uploadedImageUrl } : {}),
           },
           false
         );
@@ -247,11 +250,10 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             ""
         ).trim();
         if (!draftRes.response || !resolvedCategoryId) {
-          showErrorAlert("Please save category first, then add service.");
           return;
         }
         setDraftCategoryId(resolvedCategoryId);
-        setDraftImageUrl(String(fileList[0]));
+        if (uploadedImageUrl) setDraftImageUrl(uploadedImageUrl);
       }
 
       const previousServiceIds = new Set(
@@ -352,11 +354,6 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   }, [category, serviceOptions, serviceIds]);
 
   const onSubmitEvent = async (data: CategoryFormValues) => {
-    if (serviceIds.length === 0) {
-      showErrorAlert("Please select at least one service");
-      return;
-    }
-
     let image_url = "";
     if (fileInputs.length > 0) {
       const formData = new FormData();
@@ -379,19 +376,25 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       }
     }
 
-    if (!isEditable && !draftCategoryId && image_url === "") {
-      showErrorAlert("Please select image");
-      return;
+    const imagePayload: { image_url?: string } = {};
+    if (
+      isEditable &&
+      imageExplicitlyCleared &&
+      fileInputs.length === 0 &&
+      image_url === ""
+    ) {
+      imagePayload.image_url = "";
+    } else if (image_url !== "" || draftImageUrl !== "") {
+      imagePayload.image_url = image_url || draftImageUrl;
     }
+
     const payload = {
       name: data.name,
       desc: data.desc,
       is_active: data.is_active,
       service_ids: serviceIds,
       franchise_id: data.franchise_id,
-      ...((image_url !== "" || draftImageUrl !== "") && {
-        image_url: image_url || draftImageUrl,
-      }),
+      ...imagePayload,
     };
 
     let responseCategory;
@@ -475,10 +478,20 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                     </span>
                   </label>
                 </Row>
-                <FullDetailsRow
-                  title="Description"
-                  value={category.desc ?? "-"}
-                />
+              </div>
+              <div className="col-md-5 custom-helper-column">
+                {/* reserved for future right-side details */}
+              </div>
+            </div>
+            <div className="row mt-1">
+              <div className="col-12">
+                <WideLabelValueBlock variant="stacked" label="Description">
+                  {category.desc ?? "-"}
+                </WideLabelValueBlock>
+              </div>
+            </div>
+            <div className="row">
+              <div className="col-md-7 custom-helper-column">
                 {category.image_url ? (
                   <div className="mt-2 mb-2">
                     <p
@@ -553,9 +566,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   )}
                 </div>
               </div>
-              <div className="col-md-5 custom-helper-column">
-                {/* reserved for future right-side details */}
-              </div>
+              <div className="col-md-5 custom-helper-column" />
             </div>
           </section>
         ) : (
@@ -601,40 +612,31 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               </Col>
 
-              <Col md={6}>
-                <div
-                  style={{
-                    border: "1px solid var(--txtfld-border)",
-                    borderRadius: 10,
-                    padding: 10,
-                    background: "var(--bg-color)",
-                  }}
-                >
-                  <CustomImageUploader
-                    label="Upload Category Image"
-                    maxFiles={1}
-                    isEditable={isEditable}
-                    existingImages={
-                      category?.image_url ? [category.image_url] : []
+              <Col md={12} className="min-w-0">
+                <CustomImageUploader
+                  controlId="category-image"
+                  label="Category image"
+                  hint="Recommended 512 × 512 px. JPG or PNG."
+                  maxFiles={1}
+                  asCol={false}
+                  isEditable={
+                    !localViewMode && (!category || isEditable)
+                  }
+                  existingImages={
+                    category?.image_url ? [category.image_url] : []
+                  }
+                  onFileChange={(files, replaceUrlsFromUploader, meta) => {
+                    setFileInputs(files);
+                    setReplaceUrl(replaceUrlsFromUploader);
+                    if (meta?.imageCleared) {
+                      setImageExplicitlyCleared(true);
+                      setDraftImageUrl("");
                     }
-                    onFileChange={(files, replaceUrlsFromUploader) => {
-                      setFileInputs(files);
-                      setReplaceUrl(replaceUrlsFromUploader);
-                    }}
-                  />
-                  <label
-                    style={{
-                      color: "#000",
-                      fontSize: 12,
-                      fontWeight: 500,
-                      marginTop: 2,
-                    }}
-                  >
-                    Recommended image size: 512 x 512
-                  </label>
-                </div>
+                    if (files.length > 0) setImageExplicitlyCleared(false);
+                  }}
+                />
               </Col>
-              <Col md={6}>
+              <Col md={6} className="min-w-0">
                 <CustomRadioSelection
                   label="Status"
                   name="is_active"

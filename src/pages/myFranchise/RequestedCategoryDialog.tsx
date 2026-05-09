@@ -206,7 +206,6 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
       const ok = await createRequestedCategory(payload);
       if (ok) {
         showSuccessAlert("Category request submitted");
-        onRefreshData();
         onClose();
       }
       return;
@@ -346,17 +345,17 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
         </Col>
         <Col md={12}>
           <CustomImageUploader
-            label="Upload category image"
+            controlId="franchise-requested-category-image"
+            label="Category image"
+            hint="Recommended 512 × 512 px. JPG or PNG."
             maxFiles={1}
-            isEditable={!isAdd}
+            asCol={false}
+            isEditable={isAdd || isEditing}
             existingImages={existingForUploader}
             onFileChange={(files) => {
               setFileInputs(files);
             }}
           />
-          <label style={{ color: "var(--primary-color)" }}>
-            Image size should be 512*512
-          </label>
           {request?.image_url &&
           String(request.image_url).startsWith("data:") ? (
             <div className="mt-2">
