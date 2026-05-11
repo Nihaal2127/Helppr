@@ -255,6 +255,10 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   }, [isEditable, service, setValue]);
 
   const approvalStatus = watch("approval_status");
+  const approvalStatusDefaultForEdit =
+    mapApprovalStatusFromService(service) === "pending"
+      ? "approved"
+      : mapApprovalStatusFromService(service);
 
   const serviceImagePath = useMemo(() => {
     if (!service) return "";
@@ -719,23 +723,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               <Col md={6} className="mb-3">
                 {isEditable ? (
                   <CustomRadioSelection
-                    label={
-                      service?.is_request ? "Request status" : "Approval status"
-                    }
+                    label="Approval status"
                     name="approval_status"
-                    options={
-                      service?.is_request
-                        ? [
-                            { label: "Pending", value: "pending" },
-                            { label: "Approved", value: "approved" },
-                            { label: "Rejected", value: "rejected" },
-                          ]
-                        : [
-                            { label: "Approved", value: "approved" },
-                            { label: "Rejected", value: "rejected" },
-                          ]
-                    }
-                    defaultValue={mapApprovalStatusFromService(service)}
+                    options={[
+                      { label: "Approved", value: "approved" },
+                      { label: "Rejected", value: "rejected" },
+                    ]}
+                    defaultValue={approvalStatusDefaultForEdit}
                     isEditable={isEditable}
                     setValue={setValue}
                   />
@@ -755,15 +749,15 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               {isEditable && approvalStatus === "rejected" && (
                 <Col md={12}>
                   <CustomFormInput
-                    label="Rejection Reason"
+                    label="Rejection Note"
                     controlId="rejection_reason"
-                    placeholder="Enter reason for rejection"
+                    placeholder="Enter rejection note"
                     register={register}
                     error={(errors as any).rejection_reason}
                     asCol={false}
                     validation={{
                       validate: (value: string) =>
-                        value?.trim() ? true : "Rejection reason is required",
+                        value?.trim() ? true : "Rejection note is required",
                     }}
                     as="textarea"
                     rows={3}

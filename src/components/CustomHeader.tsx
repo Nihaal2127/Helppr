@@ -43,6 +43,11 @@ const CustomHeader = ({
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isAdminUser = currentUserRole === UserRole.ADMIN;
   const isStaffUser = currentUserRole === UserRole.STAFF;
+  const shouldShowFranchiseDropdown =
+    (isAdminUser || isStaffUser) &&
+    Boolean(register) &&
+    Boolean(setValue) &&
+    !hideFranchiseDropdown;
   const [selectedFranchise, setSelectedFranchise] = useState<string>("all");
   const [franchiseList, setFranchiseList] = useState<
     { value: string; label: string }[]
@@ -66,13 +71,6 @@ const CustomHeader = ({
   };
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const options = await fetchFranchiseDropDown();
-      if (cancelled) return;
-      setFranchiseList([{ value: "all", label: "All Franchises" }, ...options]);
-    })();
-
     refreshNotifications();
     const onUpdated = () => refreshNotifications();
     const onStorage = () => refreshNotifications();
@@ -88,12 +86,24 @@ const CustomHeader = ({
     document.addEventListener("mousedown", onClickOutside);
 
     return () => {
-      cancelled = true;
       window.removeEventListener("notifications-updated", onUpdated);
       window.removeEventListener("storage", onStorage);
       document.removeEventListener("mousedown", onClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!shouldShowFranchiseDropdown) return;
+    (async () => {
+      const options = await fetchFranchiseDropDown();
+      if (cancelled) return;
+      setFranchiseList([{ value: "all", label: "All Franchises" }, ...options]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldShowFranchiseDropdown]);
 
   return (
     <Row className="g-0 p-0 mb-4 align-items-center">
@@ -108,25 +118,22 @@ const CustomHeader = ({
         className="d-flex justify-content-end align-items-center gap-3 p-0 m-0"
       >
         {rightActions}
-        {(isAdminUser || isStaffUser) &&
-  register &&
-  setValue &&
-  !hideFranchiseDropdown && (
-    <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
-      <CustomFormSelect
-        label=""
-        controlId="Franchise"
-        options={franchiseList}
-        register={register}
-        fieldName="franchise_id"
-        defaultValue={selectedFranchise}
-        setValue={setValue}
-        onChange={handleChange}
-        asCol={false}
-        noBottomMargin
-      />
-    </div>
-)}
+        {shouldShowFranchiseDropdown && (
+          <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
+            <CustomFormSelect
+              label=""
+              controlId="Franchise"
+              options={franchiseList}
+              register={register}
+              fieldName="franchise_id"
+              defaultValue={selectedFranchise}
+              setValue={setValue}
+              onChange={handleChange}
+              asCol={false}
+              noBottomMargin
+            />
+          </div>
+        )}
         <div ref={notificationRef} className="position-relative">
           <button
             type="button"

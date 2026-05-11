@@ -129,95 +129,85 @@ const LocationManagement = () => {
     async (selected: string, filters: LocationFilters) => {
       if (fetchRef.current) return;
       fetchRef.current = true;
-      const { responseCount, countModel } = await getCount(1);
-      if (responseCount && countModel) {
-        setStateData({
-          Total: countModel.total_state,
-          Active: countModel.active_state,
-          Inactive: countModel.inactive_state,
-        });
-        setCityData({
-          Total: countModel.total_city,
-          Active: countModel.active_city,
-          Inactive: countModel.inactive_city,
-        });
-        setAreaData({
-          Total: countModel.total_area,
-          Active: countModel.active_area,
-          Inactive: countModel.inactive_area,
-        });
-      }
-
-      if (selected === "box-state") {
-        const { response, states, totalPages } = await fetchState(
-          currentPage,
-          pageSize,
-          { ...filters },
-          stateTableSortBy
-        );
-        if (response) {
-          setStateList(states);
-          setTotalPages(totalPages);
-        }
-      } else if (selected === "box-city") {
-        const { response, cities, totalPages } = await fetchCity(
-          currentPage,
-          pageSize,
-          { ...filters },
-          cityTableSortBy
-        );
-        if (response) {
-          setCityList(cities);
-          setTotalPages(totalPages);
-        }
-      } else if (selected === "box-area") {
-        const { response, areas, totalPages } = await fetchArea(
-          currentPage,
-          pageSize,
-          filters,
-          areaTableSortBy
-        );
-        if (response && Array.isArray(areas)) {
-          let scopedAreas = areas;
-          const selectedFranchiseId = String(
-            filters.franchise_id ?? ""
-          ).trim();
-          if (selectedFranchiseId) {
-            const allowedAreaIds = franchiseAreaIdsById.get(selectedFranchiseId);
-            if (allowedAreaIds && allowedAreaIds.size > 0) {
-              scopedAreas = areas.filter((row: any) =>
-                allowedAreaIds.has(String(row?._id ?? row?.id ?? "").trim())
-              );
-              setTotalPages(1);
-            } else if (allowedAreaIds && allowedAreaIds.size === 0) {
-              scopedAreas = [];
-              setTotalPages(0);
-            } else {
-              // Fallback when franchise->area map is unavailable:
-              // filter by row's own franchise reference if present.
-              scopedAreas = areas.filter((row: any) => {
-                const rowFranchiseId = String(
-                  row?.franchise_id ??
-                    row?.franchiseId ??
-                    row?.franchise?._id ??
-                    ""
-                ).trim();
-                return rowFranchiseId
-                  ? rowFranchiseId === selectedFranchiseId
-                  : true;
-              });
-              setTotalPages(1);
-            }
-          } else {
+      try {
+        if (selected === "box-state") {
+          const { response, states, totalPages } = await fetchState(
+            currentPage,
+            pageSize,
+            { ...filters },
+            stateTableSortBy
+          );
+          if (response) {
+            setStateList(states);
             setTotalPages(totalPages);
+          } else {
+            setStateList([]);
+            setTotalPages(0);
           }
-          setAreaList(scopedAreas);
-        } else {
-          setAreaList([]);
-          setTotalPages(0);
+        } else if (selected === "box-city") {
+          const { response, cities, totalPages } = await fetchCity(
+            currentPage,
+            pageSize,
+            { ...filters },
+            cityTableSortBy
+          );
+          if (response) {
+            setCityList(cities);
+            setTotalPages(totalPages);
+          } else {
+            setCityList([]);
+            setTotalPages(0);
+          }
+        } else if (selected === "box-area") {
+          const { response, areas, totalPages } = await fetchArea(
+            currentPage,
+            pageSize,
+            filters,
+            areaTableSortBy
+          );
+          if (response && Array.isArray(areas)) {
+            let scopedAreas = areas;
+            const selectedFranchiseId = String(
+              filters.franchise_id ?? ""
+            ).trim();
+            if (selectedFranchiseId) {
+              const allowedAreaIds = franchiseAreaIdsById.get(selectedFranchiseId);
+              if (allowedAreaIds && allowedAreaIds.size > 0) {
+                scopedAreas = areas.filter((row: any) =>
+                  allowedAreaIds.has(String(row?._id ?? row?.id ?? "").trim())
+                );
+                setTotalPages(1);
+              } else if (allowedAreaIds && allowedAreaIds.size === 0) {
+                scopedAreas = [];
+                setTotalPages(0);
+              } else {
+                // Fallback when franchise->area map is unavailable:
+                // filter by row's own franchise reference if present.
+                scopedAreas = areas.filter((row: any) => {
+                  const rowFranchiseId = String(
+                    row?.franchise_id ??
+                      row?.franchiseId ??
+                      row?.franchise?._id ??
+                      ""
+                  ).trim();
+                  return rowFranchiseId
+                    ? rowFranchiseId === selectedFranchiseId
+                    : true;
+                });
+                setTotalPages(1);
+              }
+            } else {
+              setTotalPages(totalPages);
+            }
+            setAreaList(scopedAreas);
+          } else {
+            setAreaList([]);
+            setTotalPages(0);
+          }
         }
+      } finally {
+        fetchRef.current = false;
       }
-      fetchRef.current = false;
     },
     [
       areaTableSortBy,
@@ -232,6 +222,32 @@ const LocationManagement = () => {
   useEffect(() => {
     fetchData(selectedBox, activeFilters);
   }, [selectedBox, pageSize, currentPage, activeFilters, fetchData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { responseCount, countModel } = await getCount(1);
+      if (!responseCount || !countModel || cancelled) return;
+      setStateData({
+        Total: countModel.total_state,
+        Active: countModel.active_state,
+        Inactive: countModel.inactive_state,
+      });
+      setCityData({
+        Total: countModel.total_city,
+        Active: countModel.active_city,
+        Inactive: countModel.inactive_city,
+      });
+      setAreaData({
+        Total: countModel.total_area,
+        Active: countModel.active_area,
+        Inactive: countModel.inactive_area,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refreshData = useCallback(
     async (selected: string, filters: LocationFilters = activeFilters) => {
@@ -739,7 +755,9 @@ const LocationManagement = () => {
           </Button>
         ) : undefined
       }
-   
+      onSearch={(value: string) => {
+        handleFilterChange({ name: value.trim() });
+      }}
     />
   ) : null;
 

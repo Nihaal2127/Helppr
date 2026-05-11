@@ -42,16 +42,26 @@ export const fetchCity = async (
 ): Promise<{ response: boolean; cities: CityModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
   const nameQuery = String(filters.name ?? "").trim();
+  const statusRaw = String(filters.status ?? "").trim().toLowerCase();
+  const normalizedIsActive =
+    statusRaw === "all" || statusRaw === ""
+      ? ""
+      : statusRaw === "active" || statusRaw === "true"
+      ? "true"
+      : statusRaw === "inactive" || statusRaw === "false"
+      ? "false"
+      : statusRaw;
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(nameQuery && { name: nameQuery }),
     ...(nameQuery && { keyword: nameQuery }),
     ...(nameQuery && { search: nameQuery }),
-    ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(normalizedIsActive && { is_active: normalizedIsActive }),
+    ...(normalizedIsActive && { isActive: normalizedIsActive }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.state_id && { state_id: filters.state_id }),
+    ...(filters.state_id && { stateId: filters.state_id }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),

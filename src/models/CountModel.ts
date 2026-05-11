@@ -57,4 +57,12 @@ export interface CountModel {
   total_requestedservice: number | 0;
   active_requestedservice: number | 0;
   inactive_requestedservice: number | 0;
+
+  /** POST /getCount with type partner-management (Postman Partner Management folder). */
+  total_plans?: number;
+  active_plans?: number;
+  inactive_plans?: number;
+  total_partner_subscriptions?: number;
+  active_partner_subscriptions?: number;
+  inactive_partner_subscriptions?: number;
 }

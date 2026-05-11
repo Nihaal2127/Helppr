@@ -89,6 +89,61 @@ type AddEditUserDialogProps = {
   onRefreshData: () => void;
 };
 
+const normalizeIdLike = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const id = obj._id ?? obj.id ?? obj.value ?? obj.area_id;
+    return id == null ? "" : String(id).trim();
+  }
+  return String(value).trim();
+};
+
+const normalizeAddressValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const merged = value
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (item && typeof item === "object") {
+          const obj = item as Record<string, unknown>;
+          return String(
+            obj.address ??
+              obj.line1 ??
+              obj.street ??
+              obj.label ??
+              obj.name ??
+              ""
+          ).trim();
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return merged.join(", ");
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return String(
+      obj.address ?? obj.line1 ?? obj.street ?? obj.label ?? obj.name ?? ""
+    ).trim();
+  }
+  return String(value);
+};
+
+const normalizePincodeValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).trim();
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return String(obj.pincode ?? obj.pin_code ?? obj.pin ?? "").trim();
+  }
+  return "";
+};
+
 function AddEditUserDialogView({
   role,
   isEditable,
@@ -111,11 +166,11 @@ function AddEditUserDialogView({
       name: user?.name || "",
       email: user?.email || "",
       phone_number: user?.phone_number || "",
-      address: user?.address || "",
+      address: normalizeAddressValue(user?.address),
       state_id: user?.state_id || "",
       city_id: user?.city_id || "",
-      area_id: String((user as any)?.area_id ?? ""),
-      pincode: user?.pincode || "",
+      area_id: normalizeIdLike((user as any)?.area_id),
+      pincode: normalizePincodeValue(user?.pincode),
       is_active: user?.is_active ?? true,
       is_blocked: (user as any)?.is_blocked ?? false,
       partner_bank_holder: "",
@@ -686,11 +741,11 @@ function AddEditUserDialogView({
       name: isEditable ? user?.name || "" : "",
       email: isEditable ? user?.email || "" : "",
       phone_number: isEditable ? user?.phone_number || "" : "",
-      address: isEditable ? user?.address || "" : "",
+      address: isEditable ? normalizeAddressValue(user?.address) : "",
       state_id: isEditable ? user?.state_id || "" : "",
       city_id: isEditable ? user?.city_id || "" : "",
-      area_id: isEditable ? String((user as any)?.area_id ?? "") : "",
-      pincode: isEditable ? user?.pincode || "" : "",
+      area_id: isEditable ? normalizeIdLike((user as any)?.area_id) : "",
+      pincode: isEditable ? normalizePincodeValue(user?.pincode) : "",
       is_active: isEditable ? user?.is_active ?? true : true,
       is_blocked: isEditable ? (user as any)?.is_blocked ?? false : false,
       password: isEditable ? String((user as any)?.password ?? "") : "",
@@ -841,7 +896,7 @@ function AddEditUserDialogView({
                       error={(errors as any).area_id}
                       requiredMessage="Please select area"
                       defaultValue={
-                        isEditable ? String((user as any)?.area_id ?? "") : ""
+                        isEditable ? normalizeIdLike((user as any)?.area_id) : ""
                       }
                       setValue={setValue as (name: string, value: any) => void}
                     />
@@ -858,7 +913,9 @@ function AddEditUserDialogView({
                       fieldName="pincode"
                       error={errors.pincode}
                       requiredMessage="Please select pincode"
-                      defaultValue={isEditable ? String(user?.pincode ?? "") : ""}
+                      defaultValue={
+                        isEditable ? normalizePincodeValue(user?.pincode) : ""
+                      }
                       setValue={setValue as (name: string, value: any) => void}
                     />
                   </Col>
@@ -1009,7 +1066,7 @@ function AddEditUserDialogView({
                   error={(errors as any).area_id}
                   requiredMessage="Please select area"
                   defaultValue={
-                    isEditable ? String((user as any)?.area_id ?? "") : ""
+                    isEditable ? normalizeIdLike((user as any)?.area_id) : ""
                   }
                   setValue={setValue as (name: string, value: any) => void}
                 />
@@ -1024,7 +1081,9 @@ function AddEditUserDialogView({
                   fieldName="pincode"
                   error={errors.pincode}
                   requiredMessage="Please select pincode"
-                  defaultValue={isEditable ? String(user?.pincode ?? "") : ""}
+                  defaultValue={
+                    isEditable ? normalizePincodeValue(user?.pincode) : ""
+                  }
                   setValue={setValue as (name: string, value: any) => void}
                 />
                 <CustomTextField
@@ -1038,7 +1097,7 @@ function AddEditUserDialogView({
                   rows={3}
                   value={watch("address") ?? ""}
                   onChange={(value) =>
-                    setValue("address", value, {
+                    setValue("address", normalizeAddressValue(value), {
                       shouldDirty: true,
                       shouldValidate: false,
                     })
@@ -1069,18 +1128,20 @@ function AddEditUserDialogView({
                     />
                   </>
                 ) : null}
-                <CustomImageUploader
-                  label="Profile Photo"
-                  maxFiles={1}
-                  isEditable={Boolean(isEditable)}
-                  {...(user?.profile_url
-                    ? { existingImages: [user.profile_url] }
-                    : [])}
-                  onFileChange={(files, replaceUrls) => {
-                    setFileInputs(files);
-                    setReplaceUrl(replaceUrls);
-                  }}
-                />
+                <div className="mt-2">
+                  <CustomImageUploader
+                    label="Profile Photo"
+                    maxFiles={1}
+                    isEditable={Boolean(isEditable)}
+                    {...(user?.profile_url
+                      ? { existingImages: [user.profile_url] }
+                      : [])}
+                    onFileChange={(files, replaceUrls) => {
+                      setFileInputs(files);
+                      setReplaceUrl(replaceUrls);
+                    }}
+                  />
+                </div>
               </Row>
             )}
 

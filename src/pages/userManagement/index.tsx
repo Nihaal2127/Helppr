@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -35,13 +35,14 @@ const UserManagement = () => {
     undefined
   );
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const fetchRef = useRef(false);
   const { register, setValue } = useForm();
-  const fetchData = useCallback(async () => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    try {
+
+  /** Summary boxes only: one getCount on initial mount (not on search / page / tab changes). */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
       const { responseCount, countModel } = await getCount(3);
+      if (cancelled) return;
       if (responseCount && countModel) {
         setUserData({
           Total: countModel.total_user,
@@ -65,54 +66,57 @@ const UserManagement = () => {
       if (!shouldUseRealVerificationApi()) {
         setVerificationData({ ...MOCK_VERIFICATION_SUMMARY });
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      const filters = {
-        keyword: searchKeyword || undefined,
-        status: statusFilter,
-      };
-      const selectedSortBy = selectedBox === "box-verification" ? [] : sortBy;
+  const fetchData = useCallback(async () => {
+    const filters = {
+      keyword: searchKeyword || undefined,
+      status: statusFilter,
+    };
+    const selectedSortBy = selectedBox === "box-verification" ? [] : sortBy;
 
-      if (selectedBox === "box-verification") {
-        const { response, users, totalPages } = await fetchUser(
-          true,
-          2,
-          currentPage,
-          pageSize,
-          filters,
-          selectedSortBy
-        );
-        if (response) {
-          setVerificationList(users);
-          setTotalPages(totalPages);
-        } else {
-          setVerificationList([]);
-          setTotalPages(0);
-        }
+    if (selectedBox === "box-verification") {
+      const { response, users, totalPages } = await fetchUser(
+        true,
+        2,
+        currentPage,
+        pageSize,
+        filters,
+        selectedSortBy
+      );
+      if (response) {
+        setVerificationList(users);
+        setTotalPages(totalPages);
       } else {
-        const { response, users, totalPages } = await fetchUser(
-          false,
-          selectedBox === "box-user" ? 4 : 2,
-          currentPage,
-          pageSize,
-          filters,
-          selectedSortBy
-        );
-        if (response) {
-          const list = Array.isArray(users) ? users : [];
-          const blockedOnly =
-            String(statusFilter ?? "").trim().toLowerCase() === "blocked";
-          const normalized = blockedOnly
-            ? list.filter((u: any) => Boolean((u as any)?.is_blocked))
-            : list;
-          setUserList(normalized);
-          setTotalPages(blockedOnly ? 1 : totalPages);
-        } else {
-          setUserList([]);
-          setTotalPages(0);
-        }
+        setVerificationList([]);
+        setTotalPages(0);
       }
-    } finally {
-      fetchRef.current = false;
+    } else {
+      const { response, users, totalPages } = await fetchUser(
+        false,
+        selectedBox === "box-user" ? 4 : 2,
+        currentPage,
+        pageSize,
+        filters,
+        selectedSortBy
+      );
+      if (response) {
+        const list = Array.isArray(users) ? users : [];
+        const blockedOnly =
+          String(statusFilter ?? "").trim().toLowerCase() === "blocked";
+        const normalized = blockedOnly
+          ? list.filter((u: any) => Boolean((u as any)?.is_blocked))
+          : list;
+        setUserList(normalized);
+        setTotalPages(blockedOnly ? 1 : totalPages);
+      } else {
+        setUserList([]);
+        setTotalPages(0);
+      }
     }
   }, [currentPage, pageSize, searchKeyword, selectedBox, sortBy, statusFilter]);
 

@@ -28,14 +28,23 @@ export const fetchState = async (
 ): Promise<{ response: boolean; states: StateModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
   const nameQuery = String(filters.name ?? "").trim();
+  const statusRaw = String(filters.status ?? "").trim().toLowerCase();
+  const normalizedIsActive =
+    statusRaw === "all" || statusRaw === ""
+      ? ""
+      : statusRaw === "active" || statusRaw === "true"
+      ? "true"
+      : statusRaw === "inactive" || statusRaw === "false"
+      ? "false"
+      : statusRaw;
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(nameQuery && { name: nameQuery }),
     ...(nameQuery && { keyword: nameQuery }),
     ...(nameQuery && { search: nameQuery }),
-    ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(normalizedIsActive && { is_active: normalizedIsActive }),
+    ...(normalizedIsActive && { isActive: normalizedIsActive }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort?.id && { sortBy: primarySort.id }),

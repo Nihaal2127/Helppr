@@ -15,7 +15,7 @@ import AddEditFranchiseDialog from "./AddEditFranchiseDialog";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { PinCodeHoverPortal } from "../../components/PinCodeHoverPortal";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister } from "react-hook-form";
 import {
   deleteFranchise,
   fetchFranchise,
@@ -23,7 +23,9 @@ import {
 } from "../../services/franchiseService";
 import { fetchCategory } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
+import { getCount } from "../../services/getCountService";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import CustomFormSelect from "../../components/CustomFormSelect";
 
 /**
  * List-fetch generation counter (module scope).
@@ -197,6 +199,10 @@ const FranchiseManagement = () => {
   >({
     defaultValues: { franchise_id: "all" },
   });
+  const { register: utilityFilterRegister, setValue: setUtilityFilterValue } =
+    useForm<{ franchise_list_status: string }>({
+      defaultValues: { franchise_list_status: "All" },
+    });
   /** Header dropdown must drive fetches via state — `watch(franchise_id)` does not reliably update when CustomFormSelect overrides `register` onChange. */
   const [headerFranchiseId, setHeaderFranchiseId] = useState("all");
   const [franchiseData, setFranchiseData] = useState({
@@ -218,6 +224,7 @@ const FranchiseManagement = () => {
   }>({});
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const catalogBootstrapStartedRef = useRef(false);
 
   const isMountedRef = useRef(true);
 
@@ -235,18 +242,19 @@ const FranchiseManagement = () => {
     () => new Map()
   );
 
+  /** One-time catalog hydrate (default lists only) — avoids duplicate getAll chains for is_request / is_rejected. */
   useEffect(() => {
+    if (catalogBootstrapStartedRef.current) return;
+    catalogBootstrapStartedRef.current = true;
     let cancelled = false;
     void (async () => {
       const catMap = new Map<string, string>();
       const svcMap = new Map<string, string>();
       const limit = 200;
-      const loadCategories = async (
-        filters: { is_request?: string; is_rejected?: string }
-      ) => {
+      const loadCategories = async () => {
         let page = 1;
         for (;;) {
-          const res = await fetchCategory(page, limit, filters, []);
+          const res = await fetchCategory(page, limit, {}, []);
           if (cancelled) return;
           if (!res.response) break;
           for (const c of res.categories) {
@@ -267,12 +275,10 @@ const FranchiseManagement = () => {
           if (page > 50) break;
         }
       };
-      const loadServices = async (
-        filters: { is_request?: string; is_rejected?: string }
-      ) => {
+      const loadServices = async () => {
         let page = 1;
         for (;;) {
-          const res = await fetchService(page, limit, filters, []);
+          const res = await fetchService(page, limit, {}, []);
           if (cancelled) return;
           if (!res.response) break;
           for (const s of res.services) {
@@ -293,14 +299,9 @@ const FranchiseManagement = () => {
           if (page > 50) break;
         }
       };
-      // Merge all known backend list modes so franchise-linked IDs resolve.
-      await loadCategories({});
-      await loadCategories({ is_request: "true" });
-      await loadCategories({ is_rejected: "true" });
+      await loadCategories();
       if (cancelled) return;
-      await loadServices({});
-      await loadServices({ is_request: "true" });
-      await loadServices({ is_rejected: "true" });
+      await loadServices();
       if (!cancelled && isMountedRef.current) {
         setCategoryById(catMap);
         setServiceById(svcMap);
@@ -310,6 +311,39 @@ const FranchiseManagement = () => {
       cancelled = true;
     };
   }, []);
+
+  /** Global summary counts from getCount whenever the list is unscoped (no search, status, sort, or header franchise). */
+  useEffect(() => {
+    const searchQ = String(filters.search ?? "").trim();
+    const statusF = String(filters.status ?? "").trim();
+    const hasScoped =
+      searchQ !== "" ||
+      (statusF !== "" && statusF !== "All") ||
+      sortBy.length > 0 ||
+      headerFranchiseId !== "all";
+    if (hasScoped) return;
+    let cancelled = false;
+    void (async () => {
+      const { responseCount, countModel } = await getCount();
+      if (cancelled || !responseCount || !countModel) return;
+      setFranchiseData({
+        Total: countModel.total_franchise,
+        Active: countModel.active_franchise,
+        Inactive: countModel.inactive_franchise,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.search, filters.status, sortBy, headerFranchiseId]);
+
+  useEffect(() => {
+    const v =
+      filters.status && filters.status !== "All" ? filters.status : "All";
+    setUtilityFilterValue("franchise_list_status", v, {
+      shouldValidate: false,
+    });
+  }, [filters.status, setUtilityFilterValue]);
 
   const fetchData = useCallback(async () => {
     const gen = ++franchiseManagementFetchGeneration;
@@ -362,12 +396,12 @@ const FranchiseManagement = () => {
         Inactive: total - active,
       });
     } else {
-      const [listRes, totalRes, activeRes, inactiveRes] = await Promise.all([
-        fetchFranchise(currentPage, pageSize, apiFilters, sortBy),
-        fetchFranchise(1, 1, { ...apiFilters, status: undefined }, []),
-        fetchFranchise(1, 1, { ...apiFilters, status: "true" }, []),
-        fetchFranchise(1, 1, { ...apiFilters, status: "false" }, []),
-      ]);
+      const listRes = await fetchFranchise(
+        currentPage,
+        pageSize,
+        apiFilters,
+        sortBy
+      );
 
       if (!isMountedRef.current) return;
       if (gen !== franchiseManagementFetchGeneration) return;
@@ -381,15 +415,48 @@ const FranchiseManagement = () => {
         setTotalPages(0);
       }
 
-      setFranchiseData({
-        Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
-        Active: Number(
-          activeRes.totalItems ?? activeRes.franchises.length ?? 0
-        ),
-        Inactive: Number(
-          inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
-        ),
-      });
+      const searchQ = String(apiFilters.search ?? "").trim();
+      const statusF = String(apiFilters.status ?? "").trim();
+      const hasScopedFilters =
+        searchQ !== "" ||
+        (statusF !== "" && statusF !== "All") ||
+        sortBy.length > 0 ||
+        (fid && fid !== "all");
+
+      /** Only Active/Inactive from dropdown: one list getAll is enough; skip 3× limit=1 count fetches. */
+      const statusOnlyScoped =
+        (statusF !== "" && statusF !== "All") &&
+        searchQ === "" &&
+        sortBy.length === 0 &&
+        (!fid || fid === "all");
+
+      /**
+       * Search uses the same getAll as counts would (search+name on each leg) → 4× traffic.
+       * Keep summary from global getCount while search is active; only the paginated list refetches.
+       */
+      const skipAncillaryCountFetches =
+        statusOnlyScoped || (hasScopedFilters && searchQ !== "");
+
+      if (hasScopedFilters && !skipAncillaryCountFetches) {
+        const filtersForCounts = { ...apiFilters };
+        delete filtersForCounts.status;
+        const [totalRes, activeRes, inactiveRes] = await Promise.all([
+          fetchFranchise(1, 1, filtersForCounts, []),
+          fetchFranchise(1, 1, { ...filtersForCounts, status: "true" }, []),
+          fetchFranchise(1, 1, { ...filtersForCounts, status: "false" }, []),
+        ]);
+        if (!isMountedRef.current) return;
+        if (gen !== franchiseManagementFetchGeneration) return;
+        setFranchiseData({
+          Total: Number(totalRes.totalItems ?? totalRes.franchises.length ?? 0),
+          Active: Number(
+            activeRes.totalItems ?? activeRes.franchises.length ?? 0
+          ),
+          Inactive: Number(
+            inactiveRes.totalItems ?? inactiveRes.franchises.length ?? 0
+          ),
+        });
+      }
     }
   }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
 
@@ -407,13 +474,25 @@ const FranchiseManagement = () => {
     sort_order?: "asc" | "desc";
   }) => {
     setCurrentPage(1);
-    setFilters((prev) => ({ ...prev, ...nextFilters }));
+    setFilters((prev) => {
+      const merged = { ...prev, ...nextFilters };
+      if (
+        nextFilters.status === "All" ||
+        (Object.prototype.hasOwnProperty.call(nextFilters, "status") &&
+          nextFilters.status == null)
+      ) {
+        delete merged.status;
+      }
+      return merged;
+    });
   };
 
   const clearFranchiseFiltersDisabled = useMemo(() => {
     const hasSearch = Boolean(String(filters.search ?? "").trim());
+    const statusRaw = String(filters.status ?? "").trim();
+    const hasUtilityStatus = statusRaw !== "" && statusRaw !== "All";
     const hasSummaryFilters =
-      Boolean(filters.status) || Boolean(filters.sort_order);
+      hasUtilityStatus || Boolean(filters.sort_order);
     return (
       !hasSearch &&
       !hasSummaryFilters &&
@@ -434,6 +513,9 @@ const FranchiseManagement = () => {
     setCurrentPage(1);
     setHeaderFranchiseId("all");
     setValue("franchise_id", "all", { shouldValidate: false });
+    setUtilityFilterValue("franchise_list_status", "All", {
+      shouldValidate: false,
+    });
     setUtilitySearchKey((k) => k + 1);
   };
 
@@ -554,6 +636,40 @@ const FranchiseManagement = () => {
           searchHint="Search franchise, admin, state, city"
           toolsInlineRow
           hideMoreIcon
+          controlSlot={
+            <div style={{ minWidth: "200px" }}>
+              <CustomFormSelect
+                label="Status"
+                controlId="franchise_list_status_filter"
+                options={[
+                  { value: "All", label: "All" },
+                  { value: "true", label: "Active" },
+                  { value: "false", label: "Inactive" },
+                ]}
+                register={utilityFilterRegister as unknown as UseFormRegister<any>}
+                fieldName="franchise_list_status"
+                asCol={false}
+                noBottomMargin
+                selectWidth="200px"
+                defaultValue={
+                  filters.status && filters.status !== "All"
+                    ? filters.status
+                    : "All"
+                }
+                setValue={setUtilityFilterValue as (name: string, value: any) => void}
+                menuPortal
+                placeholder="All statuses"
+                onChange={(e) => {
+                  const v = String(e.target.value ?? "").trim();
+                  if (!v || v === "All") {
+                    handleFilterChange({ status: "All" });
+                  } else {
+                    handleFilterChange({ status: v });
+                  }
+                }}
+              />
+            </div>
+          }
           onSearch={(value) => handleFilterChange({ search: value })}
           afterSearchSlot={
             <Button

@@ -59,6 +59,15 @@ export const fetchArea = async (
 ): Promise<{ response: boolean; areas: AreaModel[]; totalPages: number }> => {
   const primarySort = sortBy[0];
   const nameQuery = String(filters.name ?? "").trim();
+  const statusRaw = String(filters.status ?? "").trim().toLowerCase();
+  const normalizedIsActive =
+    statusRaw === "all" || statusRaw === ""
+      ? ""
+      : statusRaw === "active" || statusRaw === "true"
+      ? "true"
+      : statusRaw === "inactive" || statusRaw === "false"
+      ? "false"
+      : statusRaw;
   if (USE_MOCK_AREA_API) {
     return fetchMockAreas(page, pageSize, filters);
   }
@@ -70,12 +79,15 @@ export const fetchArea = async (
     ...(nameQuery && { keyword: nameQuery }),
     ...(nameQuery && { search: nameQuery }),
     ...(nameQuery && { areaname: nameQuery }),
-    ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
+    ...(normalizedIsActive && { is_active: normalizedIsActive }),
+    ...(normalizedIsActive && { isActive: normalizedIsActive }),
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.state_id && { state_id: filters.state_id }),
+    ...(filters.state_id && { stateId: filters.state_id }),
     ...(filters.city_id && { city_id: filters.city_id }),
+    ...(filters.city_id && { cityId: filters.city_id }),
     ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
+    ...(filters.franchise_id && { franchiseId: filters.franchise_id }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),

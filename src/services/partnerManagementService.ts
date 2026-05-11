@@ -547,10 +547,24 @@ export async function fetchPartnerSubscriptions(
     const fromDateRaw = (filters.fromDate ?? "").trim();
     const toDateRaw = (filters.toDate ?? "").trim();
     if (fromDateRaw || toDateRaw) {
-      const fromTs = fromDateRaw ? new Date(fromDateRaw).getTime() : null;
-      const toTs = toDateRaw ? new Date(toDateRaw).getTime() : null;
+      const dayStart = (s: string) => {
+        const d = String(s).trim().slice(0, 10);
+        const [y, m, day] = d.split("-").map((x) => Number(x));
+        if (!y || !m || !day) return null;
+        return new Date(y, m - 1, day, 0, 0, 0, 0).getTime();
+      };
+      const dayEnd = (s: string) => {
+        const d = String(s).trim().slice(0, 10);
+        const [y, m, day] = d.split("-").map((x) => Number(x));
+        if (!y || !m || !day) return null;
+        return new Date(y, m - 1, day, 23, 59, 59, 999).getTime();
+      };
+      const fromTs = fromDateRaw ? dayStart(fromDateRaw) : null;
+      const toTs = toDateRaw ? dayEnd(toDateRaw) : null;
       data = data.filter((p) => {
-        const startTs = new Date(p.subscription_start_date).getTime();
+        const startStr = String(p.subscription_start_date ?? "").slice(0, 10);
+        const startTs = dayStart(startStr);
+        if (startTs == null || !Number.isFinite(startTs)) return false;
         const afterFrom = fromTs === null || startTs >= fromTs;
         const beforeTo = toTs === null || startTs <= toTs;
         return afterFrom && beforeTo;
@@ -590,18 +604,29 @@ export async function fetchPartnerSubscriptions(
   }
   const nameKw = (filters.name ?? "").trim();
   if (nameKw) {
-    params.set("keyword", nameKw);
+    /** Postman: `search` = partner name substring; also accepts `partner_name`. */
+    params.set("search", nameKw);
+    params.set("partner_name", nameKw);
   }
   const planT = (filters.planType ?? "").trim();
-  if (planT && planT !== "all" && /^[a-f\d]{24}$/i.test(planT)) {
-    params.set("subscription_plan_id", planT);
+  if (planT && planT !== "all") {
+    if (/^[a-f\d]{24}$/i.test(planT)) {
+      params.set("subscription_plan_id", planT);
+    } else {
+      const slug = planT.trim().toLowerCase();
+      if (["basic", "silver", "gold", "platinum"].includes(slug)) {
+        params.set("plan_name", slug);
+        params.set("subscription_plan", slug);
+      }
+    }
   }
   const areaId = (filters.location ?? "").trim();
   if (areaId && areaId !== "all" && /^[a-f\d]{24}$/i.test(areaId)) {
     params.set("area_id", areaId);
   }
-  const fromDate = (filters.fromDate ?? "").trim();
-  const toDate = (filters.toDate ?? "").trim();
+  const fromDate = (filters.fromDate ?? "").trim().slice(0, 10);
+  const toDate = (filters.toDate ?? "").trim().slice(0, 10);
+  /** Postman: `from_date` / `to_date` on `started_at` (from only, to only, or range). */
   if (fromDate) params.set("from_date", fromDate);
   if (toDate) params.set("to_date", toDate);
   const cityId = (filters.cityId ?? "").trim();
@@ -636,19 +661,10 @@ export async function fetchPartnerSubscriptions(
     string,
     unknown
   >[];
-  let records = Array.isArray(rawList)
+  const records = Array.isArray(rawList)
     ? rawList.map((r) => mapPartnerSubscriptionApiRecord(r))
     : [];
-  const planTypeSlug = (filters.planType ?? "").trim().toLowerCase();
-  if (
-    planTypeSlug &&
-    planTypeSlug !== "all" &&
-    !/^[a-f\d]{24}$/i.test(planTypeSlug)
-  ) {
-    records = records.filter(
-      (r) => (r.subscription_plan || "").toLowerCase() === planTypeSlug
-    );
-  }
+
   const totalPages = Number(root.totalPages ?? root.total_pages ?? 0) || 0;
   const stats = partnerSubListStatsFromResponse(root, records);
   return { response: true, records, totalPages, stats };

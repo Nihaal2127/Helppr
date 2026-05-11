@@ -87,6 +87,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [draftCategoryId, setDraftCategoryId] = useState<string>("");
   const [draftImageUrl, setDraftImageUrl] = useState<string>("");
+  const approvalStatus = watch("approval_status");
 
   const loadServiceOptions = useCallback(async () => {
     const serviceOpts = await fetchServiceDropDown();
@@ -406,9 +407,21 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     const payload = {
       name: data.name,
       desc: data.desc,
-      is_active: data.is_active,
+      is_active: isEditable
+        ? data.approval_status !== "rejected"
+        : data.is_active,
       service_ids: serviceIds,
       franchise_id: data.franchise_id,
+      ...(isEditable &&
+        data.approval_status && {
+          is_rejected: data.approval_status === "rejected",
+        }),
+      ...(isEditable && {
+        rejection_reason:
+          data.approval_status === "rejected"
+            ? String(data.rejection_reason ?? "").trim()
+            : "",
+      }),
       ...((image_url !== "" || draftImageUrl !== "") && {
         image_url: image_url || draftImageUrl,
       }),
@@ -628,19 +641,51 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               </Col>
               <Col md={6}>
-                <CustomRadioSelection
-                  label="Status"
-                  name="is_active"
-                  options={getStatusOptions()}
-                  defaultValue={
-                    category?.is_active !== undefined
-                      ? category.is_active.toString()
-                      : "true"
-                  }
-                  isEditable={isEditable}
-                  setValue={setValue}
-                />
+                {isEditable ? (
+                  <CustomRadioSelection
+                    label="Approval status"
+                    name="approval_status"
+                    options={[
+                      { label: "Approved", value: "approved" },
+                      { label: "Rejected", value: "rejected" },
+                    ]}
+                    defaultValue={watch("approval_status") || "approved"}
+                    isEditable={isEditable}
+                    setValue={setValue}
+                  />
+                ) : (
+                  <CustomRadioSelection
+                    label="Status"
+                    name="is_active"
+                    options={getStatusOptions()}
+                    defaultValue={
+                      category?.is_active !== undefined
+                        ? category.is_active.toString()
+                        : "true"
+                    }
+                    isEditable={isEditable}
+                    setValue={setValue}
+                  />
+                )}
               </Col>
+              {isEditable && approvalStatus === "rejected" && (
+                <Col md={6}>
+                  <CustomFormInput
+                    label="Rejection Note"
+                    controlId="rejection_reason"
+                    placeholder="Enter rejection note"
+                    register={register}
+                    error={(errors as any).rejection_reason}
+                    asCol={false}
+                    validation={{
+                      validate: (value: string) =>
+                        value?.trim() ? true : "Rejection note is required",
+                    }}
+                    as="textarea"
+                    rows={3}
+                  />
+                </Col>
+              )}
               <Col md={12}>
                 <CustomFormInput
                   label="Description"

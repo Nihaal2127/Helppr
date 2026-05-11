@@ -16,6 +16,14 @@ export type FranchiseDropDownOption = {
 
 type AdminContact = { email?: string; phone_number?: string };
 
+/** Cache admin contacts used to enrich franchise rows (avoids repeated /user/getAll?type=1 calls). */
+let franchiseAdminContactsCache:
+  | { map: Map<string, AdminContact>; loadedAt: number }
+  | null = null;
+let franchiseAdminContactsInFlight: Promise<Map<string, AdminContact>> | null =
+  null;
+const FRANCHISE_ADMIN_CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
+
 function mapAdminContactsById(rows: any[]): Map<string, AdminContact> {
   const out = new Map<string, AdminContact>();
   rows.forEach((u: any) => {
@@ -71,6 +79,32 @@ async function fetchAllFranchiseAdmins(): Promise<Map<string, AdminContact>> {
     if (page > 100) break;
   }
   return mapAdminContactsById(all);
+}
+
+async function getFranchiseAdminContactsCached(
+  forceRefresh = false
+): Promise<Map<string, AdminContact>> {
+  const now = Date.now();
+  if (!forceRefresh && franchiseAdminContactsCache) {
+    if (
+      now - franchiseAdminContactsCache.loadedAt <=
+      FRANCHISE_ADMIN_CONTACTS_CACHE_TTL_MS
+    ) {
+      return franchiseAdminContactsCache.map;
+    }
+  }
+  if (!forceRefresh && franchiseAdminContactsInFlight) {
+    return franchiseAdminContactsInFlight;
+  }
+  franchiseAdminContactsInFlight = fetchAllFranchiseAdmins()
+    .then((map) => {
+      franchiseAdminContactsCache = { map, loadedAt: Date.now() };
+      return map;
+    })
+    .finally(() => {
+      franchiseAdminContactsInFlight = null;
+    });
+  return franchiseAdminContactsInFlight;
 }
 
 function toIdArray(raw: unknown): string[] {
@@ -222,7 +256,7 @@ export const fetchFranchiseById = async (
   if (USE_MOCK_FRANCHISE_API) {
     const raw = mockFranchises.find((f: any) => String(f._id) === targetId);
     if (!raw) return null;
-    const adminContacts = await fetchAllFranchiseAdmins();
+    const adminContacts = await getFranchiseAdminContactsCached();
     return mapFranchiseRow(raw, adminContacts);
   }
   const response = await apiRequest(
@@ -246,7 +280,7 @@ export const fetchFranchiseById = async (
     d?.franchise ??
     (d && typeof d === "object" && d._id ? d : null);
   if (!raw || typeof raw !== "object") return null;
-  const adminContacts = await fetchAllFranchiseAdmins();
+  const adminContacts = await getFranchiseAdminContactsCached();
   return mapFranchiseRow(raw, adminContacts);
 };
 
@@ -346,7 +380,7 @@ export const fetchFranchise = async (
 
     const totalPages = Math.ceil(data.length / pageSize) || 0;
     const start = (page - 1) * pageSize;
-    const adminContacts = await fetchAllFranchiseAdmins();
+    const adminContacts = await getFranchiseAdminContactsCached();
     const records = data
       .slice(start, start + pageSize)
       .map((r) => mapFranchiseRow(r, adminContacts));
@@ -365,11 +399,14 @@ export const fetchFranchise = async (
   const sortByParam =
     primarySortId || (filters.sort_by ? String(filters.sort_by).trim() : "");
 
+  /**
+   * Postman (`Help-PR-All-Routes`): `search` OR-matches name, admin_name, state_name, city_name.
+   * Do not send `name` with the same value — that filter is franchise-name-specific and breaks the broad search.
+   */
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(searchValue && { search: searchValue }),
-    ...(searchValue && { name: searchValue }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.state_id && { state_id: filters.state_id }),
@@ -418,7 +455,7 @@ export const fetchFranchise = async (
       totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
-    const adminContacts = await fetchAllFranchiseAdmins();
+    const adminContacts = await getFranchiseAdminContactsCached();
     const fidFilter = String(filters.franchise_id ?? "").trim();
     let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
     if (fidFilter) {

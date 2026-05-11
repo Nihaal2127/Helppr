@@ -43,6 +43,7 @@ const PartnerManagement = () => {
         title="Partner Management"
         register={register}
         setValue={setValue}
+        hideFranchiseDropdown
       />
 
       <div className="custom-grid-box-div">
