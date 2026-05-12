@@ -148,7 +148,7 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
           onSubmit={handleSubmit(onSubmit)}
         >
           {showPrice && (
-            <Controller
+            <Controller<FormValues, "service_price">
               name="service_price"
               control={control}
               rules={{
