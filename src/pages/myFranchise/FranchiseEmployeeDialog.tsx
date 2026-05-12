@@ -3,6 +3,7 @@ import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
+import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
@@ -21,7 +22,9 @@ import {
   isNonEmptyName,
   isValidUserEmail,
   isValidE164StylePhone,
-  sanitizeE164PhoneInput,
+  fullPhoneFromIndiaNational,
+  nationalDigitsWithoutIndia91,
+  sanitizeIndiaNationalPhoneInput,
   validateStrongPassword,
   passwordsMatch,
 } from "../../helper/userFormValidation";
@@ -109,7 +112,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     if (employee && isEditing) {
       reset({
         name: employee.name,
-        phone: sanitizeE164PhoneInput(String(employee.phone ?? "")),
+        phone: nationalDigitsWithoutIndia91(String(employee.phone ?? "")),
         email: employee.email,
         password: "",
         confirmPassword: "",
@@ -132,15 +135,19 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     ? "Edit Employee"
     : "Employee Information";
 
-  const parseSubmitPayload = (data: EmployeeFormValues) => {
+  const parseSubmitPayload = (data: EmployeeFormValues & { phone?: string }) => {
     const is_active = String(data.is_active ?? "") === "true";
     const chat_enabled = is_active ? Boolean(data.chat_enabled) : false;
     const keys = screenPermissionKeys.filter(
       (k) => !isFranchiseEmployeeExcludedScreenKey(k)
     );
+    const national = sanitizeIndiaNationalPhoneInput(
+      String(data.phone ?? "").trim()
+    );
+    const phone = fullPhoneFromIndiaNational(national);
     return {
       name: data.name.trim(),
-      phone: sanitizeE164PhoneInput(data.phone.trim()),
+      phone,
       email: data.email.trim(),
       is_active,
       chat_enabled,
@@ -169,9 +176,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
       return;
     }
     if (!isValidE164StylePhone(payload.phone)) {
-      showErrorAlert(
-        "Please enter a valid phone number (optional +, 7–15 digits)."
-      );
+      showErrorAlert("Please enter a valid mobile number (digits after +91).");
       return;
     }
     if (isAdd) {
@@ -223,6 +228,14 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
 
   const renderViewBody = () => {
     if (!employee) return null;
+    const screenPermissionLabels: string[] = employee.accessible_screens?.length
+      ? employee.accessible_screens.map((s) => String(s.page ?? "").trim()).filter(Boolean)
+      : employee.screenPermissionKeys?.length
+        ? employee.screenPermissionKeys.map(
+            (k) =>
+              franchiseScreenMenuItems.find((i) => i.key === k)?.label ?? k
+          )
+        : [];
     const chatOn = Boolean(
       employee.is_active && (employee.chat_enabled ?? true)
     );
@@ -248,17 +261,17 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             <DetailsRow
               title="Screen permissions"
               value={
-                employee.accessible_screens?.length
-                  ? employee.accessible_screens.map((s) => s.page).join(", ")
-                  : employee.screenPermissionKeys?.length
-                  ? employee.screenPermissionKeys
-                      .map(
-                        (k) =>
-                          franchiseScreenMenuItems.find((i) => i.key === k)
-                            ?.label ?? k
-                      )
-                      .join(", ")
-                  : "—"
+                screenPermissionLabels.length > 0 ? (
+                  <ul className="mb-0 ps-3 small" style={{ listStyleType: "disc" }}>
+                    {screenPermissionLabels.map((label, i) => (
+                      <li key={`${label}-${i}`} className="text-start">
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  "—"
+                )
               }
             />
             <DetailsRow title="Chat" value={chatOn ? "Enabled" : "Disabled"} />
@@ -305,24 +318,14 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             setValue("name", v, { shouldDirty: true, shouldValidate: false })
           }
         />
-        <CustomTextField
+        <CustomTextFieldIndiaMobile
           label="Phone"
           controlId="phone"
-          placeholder="+919876543210 or digits (E.164)"
+          placeholder="Mobile number"
           register={register}
-          error={errors.phone}
-          maxLength={16}
-          validation={{
-            validate: (v: string) =>
-              isValidE164StylePhone(v) ||
-              "Use optional + then digits (7–15 digits).",
-          }}
           value={watch("phone") ?? ""}
           onChange={(v) =>
-            setValue("phone", sanitizeE164PhoneInput(v), {
-              shouldDirty: true,
-              shouldValidate: false,
-            })
+            setValue("phone", v, { shouldDirty: true, shouldValidate: false })
           }
         />
         <CustomTextField
@@ -346,7 +349,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             <CustomTextField
               label="Password"
               controlId="password"
-              placeholder="Min 8 chars, upper, lower, number, special"
+              placeholder="Enter Password"
               register={register}
               error={errors.password}
               inputType="password"

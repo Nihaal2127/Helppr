@@ -3,6 +3,13 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
+import { CustomFormIndiaMobile } from "../../components/CustomFormIndiaMobile";
+import {
+  fullPhoneFromIndiaNational,
+  isValidE164StylePhone,
+  nationalDigitsWithoutIndia91,
+  sanitizeIndiaNationalPhoneInput,
+} from "../../helper/userFormValidation";
 import { openDialog } from "../../helper/DialogManager";
 import { showSuccessAlert } from "../../helper/alertHelper";
 
@@ -38,7 +45,9 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
     defaultValues: {
       partner_name: defaults.partner_name ?? "",
       partner_user_id: defaults.partner_user_id ?? "",
-      partner_phone: defaults.partner_phone ?? "",
+      partner_phone: nationalDigitsWithoutIndia91(
+        defaults.partner_phone ?? ""
+      ),
       partner_city: defaults.partner_city ?? "",
     },
   });
@@ -47,16 +56,23 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
     reset({
       partner_name: defaults.partner_name ?? "",
       partner_user_id: defaults.partner_user_id ?? "",
-      partner_phone: defaults.partner_phone ?? "",
+      partner_phone: nationalDigitsWithoutIndia91(
+        defaults.partner_phone ?? ""
+      ),
       partner_city: defaults.partner_city ?? "",
     });
   }, [defaults, reset]);
 
   const onSubmit = (data: FormValues) => {
+    const national = sanitizeIndiaNationalPhoneInput(
+      (data.partner_phone ?? "").trim()
+    );
+    const partner_phone =
+      national.length > 0 ? fullPhoneFromIndiaNational(national) : "";
     onSaved({
       partner_name: data.partner_name.trim(),
       partner_user_id: data.partner_user_id.trim(),
-      partner_phone: data.partner_phone.trim(),
+      partner_phone,
       partner_city: data.partner_city.trim(),
     });
     showSuccessAlert("Partner details updated successfully.");
@@ -99,17 +115,22 @@ const QuoteEditPartnerDetailsDialog: React.FC<QuoteEditPartnerDetailsDialogProps
             error={errors.partner_user_id}
             validation={{ required: "Partner ID is required" }}
           />
-          <CustomTextField
+          <CustomFormIndiaMobile
             label="Partner phone"
             controlId="partner_phone"
-            placeholder="Enter phone number"
+            placeholder="Mobile number"
             register={register}
             error={errors.partner_phone}
+            asCol={false}
             validation={{
-              validate: (v: string) =>
-                !v?.trim() ||
-                /^[\d\s\-+()]+$/.test(v.trim()) ||
-                "Enter a valid phone number",
+              validate: (v: string) => {
+                const n = sanitizeIndiaNationalPhoneInput(v ?? "");
+                if (!n) return true;
+                return (
+                  isValidE164StylePhone(fullPhoneFromIndiaNational(n)) ||
+                  "Enter a valid mobile number"
+                );
+              },
             }}
           />
           <CustomTextField

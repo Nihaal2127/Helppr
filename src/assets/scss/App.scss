@@ -1564,6 +1564,50 @@ body:has(.modal.show ~ .modal.show) {
   // }
 }
 
+/* Franchise employee modal — +91 prefix + digits (same row grid & borders as CustomTextField / CustomFormInput) */
+.franchise-employee-phone-input-group {
+  flex-wrap: nowrap;
+
+  .input-group-text.franchise-employee-phone-prefix {
+    background-color: #eceeef;
+    border-color: var(--primary-color);
+    color: var(--content-txt-color);
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 18px;
+    min-height: 35px;
+    padding: 0 14px;
+    border-radius: 8px 0 0 8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+  }
+
+  .form-control.franchise-employee-phone-input {
+    box-shadow: none;
+    border-radius: 0 8px 8px 0;
+    border-color: var(--primary-color);
+    border-left-width: 0;
+    font-size: 14px;
+    font-weight: normal;
+    min-height: 35px;
+    line-height: 18px;
+    background-color: var(--bg-color);
+    font-family: "Inter", sans-serif;
+    color: var(--content-txt-color);
+    margin-bottom: 10px;
+
+    &:focus {
+      border-color: var(--primary-color);
+      border-left-width: 1px;
+      margin-left: -1px;
+      box-shadow: none;
+      z-index: 1;
+    }
+  }
+}
+
 /* My Franchise chat toggle — shared by employees table and add/edit employee modal */
 .franchise-chat-switch .form-check-input {
   width: 2.5em;

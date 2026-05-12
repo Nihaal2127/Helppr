@@ -30,6 +30,26 @@ export function sanitizeE164PhoneInput(raw: string): string {
   return hasPlus ? `+${digits}` : digits;
 }
 
+/** India franchise UI: national digits only (no +91 in the edit field). Strip leading 91 when present. */
+export function nationalDigitsWithoutIndia91(phone: string): string {
+  let d = String(phone ?? "").replace(/\D/g, "");
+  if (d.startsWith("91") && d.length >= 11) {
+    d = d.slice(2);
+  }
+  return d.slice(0, 10);
+}
+
+/** National segment only (digits), typical IN mobile length. */
+export function sanitizeIndiaNationalPhoneInput(raw: string): string {
+  return String(raw ?? "").replace(/\D/g, "").slice(0, 10);
+}
+
+/** Full E.164 used for API (`+91` + national digits). */
+export function fullPhoneFromIndiaNational(nationalDigits: string): string {
+  const d = nationalDigits.replace(/\D/g, "");
+  return d ? `+91${d}` : "";
+}
+
 export const WEB_USER_TYPE_MIN = 1;
 export const WEB_USER_TYPE_MAX = 6;
 

@@ -9,6 +9,7 @@ import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import { CustomFormInput } from "../../../components/CustomFormInput";
+import { CustomFormIndiaMobile } from "../../../components/CustomFormIndiaMobile";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
 import {
@@ -45,7 +46,9 @@ import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import {
   isValidUserEmail,
   isValidE164StylePhone,
-  sanitizeE164PhoneInput,
+  nationalDigitsWithoutIndia91,
+  sanitizeIndiaNationalPhoneInput,
+  fullPhoneFromIndiaNational,
   validateStrongPassword,
   passwordsMatch,
 } from "../../../helper/userFormValidation";
@@ -156,7 +159,7 @@ function applyStaffSortFallback(
 
 const RoleManagement = () => {
   const SETTINGS_ROLE_PAGE_SIZE = 10;
-  const { register, setValue } = useForm<any>();
+  const { register, setValue, reset } = useForm<any>();
   const isFranchiseAdminSession =
     getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
   const [items, setItems] = useState<RoleSettingsModel[]>([]);
@@ -213,9 +216,18 @@ const RoleManagement = () => {
 
   const openFormWithData = useCallback(
     (item?: RoleSettingsModel, viewMode = false) => {
+      const emptyRhf = {
+        role_name: "",
+        role_email: "",
+        role_phone: "",
+        role_password: "",
+        role_confirm_password: "",
+        assigned_franchise: "",
+      };
       if (!item) {
         setEditing(null);
         setForm(emptyRoleForm);
+        reset(emptyRhf);
         setRoleImageFile(null);
         setIsViewMode(false);
         setShowForm(true);
@@ -226,10 +238,12 @@ const RoleManagement = () => {
       const rawPerms = item.screenPermissions?.length
         ? [...item.screenPermissions]
         : [];
-      setForm({
+      const nextForm = {
         roleName: item.roleName,
         email: item.email ?? "",
-        phone_number: sanitizeE164PhoneInput(String(item.phone_number ?? "")),
+        phone_number: nationalDigitsWithoutIndia91(
+          String(item.phone_number ?? "")
+        ),
         profile_url: item.profile_url ?? "",
         roleType: item.roleType,
         assignedFranchise: item.assignedFranchise || "",
@@ -240,11 +254,20 @@ const RoleManagement = () => {
             : rawPerms,
         password: "",
         confirmPassword: "",
+      };
+      setForm(nextForm);
+      reset({
+        role_name: nextForm.roleName,
+        role_email: nextForm.email,
+        role_phone: nextForm.phone_number,
+        role_password: "",
+        role_confirm_password: "",
+        assigned_franchise: nextForm.assignedFranchise,
       });
       setShowForm(true);
       setRoleImageFile(null);
     },
-    []
+    [reset]
   );
 
   const openStaffWithData = useCallback(
@@ -262,7 +285,9 @@ const RoleManagement = () => {
       setStaffForm({
         name: item.name,
         email: item.email ?? "",
-        phone_number: sanitizeE164PhoneInput(String(item.phone_number ?? "")),
+        phone_number: nationalDigitsWithoutIndia91(
+          String(item.phone_number ?? "")
+        ),
         profile_url: item.profile_url ?? "",
         status: item.status,
         screenPermissions: item.screenPermissions?.length
@@ -289,7 +314,9 @@ const RoleManagement = () => {
     setForm({
       roleName: editing.roleName,
       email: editing.email ?? "",
-      phone_number: sanitizeE164PhoneInput(String(editing.phone_number ?? "")),
+      phone_number: nationalDigitsWithoutIndia91(
+        String(editing.phone_number ?? "")
+      ),
       profile_url: editing.profile_url ?? "",
       roleType: editing.roleType,
       assignedFranchise: editing.assignedFranchise || "",
@@ -310,7 +337,9 @@ const RoleManagement = () => {
     setStaffForm({
       name: staffEditing.name,
       email: staffEditing.email ?? "",
-      phone_number: sanitizeE164PhoneInput(String(staffEditing.phone_number ?? "")),
+      phone_number: nationalDigitsWithoutIndia91(
+        String(staffEditing.phone_number ?? "")
+      ),
       profile_url: staffEditing.profile_url ?? "",
       status: staffEditing.status,
       screenPermissions: staffEditing.screenPermissions?.length
@@ -804,6 +833,14 @@ const RoleManagement = () => {
               setEditing(null);
               setIsViewMode(false);
               setForm({ ...emptyRoleForm, roleType: "franchise_admin" });
+              reset({
+                role_name: "",
+                role_email: "",
+                role_phone: "",
+                role_password: "",
+                role_confirm_password: "",
+                assigned_franchise: "",
+              });
               setRoleImageFile(null);
               setShowForm(true);
             }}
@@ -832,6 +869,14 @@ const RoleManagement = () => {
             setEditing(null);
             setIsViewMode(false);
             setForm({ ...emptyRoleForm, roleType: "employee" });
+            reset({
+              role_name: "",
+              role_email: "",
+              role_phone: "",
+              role_password: "",
+              role_confirm_password: "",
+              assigned_franchise: "",
+            });
             setRoleImageFile(null);
             setShowForm(true);
           }}
@@ -1015,7 +1060,12 @@ const RoleManagement = () => {
         />
       )}
 
-      <Modal show={showForm} onHide={() => setShowForm(false)} centered>
+      <Modal
+        show={showForm}
+        onHide={() => setShowForm(false)}
+        centered
+        key={`settings-role-modal-${editing?.id ?? `add-${form.roleType}`}`}
+      >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title">
             {editing
@@ -1145,19 +1195,17 @@ const RoleManagement = () => {
                 />
               </div>
               <div className="col-md-12">
-                <CustomFormInput
+                <CustomFormIndiaMobile
                   label="Phone number"
                   controlId="role_phone"
-                  placeholder="+919876543210 or digits (E.164)"
+                  placeholder="Mobile number"
                   register={register}
-                  inputType="tel"
                   asCol={false}
-                  maxLength={16}
                   value={form.phone_number}
                   onChange={(value: string) =>
                     setForm((p) => ({
                       ...p,
-                      phone_number: sanitizeE164PhoneInput(value),
+                      phone_number: sanitizeIndiaNationalPhoneInput(value),
                     }))
                   }
                 />
@@ -1325,9 +1373,12 @@ const RoleManagement = () => {
                   showErrorAlert("Please enter a valid email address.");
                   return;
                 }
-                if (!isValidE164StylePhone(form.phone_number)) {
+                const rolePhoneFull = fullPhoneFromIndiaNational(
+                  sanitizeIndiaNationalPhoneInput(form.phone_number)
+                );
+                if (!isValidE164StylePhone(rolePhoneFull)) {
                   showErrorAlert(
-                    "Please enter a valid phone number (optional +, 7–15 digits)."
+                    "Please enter a valid mobile number (10 digits after +91)."
                   );
                   return;
                 }
@@ -1348,7 +1399,7 @@ const RoleManagement = () => {
                     `ROLE-${String(items.length + 1).padStart(3, "0")}`,
                   roleName: form.roleName.trim(),
                   email: form.email.trim(),
-                  phone_number: form.phone_number.trim(),
+                  phone_number: rolePhoneFull,
                   profile_url: form.profile_url.trim() || undefined,
                   roleType: form.roleType,
                   assignedFranchise: form.assignedFranchise || undefined,
@@ -1545,19 +1596,17 @@ const RoleManagement = () => {
                 />
               </div>
               <div className="col-md-12">
-                <CustomFormInput
+                <CustomFormIndiaMobile
                   label="Phone number"
                   controlId="staff_phone"
-                  placeholder="+919876543210 or digits (E.164)"
+                  placeholder="Mobile number"
                   register={register}
-                  inputType="tel"
                   asCol={false}
-                  maxLength={16}
                   value={staffForm.phone_number}
                   onChange={(value: string) =>
                     setStaffForm((p) => ({
                       ...p,
-                      phone_number: sanitizeE164PhoneInput(value),
+                      phone_number: sanitizeIndiaNationalPhoneInput(value),
                     }))
                   }
                 />
@@ -1568,7 +1617,7 @@ const RoleManagement = () => {
                     <CustomFormInput
                       label="Password"
                       controlId="staff_password"
-                      placeholder="Min 8 chars, upper, lower, number, special"
+                      placeholder="Enter Password"
                       register={register}
                       inputType="password"
                       asCol={false}
@@ -1705,9 +1754,12 @@ const RoleManagement = () => {
                   showErrorAlert("Please enter a valid email address.");
                   return;
                 }
-                if (!isValidE164StylePhone(staffForm.phone_number)) {
+                const staffPhoneFull = fullPhoneFromIndiaNational(
+                  sanitizeIndiaNationalPhoneInput(staffForm.phone_number)
+                );
+                if (!isValidE164StylePhone(staffPhoneFull)) {
                   showErrorAlert(
-                    "Please enter a valid phone number (optional +, 7–15 digits)."
+                    "Please enter a valid mobile number (10 digits after +91)."
                   );
                   return;
                 }
@@ -1742,7 +1794,7 @@ const RoleManagement = () => {
                     `STAFF-${String(staffItems.length + 1).padStart(3, "0")}`,
                   name: staffForm.name.trim(),
                   email: staffForm.email.trim(),
-                  phone_number: staffForm.phone_number.trim(),
+                  phone_number: staffPhoneFull,
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
                   screenPermissions: staffForm.screenPermissions.filter(

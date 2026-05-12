@@ -444,6 +444,67 @@ function mapPartnerSubscriptionApiRecord(
   };
 }
 
+/** Maps react-table column ids to `GET …/partner-subscription/getAll` `sort_by` values. */
+function mapPartnerSubscriptionSortField(columnId: string): string {
+  const id = String(columnId ?? "").trim();
+  const map: Record<string, string> = {
+    partner_name: "partner_name",
+    subscription_plan: "subscription_plan",
+    subscription_start_date: "subscription_start_date",
+    subscription_end_date: "subscription_end_date",
+    is_active: "is_active",
+  };
+  return map[id] ?? id;
+}
+
+function resolvePartnerSubscriptionTotalPages(
+  root: Record<string, unknown>,
+  limit: number,
+  recordCount: number
+): number {
+  const explicit = Number(root.totalPages ?? root.total_pages ?? 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const total = Number(
+    root.total ?? root.totalDocs ?? root.total_count ?? root.count ?? 0
+  );
+  if (Number.isFinite(total) && total > 0 && limit > 0) {
+    return Math.max(1, Math.ceil(total / limit));
+  }
+  if (recordCount > 0 && limit > 0) return 1;
+  return 0;
+}
+
+function comparePartnerSubscriptionsMock(
+  a: PartnerSubscriptionModel,
+  b: PartnerSubscriptionModel,
+  columnId: string,
+  desc: boolean
+): number {
+  const mul = desc ? -1 : 1;
+  const val = (p: PartnerSubscriptionModel, id: string): string | number => {
+    switch (id) {
+      case "partner_name":
+        return (p.partner_name || "").toLowerCase();
+      case "subscription_plan":
+        return (p.subscription_plan || "").toLowerCase();
+      case "subscription_start_date":
+        return String(p.subscription_start_date ?? "");
+      case "subscription_end_date":
+        return String(p.subscription_end_date ?? "");
+      case "is_active":
+        return p.is_active ? 1 : 0;
+      default:
+        return (p.partner_name || "").toLowerCase();
+    }
+  };
+  const av = val(a, columnId);
+  const bv = val(b, columnId);
+  if (av < bv) return -1 * mul;
+  if (av > bv) return 1 * mul;
+  return 0;
+}
+
 function partnerSubListStatsFromResponse(
   root: Record<string, unknown>,
   records: PartnerSubscriptionModel[]
@@ -571,7 +632,12 @@ export async function fetchPartnerSubscriptions(
       });
     }
 
-    if (sortRaw) {
+    if (primarySort?.id) {
+      const sid = primarySort.id;
+      data.sort((a, b) =>
+        comparePartnerSubscriptionsMock(a, b, sid, primarySort.desc)
+      );
+    } else if (sortRaw) {
       const ascending = sortRaw === "asc" || sortRaw === "1";
       data.sort((a, b) =>
         ascending
@@ -639,7 +705,7 @@ export async function fetchPartnerSubscriptions(
   }
   if (filters.sort) params.set("sort", filters.sort);
   if (primarySort?.id) {
-    params.set("sort_by", primarySort.id);
+    params.set("sort_by", mapPartnerSubscriptionSortField(primarySort.id));
     params.set("sort_order", primarySort.desc ? "desc" : "asc");
   }
 
@@ -665,7 +731,11 @@ export async function fetchPartnerSubscriptions(
     ? rawList.map((r) => mapPartnerSubscriptionApiRecord(r))
     : [];
 
-  const totalPages = Number(root.totalPages ?? root.total_pages ?? 0) || 0;
+  const totalPages = resolvePartnerSubscriptionTotalPages(
+    root,
+    limit,
+    records.length
+  );
   const stats = partnerSubListStatsFromResponse(root, records);
   return { response: true, records, totalPages, stats };
 }

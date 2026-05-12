@@ -15,6 +15,7 @@ import { createOrUpdateOrder } from "../../services/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchTaxOtherChargesById } from "../../services/taxOtherChargesService";
 import CustomTextField from "../../components/CustomTextField";
+import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
@@ -30,6 +31,11 @@ import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
 import { orderPaymentModeSelectOptions } from "../../constant/PaymentEnum";
 import { showErrorAlert } from "../../helper/alertHelper";
+import {
+  nationalDigitsWithoutIndia91,
+  sanitizeIndiaNationalPhoneInput,
+  fullPhoneFromIndiaNational,
+} from "../../helper/userFormValidation";
 import { OrderItemModel } from "../../models/OrderItemModel";
 import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
 import { openDialog } from "../../helper/DialogManager";
@@ -273,12 +279,25 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     }
   };
 
-  const fetchUserFromApi = async (phone_number: string) => {
+  const fetchUserFromApi = async (nationalDigits: string) => {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
       const { users } = await fetchUserDropDown(APP_USER_TYPE.CUSTOMER);
-      setSelectedUser(users.find((user) => user.phone_number === phone_number));
+      const national = sanitizeIndiaNationalPhoneInput(nationalDigits);
+      if (national.length !== 10) {
+        setSelectedUser(undefined);
+        return;
+      }
+      const full = fullPhoneFromIndiaNational(national);
+      setSelectedUser(
+        users.find(
+          (user) =>
+            fullPhoneFromIndiaNational(
+              nationalDigitsWithoutIndia91(String(user.phone_number ?? ""))
+            ) === full
+        )
+      );
     } finally {
       fetchRef.current = false;
     }
@@ -378,7 +397,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   useEffect(() => {
     if (!isEditable || !order) return;
     const init = async () => {
-      setValue("user_phone_number", order.user_phone_number ?? "");
+      setValue(
+        "user_phone_number",
+        nationalDigitsWithoutIndia91(order.user_phone_number ?? "")
+      );
       setValue("city_id", order.city_id ?? "");
       setValue("category_id", order.category_id ?? "");
       setValue(
@@ -782,7 +804,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             setSelectedUser(u);
                             setValue(
                               "user_phone_number",
-                              u?.phone_number ?? ""
+                              nationalDigitsWithoutIndia91(u?.phone_number ?? "")
                             );
                             if (u?.city_id) {
                               setValue("city_id", u.city_id);
@@ -1753,10 +1775,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     <h3>User</h3>
                     <Row>
                       <Col xs={4}>
-                        <CustomTextField
+                        <CustomTextFieldIndiaMobile
                           label="Phone No"
                           controlId="user_phone_number"
-                          placeholder="Enter Phone Number"
+                          placeholder="Mobile number"
                           register={register}
                           error={errors.user_phone_number}
                           validation={{ required: "Phone number is required" }}

@@ -11,8 +11,10 @@ import {
   createWebManagementUser,
   fetchUser,
   fetchUserById,
+  menuKeysFromAvailablePages,
   menuKeysFromUserAccess,
   mapMenuKeysToAvailablePages,
+  normalizePhoneForUserCreate,
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
 import type { AvailablePageEntry } from "./userService";
@@ -886,12 +888,33 @@ export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
 }
 
 export async function setEmployeeChatEnabled(
-  id: string,
+  employee: EmployeeRow,
   chat_enabled: boolean
 ): Promise<boolean> {
-  void id;
-  void chat_enabled;
-  return false;
+  const keysFromRow =
+    employee.screenPermissionKeys?.filter(
+      (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+    ) ?? [];
+  const keysFromScreens = menuKeysFromAvailablePages(
+    employee.accessible_screens
+  ).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
+  const screenPermissionKeys =
+    keysFromRow.length > 0 ? keysFromRow : keysFromScreens;
+  if (!screenPermissionKeys.length) {
+    showErrorAlert(
+      "Cannot update chat: missing screen permissions for this employee."
+    );
+    return false;
+  }
+
+  return updateFranchiseEmployee(employee._id, {
+    name: employee.name,
+    phone: employee.phone,
+    email: employee.email,
+    is_active: employee.is_active,
+    chat_enabled: employee.is_active ? chat_enabled : false,
+    screenPermissionKeys,
+  });
 }
 
 async function ensureFranchiseServiceMapLoaded(): Promise<FranchiseServiceMapCache | null> {
@@ -1139,9 +1162,47 @@ export async function updateFranchiseEmployee(
   id: string,
   input: FranchiseEmployeeInput
 ): Promise<boolean> {
-  void id;
-  void input;
-  return false;
+  const userId = String(id ?? "").trim();
+  if (!userId) {
+    showErrorAlert("Unable to update. ID is missing.");
+    return false;
+  }
+
+  const keys = (input.screenPermissionKeys ?? []).filter(
+    (k) => !isFranchiseEmployeeExcludedScreenKey(k)
+  );
+  const availablePages = mapMenuKeysToAvailablePages(keys);
+
+  const franchiseId = (await resolveSessionFranchiseId())?.trim();
+  if (!franchiseId) {
+    showErrorAlert("Franchise context is missing. Please log in again.");
+    return false;
+  }
+
+  const isActive = Boolean(input.is_active);
+  const status = isActive ? "active" : "inactive";
+  const body: Record<string, unknown> = {
+    name: input.name.trim(),
+    email: input.email.trim(),
+    phone_number: normalizePhoneForUserCreate(input.phone.trim()),
+    status,
+    is_active: isActive,
+    franchise_id: franchiseId,
+    available_pages: availablePages,
+    accessible_screens: availablePages,
+    chat: isActive ? Boolean(input.chat_enabled) : false,
+  };
+
+  const res = await apiRequest(
+    ApiPaths.UPDATE_USER(userId),
+    "PUT",
+    body,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(res.success);
 }
 
 export async function voidFranchiseEmployee(id: string): Promise<boolean> {

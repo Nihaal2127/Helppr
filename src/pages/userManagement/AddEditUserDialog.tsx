@@ -24,6 +24,7 @@ import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import CustomTextField from "../../components/CustomTextField";
+import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomImageUploader from "../../components/CustomImageUploader";
@@ -35,6 +36,7 @@ import { openDialog } from "../../helper/DialogManager";
 import {
   sanitizeIndianPincodeInput,
 } from "../../helper/pincodeValidation";
+import { nationalDigitsWithoutIndia91 } from "../../helper/userFormValidation";
 
 import {
   PartnerSingleSelect,
@@ -165,7 +167,7 @@ function AddEditUserDialogView({
     defaultValues: {
       name: user?.name || "",
       email: user?.email || "",
-      phone_number: user?.phone_number || "",
+      phone_number: nationalDigitsWithoutIndia91(user?.phone_number || ""),
       address: normalizeAddressValue(user?.address),
       state_id: user?.state_id || "",
       city_id: user?.city_id || "",
@@ -740,7 +742,9 @@ function AddEditUserDialogView({
     reset({
       name: isEditable ? user?.name || "" : "",
       email: isEditable ? user?.email || "" : "",
-      phone_number: isEditable ? user?.phone_number || "" : "",
+      phone_number: isEditable
+        ? nationalDigitsWithoutIndia91(user?.phone_number || "")
+        : "",
       address: isEditable ? normalizeAddressValue(user?.address) : "",
       state_id: isEditable ? user?.state_id || "" : "",
       city_id: isEditable ? user?.city_id || "" : "",
@@ -827,10 +831,10 @@ function AddEditUserDialogView({
                 </Row>
                 <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
-                    <CustomTextField
+                    <CustomTextFieldIndiaMobile
                       label="Phone No"
                       controlId="phone_number"
-                      placeholder="Enter Phone No"
+                      placeholder="Mobile number"
                       register={register}
                       error={errors.phone_number}
                       validation={{ required: "Phone no is required" }}
@@ -970,10 +974,10 @@ function AddEditUserDialogView({
                     })
                   }
                 />
-                <CustomTextField
+                <CustomTextFieldIndiaMobile
                   label="Phone No"
                   controlId="phone_number"
-                  placeholder="Enter Phone No"
+                  placeholder="Mobile number"
                   register={register}
                   error={errors.phone_number}
                   validation={{ required: "Phone no is required" }}

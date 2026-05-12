@@ -206,6 +206,11 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     };
   }, [isFranchiseAdminSession]);
 
+  /** Reset page when switching between Plans and Partner Subscription List (each uses server pagination). */
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBox]);
+
   /** Summary boxes: POST /getCount with type partner-management (once on mount). */
   useEffect(() => {
     let cancelled = false;
@@ -350,7 +355,34 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           }
         />
       </Col>
-    
+      {!isFranchiseAdminSession ? (
+        <Col
+          xs={12}
+          sm={6}
+          md="auto"
+          className="order-payments-filter-col"
+          style={{ minWidth: 200 }}
+        >
+          <CustomFormSelect
+            label="Location (area)"
+            controlId="partner_sub_location_filter"
+            options={locationAreaOptions}
+            register={register}
+            fieldName="partner_sub_location_filter"
+            asCol={false}
+            noBottomMargin
+            defaultValue={partnerFilters.location || "all"}
+            setValue={setValue}
+            placeholder="All locations"
+            menuPortal
+            onChange={(e) =>
+              handlePartnerSubscriptionFilterChange({
+                location: e.target.value,
+              })
+            }
+          />
+        </Col>
+      ) : null}
       <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
         <CustomFormSelect
           label="Status"
@@ -433,8 +465,8 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           disabled={
             (partnerFilters.planType ?? "all") === "all" &&
             (partnerFilters.status ?? "all") === "all" &&
-            ((partnerFilters.location ?? "all") === "all" ||
-              isFranchiseAdminSession) &&
+            (isFranchiseAdminSession ||
+              (partnerFilters.location ?? "all") === "all") &&
             !partnerFilters.fromDate &&
             !partnerFilters.toDate &&
             !partnerFilters.name?.trim()

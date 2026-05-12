@@ -41,24 +41,40 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
     setRows(value.length ? [...value] : [""]);
   }, [value]);
 
-  const emitUniqueCodes = (nextRows: string[]) => {
-    const seen = new Set<string>();
-    const unique = nextRows
+  /** Emit non-empty trimmed codes only (order preserved; duplicates kept so rows stay in sync until user fixes). */
+  const emitCodes = (nextRows: string[]) => {
+    const codes = nextRows
       .map((p) => p.trim())
-      .filter(Boolean)
-      .filter((p) => {
-        if (seen.has(p)) return false;
-        seen.add(p);
-        return true;
-      });
-    onChange(unique);
+      .filter((p) => p.length > 0);
+    onChange(codes);
   };
 
+  const duplicateCompletePinsMessage = React.useMemo(() => {
+    const completeSix = rows
+      .map((r) => r.trim())
+      .filter((r) => r.length === 6 && /^\d{6}$/.test(r));
+    const freq = new Map<string, number>();
+    completeSix.forEach((p) => freq.set(p, (freq.get(p) ?? 0) + 1));
+    const hasDup = Array.from(freq.values()).some((n) => n > 1);
+    return hasDup ? "Already this pincode entered" : "";
+  }, [rows]);
+
+  const pincodeScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!duplicateCompletePinsMessage) return;
+    const el = pincodeScrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [duplicateCompletePinsMessage, rows]);
+
   const updateRow = (index: number, nextValue: string) => {
-    const numericOnly = nextValue.replace(/\D/g, "");
+    const numericOnly = nextValue.replace(/\D/g, "").slice(0, 6);
     const nextRows = rows.map((row, i) => (i === index ? numericOnly : row));
     setRows(nextRows);
-    emitUniqueCodes(nextRows);
+    emitCodes(nextRows);
   };
 
   const addRow = () => {
@@ -69,14 +85,17 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
     const nextRows = rows.filter((_, i) => i !== index);
     const normalizedRows = nextRows.length ? nextRows : [""];
     setRows(normalizedRows);
-    emitUniqueCodes(normalizedRows);
+    emitCodes(normalizedRows);
   };
 
   return (
     <Form.Group as="div" controlId="pincode">
       {label?.trim() && <Form.Label className="fw-medium">{label}</Form.Label>}
-      <div className={error ? "is-invalid" : ""}>
+      <div
+        className={error || duplicateCompletePinsMessage ? "is-invalid" : ""}
+      >
         <div
+          ref={pincodeScrollRef}
           style={{ maxHeight: "180px", overflowY: "auto", paddingRight: "4px" }}
         >
           {rows.map((pin, index) => {
@@ -101,6 +120,12 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
                   className={`px-2 btn ${
                     isLast ? "btn-outline-success" : "btn-outline-danger"
                   }`}
+                  disabled={
+                    isLast &&
+                    (!!duplicateCompletePinsMessage ||
+                      pin.trim().length !== 6 ||
+                      !/^\d{6}$/.test(pin.trim()))
+                  }
                   onClick={() => (isLast ? addRow() : removeRow(index))}
                   aria-label={
                     isLast ? "Add pincode field" : "Remove pincode field"
@@ -120,11 +145,20 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
           })}
         </div>
       </div>
-      {error && (
-        <Form.Control.Feedback type="invalid" style={{ display: "block" }}>
-          {error.message}
-        </Form.Control.Feedback>
-      )}
+      {duplicateCompletePinsMessage ? (
+        <Form.Text className="text-danger d-block small mt-1">
+          {duplicateCompletePinsMessage}
+        </Form.Text>
+      ) : null}
+      {error &&
+        !(
+          duplicateCompletePinsMessage &&
+          error.message === duplicateCompletePinsMessage
+        ) && (
+          <Form.Control.Feedback type="invalid" style={{ display: "block" }}>
+            {error.message}
+          </Form.Control.Feedback>
+        )}
     </Form.Group>
   );
 };
@@ -418,10 +452,21 @@ const AddEditAreaDialog: React.FC<Props> & {
                 control={control}
                 rules={{
                   validate: (value) => {
-                    return (
-                      (Array.isArray(value) && value.length > 0) ||
-                      "Pincode is required"
+                    if (!Array.isArray(value) || value.length === 0) {
+                      return "Pincode is required";
+                    }
+                    const trimmed = value
+                      .map((v) => String(v ?? "").trim())
+                      .filter((p) => p.length > 0);
+                    if (!trimmed.length) return "Pincode is required";
+                    const invalidLen = trimmed.some(
+                      (p) => p.length !== 6 || !/^\d{6}$/.test(p)
                     );
+                    if (invalidLen) return "Each pincode must be 6 digits";
+                    if (new Set(trimmed).size !== trimmed.length) {
+                      return "Already this pincode entered";
+                    }
+                    return true;
                   },
                 }}
                 render={({ field, fieldState }) => (

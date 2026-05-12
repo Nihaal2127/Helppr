@@ -653,15 +653,29 @@ const MyFranchise = () => {
     return activeFilteredList.slice(start, start + pageSize);
   }, [activeFilteredList, currentPage, pageSize]);
 
-  const setEmployeeChatEnabled = useCallback((id: string, enabled: boolean) => {
-    void apiSetEmployeeChatEnabled(id, enabled);
-    setEmployees((prev) =>
-      prev.map((e) =>
-        e._id === id && e.is_active ? { ...e, chat_enabled: enabled } : e
-      )
-    );
-    showSuccessAlert("Chat status updated");
-  }, []);
+  const setEmployeeChatEnabled = useCallback(
+    async (emp: EmployeeRow, enabled: boolean) => {
+      const prevChat = emp.chat_enabled;
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e._id === emp._id && e.is_active
+            ? { ...e, chat_enabled: enabled }
+            : e
+        )
+      );
+      const ok = await apiSetEmployeeChatEnabled(emp, enabled);
+      if (ok) {
+        showSuccessAlert("Chat status updated");
+      } else {
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e._id === emp._id ? { ...e, chat_enabled: prevChat } : e
+          )
+        );
+      }
+    },
+    []
+  );
 
   const setServiceActive = useCallback(
     async (id: string, is_active: boolean) => {
@@ -827,7 +841,7 @@ const MyFranchise = () => {
               onChange={(e) => {
                 e.stopPropagation();
                 if (!emp.is_active) return;
-                setEmployeeChatEnabled(emp._id, e.target.checked);
+                void setEmployeeChatEnabled(emp, e.target.checked);
               }}
               onClick={(e) => e.stopPropagation()}
             />

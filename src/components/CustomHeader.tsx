@@ -12,7 +12,10 @@ import {
 import { formatDate } from "../helper/utility";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
-import { fetchFranchiseDropDown } from "../services/franchiseService";
+import {
+  fetchFranchiseById,
+  fetchFranchiseDropDown,
+} from "../services/franchiseService";
 
 interface CustomHeaderProps {
   title: string;
@@ -43,6 +46,10 @@ const CustomHeader = ({
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isAdminUser = currentUserRole === UserRole.ADMIN;
   const isStaffUser = currentUserRole === UserRole.STAFF;
+  const isFranchiseAdminOrEmployee =
+    currentUserRole === UserRole.FRANCHISE_ADMIN ||
+    currentUserRole === UserRole.EMPLOYEE;
+  const [franchiseTitleName, setFranchiseTitleName] = useState("");
   const shouldShowFranchiseDropdown =
     (isAdminUser || isStaffUser) &&
     Boolean(register) &&
@@ -105,12 +112,44 @@ const CustomHeader = ({
     };
   }, [shouldShowFranchiseDropdown]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!isFranchiseAdminOrEmployee) {
+      setFranchiseTitleName("");
+      return;
+    }
+    const fid = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+    if (!fid) {
+      setFranchiseTitleName("");
+      return;
+    }
+    void (async () => {
+      const row = await fetchFranchiseById(fid);
+      if (cancelled) return;
+      const name = String(row?.name ?? "").trim();
+      setFranchiseTitleName(name);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isFranchiseAdminOrEmployee]);
+
   return (
     <Row className="g-0 p-0 mb-4 align-items-center">
       <Col sm={6} className="p-0 m-0">
         <div className="d-flex align-items-center gap-2 flex-wrap">
           {titlePrefix}
-          <h4 className="m-0 p-0">{title}</h4>
+          <h4 className="m-0 p-0 d-flex align-items-center flex-wrap gap-2">
+            <span>{title}</span>
+            {franchiseTitleName ? (
+              <span
+                className="text-muted fw-normal"
+                style={{ fontSize: "1rem" }}
+              >
+                · {franchiseTitleName}
+              </span>
+            ) : null}
+          </h4>
         </div>
       </Col>
       <Col

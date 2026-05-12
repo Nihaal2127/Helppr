@@ -3,6 +3,13 @@ import { Modal, Button, Row, Col } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
+import { CustomFormIndiaMobile } from "../../components/CustomFormIndiaMobile";
+import {
+  fullPhoneFromIndiaNational,
+  isValidE164StylePhone,
+  nationalDigitsWithoutIndia91,
+  sanitizeIndiaNationalPhoneInput,
+} from "../../helper/userFormValidation";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 
@@ -35,14 +42,18 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
   } = useForm<FormValues>({
     defaultValues: {
       employee_name: defaults.employee_name ?? "",
-      employee_phone: defaults.employee_phone ?? "",
+      employee_phone: nationalDigitsWithoutIndia91(
+        defaults.employee_phone ?? ""
+      ),
     },
   });
 
   useEffect(() => {
     reset({
       employee_name: defaults.employee_name ?? "",
-      employee_phone: defaults.employee_phone ?? "",
+      employee_phone: nationalDigitsWithoutIndia91(
+        defaults.employee_phone ?? ""
+      ),
     });
   }, [defaults, reset]);
 
@@ -53,9 +64,16 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
       return;
     }
 
+    const national = sanitizeIndiaNationalPhoneInput(
+      (data.employee_phone ?? "").trim()
+    );
+    const employee_phone =
+      national.length > 0
+        ? fullPhoneFromIndiaNational(national)
+        : undefined;
     onSaved({
       employee_name: name,
-      employee_phone: (data.employee_phone ?? "").trim() || undefined,
+      employee_phone,
     });
     showSuccessAlert("Employee updated successfully.");
     onClose();
@@ -103,18 +121,22 @@ const QuoteEditEmployeeDialog: React.FC<QuoteEditEmployeeDialogProps> & {
               <label className="custom-profile-lable">Phone number</label>
             </Col>
             <Col>
-              <CustomFormInput
+              <CustomFormIndiaMobile
                 label=""
                 controlId="employee_phone"
-                placeholder="Enter phone number"
+                placeholder="Mobile number"
                 register={register}
                 error={errors.employee_phone}
                 asCol={false}
                 validation={{
-                  validate: (v: string) =>
-                    !v?.trim() ||
-                    /^[\d\s\-+()]+$/.test(v.trim()) ||
-                    "Enter a valid phone number",
+                  validate: (v: string) => {
+                    const n = sanitizeIndiaNationalPhoneInput(v ?? "");
+                    if (!n) return true;
+                    return (
+                      isValidE164StylePhone(fullPhoneFromIndiaNational(n)) ||
+                      "Enter a valid mobile number"
+                    );
+                  },
                 }}
               />
             </Col>
