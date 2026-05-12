@@ -17,9 +17,6 @@ import {
   fetchFranchiseDropDown,
 } from "../services/franchiseService";
 
-/** Sentinel in franchise dropdown — navigates to Management Roles to add a franchise admin. */
-const ADD_FRANCHISE_ADMIN_HEADER_VALUE = "__add_franchise_admin__";
-
 interface CustomHeaderProps {
   title: string;
   /** Shown to the left of the title (e.g. financial sub-page back arrow). */
@@ -46,7 +43,6 @@ const CustomHeader = ({
   hideFranchiseDropdown = false,
 }: CustomHeaderProps) => {
   const navigate = useNavigate();
-  const lastValidFranchiseSelectionRef = useRef<string>("all");
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isAdminUser = currentUserRole === UserRole.ADMIN;
   const isStaffUser = currentUserRole === UserRole.STAFF;
