@@ -7,7 +7,11 @@ import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
-import { DetailsRow, getStatusOptions } from "../../helper/utility";
+import {
+  DetailsRow,
+  getNavigate,
+  getStatusOptions,
+} from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import {
   createOrUpdateFranchise,
@@ -32,6 +36,7 @@ import {
   USE_MOCK_FRANCHISE_CATALOG,
 } from "../../mockData/franchiseCatalogMock";
 import { openDialog } from "../../helper/DialogManager";
+import { ROUTES } from "../../routes/Routes";
 
 type AddEditFranchiseDialogProps = {
   isEditable: boolean;
@@ -85,6 +90,17 @@ async function loadFranchiseAdminOccupancy(): Promise<Map<string, string>> {
   return map;
 }
 
+/** Dropdown label: prefer API `name`, then email / phone / user_id. */
+function franchiseAdminOptionLabel(u: Record<string, unknown>): string {
+  const name = String(u.name ?? "").trim();
+  if (name) return name;
+  const email = String(u.email ?? "").trim();
+  if (email) return email;
+  const phone = String(u.phone_number ?? "").trim();
+  if (phone) return phone;
+  return String(u.user_id ?? "").trim();
+}
+
 function filterAdminsNotAssignedElsewhere(
   options: OptionType[],
   occupancy: Map<string, string>,
@@ -134,6 +150,9 @@ const STATIC_STATE_OPTIONS: OptionType[] = [
   { value: "telangana", label: "Telangana" },
 ];
 
+/** Last option in Admin dropdown — navigates to Management Roles → Add Franchise Admin. */
+const ADD_ADMIN_DROPDOWN_VALUE = "__add_admin__";
+
 const STATIC_CITY_OPTIONS_MAP: Record<string, OptionType[]> = {
   andhra_pradesh: [
     { value: "vijayawada", label: "Vijayawada" },
@@ -155,6 +174,9 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     isViewMode?: boolean
   ) => void;
 } = ({ isEditable, isViewMode = false, franchise, onClose, onRefreshData }) => {
+  const lastAdminSelectionRef = useRef<string>(
+    String(franchise?.admin_id ?? "").trim()
+  );
   const {
     register,
     handleSubmit,
@@ -203,6 +225,22 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
   const selectedState = watch("state_id");
   const selectedCity = watch("city_id");
+  const watchedAdminId = watch("admin_id");
+
+  useEffect(() => {
+    const v = String(watchedAdminId ?? "").trim();
+    if (v && v !== ADD_ADMIN_DROPDOWN_VALUE) {
+      lastAdminSelectionRef.current = v;
+    }
+  }, [watchedAdminId]);
+
+  const adminSelectOptions = useMemo(
+    () => [
+      ...adminOptions,
+      { value: ADD_ADMIN_DROPDOWN_VALUE, label: "+ Add admin" },
+    ],
+    [adminOptions]
+  );
 
   const areaOptions = useMemo(() => {
     return fetchedAreaOptions ?? [];
@@ -237,12 +275,14 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
             // Use /user/getAll only for Franchise dialog admin dropdown.
             // type=1 => Franchise Admin
             // eslint-disable-next-line no-await-in-loop
+            // Do not filter by is_active — inactive admins must still appear so the
+            // select can show their `name` (otherwise the label falls back to raw _id).
             const res = await fetchUser(
               false,
               WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
               page,
               pageSize,
-              { status: "true" }
+              {}
             );
             if (!res.response) break;
 
@@ -256,9 +296,9 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
           allUsers.forEach((u: any) => {
             const value = String(u?._id ?? "").trim();
             if (!value) return;
-            const label = String(
-              u?.name ?? u?.email ?? u?.phone_number ?? ""
-            ).trim();
+            const label = franchiseAdminOptionLabel(
+              u as Record<string, unknown>
+            );
             if (!label) return;
             if (!unique.has(value)) {
               unique.set(value, { value, label });
@@ -270,13 +310,22 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
           );
         };
 
-        const [states, usersResult] = await Promise.all([
+        const [states, usersResult, occupancy] = await Promise.all([
           fetchStateDropDown(),
           loadAllFranchiseAdmins(),
+          loadFranchiseAdminOccupancy(),
         ]);
         if (cancelled) return;
         setStateOptions(states);
-        setAdminOptions(usersResult);
+        const currentFranchiseId =
+          isEditable && franchise?._id ? String(franchise._id).trim() : "";
+        setAdminOptions(
+          filterAdminsNotAssignedElsewhere(
+            usersResult,
+            occupancy,
+            currentFranchiseId
+          )
+        );
       } catch {
         if (cancelled) return;
         setStateOptions(STATIC_STATE_OPTIONS);
@@ -286,7 +335,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     return () => {
       cancelled = true;
     };
-  }, [franchise?._id]);
+  }, [franchise?._id, isEditable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -866,7 +915,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
               <div className="col-md-6 custom-helper-column">
                 <div className="row custom-personal-row">
                   <label className="col-md-3 custom-personal-row-title">
-                    Admin
+                    Admin1
                   </label>
                   <label className="col-md-9 custom-personal-row-value">
                     {franchise.admin_name ?? franchise.admin_id ?? "-"}
@@ -1027,14 +1076,28 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                 <CustomFormSelect
                   label="Admin"
                   controlId="Admin"
-                  options={adminOptions}
+                  options={adminSelectOptions}
                   register={register as unknown as UseFormRegister<any>}
                   fieldName="admin_id"
                   error={errors.admin_id}
                   asCol={false}
                   // requiredMessage="Please select admin"
-                  defaultValue={isEditable ? franchise?.admin_id : ""}
+                  defaultValue={String(watchedAdminId ?? "")}
                   setValue={setValue as (name: string, value: any) => void}
+                  menuPortal
+                  onChange={(e) => {
+                    const raw = String(e.target.value ?? "");
+                    if (raw === ADD_ADMIN_DROPDOWN_VALUE) {
+                      const revert = lastAdminSelectionRef.current;
+                      setValue("admin_id", revert, {
+                        shouldValidate: false,
+                        shouldDirty: false,
+                      });
+                      getNavigate()?.(ROUTES.ROLE.path, {
+                        state: { openAddFranchiseAdmin: true },
+                      });
+                    }
+                  }}
                 />
               </Col>
 

@@ -159,6 +159,43 @@ function normalizeActiveStatus(raw: unknown): "active" | "inactive" {
   return "active";
 }
 
+/** Normalize franchise id whether API sends a string or a populated `{ _id }` object. */
+function normalizeFranchiseIdField(raw: unknown): string {
+  if (raw == null || raw === "") return "";
+  if (typeof raw === "object" && raw !== null && "_id" in raw) {
+    return String((raw as { _id?: unknown })._id ?? "").trim();
+  }
+  return String(raw).trim();
+}
+
+function extractAssignedFranchiseLabel(raw: Record<string, unknown>): string {
+  const nested = raw.franchise;
+  const nestedObj =
+    nested && typeof nested === "object" && nested !== null
+      ? (nested as Record<string, unknown>)
+      : null;
+  const label = String(
+    raw.franchise_name ??
+      raw.franchiseName ??
+      raw.assigned_franchise ??
+      raw.assignedFranchise ??
+      nestedObj?.name ??
+      ""
+  ).trim();
+  return label;
+}
+
+function extractFranchiseIdFromUserRaw(raw: Record<string, unknown>): string {
+  const nested = raw.franchise;
+  const nestedObj =
+    nested && typeof nested === "object" && nested !== null
+      ? (nested as Record<string, unknown>)
+      : null;
+  const idRaw =
+    raw.franchise_id ?? raw.franchiseId ?? nestedObj?._id ?? nestedObj?.id;
+  return normalizeFranchiseIdField(idRaw);
+}
+
 function mapApiUserToRoleSettingsModel(
   raw: Record<string, unknown>,
   roleType: "franchise_admin" | "employee"
@@ -167,15 +204,15 @@ function mapApiUserToRoleSettingsModel(
   const roleId = String(raw.user_id ?? raw.userId ?? raw.role_id ?? id);
   const name = String(raw.name ?? raw.role_name ?? "-");
   const perms = menuKeysFromUserAccess(raw);
+  const franchise_id = extractFranchiseIdFromUserRaw(raw);
+  const assignedLabel = extractAssignedFranchiseLabel(raw);
   return {
     id,
     roleId,
     roleName: name,
     roleType,
-    assignedFranchise:
-      String(raw.franchise_name ?? raw.assigned_franchise ?? "").trim() ||
-      undefined,
-    franchise_id: String(raw.franchise_id ?? "").trim() || undefined,
+    assignedFranchise: assignedLabel || undefined,
+    franchise_id: franchise_id || undefined,
     state_id: String(raw.state_id ?? "").trim() || undefined,
     city_id: String(raw.city_id ?? "").trim() || undefined,
     email: String(raw.email ?? "").trim() || undefined,

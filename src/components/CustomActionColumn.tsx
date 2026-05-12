@@ -7,12 +7,15 @@ const CustomActionColumn = ({
   onDelete,
   onChat,
   onView,
+  onChangePassword,
 }: {
   row: any;
   onEdit?: (partner: any) => void;
   onDelete?: (partner: any) => void;
   onChat?: (partner: any) => void;
   onView?: (partner: any) => void;
+  /** When set, shown instead of the pencil edit control (e.g. super-admin password reset). */
+  onChangePassword?: (partner: any) => void;
 }) => {
   return (
     <>
@@ -35,18 +38,23 @@ const CustomActionColumn = ({
           style={{ cursor: "pointer" }}
         />
       )}
-      {onEdit && (
-        // <img
-        //   src={editIcon}
-        //   alt="edit"
-        //   className="custom-table-action-edit me-2"
-        //   onClick={() => onEdit(row)}
-        // />
+      {onChangePassword ? (
         <i
-          className="bi bi-pencil-fill fs-6 custom-table-action-edit me-2"
-          onClick={() => onEdit(row)}
+          className="bi bi-key-fill fs-6 custom-table-action-edit me-2"
+          onClick={() => onChangePassword(row)}
           style={{ cursor: "pointer" }}
-        ></i>
+          aria-label="Change password"
+          role="button"
+        />
+      ) : (
+        onEdit && (
+          <i
+            className="bi bi-pencil-fill fs-6 custom-table-action-edit me-2"
+            onClick={() => onEdit(row)}
+            style={{ cursor: "pointer" }}
+            aria-label="Edit"
+          ></i>
+        )
       )}
 
       {onDelete && (

@@ -54,6 +54,8 @@ export const fetchArea = async (
     state_id?: string;
     city_id?: string;
     franchise_id?: string;
+    /** `my-franchise` — only areas linked to the caller's franchise (`GET /area/getAll?type=my-franchise`). */
+    type?: string;
   },
   sortBy: ServerTableSortBy = []
 ): Promise<{ response: boolean; areas: AreaModel[]; totalPages: number }> => {
@@ -88,6 +90,9 @@ export const fetchArea = async (
     ...(filters.city_id && { cityId: filters.city_id }),
     ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
     ...(filters.franchise_id && { franchiseId: filters.franchise_id }),
+    ...(String(filters.type ?? "").trim() === "my-franchise"
+      ? { type: "my-franchise" }
+      : {}),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort?.id && { sortBy: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),

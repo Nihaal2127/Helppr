@@ -301,8 +301,13 @@ type FranchiseDropdownCacheEntry = {
 
 const franchiseDropdownCache = new Map<string, FranchiseDropdownCacheEntry>();
 
-function franchiseDropdownCacheKey(options?: { onlyUnassigned?: boolean }) {
-  return options?.onlyUnassigned ? "only_unassigned" : "all";
+function franchiseDropdownCacheKey(options?: {
+  onlyUnassigned?: boolean;
+  fullList?: boolean;
+}) {
+  if (options?.onlyUnassigned) return "only_unassigned";
+  if (options?.fullList) return "full_list";
+  return "all";
 }
 
 function cloneFranchiseDropdownRows(
@@ -311,25 +316,64 @@ function cloneFranchiseDropdownRows(
   return rows.map((o) => ({ ...o }));
 }
 
+/** Resolve franchise rows whether API uses `data.records`, top-level `records`, or nested `data`. */
+function normalizeFranchiseDropdownRecords(payload: unknown): any[] {
+  const root = payload as Record<string, unknown> | null | undefined;
+  if (!root || typeof root !== "object") return [];
+  const direct = root.records;
+  if (Array.isArray(direct)) return direct;
+  const inner = root.data as Record<string, unknown> | undefined;
+  if (inner && typeof inner === "object") {
+    if (Array.isArray(inner.records)) return inner.records as any[];
+    if (Array.isArray(inner)) return inner as any[];
+  }
+  return [];
+}
+
+/** Call after creating/updating a franchise so the next dropdown fetch is fresh. */
+export function clearFranchiseDropdownCache(): void {
+  franchiseDropdownCache.clear();
+}
+
 async function fetchFranchiseDropDownUncached(
-  options?: { onlyUnassigned?: boolean }
+  options?: { onlyUnassigned?: boolean; fullList?: boolean }
 ): Promise<FranchiseDropDownOption[]> {
   const query = new URLSearchParams();
   if (options?.onlyUnassigned) {
     query.set("only_unassigned", "true");
+  } else if (
+    options?.fullList &&
+    !String(ApiPaths.GET_FRANCHISE_DROP_DOWN()).includes("full_list")
+  ) {
+    query.set("full_list", "true");
   }
-  const response = await apiRequest(
-    `${ApiPaths.GET_FRANCHISE_DROP_DOWN()}${query.toString() ? `?${query.toString()}` : ""}`,
-    "GET"
-  );
+  const basePath = ApiPaths.GET_FRANCHISE_DROP_DOWN();
+  const extraQs = query.toString();
+  const url = extraQs
+    ? `${basePath}${basePath.includes("?") ? "&" : "?"}${extraQs}`
+    : basePath;
+
+  const response = await apiRequest(url, "GET");
 
   if (response.success) {
-    return response.data.records.map((franchise: any) => ({
-      value: franchise._id,
-      label: franchise.name,
-      state_id: franchise.state_id ? String(franchise.state_id) : undefined,
-      city_id: franchise.city_id ? String(franchise.city_id) : undefined,
-    }));
+    const payload = (response as { data?: unknown }).data;
+    const rows = normalizeFranchiseDropdownRecords(payload);
+    return rows
+      .map((franchise: any) => {
+        const value = String(
+          franchise?._id ?? franchise?.id ?? ""
+        ).trim();
+        const label =
+          String(franchise?.name ?? franchise?.franchise_name ?? "").trim() ||
+          value;
+        return {
+          value,
+          label,
+          state_id: franchise.state_id ? String(franchise.state_id) : undefined,
+          city_id: franchise.city_id ? String(franchise.city_id) : undefined,
+        };
+      })
+      .filter((o) => Boolean(o.value));
   }
   // Some roles/environments deny `/franchise/getDropDown` (403) while allowing `/franchise/getAll`.
   // Fallback to getAll so dropdown behavior matches super-admin visibility.
@@ -388,7 +432,7 @@ async function fetchFranchiseDropDownUncached(
 }
 
 export const fetchFranchiseDropDown = async (
-  options?: { onlyUnassigned?: boolean }
+  options?: { onlyUnassigned?: boolean; fullList?: boolean }
 ): Promise<FranchiseDropDownOption[]> => {
   if (USE_MOCK_FRANCHISE_API) {
     return mockFranchises.map((f: any) => ({

@@ -1,6 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Form, Modal } from "react-bootstrap";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Button, Form, Modal, Row, Col } from "react-bootstrap";
 import { useForm } from "react-hook-form";
+import { useLocation, useNavigate } from "react-router-dom";
 import CustomImageUploader from "../../../components/CustomImageUploader";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
@@ -37,11 +44,16 @@ import {
 import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
-import { WEB_MANAGEMENT_USER_TYPE } from "../../../services/userService";
+import {
+  WEB_MANAGEMENT_USER_TYPE,
+  createOrUpdateUser,
+} from "../../../services/userService";
 import {
   fetchFranchiseDropDown,
+  clearFranchiseDropdownCache,
   FranchiseDropDownOption,
 } from "../../../services/franchiseService";
+import AddEditFranchiseDialog from "../../franchiseManagement/AddEditFranchiseDialog";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import {
   isValidUserEmail,
@@ -65,6 +77,9 @@ const emptyRoleForm = {
   password: "",
   confirmPassword: "",
 };
+
+/** Assigned Franchise select → open global Add Franchise dialog (same as Franchise Management). */
+const ADD_FRANCHISE_DROPDOWN_VALUE = "__add_franchise__";
 
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
 const staffScreenPermissionMenuItems = mainMenuItems.filter(
@@ -159,9 +174,13 @@ function applyStaffSortFallback(
 
 const RoleManagement = () => {
   const SETTINGS_ROLE_PAGE_SIZE = 10;
+  const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { register, setValue, reset } = useForm<any>();
   const isFranchiseAdminSession =
     getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
+  const isSuperAdminSession =
+    getLocalStorage(AppConstant.userRole) === UserRole.ADMIN;
   const [items, setItems] = useState<RoleSettingsModel[]>([]);
   const [keyword, setKeyword] = useState("");
   const [roleType, setRoleType] = useState<
@@ -203,8 +222,6 @@ const RoleManagement = () => {
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
     FranchiseDropDownOption[]
   >([]);
-  const [unassignedFranchiseDropdownOptions, setUnassignedFranchiseDropdownOptions] =
-    useState<FranchiseDropDownOption[]>([]);
   const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
   const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
   const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] =
@@ -213,6 +230,9 @@ const RoleManagement = () => {
     useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
   const [staffSummaryCounts, setStaffSummaryCounts] =
     useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
+
+  /** Latest id→name map for resolving `franchise_id` before `franchiseNameById` hook runs later in the file. */
+  const franchiseNameByIdRef = useRef<Map<string, string>>(new Map());
 
   const openFormWithData = useCallback(
     (item?: RoleSettingsModel, viewMode = false) => {
@@ -238,6 +258,8 @@ const RoleManagement = () => {
       const rawPerms = item.screenPermissions?.length
         ? [...item.screenPermissions]
         : [];
+      const fid = String(item.franchise_id ?? "").trim();
+      const nameFromId = fid ? franchiseNameByIdRef.current.get(fid) : "";
       const nextForm = {
         roleName: item.roleName,
         email: item.email ?? "",
@@ -246,7 +268,8 @@ const RoleManagement = () => {
         ),
         profile_url: item.profile_url ?? "",
         roleType: item.roleType,
-        assignedFranchise: item.assignedFranchise || "",
+        assignedFranchise:
+          (item.assignedFranchise ?? "").trim() || nameFromId || "",
         status: item.status,
         screenPermissions:
           item.roleType === "employee"
@@ -319,7 +342,13 @@ const RoleManagement = () => {
       ),
       profile_url: editing.profile_url ?? "",
       roleType: editing.roleType,
-      assignedFranchise: editing.assignedFranchise || "",
+      assignedFranchise:
+        (editing.assignedFranchise ?? "").trim() ||
+        (String(editing.franchise_id ?? "").trim()
+          ? franchiseNameByIdRef.current.get(
+              String(editing.franchise_id).trim()
+            ) ?? ""
+          : ""),
       status: editing.status,
       screenPermissions:
         editing.roleType === "employee"
@@ -358,6 +387,100 @@ const RoleManagement = () => {
 
   const [reloadToken, setReloadToken] = useState(0);
 
+  const [passwordModal, setPasswordModal] = useState<{
+    userId: string;
+    userType: number;
+    displayName: string;
+  } | null>(null);
+  const [passwordModalFields, setPasswordModalFields] = useState({
+    newPassword: "",
+    reenterPassword: "",
+  });
+  const [passwordModalPending, setPasswordModalPending] = useState(false);
+
+  const closePasswordModal = useCallback(() => {
+    setPasswordModal(null);
+    setPasswordModalFields({ newPassword: "", reenterPassword: "" });
+  }, []);
+
+  const openRolePasswordModal = useCallback((row: RoleSettingsModel) => {
+    const userType =
+      row.roleType === "franchise_admin"
+        ? WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN
+        : WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
+    setPasswordModalFields({ newPassword: "", reenterPassword: "" });
+    setPasswordModal({
+      userId: row.id,
+      userType,
+      displayName: row.roleName,
+    });
+  }, []);
+
+  const openStaffPasswordModal = useCallback((row: StaffSettingsModel) => {
+    setPasswordModalFields({ newPassword: "", reenterPassword: "" });
+    setPasswordModal({
+      userId: row.id,
+      userType: WEB_MANAGEMENT_USER_TYPE.STAFF,
+      displayName: row.name,
+    });
+  }, []);
+
+  const submitPasswordModal = useCallback(async () => {
+    if (!passwordModal) return;
+    const pw = passwordModalFields.newPassword.trim();
+    const pwErr = validateStrongPassword(pw);
+    if (pwErr) {
+      showErrorAlert(pwErr);
+      return;
+    }
+    if (!passwordsMatch(pw, passwordModalFields.reenterPassword)) {
+      showErrorAlert("Password and re-enter password do not match.");
+      return;
+    }
+    setPasswordModalPending(true);
+    try {
+      const ok = await createOrUpdateUser(
+        { type: passwordModal.userType, password: pw },
+        true,
+        passwordModal.userId
+      );
+      if (ok) {
+        closePasswordModal();
+        setReloadToken((v) => v + 1);
+      }
+    } finally {
+      setPasswordModalPending(false);
+    }
+  }, [passwordModal, passwordModalFields, closePasswordModal]);
+
+  const openAddFranchiseAdminModal = useCallback(() => {
+    setSelectedBox("box-franchise-admin");
+    setRoleType("franchise_admin");
+    setRoleCurrentPage(1);
+    setEditing(null);
+    setIsViewMode(false);
+    setForm({ ...emptyRoleForm, roleType: "franchise_admin" });
+    reset({
+      role_name: "",
+      role_email: "",
+      role_phone: "",
+      role_password: "",
+      role_confirm_password: "",
+      assigned_franchise: "",
+    });
+    setRoleImageFile(null);
+    setShowForm(true);
+  }, [reset]);
+
+  useEffect(() => {
+    const st = routerLocation.state as {
+      openAddFranchiseAdmin?: boolean;
+    } | null;
+    if (!st?.openAddFranchiseAdmin) return;
+    navigate(routerLocation.pathname, { replace: true, state: null });
+    openAddFranchiseAdminModal();
+  }, [routerLocation.state, routerLocation.pathname, navigate, openAddFranchiseAdminModal]);
+
   useEffect(() => {
     ensureSettingsSeedData();
   }, []);
@@ -368,18 +491,6 @@ const RoleManagement = () => {
       const options = await fetchFranchiseDropDown();
       if (cancelled) return;
       setFranchiseDropdownOptions(options);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const options = await fetchFranchiseDropDown({ onlyUnassigned: true });
-      if (cancelled) return;
-      setUnassignedFranchiseDropdownOptions(options);
     })();
     return () => {
       cancelled = true;
@@ -511,23 +622,63 @@ const RoleManagement = () => {
   const franchiseNameById = useMemo(() => {
     const map = new Map<string, string>();
     franchiseDropdownOptions.forEach((option) => {
-      map.set(String(option.value), option.label);
+      const k = String(option.value ?? "").trim();
+      if (k) map.set(k, option.label);
     });
     return map;
   }, [franchiseDropdownOptions]);
 
+  useEffect(() => {
+    franchiseNameByIdRef.current = franchiseNameById;
+  }, [franchiseNameById]);
+
+  /** When modal is open and dropdown finishes loading, fill Assigned Franchise from `franchise_id`. */
+  useEffect(() => {
+    if (!showForm || !editing) return;
+    const fid = String(editing.franchise_id ?? "").trim();
+    if (!fid || !franchiseNameById.has(fid)) return;
+    const label = franchiseNameById.get(fid)!;
+    setForm((prev) => {
+      if ((prev.assignedFranchise ?? "").trim()) return prev;
+      return { ...prev, assignedFranchise: label };
+    });
+  }, [showForm, editing?.id, editing?.franchise_id, franchiseNameById]);
+
+  /** Resolve label from API fields or franchise dropdown (handles delayed dropdown load). */
+  const franchiseDisplayFor = useCallback(
+    (item: RoleSettingsModel | null | undefined) => {
+      if (!item) return "";
+      const direct = (item.assignedFranchise ?? "").trim();
+      if (direct) return direct;
+      const fid = String(item.franchise_id ?? "").trim();
+      if (fid && franchiseNameById.has(fid)) {
+        return franchiseNameById.get(fid)!;
+      }
+      return "";
+    },
+    [franchiseNameById]
+  );
+
+  const franchiseDisplayForRoleTableColumn = useCallback(
+    (item: RoleSettingsModel | null | undefined) => franchiseDisplayFor(item),
+    [franchiseDisplayFor]
+  );
+
   const roleRows = useMemo(
     () =>
       applyRoleSortFallback(
-        items.map((item) => ({
-          ...item,
-          assignedFranchise:
-            item.assignedFranchise ||
-            (item.franchise_id
-              ? franchiseNameById.get(String(item.franchise_id))
-              : undefined) ||
-            "",
-        })),
+        items.map((item) => {
+          const fid = String(item.franchise_id ?? "").trim();
+          const fromMap = fid ? franchiseNameById.get(fid) : undefined;
+          const assigned =
+            (item.assignedFranchise ?? "").trim() ||
+            (fromMap ?? "").trim() ||
+            "";
+          return {
+            ...item,
+            assignedFranchise: assigned,
+          };
+        }),
         roleSortBy
       ),
     [items, franchiseNameById, roleSortBy]
@@ -584,31 +735,30 @@ const RoleManagement = () => {
     [staffSummaryCounts]
   );
 
+  /** Full franchise list from `getDropDown` (with `full_list` on the path); value/label are franchise name for `franchiseMetaByName`. */
   const assignedFranchiseOptions = useMemo(() => {
-    const uniqueFranchises = Array.from(
-      new Set(unassignedFranchiseDropdownOptions.map((option) => option.label))
-    );
-
-    const options = uniqueFranchises.map((franchise) => ({
-      value: franchise,
-      label: franchise,
+    const options = franchiseDropdownOptions.map((o) => ({
+      value: o.label,
+      label: o.label,
     }));
-
     if (
       form.assignedFranchise &&
-      !uniqueFranchises.includes(form.assignedFranchise)
+      !options.some((x) => x.value === form.assignedFranchise)
     ) {
       options.unshift({
         value: form.assignedFranchise,
         label: form.assignedFranchise,
       });
     }
-
-    return [{ value: "", label: "Select Franchise" }, ...options];
-  }, [
-    unassignedFranchiseDropdownOptions,
-    form.assignedFranchise,
-  ]);
+    const head: { value: string; label: string }[] = [
+      { value: "", label: "Select Franchise" },
+    ];
+    const tail: { value: string; label: string }[] =
+      form.roleType === "franchise_admin"
+        ? [{ value: ADD_FRANCHISE_DROPDOWN_VALUE, label: "+ Add franchise" }]
+        : [];
+    return [...head, ...options, ...tail];
+  }, [franchiseDropdownOptions, form.assignedFranchise, form.roleType]);
 
   const franchiseMetaByName = useMemo(() => {
     const map = new Map<string, FranchiseDropDownOption>();
@@ -661,7 +811,8 @@ const RoleManagement = () => {
       {
         Header: "Assigned Franchise",
         accessor: "assignedFranchise",
-        Cell: ({ row }: any) => row.original.assignedFranchise || "-",
+        Cell: ({ row }: any) =>
+          franchiseDisplayForRoleTableColumn(row.original) || "-",
       },
       {
         Header: "Status",
@@ -685,7 +836,16 @@ const RoleManagement = () => {
           <CustomActionColumn
             row={row}
             onView={() => openFormWithData(row.original, true)}
-            onEdit={() => openFormWithData(row.original, false)}
+            onEdit={
+              isSuperAdminSession
+                ? undefined
+                : () => openFormWithData(row.original, false)
+            }
+            onChangePassword={
+              isSuperAdminSession
+                ? () => openRolePasswordModal(row.original)
+                : undefined
+            }
             onDelete={() => {
               openConfirmDialog(
                 "Are you sure you want to void this role?",
@@ -701,7 +861,12 @@ const RoleManagement = () => {
         ),
       },
     ],
-    [openFormWithData]
+    [
+      openFormWithData,
+      franchiseDisplayForRoleTableColumn,
+      isSuperAdminSession,
+      openRolePasswordModal,
+    ]
   );
 
   const staffColumns = React.useMemo(
@@ -746,12 +911,21 @@ const RoleManagement = () => {
           <CustomActionColumn
             row={row}
             onView={() => openStaffWithData(row.original, true)}
-            onEdit={() => openStaffWithData(row.original, false)}
+            onEdit={
+              isSuperAdminSession
+                ? undefined
+                : () => openStaffWithData(row.original, false)
+            }
+            onChangePassword={
+              isSuperAdminSession
+                ? () => openStaffPasswordModal(row.original)
+                : undefined
+            }
           />
         ),
       },
     ],
-    [openStaffWithData]
+    [openStaffWithData, isSuperAdminSession, openStaffPasswordModal]
   );
 
   const clearFiltersDisabled =
@@ -1061,6 +1235,96 @@ const RoleManagement = () => {
       )}
 
       <Modal
+        show={Boolean(passwordModal)}
+        onHide={() => {
+          if (!passwordModalPending) closePasswordModal();
+        }}
+        centered
+        dialogClassName="custom-big-modal"
+      >
+        <Modal.Header className="py-3 px-4 border-bottom-0">
+          <Modal.Title as="h5" className="custom-modal-title">
+            Change password
+          </Modal.Title>
+          <CustomCloseButton
+            onClose={() => {
+              if (!passwordModalPending) closePasswordModal();
+            }}
+          />
+        </Modal.Header>
+        <Modal.Body className="px-4 pb-4 pt-0">
+          {passwordModal ? (
+            <>
+              <p className="text-muted small mb-3 mb-md-4">
+                {passwordModal.displayName}
+              </p>
+              <Row>
+                <div className="col-md-12">
+                  <CustomFormInput
+                    label="New Password"
+                    controlId="settings_role_pwd_new"
+                    placeholder="Enter new Password"
+                    register={register}
+                    inputType="password"
+                    asCol={false}
+                    autoComplete="new-password"
+                    value={passwordModalFields.newPassword}
+                    onChange={(value: string) =>
+                      setPasswordModalFields((p) => ({
+                        ...p,
+                        newPassword: value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="col-md-12">
+                  <CustomFormInput
+                    label="Re-enter Password"
+                    controlId="settings_role_pwd_reenter"
+                    placeholder="Re-enter password"
+                    register={register}
+                    inputType="password"
+                    asCol={false}
+                    autoComplete="new-password"
+                    value={passwordModalFields.reenterPassword}
+                    onChange={(value: string) =>
+                      setPasswordModalFields((p) => ({
+                        ...p,
+                        reenterPassword: value,
+                      }))
+                    }
+                  />
+                </div>
+              </Row>
+              <Row className="mt-4">
+                <Col
+                  xs={12}
+                  className="text-center d-flex justify-content-end gap-3"
+                >
+                  <Button
+                    type="button"
+                    className="custom-btn-primary"
+                    disabled={passwordModalPending}
+                    onClick={() => void submitPasswordModal()}
+                  >
+                    {passwordModalPending ? "Updating…" : "Update"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="custom-btn-secondary"
+                    disabled={passwordModalPending}
+                    onClick={closePasswordModal}
+                  >
+                    Cancel
+                  </Button>
+                </Col>
+              </Row>
+            </>
+          ) : null}
+        </Modal.Body>
+      </Modal>
+
+      <Modal
         show={showForm}
         onHide={() => setShowForm(false)}
         centered
@@ -1136,7 +1400,7 @@ const RoleManagement = () => {
 
                   <DetailsRow
                     title="Assigned Franchise"
-                    value={editing.assignedFranchise || "-"}
+                    value={franchiseDisplayFor(editing) || "-"}
                   />
                   <DetailsRow
                     title="Status"
@@ -1216,7 +1480,7 @@ const RoleManagement = () => {
                     <CustomFormInput
                       label="Password"
                       controlId="role_password"
-                      placeholder="Min 8 chars, upper, lower, number, special"
+                      placeholder="Enter new Password"
                       register={register}
                       inputType="password"
                       asCol={false}
@@ -1273,13 +1537,27 @@ const RoleManagement = () => {
                   asCol={false}
                   defaultValue={form.assignedFranchise}
                   setValue={setValue}
-                  isDisabled={Boolean(editing) && form.roleType === "franchise_admin"}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === ADD_FRANCHISE_DROPDOWN_VALUE) {
+                      const prev = form.assignedFranchise;
+                      AddEditFranchiseDialog.show(false, null, () => {
+                        clearFranchiseDropdownCache();
+                        void (async () => {
+                          const opts = await fetchFranchiseDropDown();
+                          setFranchiseDropdownOptions(opts);
+                        })();
+                      });
+                      setValue("assigned_franchise", prev ?? "", {
+                        shouldValidate: false,
+                      });
+                      return;
+                    }
                     setForm((p) => ({
                       ...p,
-                      assignedFranchise: e.target.value,
-                    }))
-                  }
+                      assignedFranchise: raw,
+                    }));
+                  }}
                   menuPortal
                 />
               </div>

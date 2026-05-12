@@ -24,6 +24,8 @@ import { CityModel } from "../../models/CityModel";
 import { getCount } from "../../services/getCountService";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
+import { AppConstant, UserRole } from "../../constant/AppConstant";
+import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AreaModel } from "../../models/AreaModel";
 import { fetchArea, deleteArea } from "../../services/areaService";
 import AddEditAreaDialog from "./AddEditAreaDialog";
@@ -42,6 +44,8 @@ type LocationFilters = {
   state_id?: string;
   city_id?: string;
   franchise_id?: string;
+  /** Backend area list scope (franchise admin). */
+  type?: string;
 };
 
 const LocationManagement = () => {
@@ -159,18 +163,28 @@ const LocationManagement = () => {
             setTotalPages(0);
           }
         } else if (selected === "box-area") {
+          const isFranchiseAdmin =
+            getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
+          const areaFilters: LocationFilters = {
+            ...filters,
+            ...(isFranchiseAdmin ? { type: "my-franchise" } : {}),
+          };
           const { response, areas, totalPages } = await fetchArea(
             currentPage,
             pageSize,
-            filters,
+            areaFilters,
             areaTableSortBy
           );
           if (response && Array.isArray(areas)) {
             let scopedAreas = areas;
             const selectedFranchiseId = String(
-              filters.franchise_id ?? ""
+              areaFilters.franchise_id ?? ""
             ).trim();
-            if (selectedFranchiseId) {
+            // Server already scopes rows for franchise admin; avoid double-filtering.
+            if (isFranchiseAdmin && areaFilters.type === "my-franchise") {
+              setTotalPages(totalPages);
+              scopedAreas = areas;
+            } else if (selectedFranchiseId) {
               const allowedAreaIds = franchiseAreaIdsById.get(selectedFranchiseId);
               if (allowedAreaIds && allowedAreaIds.size > 0) {
                 scopedAreas = areas.filter((row: any) =>

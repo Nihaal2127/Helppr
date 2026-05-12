@@ -32,7 +32,7 @@ const PincodeTagField: React.FC<PincodeTagFieldProps> = ({
   onChange,
   onBlur,
   error,
-  placeholder = "Enter pincode",
+  placeholder = "Enter pincode(6 digits)",
   label = "Pin codes",
 }) => {
   const [rows, setRows] = useState<string[]>(value.length ? [...value] : [""]);
@@ -476,7 +476,7 @@ const AddEditAreaDialog: React.FC<Props> & {
                     onChange={field.onChange}
                     onBlur={field.onBlur}
                     error={fieldState.error}
-                    placeholder="Enter pincode"
+                    placeholder="Enter pincode(6 digits)"
                   />
                 )}
               />
