@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomImageUploader from "../../components/CustomImageUploader";
-import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, FullDetailsRow } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
@@ -14,10 +13,7 @@ import {
   createRequestedCategory,
   updateRequestedCategory,
 } from "../../services/myFranchiseService";
-import { fetchServiceDropDown } from "../../services/servicesService";
 import sampleCategoryViewImage from "../../assets/icons/profile.svg";
-
-type ServiceOption = { value: string; label: string };
 
 type RequestedCategoryFormValues = {
   name: string;
@@ -27,8 +23,6 @@ type RequestedCategoryFormValues = {
 type RequestedCategoryDialogProps = {
   onClose: () => void;
   onRefreshData: () => void;
-  /** Franchise catalog services as `{ value: _id, label: name }` (no “Select all” row). */
-  franchiseServiceOptions: ServiceOption[];
 } & (
   | { mode: "add"; request: null }
   | { mode: "view-edit"; request: RequestedCategoryRow }
@@ -42,62 +36,19 @@ function resolveImageSrc(url?: string): string | null {
 }
 
 const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
-  showAdd: (
-    franchiseServiceOptions: ServiceOption[],
-    onRefreshData: () => void
-  ) => void;
-  showView: (
-    request: RequestedCategoryRow,
-    franchiseServiceOptions: ServiceOption[],
-    onRefreshData: () => void
-  ) => void;
+  showAdd: (onRefreshData: () => void) => void;
+  showView: (request: RequestedCategoryRow, onRefreshData: () => void) => void;
 } = (props) => {
-  const { onClose, onRefreshData, franchiseServiceOptions } = props;
+  const { onClose, onRefreshData } = props;
   const isAdd = props.mode === "add";
   const request = isAdd ? null : props.request;
 
   const [isEditing, setIsEditing] = useState(isAdd);
   const [fileInputs, setFileInputs] = useState<File[]>([]);
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
-  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const base = franchiseServiceOptions.filter(
-        (o) => o.value !== "select-all"
-      );
-      const withSelectAll = [
-        { value: "select-all", label: "Select All" },
-        ...base,
-      ];
-      try {
-        const fromApi = await fetchServiceDropDown();
-        if (!cancelled && Array.isArray(fromApi) && fromApi.length > 0) {
-          setServiceOptions([
-            { value: "select-all", label: "Select All" },
-            ...fromApi,
-          ]);
-          return;
-        }
-      } catch {
-        /* fall back */
-      }
-      if (!cancelled) setServiceOptions(withSelectAll);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [franchiseServiceOptions]);
 
   useEffect(() => {
     setIsEditing(isAdd);
     setFileInputs([]);
-    if (isAdd) {
-      setServiceIds([]);
-    } else if (request) {
-      setServiceIds((request.service_ids ?? []).map(String));
-    }
   }, [isAdd, request]);
 
   const {
@@ -119,39 +70,8 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
         name: request.name,
         desc: request.description ?? "",
       });
-      setServiceIds((request.service_ids ?? []).map(String));
     }
   }, [isAdd, request, isEditing, reset]);
-
-  const handleServiceSelection = (selectedOptions: ServiceOption[]) => {
-    const isSelectAllSelected = selectedOptions.some(
-      (option) => option.value === "select-all"
-    );
-
-    let selectedIds: string[] = [];
-
-    if (isSelectAllSelected) {
-      const allServices = serviceOptions.filter(
-        (s) => s.value !== "select-all"
-      );
-      const isAllSelected =
-        selectedOptions.length - 1 === allServices.length &&
-        allServices.every((svc) =>
-          selectedOptions.some((selected) => selected.value === svc.value)
-        );
-
-      selectedIds = isAllSelected ? [] : allServices.map((svc) => svc.value);
-    } else {
-      selectedIds = selectedOptions.map((option) => option.value);
-    }
-
-    setServiceIds(selectedIds);
-  };
-
-  const selectedServiceOptions = useMemo(
-    () => serviceOptions.filter((svc) => serviceIds.includes(svc.value)),
-    [serviceOptions, serviceIds]
-  );
 
   const readImageDataUrl = (files: File[]): Promise<string | undefined> => {
     if (!files.length) return Promise.resolve(undefined);
@@ -169,10 +89,6 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
     const description = data.desc.trim();
     if (!name) {
       showErrorAlert("Category name is required");
-      return;
-    }
-    if (serviceIds.length === 0) {
-      showErrorAlert("Please select at least one service");
       return;
     }
     if (!description) {
@@ -197,7 +113,9 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
 
     const payload = {
       name,
-      service_ids: serviceIds.filter((id) => id !== "select-all"),
+      service_ids: isAdd
+        ? ([] as string[])
+        : (request?.service_ids ?? []).map(String),
       description,
       image_url,
     };
@@ -229,14 +147,10 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   };
 
   const modalTitle = isAdd
-    ? "Add category request"
+    ? "Add category"
     : isEditing
-    ? "Edit category request"
+    ? "Edit category"
     : "Category request details";
-
-  const servicesDisplayView =
-    request &&
-    (request.service_names?.length ? request.service_names.join(", ") : "-");
 
   const renderViewBody = () => {
     if (!request) return null;
@@ -261,10 +175,6 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
         <div className="row">
           <div className="col-md-12 custom-helper-column">
             <DetailsRow title="Category name" value={request.name} />
-            <FullDetailsRow
-              title="Services"
-              value={servicesDisplayView ?? "-"}
-            />
             <FullDetailsRow
               title="Description"
               value={request.description || "-"}
@@ -313,13 +223,14 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
     <form
       noValidate
       id="franchise-requested-category-form"
+      className="franchise-requested-category-form"
       onSubmit={(e) => {
         e.preventDefault();
         void handleSubmit(onSubmitForm)(e);
       }}
     >
-      <Row>
-        <Col md={12}>
+      <Row className="g-3">
+        <Col xs={12}>
           <CustomFormInput
             label="Category name"
             controlId="name"
@@ -330,21 +241,7 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
             validation={{ required: "Category name is required" }}
           />
         </Col>
-        <Col md={12}>
-          <CustomMultiSelect
-            label="Services"
-            controlId="Service"
-            options={serviceOptions}
-            value={selectedServiceOptions}
-            onChange={(selectedOptions) => {
-              handleServiceSelection(selectedOptions as ServiceOption[]);
-            }}
-            asCol={false}
-            menuPortal
-            selectedChipsMaxHeight="150px"
-          />
-        </Col>
-        <Col md={12}>
+        <Col xs={12} md={6}>
           <CustomImageUploader
             label="Upload category image"
             maxFiles={1}
@@ -354,9 +251,9 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
               setFileInputs(files);
             }}
           />
-          <label style={{ color: "var(--primary-color)" }}>
-            Image size should be 512*512
-          </label>
+          <p className="small text-muted mb-0 mt-1 franchise-requested-category-image-hint">
+            Square image recommended (e.g. 512×512 px).
+          </p>
           {request?.image_url &&
           String(request.image_url).startsWith("data:") ? (
             <div className="mt-2">
@@ -364,33 +261,55 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
               <img
                 alt=""
                 src={request.image_url}
-                style={{
-                  maxWidth: 120,
-                  maxHeight: 120,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                }}
+                className="franchise-requested-category-thumb"
               />
             </div>
           ) : null}
         </Col>
-        <Col md={12}>
+        <Col xs={12} md={6}>
           <CustomFormInput
             label="Description"
             controlId="desc"
-            placeholder="Enter description"
+            placeholder="Describe the category and how it will be used"
             register={register}
             error={errors.desc}
             asCol={false}
             validation={{ required: "Description is required" }}
             as="textarea"
-            rows={4}
+            rows={5}
           />
         </Col>
       </Row>
-      <Row className="mt-4">
-        <Col xs={12} className="text-center d-flex justify-content-end gap-3">
-          <Button type="submit" className="custom-btn-primary">
+    </form>
+  );
+
+  return (
+    <Modal
+      show
+      onHide={onClose}
+      centered
+      scrollable
+      dialogClassName="franchise-requested-category-modal-dialog custom-big-modal"
+      contentClassName="franchise-requested-category-modal-content"
+      enforceFocus={false}
+    >
+      <Modal.Header className="py-3 px-4 border-bottom-0">
+        <Modal.Title as="h5" className="custom-modal-title">
+          {modalTitle}
+        </Modal.Title>
+        <CustomCloseButton onClose={onClose} />
+      </Modal.Header>
+      <Modal.Body className="franchise-requested-category-modal-body px-4 pb-3 pt-0">
+        {!isAdd && !isEditing && renderViewBody()}
+        {(isAdd || isEditing) && renderFormBody()}
+      </Modal.Body>
+      {(isAdd || isEditing) && (
+        <Modal.Footer className="franchise-requested-category-modal-footer border-0 px-4 pb-4 pt-0">
+          <Button
+            type="submit"
+            form="franchise-requested-category-form"
+            className="custom-btn-primary"
+          >
             {isAdd ? "Submit request" : "Update"}
           </Button>
           <Button
@@ -406,42 +325,17 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
           >
             Cancel
           </Button>
-        </Col>
-      </Row>
-    </form>
-  );
-
-  return (
-    <Modal
-      show
-      onHide={onClose}
-      centered
-      dialogClassName="custom-big-modal"
-      enforceFocus={false}
-    >
-      <Modal.Header className="py-3 px-4 border-bottom-0">
-        <Modal.Title as="h5" className="custom-modal-title">
-          {modalTitle}
-        </Modal.Title>
-        <CustomCloseButton onClose={onClose} />
-      </Modal.Header>
-      <Modal.Body className="px-4 pb-4 pt-0">
-        {!isAdd && !isEditing && renderViewBody()}
-        {(isAdd || isEditing) && renderFormBody()}
-      </Modal.Body>
+        </Modal.Footer>
+      )}
     </Modal>
   );
 };
 
-RequestedCategoryDialog.showAdd = (
-  franchiseServiceOptions: ServiceOption[],
-  onRefreshData: () => void
-) => {
+RequestedCategoryDialog.showAdd = (onRefreshData: () => void) => {
   openDialog("franchise-requested-category-modal", (close) => (
     <RequestedCategoryDialog
       mode="add"
       request={null}
-      franchiseServiceOptions={franchiseServiceOptions}
       onClose={close}
       onRefreshData={onRefreshData}
     />
@@ -450,14 +344,12 @@ RequestedCategoryDialog.showAdd = (
 
 RequestedCategoryDialog.showView = (
   request: RequestedCategoryRow,
-  franchiseServiceOptions: ServiceOption[],
   onRefreshData: () => void
 ) => {
   openDialog("franchise-requested-category-modal", (close) => (
     <RequestedCategoryDialog
       mode="view-edit"
       request={request}
-      franchiseServiceOptions={franchiseServiceOptions}
       onClose={close}
       onRefreshData={onRefreshData}
     />

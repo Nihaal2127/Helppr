@@ -38,11 +38,7 @@ import {
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import {
-  APP_USER_TYPE,
-  fetchUserById,
-  fetchUserDropDown,
-} from "../../services/userService";
+import { fetchUserById } from "../../services/userService";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
@@ -343,7 +339,6 @@ const QuoteManagement = () => {
   }, [isSuperAdminOrStaff]);
   const quoteScopeBlocked =
     !isSuperAdminOrStaff && !String(effectiveFranchiseId).trim();
-  /** While Add Quote is open, super admin/staff scope catalogue + customers to the franchise chosen in the modal (not only the page filter). */
   const franchiseIdForQuoteCatalog = useMemo(() => {
     if (isSuperAdminOrStaff && showAddQuote) {
       return String(addQuote.franchise_id ?? "").trim();
@@ -546,44 +541,14 @@ const QuoteManagement = () => {
     };
   }, [isSuperAdminOrStaff]);
 
-  /**
-   * `GET /franchise/related-catalog/:id` — franchise employees (and categories/services/partners)
-   * for Add Quote. Super admin/staff: also triggered from the franchise `<select>` so the request
-   * uses the chosen id immediately; `fetchFranchiseRelatedCatalog` dedupes concurrent calls.
-   */
   useEffect(() => {
+    if (!showAddQuote) return;
     void loadQuoteCatalogForFranchise(franchiseIdForQuoteCatalog);
-  }, [franchiseIdForQuoteCatalog, loadQuoteCatalogForFranchise]);
-
-  /** Customers are not returned on related-catalog; scope them by franchise for create quote. */
-  useEffect(() => {
-    if (!showAddQuote || !franchiseIdForQuoteCatalog) return;
-    let cancelled = false;
-    (async () => {
-      const { users } = await fetchUserDropDown(
-        APP_USER_TYPE.CUSTOMER,
-        undefined,
-        { franchise_id: franchiseIdForQuoteCatalog }
-      );
-      if (cancelled) return;
-      const nextUsers: QuoteUserOption[] = (users ?? []).map((u: any) => {
-        const name = String(u.name ?? u._id ?? "").trim();
-        const phone = String(u.phone_number ?? "").trim();
-        const label = phone ? `${name} (${phone})` : name;
-        return {
-          value: String(u._id ?? "").trim(),
-          label,
-          user_name: name,
-        };
-      });
-      setQuoteUserOptions(
-        nextUsers.sort((a, b) => a.user_name.localeCompare(b.user_name))
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showAddQuote, franchiseIdForQuoteCatalog]);
+  }, [
+    showAddQuote,
+    franchiseIdForQuoteCatalog,
+    loadQuoteCatalogForFranchise,
+  ]);
 
   useEffect(() => {
     const sid = String(addQuote.requested_services ?? "").trim();
@@ -677,6 +642,17 @@ const QuoteManagement = () => {
       }
     );
   }, [refreshCountsThenFetchQuotes]);
+
+  const handleOpenCreateQuoteModal = useCallback(() => {
+    setShowAddQuote(true);
+    if (isSuperAdminOrStaff) return;
+    const fid = String(effectiveFranchiseId ?? "").trim();
+    if (fid) void loadQuoteCatalogForFranchise(fid);
+  }, [
+    isSuperAdminOrStaff,
+    effectiveFranchiseId,
+    loadQuoteCatalogForFranchise,
+  ]);
 
   const handleQuoteView = useCallback(
     (row: QuoteRow) => {
@@ -896,7 +872,7 @@ const QuoteManagement = () => {
             type="button"
             className="custom-btn-secondary w-auto"
             disabled={!isSuperAdminOrStaff && quoteScopeBlocked}
-            onClick={() => setShowAddQuote(true)}
+            onClick={handleOpenCreateQuoteModal}
           >
             Create Quote
           </button>

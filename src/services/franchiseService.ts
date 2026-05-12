@@ -348,11 +348,11 @@ async function fetchFranchiseDropDownUncached(
     query.set("full_list", "true");
   }
   const basePath = ApiPaths.GET_FRANCHISE_DROP_DOWN();
-  const extraQs = query.toString();
-  const url = extraQs
-    ? `${basePath}${basePath.includes("?") ? "&" : "?"}${extraQs}`
-    : basePath;
-
+  const queryString = query.toString();
+  const url =
+    queryString.length > 0
+      ? `${basePath}${basePath.includes("?") ? "&" : "?"}${queryString}`
+      : basePath;
   const response = await apiRequest(url, "GET");
 
   if (response.success) {
@@ -477,16 +477,28 @@ export const fetchFranchiseDropDown = async (
   return cloneFranchiseDropdownRows(data);
 };
 
+export type FetchFranchiseByIdOptions = {
+  /**
+   * When true, skip loading all franchise admins (`/user/getAll?type=1`) to enrich email/phone.
+   * Use for lightweight UI (e.g. header subtitle) that only needs franchise fields from GET.
+   */
+  skipAdminContactEnrichment?: boolean;
+};
+
 /** Single franchise by id (GET /franchise/get/:id). Used when header filters to one franchise. */
 export const fetchFranchiseById = async (
-  id: string
+  id: string,
+  options?: FetchFranchiseByIdOptions
 ): Promise<FranchiseModel | null> => {
   const targetId = String(id ?? "").trim();
   if (!targetId) return null;
+  const skipAdmin = options?.skipAdminContactEnrichment === true;
   if (USE_MOCK_FRANCHISE_API) {
     const raw = mockFranchises.find((f: any) => String(f._id) === targetId);
     if (!raw) return null;
-    const adminContacts = await getFranchiseAdminContactsCached();
+    const adminContacts = skipAdmin
+      ? undefined
+      : await getFranchiseAdminContactsCached();
     return mapFranchiseRow(raw, adminContacts);
   }
   const response = await apiRequest(
@@ -510,7 +522,9 @@ export const fetchFranchiseById = async (
     d?.franchise ??
     (d && typeof d === "object" && d._id ? d : null);
   if (!raw || typeof raw !== "object") return null;
-  const adminContacts = await getFranchiseAdminContactsCached();
+  const adminContacts = skipAdmin
+    ? undefined
+    : await getFranchiseAdminContactsCached();
   return mapFranchiseRow(raw, adminContacts);
 };
 

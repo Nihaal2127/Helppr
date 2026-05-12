@@ -1564,6 +1564,52 @@ body:has(.modal.show ~ .modal.show) {
   // }
 }
 
+/* My Franchise — Add / edit category request modal: comfortable width, form-friendly */
+.modal-dialog.franchise-requested-category-modal-dialog {
+  max-width: min(720px, calc(100vw - 1.5rem));
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .modal-dialog.franchise-requested-category-modal-dialog {
+    max-width: min(780px, calc(100vw - 2rem));
+  }
+}
+
+.franchise-requested-category-modal-content.modal-content {
+  overflow: hidden;
+}
+
+.modal-dialog.franchise-requested-category-modal-dialog .modal-body.franchise-requested-category-modal-body {
+  max-height: min(70vh, 560px);
+}
+
+.modal-dialog.franchise-requested-category-modal-dialog.modal-dialog-scrollable .modal-body {
+  overflow-y: auto;
+}
+
+.modal-dialog.franchise-requested-category-modal-dialog .modal-footer.franchise-requested-category-modal-footer {
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 8px !important;
+}
+
+.franchise-requested-category-thumb {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.franchise-requested-category-form .form-label,
+.franchise-requested-category-form label {
+  font-weight: 600;
+}
+
 /* Franchise employee modal — +91 prefix + digits (same row grid & borders as CustomTextField / CustomFormInput) */
 .franchise-employee-phone-input-group {
   flex-wrap: nowrap;

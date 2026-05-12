@@ -124,7 +124,9 @@ const CustomHeader = ({
       return;
     }
     void (async () => {
-      const row = await fetchFranchiseById(fid);
+      const row = await fetchFranchiseById(fid, {
+        skipAdminContactEnrichment: true,
+      });
       if (cancelled) return;
       const name = String(row?.name ?? "").trim();
       setFranchiseTitleName(name);

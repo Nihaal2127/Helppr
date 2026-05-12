@@ -22,6 +22,21 @@ export function showLog(message?: any, ...optionalParams: any[]): void {
   console.log(message, ...optionalParams);
 }
 
+/** API fields that are either an id string or a populated `{ _id, … }` document. */
+export function apiDocumentId(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    const s = String(value).trim();
+    return s && s !== "[object Object]" ? s : "";
+  }
+  if (typeof value === "object") {
+    const o = value as { _id?: unknown; id?: unknown };
+    const id = String(o._id ?? o.id ?? "").trim();
+    if (id) return id;
+  }
+  return "";
+}
+
 export const getStatusOptions = () => [
   { label: "Active", value: "true" },
   { label: "Inactive", value: "false" },

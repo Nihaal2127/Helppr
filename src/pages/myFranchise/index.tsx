@@ -138,11 +138,6 @@ function renderCategoryServicesNamesHover(
   );
 }
 
-function franchiseRequestedCategoryServicesCell({ row }: { row: any }) {
-  const rc = row.original as RequestedCategoryRow;
-  return renderCategoryServicesNamesHover(rc.service_names ?? []);
-}
-
 /** Service labels for a franchise catalogue category row (from `GET /category/get/:id`). */
 function categoryCatalogServiceNames(cat: CategoryRow): string[] {
   if (Array.isArray(cat.service_names) && cat.service_names.length) {
@@ -246,6 +241,7 @@ function summariesFromMyFranchiseCountRecord(
 
 const MyFranchise = () => {
   const { register, setValue } = useForm();
+  /** Employees section is selected on first paint so the list loads with the page. */
   const [selectedBox, setSelectedBox] = useState<BoxId>("box-employees");
   const [servicesViewMode, setServicesViewMode] =
     useState<ServicesViewMode>("catalog");
@@ -335,7 +331,6 @@ const MyFranchise = () => {
       loadedSlicesRef.current
     ) as MyFranchiseDataSlice[];
     if (loaded.length === 0) {
-      await hydrateFranchiseSlices(["employees"], { force: true });
       return;
     }
     await hydrateFranchiseSlices(loaded, { force: true });
@@ -346,12 +341,11 @@ const MyFranchise = () => {
     void (async () => {
       await refreshMyFranchiseCountSummaries();
       if (cancelled) return;
-      await hydrateFranchiseSlices(["employees"], { force: true });
     })();
     return () => {
       cancelled = true;
     };
-  }, [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]);
+  }, [refreshMyFranchiseCountSummaries]);
 
   const slicesForCurrentSelection = useMemo((): MyFranchiseDataSlice[] => {
     switch (selectedBox) {
@@ -368,24 +362,15 @@ const MyFranchise = () => {
           ? ["categories"]
           : ["requested_categories", "services"];
       default:
-        return ["employees"];
+        return [];
     }
   }, [selectedBox, servicesViewMode, categoriesViewMode]);
 
+  /** Load table data only for the active section (and catalog vs requested sub-mode). */
   useEffect(() => {
-    const isDefaultHome =
-      selectedBox === "box-employees" &&
-      servicesViewMode === "catalog" &&
-      categoriesViewMode === "catalog";
-    if (isDefaultHome) return;
+    if (slicesForCurrentSelection.length === 0) return;
     void hydrateFranchiseSlices(slicesForCurrentSelection);
-  }, [
-    slicesForCurrentSelection,
-    hydrateFranchiseSlices,
-    selectedBox,
-    servicesViewMode,
-    categoriesViewMode,
-  ]);
+  }, [selectedBox, slicesForCurrentSelection, hydrateFranchiseSlices]);
 
   const handleEmployeeVoid = useCallback(
     (id: string) => {
@@ -467,29 +452,8 @@ const MyFranchise = () => {
       setAreaSortBy([]);
       setCurrentPage(1);
 
-      const slices: MyFranchiseDataSlice[] =
-        boxId === "box-employees"
-          ? ["employees"]
-          : boxId === "box-areas"
-          ? ["areas"]
-          : boxId === "box-services"
-          ? ["services"]
-          : boxId === "box-categories"
-          ? ["categories"]
-          : ["employees"];
-
-      const forceServicesOrCategories =
-        boxId === "box-services" || boxId === "box-categories";
-
-      void hydrateFranchiseSlices(slices, {
-        force: forceServicesOrCategories,
-      });
-
-      if (forceServicesOrCategories) {
-        void refreshMyFranchiseCountSummaries();
-      }
     },
-    [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]
+    []
   );
 
   const handleFilterChange = useCallback((filter: { status?: string }) => {
@@ -607,8 +571,8 @@ const MyFranchise = () => {
 
   const filteredRequestedCategories = useMemo(() => {
     return requestedCategories.filter((row: RequestedCategoryRow) => {
-      const hay = [row.name, ...(row.service_names ?? [])]
-        .join(" ")
+      const hay = String(row.name ?? "")
+        .trim()
         .toLowerCase();
       return !keyword || hay.includes(keyword);
     });
@@ -758,11 +722,6 @@ const MyFranchise = () => {
   const categorySelectOptions = useMemo(
     () => categories.map((c) => ({ value: c._id, label: c.name })),
     [categories]
-  );
-
-  const franchiseServiceOptionsForCategoryDialog = useMemo(
-    () => services.map((s) => ({ value: s._id, label: s.name })),
-    [services]
   );
 
   const utilityTitle = useMemo(() => {
@@ -1027,11 +986,6 @@ const MyFranchise = () => {
       },
       { Header: "Category Name", accessor: "name" },
       {
-        Header: "Services",
-        accessor: "service_names",
-        Cell: franchiseRequestedCategoryServicesCell,
-      },
-      {
         Header: "Status",
         accessor: "status",
         Cell: pendingRequestedStatusCell,
@@ -1045,7 +999,6 @@ const MyFranchise = () => {
             onView={(r) => {
               RequestedCategoryDialog.showView(
                 r.original as RequestedCategoryRow,
-                franchiseServiceOptionsForCategoryDialog,
                 () => {
                   void reloadFranchiseData();
                 }
@@ -1060,13 +1013,7 @@ const MyFranchise = () => {
         ),
       },
     ],
-    [
-      currentPage,
-      pageSize,
-      franchiseServiceOptionsForCategoryDialog,
-      reloadFranchiseData,
-      handleRequestedCategoryVoid,
-    ]
+    [currentPage, pageSize, reloadFranchiseData, handleRequestedCategoryVoid]
   );
 
   const categoryColumns = useMemo(
@@ -1125,7 +1072,7 @@ const MyFranchise = () => {
           ? requestedCategoryColumns
           : categoryColumns;
       default:
-        return employeeColumns;
+        return [];
     }
   }, [
     selectedBox,
@@ -1161,30 +1108,27 @@ const MyFranchise = () => {
         addLabel: "",
       },
       {
-        id: "box-services",
-        title: "Services",
-        data: servicesSummaryForBox,
+        id: "box-categories",
+        title: "Categories",
+        data: categoriesSummaryForBox,
         isAddShow: true,
-        addLabel: "Add request",
+        addLabel: "Add category",
         onAdd: () => {
-          RequestedServiceDialog.showAdd(categorySelectOptions, () => {
+          RequestedCategoryDialog.showAdd(() => {
             void reloadFranchiseData();
           });
         },
       },
       {
-        id: "box-categories",
-        title: "Categories",
-        data: categoriesSummaryForBox,
+        id: "box-services",
+        title: "Services",
+        data: servicesSummaryForBox,
         isAddShow: true,
-        addLabel: "Add request",
+        addLabel: "Add service",
         onAdd: () => {
-          RequestedCategoryDialog.showAdd(
-            franchiseServiceOptionsForCategoryDialog,
-            () => {
-              void reloadFranchiseData();
-            }
-          );
+          RequestedServiceDialog.showAdd(categorySelectOptions, () => {
+            void reloadFranchiseData();
+          });
         },
       },
     ];
@@ -1194,7 +1138,6 @@ const MyFranchise = () => {
     servicesSummaryForBox,
     categoriesSummaryForBox,
     categorySelectOptions,
-    franchiseServiceOptionsForCategoryDialog,
     reloadFranchiseData,
   ]);
 
@@ -1266,7 +1209,8 @@ const MyFranchise = () => {
           horizontalScroll={
             selectedBox !== "box-areas" &&
             !(
-              selectedBox === "box-services" && servicesViewMode === "requested"
+              selectedBox === "box-services" &&
+              servicesViewMode === "requested"
             ) &&
             !(
               selectedBox === "box-categories" &&
