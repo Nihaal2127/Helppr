@@ -79,7 +79,6 @@ export const apiRequest = async (
 
       if (response.status === 500) {
         closeAllModals();
-        navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         if (endpoint !== ApiPaths.LOGIN() && !isMockAuthSession()) {
           clearLocalStorage();
@@ -181,7 +180,6 @@ export const apiRequestBlob = async (endpoint: string, payload?: any) => {
       const navigate = getNavigate();
       if (response.status === 500) {
         closeAllModals();
-        navigate?.(ROUTES.ERROR500.path);
       } else if (response.status === 401) {
         if (!isMockAuthSession()) {
           clearLocalStorage();

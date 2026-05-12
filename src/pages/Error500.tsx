@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Card, Button } from "react-bootstrap";
 import appLogo from "../assets/icons/login_logo.svg";
 import { getNavigate } from "../helper/utility";
+import { ROUTES } from "../routes/Routes";
 
 const ServerError = () => {
   const navigate = getNavigate();
@@ -34,9 +35,13 @@ const ServerError = () => {
             <Button
               type="submit"
               className="custom-btn-primary mt-2"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                // Avoid navigate(-1): the previous screen often re-fetches and hits the same 500,
+                // bouncing straight back here. Same escape hatch as Error404.
+                navigate?.(ROUTES.DASHBOARD.path);
+              }}
             >
-              Back
+              Back to Home
             </Button>
           </div>
         </Card.Body>
