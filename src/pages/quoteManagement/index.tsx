@@ -20,18 +20,35 @@ import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicke
 import { useForm, UseFormRegister } from "react-hook-form";
 import type { QuoteViewData } from "./quoteViewTypes";
 import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "./quoteTypes";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import {
-  fetchQuoteCreateOptions,
+  buildCreateQuotePayload,
+  createQuote,
+  deleteQuote,
+  fetchFranchiseRelatedCatalog,
   fetchQuotes,
-  getQuoteServiceOptionsForCategory,
-  getQuoteServiceScheduleMode,
+  filterCatalogPartnerRecordsByService,
+  getQuoteScheduleModeFromServiceOption,
+  mapRelatedCatalogToQuoteOptions,
   normalizeQuoteListSort,
+  resolveFranchiseIdForQuoteForm,
   QuoteListSort,
 } from "../../services/quoteService";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
+import type { ServiceDropDownOption } from "../../services/servicesService";
+import { normalizeServiceCategoryRef } from "../../services/servicesService";
+import {
+  APP_USER_TYPE,
+  fetchUserById,
+  fetchUserDropDown,
+} from "../../services/userService";
+import { getLocalStorage } from "../../helper/localStorageHelper";
+import { AppConstant, UserRole } from "../../constant/AppConstant";
+import { fetchFranchiseDropDown } from "../../services/franchiseService";
+import { getCount } from "../../services/getCountService";
 import { formatQuoteScheduleForTable } from "./quoteScheduleDisplay";
+import { setQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -60,7 +77,74 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
   return `${y}-${m}-${d}`;
 };
 
+/**
+ * Maps `getCount` `record` for `type: "quote-management"` into tab totals.
+ * Accepts common key variants (snake_case / prefixes) so staging can evolve without UI churn.
+ */
+function mapGetCountRecordToQuoteTabCounts(
+  record: Record<string, unknown> | null | undefined
+): Partial<Record<QuoteTabKey, number>> | null {
+  if (!record || typeof record !== "object") return null;
+  const byLower = new Map(
+    Object.entries(record).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  const pick = (...aliases: string[]): number | null => {
+    for (const a of aliases) {
+      const v = byLower.get(a.toLowerCase());
+      if (v !== undefined && v !== null) {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return null;
+  };
+  const out: Partial<Record<QuoteTabKey, number>> = {};
+  const assign = (key: QuoteTabKey, ...aliases: string[]) => {
+    const n = pick(...aliases);
+    if (n !== null) out[key] = n;
+  };
+  assign("new", "quote_new", "new_quote", "new", "total_new", "quotes_new");
+  assign(
+    "pending",
+    "quote_pending",
+    "pending_quote",
+    "pending",
+    "total_pending",
+    "quotes_pending"
+  );
+  assign(
+    "accepted",
+    "quote_accepted",
+    "accepted_quote",
+    "accepted",
+    "total_accepted",
+    "quotes_accepted"
+  );
+  assign(
+    "success",
+    "quote_success",
+    "success_quote",
+    "success",
+    "total_success",
+    "quotes_success"
+  );
+  assign(
+    "failed",
+    "quote_failed",
+    "failed_quote",
+    "failed",
+    "total_failed",
+    "quotes_failed"
+  );
+  if (Object.keys(out).length === 0) return null;
+  for (const { key } of quoteTabs) {
+    if (out[key] === undefined) out[key] = 0;
+  }
+  return out;
+}
+
 const toQuoteViewData = (row: QuoteRow): QuoteViewData => ({
+  _id: row._id,
   quote_id: row.quote_id,
   status: row.status,
   requested_services: row.requested_services,
@@ -129,6 +213,7 @@ const QuoteManagement = () => {
     formState: { errors: addQuoteErrors },
   } = useForm<AddQuoteFormValues>({
     defaultValues: {
+      franchise_id: "",
       user_id: "",
       user_name: "",
       requested_services: "",
@@ -144,14 +229,33 @@ const QuoteManagement = () => {
     },
   });
   const addQuote = watchAddQuote();
-  const scheduleMode = useMemo(
-    () => getQuoteServiceScheduleMode(addQuote.requested_services),
-    [addQuote.requested_services]
-  );
-  const quoteServiceOptionsForCategory = useMemo(
-    () => getQuoteServiceOptionsForCategory(addQuote.category_id),
-    [addQuote.category_id]
-  );
+  const [quoteCatalogServices, setQuoteCatalogServices] = useState<
+    ServiceDropDownOption[]
+  >([]);
+  const [catalogPartnerRecords, setCatalogPartnerRecords] = useState<
+    Record<string, unknown>[]
+  >([]);
+  const addQuoteServiceId = String(addQuote.requested_services ?? "").trim();
+  const hasAddQuoteServiceSelected = Boolean(addQuoteServiceId);
+  /** Single memo avoids TDZ / ordering issues between filtered services and derived schedule mode. */
+  const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
+    const cid = String(addQuote.category_id ?? "").trim();
+    const quoteServiceOptionsForCategory = !cid
+      ? []
+      : quoteCatalogServices.filter((o) => {
+          const ref = normalizeServiceCategoryRef(o.category_id);
+          return ref === cid;
+        });
+    const sid = String(addQuote.requested_services ?? "").trim();
+    const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
+    return {
+      quoteServiceOptionsForCategory,
+      scheduleMode: getQuoteScheduleModeFromServiceOption({
+        payment_type: opt?.payment_type,
+        label: opt?.label ?? "",
+      }),
+    };
+  }, [addQuote.category_id, addQuote.requested_services, quoteCatalogServices]);
   const [quotePartnerOptions, setQuotePartnerOptions] = useState<OptionType[]>(
     []
   );
@@ -164,6 +268,114 @@ const QuoteManagement = () => {
   const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
     OptionType[]
   >([]);
+  const currentUserRole = getLocalStorage(AppConstant.userRole);
+  const isSuperAdminOrStaff =
+    currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
+  const [franchiseOptionsForQuote, setFranchiseOptionsForQuote] = useState<
+    OptionType[]
+  >([]);
+  /** Franchise users: session partner id. Super admin/staff: no page-level franchise (pick in Add Quote only). */
+  const effectiveFranchiseId = useMemo(() => {
+    if (isSuperAdminOrStaff) return "";
+    return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+  }, [isSuperAdminOrStaff]);
+  const quoteScopeBlocked =
+    !isSuperAdminOrStaff && !String(effectiveFranchiseId).trim();
+  /** While Add Quote is open, super admin/staff scope catalogue + customers to the franchise chosen in the modal (not only the page filter). */
+  const franchiseIdForQuoteCatalog = useMemo(() => {
+    if (isSuperAdminOrStaff && showAddQuote) {
+      return String(addQuote.franchise_id ?? "").trim();
+    }
+    return effectiveFranchiseId;
+  }, [
+    isSuperAdminOrStaff,
+    showAddQuote,
+    addQuote.franchise_id,
+    effectiveFranchiseId,
+  ]);
+  const addQuoteFieldsLocked =
+    isSuperAdminOrStaff &&
+    showAddQuote &&
+    !String(addQuote.franchise_id ?? "").trim();
+  const addQuoteSaveDisabled =
+    isSuperAdminOrStaff && showAddQuote
+      ? !String(addQuote.franchise_id ?? "").trim()
+      : quoteScopeBlocked;
+  const resetAddQuoteCatalogSelections = useCallback(() => {
+    setAddQuoteValue("user_id", "", { shouldValidate: false });
+    setAddQuoteValue("user_name", "", { shouldValidate: false });
+    setAddQuoteValue("category_id", "", { shouldValidate: false });
+    setAddQuoteValue("requested_services", "", { shouldValidate: false });
+    setAddQuoteValue("requested_partner", "", { shouldValidate: false });
+    setAddQuoteValue("employee_id", "", { shouldValidate: false });
+    setAddQuoteValue("requested_date", "", { shouldValidate: false });
+    setAddQuoteValue("requested_date_to", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time_from", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time_to", "", { shouldValidate: false });
+    setAddQuoteValue("service_price", "", { shouldValidate: false });
+    setCreateQuoteAddressId("");
+  }, [setAddQuoteValue]);
+
+  /** Avoid applying stale `related-catalog` if the user switches franchise quickly. */
+  const quoteCatalogLoadSeqRef = useRef(0);
+
+  const loadQuoteCatalogForFranchise = useCallback(
+    async (franchiseId: string) => {
+      const id = String(franchiseId ?? "").trim();
+      if (!id) {
+        quoteCatalogLoadSeqRef.current += 1;
+        setQuoteCatalogServices([]);
+        setQuoteCategoryOptions([]);
+        setQuoteEmployeeOptions([]);
+        setCatalogPartnerRecords([]);
+        setQuotePartnerOptions([]);
+        setQuoteFranchiseCatalogSnapshot(null);
+        return;
+      }
+      const seq = (quoteCatalogLoadSeqRef.current += 1);
+      const { success, record } = await fetchFranchiseRelatedCatalog(id);
+      if (seq !== quoteCatalogLoadSeqRef.current) return;
+      if (!success || !record) {
+        setQuoteCatalogServices([]);
+        setQuoteCategoryOptions([]);
+        setQuoteEmployeeOptions([]);
+        setCatalogPartnerRecords([]);
+        setQuotePartnerOptions([]);
+        setQuoteFranchiseCatalogSnapshot(null);
+        return;
+      }
+      const mapped = mapRelatedCatalogToQuoteOptions(record);
+      setQuoteCategoryOptions(mapped.quoteCategoryOptions);
+      setQuoteCatalogServices(mapped.quoteCatalogServices);
+      setQuoteEmployeeOptions(mapped.quoteEmployeeOptions);
+      setCatalogPartnerRecords(mapped.quotePartnerRecords);
+      setQuoteFranchiseCatalogSnapshot({
+        partnerRecords: mapped.quotePartnerRecords,
+        employeeRows: mapped.quoteEmployeeRecords,
+      });
+    },
+    []
+  );
+
+  const handleAddQuoteFranchiseChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextId = String(e.target.value ?? "").trim();
+      setAddQuoteValue("franchise_id", e.target.value, { shouldValidate: true });
+      resetAddQuoteCatalogSelections();
+      if (isSuperAdminOrStaff) {
+        void loadQuoteCatalogForFranchise(nextId);
+      }
+    },
+    [
+      isSuperAdminOrStaff,
+      loadQuoteCatalogForFranchise,
+      resetAddQuoteCatalogSelections,
+      setAddQuoteValue,
+    ]
+  );
+  const [createQuoteAddressId, setCreateQuoteAddressId] = useState("");
+
   const userSelectOptions = useMemo<OptionType[]>(
     () => quoteUserOptions.map((u) => ({ value: u.value, label: u.label })),
     [quoteUserOptions]
@@ -177,17 +389,25 @@ const QuoteManagement = () => {
   const [sortBy, setSortBy] = useState<QuoteListSort>([]);
 
   const fetchRef = useRef(false);
+  /** First list load runs after tab totals (`getCount`); later filter/tab/page changes only refetch the active tab list. */
+  const quoteCountsBootstrappedRef = useRef(false);
 
   const quoteListFilters = useMemo(
     () => ({
       keyword: searchKeyword,
       from_date: fromDate,
       to_date: toDate,
+      franchise_id: effectiveFranchiseId || undefined,
     }),
-    [searchKeyword, fromDate, toDate]
+    [searchKeyword, fromDate, toDate, effectiveFranchiseId]
   );
 
   const fetchData = useCallback(async () => {
+    if (!isSuperAdminOrStaff && !effectiveFranchiseId) {
+      setQuoteRows([]);
+      setTotalPages(0);
+      return;
+    }
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
@@ -201,19 +421,42 @@ const QuoteManagement = () => {
       if (res.response) {
         setQuoteRows(res.quotes);
         setTotalPages(res.totalPages);
-        setQuoteCountsByTab((prev) => ({
-          ...prev,
-          [selectedTab]: res.totalCount,
-        }));
       } else {
         setQuoteRows([]);
         setTotalPages(0);
-        setQuoteCountsByTab((prev) => ({ ...prev, [selectedTab]: 0 }));
       }
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, pageSize, quoteListFilters, selectedTab, sortBy]);
+  }, [
+    currentPage,
+    effectiveFranchiseId,
+    isSuperAdminOrStaff,
+    pageSize,
+    quoteListFilters,
+    selectedTab,
+    sortBy,
+  ]);
+
+  /** Tab badges: `POST /getCount` with `{ type: "quote-management" }` only (no N×`getAll` fallback — avoids spamming every tab on staging shape drift). */
+  const refreshQuoteSummaryFromGetCount = useCallback(async () => {
+    const { responseCount, countModel } = await getCount("quote-management");
+    const rec =
+      countModel != null
+        ? (countModel as unknown as Record<string, unknown>)
+        : null;
+    const mapped =
+      responseCount && rec ? mapGetCountRecordToQuoteTabCounts(rec) : null;
+    if (mapped) {
+      setQuoteCountsByTab(mapped);
+      return;
+    }
+    setQuoteCountsByTab({});
+  }, []);
+
+  const refreshCountsThenFetchQuotes = useCallback(() => {
+    return refreshQuoteSummaryFromGetCount().then(() => fetchData());
+  }, [fetchData, refreshQuoteSummaryFromGetCount]);
 
   const handleServerSortChange = useCallback(
     (next: { id: string; desc: boolean }[]) => {
@@ -223,49 +466,127 @@ const QuoteManagement = () => {
     []
   );
 
-  // Keep create-modal dropdown options in sync with the mock "API".
+  /** Franchise dropdown for super admin/staff (page scope). */
   useEffect(() => {
+    if (!isSuperAdminOrStaff) return;
     let cancelled = false;
     (async () => {
-      const {
-        quotePartnerOptions: partners,
-        quoteUserOptions: users,
-        quoteEmployeeOptions: employees,
-        quoteCategoryOptions: categories,
-      } = await fetchQuoteCreateOptions();
+      const rows = await fetchFranchiseDropDown();
       if (cancelled) return;
-      setQuotePartnerOptions(partners);
-      setQuoteUserOptions(users);
-      setQuoteEmployeeOptions(employees);
-      setQuoteCategoryOptions(categories);
+      setFranchiseOptionsForQuote(rows);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isSuperAdminOrStaff]);
 
+  /**
+   * `GET /franchise/related-catalog/:id` — franchise employees (and categories/services/partners)
+   * for Add Quote. Super admin/staff: also triggered from the franchise `<select>` so the request
+   * uses the chosen id immediately; `fetchFranchiseRelatedCatalog` dedupes concurrent calls.
+   */
   useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    void loadQuoteCatalogForFranchise(franchiseIdForQuoteCatalog);
+  }, [franchiseIdForQuoteCatalog, loadQuoteCatalogForFranchise]);
 
+  /** Customers are not returned on related-catalog; scope them by franchise for create quote. */
   useEffect(() => {
+    if (!showAddQuote || !franchiseIdForQuoteCatalog) return;
     let cancelled = false;
     (async () => {
-      const results = await Promise.all(
-        quoteTabs.map(({ key }) => fetchQuotes(key, 1, 1, quoteListFilters, []))
+      const { users } = await fetchUserDropDown(
+        APP_USER_TYPE.CUSTOMER,
+        undefined,
+        { franchise_id: franchiseIdForQuoteCatalog }
       );
       if (cancelled) return;
-      const next: Partial<Record<QuoteTabKey, number>> = {};
-      quoteTabs.forEach(({ key }, i) => {
-        const res = results[i];
-        next[key] = res.response ? res.totalCount : 0;
+      const nextUsers: QuoteUserOption[] = (users ?? []).map((u: any) => {
+        const name = String(u.name ?? u._id ?? "").trim();
+        const phone = String(u.phone_number ?? "").trim();
+        const label = phone ? `${name} (${phone})` : name;
+        return {
+          value: String(u._id ?? "").trim(),
+          label,
+          user_name: name,
+        };
       });
-      setQuoteCountsByTab(next);
+      setQuoteUserOptions(
+        nextUsers.sort((a, b) => a.user_name.localeCompare(b.user_name))
+      );
     })();
     return () => {
       cancelled = true;
     };
-  }, [quoteListFilters]);
+  }, [showAddQuote, franchiseIdForQuoteCatalog]);
+
+  useEffect(() => {
+    const sid = String(addQuote.requested_services ?? "").trim();
+    const src = filterCatalogPartnerRecordsByService(
+      catalogPartnerRecords,
+      sid || undefined
+    );
+    const opts = src.map((p) => {
+      const value = String(
+        p.partner_id ?? p._id ?? p.user_id ?? p.id ?? ""
+      ).trim();
+      const label = String(
+        p.partner_name ?? p.name ?? p.user_name ?? value
+      ).trim();
+      return { value, label: label || value };
+    });
+    setQuotePartnerOptions(opts.filter((o) => o.value));
+  }, [addQuote.requested_services, catalogPartnerRecords]);
+
+  useEffect(() => {
+    const uid = String(addQuote.user_id ?? "").trim();
+    if (!uid) {
+      setCreateQuoteAddressId("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const res = await fetchUserById(uid);
+      if (cancelled || !res.response || !res.user) return;
+      const u = res.user as unknown as Record<string, unknown>;
+      const addrs = (u.addresses ?? u.user_addresses) as unknown[] | undefined;
+      let aid = "";
+      if (Array.isArray(addrs) && addrs.length) {
+        const first = addrs[0] as Record<string, unknown>;
+        aid = String(first?._id ?? "").trim();
+      }
+      if (!aid) {
+        aid = String(
+          u.primary_address_id ?? u.default_address_id ?? u.address_id ?? ""
+        ).trim();
+      }
+      setCreateQuoteAddressId(aid);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addQuote.user_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!quoteCountsBootstrappedRef.current) {
+        await refreshQuoteSummaryFromGetCount();
+        quoteCountsBootstrappedRef.current = true;
+        if (cancelled) return;
+      }
+      await fetchData();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchData, refreshQuoteSummaryFromGetCount]);
+
+  useEffect(
+    () => () => {
+      setQuoteFranchiseCatalogSnapshot(null);
+    },
+    []
+  );
 
   const handleTabClick = (tabKey: QuoteTabKey) => {
     setSelectedTab(tabKey);
@@ -274,25 +595,34 @@ const QuoteManagement = () => {
   };
 
   const handleVoidQuote = useCallback((quote: QuoteRow) => {
+    const qid = String(quote._id ?? "").trim();
     openConfirmDialog(
-      `Are you sure you want to void this quote (${quote.quote_id})?`,
-      "Void",
+      `Delete quote ${quote.quote_id}? This cannot be undone.`,
+      "Delete",
       "Cancel",
-      () => {
-        showSuccessAlert("Quote voided (UI only)");
+      async () => {
+        if (!qid) {
+          showErrorAlert("Missing quote id.");
+          return;
+        }
+        const ok = await deleteQuote(qid);
+        if (ok) {
+          showSuccessAlert("Quote deleted.");
+          void refreshCountsThenFetchQuotes();
+        }
       }
     );
-  }, []);
+  }, [refreshCountsThenFetchQuotes]);
 
   const handleQuoteView = useCallback(
     (row: QuoteRow) => {
       void import("./QuoteInfoDialog").then(({ default: QuoteInfoDialog }) => {
         QuoteInfoDialog.show(toQuoteViewData(row), () => {
-          void fetchData();
+          void refreshCountsThenFetchQuotes();
         });
       });
     },
-    [fetchData]
+    [refreshCountsThenFetchQuotes]
   );
 
   const quoteColumns = useMemo(() => {
@@ -378,27 +708,118 @@ const QuoteManagement = () => {
   }, [currentPage, pageSize, selectedTab, handleQuoteView, handleVoidQuote]);
 
   useEffect(() => {
-    if (showAddQuote) {
-      resetAddQuote({
-        user_id: "",
-        user_name: "",
-        requested_services: "",
-        requested_partner: "",
-        employee_id: "",
-        category_id: "",
-        requested_date: "",
-        requested_date_to: "",
-        requested_time: "",
-        requested_time_from: "",
-        requested_time_to: "",
-        service_price: "",
-      });
-    }
+    if (!showAddQuote) return;
+    resetAddQuote({
+      franchise_id: "",
+      user_id: "",
+      user_name: "",
+      requested_services: "",
+      requested_partner: "",
+      employee_id: "",
+      category_id: "",
+      requested_date: "",
+      requested_date_to: "",
+      requested_time: "",
+      requested_time_from: "",
+      requested_time_to: "",
+      service_price: "",
+    });
   }, [showAddQuote, resetAddQuote]);
 
-  const onSubmitAddQuote = (_data: AddQuoteFormValues) => {
-    setShowAddQuote(false);
-    showSuccessAlert("Quote created (UI only)");
+  const onSubmitAddQuote = async (data: AddQuoteFormValues) => {
+    const price = Number.parseFloat(String(data.service_price).trim());
+    if (Number.isNaN(price) || price < 0) {
+      showErrorAlert("Enter a valid service price.");
+      return;
+    }
+
+    const franchiseId = resolveFranchiseIdForQuoteForm(data.franchise_id);
+    if (
+      !franchiseId &&
+      (currentUserRole === UserRole.FRANCHISE_ADMIN ||
+        currentUserRole === UserRole.EMPLOYEE)
+    ) {
+      showErrorAlert("Franchise is not set for this session.");
+      return;
+    }
+    if (!franchiseId && isSuperAdminOrStaff) {
+      showErrorAlert("Please select a franchise.");
+      return;
+    }
+
+    if (!createQuoteAddressId.trim()) {
+      showErrorAlert(
+        "No saved address id found for this user. Ensure the customer has an address on file."
+      );
+      return;
+    }
+
+    if (!String(data.requested_services ?? "").trim()) {
+      showErrorAlert("Please select a service.");
+      return;
+    }
+
+    if (scheduleMode === "range") {
+      if (!String(data.requested_date ?? "").trim()) {
+        showErrorAlert("Please select from date.");
+        return;
+      }
+      if (!String(data.requested_date_to ?? "").trim()) {
+        showErrorAlert("Please select to date.");
+        return;
+      }
+      if (!String(data.requested_time_from ?? "").trim()) {
+        showErrorAlert("Please select start time.");
+        return;
+      }
+      if (!String(data.requested_time_to ?? "").trim()) {
+        showErrorAlert("Please select end time.");
+        return;
+      }
+    } else {
+      if (!String(data.requested_date ?? "").trim()) {
+        showErrorAlert("Please select a date.");
+        return;
+      }
+      if (!String(data.requested_time_from ?? "").trim()) {
+        showErrorAlert("Please select start time.");
+        return;
+      }
+      if (!String(data.requested_time_to ?? "").trim()) {
+        showErrorAlert("Please select end time.");
+        return;
+      }
+    }
+
+    const body = buildCreateQuotePayload({
+      user_id: data.user_id,
+      category_id: data.category_id,
+      service_id: data.requested_services,
+      partner_id: data.requested_partner || undefined,
+      employee_id: data.employee_id || undefined,
+      service_price: price,
+      franchise_id: franchiseId,
+      address_id: createQuoteAddressId.trim(),
+      scheduleMode,
+      requested_date: data.requested_date,
+      requested_date_to: data.requested_date_to,
+      requested_time: data.requested_time,
+      requested_time_from: data.requested_time_from,
+      requested_time_to: data.requested_time_to,
+    });
+
+    if (!body) {
+      showErrorAlert("Missing required fields.");
+      return;
+    }
+
+    const ok = await createQuote(body);
+    if (ok) {
+      setShowAddQuote(false);
+      setCreateQuoteAddressId("");
+      showSuccessAlert("Quote created.");
+      void refreshCountsThenFetchQuotes();
+    }
   };
 
   return (
@@ -407,7 +828,9 @@ const QuoteManagement = () => {
         title="Quote Management"
         rightActions={
           <button
+            type="button"
             className="custom-btn-secondary w-auto"
+            disabled={!isSuperAdminOrStaff && quoteScopeBlocked}
             onClick={() => setShowAddQuote(true)}
           >
             Create Quote
@@ -417,7 +840,25 @@ const QuoteManagement = () => {
         setValue={setValue}
       />
 
-      <div className="d-flex mt-4 gap-2">
+      {!isSuperAdminOrStaff && quoteScopeBlocked ? (
+        <div className="mt-3 px-2 text-muted small">
+          Franchise is not available for this session. Quote lists and actions
+          stay disabled until it is configured.
+        </div>
+      ) : null}
+
+      <div
+        className="d-flex mt-4 gap-2"
+        style={
+          quoteScopeBlocked
+            ? {
+                pointerEvents: "none",
+                opacity: 0.55,
+                userSelect: "none",
+              }
+            : undefined
+        }
+      >
         {quoteTabs.map((tab) => (
           <CustomSummaryBox
             key={tab.key}
@@ -432,6 +873,17 @@ const QuoteManagement = () => {
         ))}
       </div>
 
+      <div
+        style={
+          quoteScopeBlocked
+            ? {
+                pointerEvents: "none",
+                opacity: 0.55,
+                userSelect: "none",
+              }
+            : undefined
+        }
+      >
       <CustomUtilityBox
         key={utilitySearchKey}
         title="Quotes"
@@ -514,6 +966,7 @@ const QuoteManagement = () => {
           setSearchKeyword(value);
           setCurrentPage(1);
         }}
+        syncKeyword={searchKeyword}
       />
 
       <CustomTable
@@ -532,6 +985,7 @@ const QuoteManagement = () => {
         onSortChange={handleServerSortChange}
         theadClass="table-light"
       />
+      </div>
 
       <Modal
         show={showAddQuote}
@@ -547,12 +1001,47 @@ const QuoteManagement = () => {
           <CustomCloseButton onClose={() => setShowAddQuote(false)} />
         </Modal.Header>
         <Modal.Body className="px-4 pb-4 pt-0">
-          <form noValidate onSubmit={handleAddQuoteSubmit(onSubmitAddQuote)}>
+          <form
+            id="quote-add-form"
+            noValidate
+            onSubmit={handleAddQuoteSubmit(onSubmitAddQuote)}
+          >
             <section
               className="custom-other-details"
               style={{ padding: "10px" }}
             >
-              <Row>
+              {isSuperAdminOrStaff ? (
+                <Row>
+                  <Col xs={12} md={6} className="mt-2">
+                    <Form.Label className="small text-muted mb-1">
+                      Franchise
+                    </Form.Label>
+                    <Form.Select
+                      value={String(addQuote.franchise_id ?? "")}
+                      onChange={handleAddQuoteFranchiseChange}
+                    >
+                      <option value="">Select franchise…</option>
+                      {franchiseOptionsForQuote.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                </Row>
+              ) : null}
+              <div
+                style={
+                  addQuoteFieldsLocked
+                    ? {
+                        pointerEvents: "none",
+                        opacity: 0.55,
+                        userSelect: "none",
+                      }
+                    : undefined
+                }
+              >
+                <Row>
                 <Col xs={12} md={6} className="mt-2">
                   <CustomTextFieldSelect
                     label="User Name"
@@ -571,6 +1060,7 @@ const QuoteManagement = () => {
                     }
                     placeholder="Search user"
                     menuPortal
+                    isClearable
                     onChange={(e) => {
                       const uid = String(e.target.value || "");
                       const row = quoteUserOptions.find((u) => u.value === uid);
@@ -578,6 +1068,7 @@ const QuoteManagement = () => {
                         shouldValidate: true,
                       });
                     }}
+                    isDisabled={addQuoteFieldsLocked}
                   />
                 </Col>
                 <Col xs={12} md={6} className="mt-2">
@@ -593,6 +1084,7 @@ const QuoteManagement = () => {
                     error={addQuoteErrors.category_id}
                     requiredMessage="Please select a category"
                     defaultValue={addQuote.category_id}
+                    isClearable
                     setValue={(name: string, value: any) => {
                       setAddQuoteValue(
                         name as keyof AddQuoteFormValues,
@@ -618,10 +1110,19 @@ const QuoteManagement = () => {
                         setAddQuoteValue("requested_time_to", "", {
                           shouldValidate: false,
                         });
+                        if (!String(value ?? "").trim()) {
+                          setAddQuoteValue("requested_partner", "", {
+                            shouldValidate: false,
+                          });
+                          setAddQuoteValue("employee_id", "", {
+                            shouldValidate: false,
+                          });
+                        }
                       }
                     }}
                     placeholder="Select category"
                     menuPortal
+                    isDisabled={addQuoteFieldsLocked}
                   />
                 </Col>
                 <Col xs={12} md={6} className="mt-2">
@@ -664,6 +1165,11 @@ const QuoteManagement = () => {
                         setAddQuoteValue("requested_time_to", "", {
                           shouldValidate: false,
                         });
+                        if (!String(value ?? "").trim()) {
+                          setAddQuoteValue("requested_partner", "", {
+                            shouldValidate: false,
+                          });
+                        }
                       }
                     }}
                     placeholder={
@@ -672,6 +1178,8 @@ const QuoteManagement = () => {
                         : "Select category first"
                     }
                     menuPortal
+                    isClearable
+                    isDisabled={addQuoteFieldsLocked}
                   />
                 </Col>
                 <Col xs={12} md={6} className="mt-2">
@@ -691,6 +1199,8 @@ const QuoteManagement = () => {
                     }
                     placeholder="Select partner"
                     menuPortal
+                    isClearable
+                    isDisabled={addQuoteFieldsLocked}
                   />
                 </Col>
                 <Col xs={12} md={6} className="mt-2">
@@ -710,6 +1220,8 @@ const QuoteManagement = () => {
                     }
                     placeholder="Select employee"
                     menuPortal
+                    isClearable
+                    isDisabled={addQuoteFieldsLocked}
                   />
                 </Col>
 
@@ -722,222 +1234,240 @@ const QuoteManagement = () => {
                     error={addQuoteErrors.service_price}
                     asCol={false}
                     inputType="text"
+                    isEditable={!addQuoteFieldsLocked}
                   />
                 </Col>
               </Row>
 
-              <Row className="mt-3 mb-2">
-                <Col xs={12}>
-                  <label
-                    style={{
-                      fontSize: "17px",
-                      fontWeight: "600",
-                      color: "var(--primary-color)",
-                    }}
-                    className="d-block mb-1"
-                  >
-                    Schedule date and time
-                  </label>
-                  <div className="small text-muted">
-                    {scheduleMode === "single" && ""}
-                    {scheduleMode === "range" && ""}
-                    {scheduleMode === "hourly" && ""}
-                  </div>
-                </Col>
-              </Row>
+              {hasAddQuoteServiceSelected ? (
+                <>
+                  <Row className="mt-3 mb-2">
+                    <Col xs={12}>
+                      <label
+                        style={{
+                          fontSize: "17px",
+                          fontWeight: "600",
+                          color: "var(--primary-color)",
+                        }}
+                        className="d-block mb-1"
+                      >
+                        Schedule date and time
+                      </label>
+                      <div className="small text-muted">
+                        {scheduleMode === "range"
+                          ? "Per day / per month: from date, to date, start time, end time."
+                          : "Per hour / per consultancy: one date, start time, end time."}
+                      </div>
+                    </Col>
+                  </Row>
 
-              <Row className="g-2">
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldDatePicket
-                    label="From date"
-                    controlId="requested_date"
-                    selectedDate={addQuote.requested_date || null}
-                    onChange={(date) => {
-                      const next = toIsoCalendarDate(date) ?? "";
-                      setAddQuoteValue("requested_date", next, {
-                        shouldValidate: true,
-                      });
-                    }}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    asCol={false}
-                    labelSize={12}
-                    placeholderText="From date"
-                    filterDate={() => true}
-                  />
-                </Col>
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldDatePicket
-                    label="To date"
-                    controlId="requested_date_to"
-                    selectedDate={addQuote.requested_date_to || null}
-                    onChange={(date) => {
-                      const next = toIsoCalendarDate(date) ?? "";
-                      setAddQuoteValue("requested_date_to", next, {
-                        shouldValidate: true,
-                      });
-                    }}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    asCol={false}
-                    labelSize={12}
-                    placeholderText="To date"
-                    filterDate={() => true}
-                  />
-                </Col>
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldTimePicket
-                    label={
-                      scheduleMode === "range" ? "Time (optional)" : "Time"
-                    }
-                    controlId="requested_time"
-                    selectedTime={timeStorageOrNull(addQuote.requested_time)}
-                    onChange={(date) =>
-                      setAddQuoteValue(
-                        "requested_time",
-                        toTimeStorageFromDate(date),
-                        {
-                          shouldValidate: true,
+                  <Row className="g-2">
+                    {scheduleMode === "range" ? (
+                  <>
+                    <Col xs={12} md={3} className="mt-2">
+                      <CustomTextFieldDatePicket
+                        label="From date"
+                        controlId="requested_date"
+                        selectedDate={addQuote.requested_date || null}
+                        onChange={(date) => {
+                          const next = toIsoCalendarDate(date) ?? "";
+                          setAddQuoteValue("requested_date", next, {
+                            shouldValidate: true,
+                          });
+                        }}
+                        register={
+                          addQuoteRegister as unknown as UseFormRegister<any>
                         }
-                      )
-                    }
-                    placeholderText="Select time"
-                    error={
-                      scheduleMode === "single"
-                        ? addQuoteErrors.requested_time
-                        : undefined
-                    }
-                    register={addQuoteRegister}
-                    validation={
-                      scheduleMode === "single"
-                        ? { required: "Time is required" }
-                        : undefined
-                    }
-                    setValue={setAddQuoteValue}
-                    asCol={false}
-                    labelSize={12}
-                    filterTime={(time) => {
-                      const hour = time.getHours();
-                      return hour >= 8 && hour <= 23;
-                    }}
-                  />
-                </Col>
+                        setValue={
+                          setAddQuoteValue as (name: string, value: any) => void
+                        }
+                        asCol={false}
+                        labelSize={12}
+                        placeholderText="From date"
+                        filterDate={() => true}
+                      />
+                    </Col>
+                    <Col xs={12} md={3} className="mt-2">
+                      <CustomTextFieldDatePicket
+                        label="To date"
+                        controlId="requested_date_to"
+                        selectedDate={addQuote.requested_date_to || null}
+                        onChange={(date) => {
+                          const next = toIsoCalendarDate(date) ?? "";
+                          setAddQuoteValue("requested_date_to", next, {
+                            shouldValidate: true,
+                          });
+                        }}
+                        register={
+                          addQuoteRegister as unknown as UseFormRegister<any>
+                        }
+                        setValue={
+                          setAddQuoteValue as (name: string, value: any) => void
+                        }
+                        asCol={false}
+                        labelSize={12}
+                        placeholderText="To date"
+                        filterDate={() => true}
+                      />
+                    </Col>
+                    <Col xs={12} md={3} className="mt-2">
+                      <CustomTextFieldTimePicket
+                        label="Start time"
+                        controlId="requested_time_from"
+                        selectedTime={timeStorageOrNull(
+                          addQuote.requested_time_from
+                        )}
+                        onChange={(date) =>
+                          setAddQuoteValue(
+                            "requested_time_from",
+                            toTimeStorageFromDate(date),
+                            { shouldValidate: true }
+                          )
+                        }
+                        placeholderText="Select start time"
+                        error={addQuoteErrors.requested_time_from}
+                        register={addQuoteRegister}
+                        validation={{
+                          required: "Start time is required",
+                        }}
+                        setValue={setAddQuoteValue}
+                        asCol={false}
+                        labelSize={12}
+                        filterTime={(time) => {
+                          const hour = time.getHours();
+                          return hour >= 8 && hour <= 23;
+                        }}
+                      />
+                    </Col>
+                    <Col xs={12} md={3} className="mt-2">
+                      <CustomTextFieldTimePicket
+                        label="End time"
+                        controlId="requested_time_to"
+                        selectedTime={timeStorageOrNull(
+                          addQuote.requested_time_to
+                        )}
+                        onChange={(date) =>
+                          setAddQuoteValue(
+                            "requested_time_to",
+                            toTimeStorageFromDate(date),
+                            { shouldValidate: true }
+                          )
+                        }
+                        placeholderText="Select end time"
+                        error={addQuoteErrors.requested_time_to}
+                        register={addQuoteRegister}
+                        validation={{
+                          required: "End time is required",
+                        }}
+                        setValue={setAddQuoteValue}
+                        asCol={false}
+                        labelSize={12}
+                        filterTime={(time) => {
+                          const hour = time.getHours();
+                          return hour >= 8 && hour <= 23;
+                        }}
+                      />
+                    </Col>
+                  </>
+                ) : (
+                  <>
+                    <Col xs={12} md={4} className="mt-2">
+                      <CustomTextFieldDatePicket
+                        label="Date"
+                        controlId="requested_date"
+                        selectedDate={addQuote.requested_date || null}
+                        onChange={(date) => {
+                          const next = toIsoCalendarDate(date) ?? "";
+                          setAddQuoteValue("requested_date", next, {
+                            shouldValidate: true,
+                          });
+                        }}
+                        register={
+                          addQuoteRegister as unknown as UseFormRegister<any>
+                        }
+                        setValue={
+                          setAddQuoteValue as (name: string, value: any) => void
+                        }
+                        asCol={false}
+                        labelSize={12}
+                        placeholderText="Select date"
+                        filterDate={() => true}
+                      />
+                    </Col>
+                    <Col xs={12} md={4} className="mt-2">
+                      <CustomTextFieldTimePicket
+                        label="Start time"
+                        controlId="requested_time_from"
+                        selectedTime={timeStorageOrNull(
+                          addQuote.requested_time_from
+                        )}
+                        onChange={(date) =>
+                          setAddQuoteValue(
+                            "requested_time_from",
+                            toTimeStorageFromDate(date),
+                            { shouldValidate: true }
+                          )
+                        }
+                        placeholderText="Select start time"
+                        error={addQuoteErrors.requested_time_from}
+                        register={addQuoteRegister}
+                        validation={{
+                          required: "Start time is required",
+                        }}
+                        setValue={setAddQuoteValue}
+                        asCol={false}
+                        labelSize={12}
+                        filterTime={(time) => {
+                          const hour = time.getHours();
+                          return hour >= 8 && hour <= 23;
+                        }}
+                      />
+                    </Col>
+                    <Col xs={12} md={4} className="mt-2">
+                      <CustomTextFieldTimePicket
+                        label="End time"
+                        controlId="requested_time_to"
+                        selectedTime={timeStorageOrNull(
+                          addQuote.requested_time_to
+                        )}
+                        onChange={(date) =>
+                          setAddQuoteValue(
+                            "requested_time_to",
+                            toTimeStorageFromDate(date),
+                            { shouldValidate: true }
+                          )
+                        }
+                        placeholderText="Select end time"
+                        error={addQuoteErrors.requested_time_to}
+                        register={addQuoteRegister}
+                        validation={{
+                          required: "End time is required",
+                        }}
+                        setValue={setAddQuoteValue}
+                        asCol={false}
+                        labelSize={12}
+                        filterTime={(time) => {
+                          const hour = time.getHours();
+                          return hour >= 8 && hour <= 23;
+                        }}
+                      />
+                    </Col>
+                  </>
+                )}
               </Row>
-
-              <Row className="g-2">
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldDatePicket
-                    label="Date"
-                    controlId="requested_date"
-                    groupControlId="add-quote-requested-date-fmt-b"
-                    selectedDate={addQuote.requested_date || null}
-                    onChange={(date) => {
-                      const next = toIsoCalendarDate(date) ?? "";
-                      setAddQuoteValue("requested_date", next, {
-                        shouldValidate: true,
-                      });
-                    }}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    asCol={false}
-                    labelSize={12}
-                    placeholderText="Select date"
-                    filterDate={() => true}
-                    suppressHiddenRegister
-                  />
-                </Col>
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldTimePicket
-                    label="From time"
-                    controlId="requested_time_from"
-                    groupControlId="add-quote-time-from-fmt-b"
-                    selectedTime={timeStorageOrNull(
-                      addQuote.requested_time_from
-                    )}
-                    onChange={(date) =>
-                      setAddQuoteValue(
-                        "requested_time_from",
-                        toTimeStorageFromDate(date),
-                        {
-                          shouldValidate: true,
-                        }
-                      )
-                    }
-                    placeholderText="Select start time"
-                    error={
-                      scheduleMode === "hourly"
-                        ? addQuoteErrors.requested_time_from
-                        : undefined
-                    }
-                    register={addQuoteRegister}
-                    validation={
-                      scheduleMode === "hourly"
-                        ? { required: "Start time is required" }
-                        : undefined
-                    }
-                    setValue={setAddQuoteValue}
-                    asCol={false}
-                    labelSize={12}
-                    filterTime={(time) => {
-                      const hour = time.getHours();
-                      return hour >= 8 && hour <= 23;
-                    }}
-                  />
-                </Col>
-                <Col xs={12} md={4} className="mt-2">
-                  <CustomTextFieldTimePicket
-                    label="To time"
-                    controlId="requested_time_to"
-                    groupControlId="add-quote-time-to-fmt-b"
-                    selectedTime={timeStorageOrNull(addQuote.requested_time_to)}
-                    onChange={(date) =>
-                      setAddQuoteValue(
-                        "requested_time_to",
-                        toTimeStorageFromDate(date),
-                        {
-                          shouldValidate: true,
-                        }
-                      )
-                    }
-                    placeholderText="Select end time"
-                    error={
-                      scheduleMode === "hourly"
-                        ? addQuoteErrors.requested_time_to
-                        : undefined
-                    }
-                    register={addQuoteRegister}
-                    validation={
-                      scheduleMode === "hourly"
-                        ? { required: "End time is required" }
-                        : undefined
-                    }
-                    setValue={setAddQuoteValue}
-                    asCol={false}
-                    labelSize={12}
-                    filterTime={(time) => {
-                      const hour = time.getHours();
-                      return hour >= 8 && hour <= 23;
-                    }}
-                  />
-                </Col>
-              </Row>
+                </>
+              ) : null}
+              </div>
             </section>
           </form>
         </Modal.Body>
         <Modal.Footer className="px-4 pb-4 pt-4 border-top-0">
-          <Button type="submit" className="custom-btn-primary">
+          <Button
+            type="submit"
+            form="quote-add-form"
+            className="custom-btn-primary"
+            disabled={addQuoteSaveDisabled}
+          >
             Save
           </Button>
           <Button

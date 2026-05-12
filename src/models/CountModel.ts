@@ -65,4 +65,12 @@ export interface CountModel {
   total_partner_subscriptions?: number;
   active_partner_subscriptions?: number;
   inactive_partner_subscriptions?: number;
+
+  /** Present when `POST /getCount` body includes `{ "type": "quote-management" }` (field names vary by backend). */
+  quote_new?: number;
+  quote_pending?: number;
+  quote_accepted?: number;
+  quote_success?: number;
+  quote_failed?: number;
+  total_quotes?: number;
 }

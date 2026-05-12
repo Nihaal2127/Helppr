@@ -480,7 +480,8 @@ function normalizedPagesFromPermKeys(keys: string[]) {
  */
 export const createRoleUserWithApi = async (
   payload: Omit<RoleSettingsModel, "id" | "createdDate">,
-  imageFile?: File
+  imageFile?: File,
+  password?: string
 ): Promise<boolean> => {
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
   if (!createdById) {
@@ -507,15 +508,18 @@ export const createRoleUserWithApi = async (
     city_id: payload.city_id,
     profile_url: profileUrlForApi(payload.profile_url),
   };
+  const pwd = String(password ?? "").trim();
   const result = await createWebManagementUser(
     payload.roleType === "franchise_admin"
       ? {
           ...commonBody,
+          ...(pwd ? { password: pwd } : {}),
           // Franchise admin screens are fixed by role; do not send screen list payload.
           imageFile,
         }
       : {
           ...commonBody,
+          ...(pwd ? { password: pwd } : {}),
           available_pages: mapMenuKeysToAvailablePages(permKeys),
           imageFile,
         }
@@ -687,7 +691,8 @@ export const assignFranchiseToAdminUser = async (params: {
  */
 export const createStaffUserWithApi = async (
   payload: Omit<StaffSettingsModel, "id" | "createdDate">,
-  imageFile?: File
+  imageFile?: File,
+  password?: string
 ): Promise<boolean> => {
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
   if (!createdById) {
@@ -698,6 +703,7 @@ export const createStaffUserWithApi = async (
   const staffPermKeys = (payload.screenPermissions ?? []).filter(
     (k) => k !== "my-franchise"
   );
+  const pwd = String(password ?? "").trim();
   const result = await createWebManagementUser({
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),
@@ -708,6 +714,7 @@ export const createStaffUserWithApi = async (
     created_by_id: createdById,
     available_pages: staffAvailablePagesFromMenuKeys(staffPermKeys),
     profile_url: profileUrlForApi(payload.profile_url),
+    ...(pwd ? { password: pwd } : {}),
     imageFile,
   });
 

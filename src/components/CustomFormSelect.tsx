@@ -29,7 +29,17 @@ interface CustomFormSelectProps {
   menuPortal?: boolean;
   /** Custom placeholder text for the select input. */
   placeholder?: string;
+  /** When true (default), shows a clear (×) control to reset the selection. Pass `false` to hide it.
+   * The × is automatically hidden when the current selection is an "All" sentinel
+   * (value `""` or `"all"`) since there is nothing meaningful to clear back to. */
+  isClearable?: boolean;
+  /** When true, prepends `{ value: "" }` as the first option (usually unnecessary if `isClearable` is on). */
+  includeEmptyOption?: boolean;
+  /** Label for the empty-value row when `includeEmptyOption` is true (default: `Select`). */
+  emptyOptionLabel?: string;
 }
+
+const DEFAULT_SELECT_LABEL = "Select";
 
 const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   label,
@@ -49,6 +59,9 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   selectWidth,
   menuPortal = false,
   placeholder,
+  isClearable = true,
+  includeEmptyOption = false,
+  emptyOptionLabel,
 }) => {
   const [selectedOption, setSelectedOption] = useState<{
     value: string;
@@ -60,20 +73,38 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   const setValueRef = useRef(setValue);
   setValueRef.current = setValue;
 
+  const normalizedOptions = useMemo(() => {
+    const list = Array.isArray(options) ? options : [];
+    if (!includeEmptyOption) return list;
+    if (list.some((o) => String(o?.value ?? "") === "")) return list;
+    const emptyLabel =
+      (emptyOptionLabel && emptyOptionLabel.trim()) || DEFAULT_SELECT_LABEL;
+    return [{ value: "", label: emptyLabel }, ...list];
+  }, [options, includeEmptyOption, emptyOptionLabel]);
+
   const optionsSyncKey = useMemo(
     () =>
       JSON.stringify(
-        [...options]
-          .sort((a, b) => a.value.localeCompare(b.value))
+        [...normalizedOptions]
+          .sort((a, b) => String(a.value).localeCompare(String(b.value)))
           .map((o) => [o.value, o.label])
       ),
-    [options]
+    [normalizedOptions]
   );
 
   useEffect(() => {
+    const resolvedDefault =
+      defaultValue === undefined || defaultValue === null
+        ? ""
+        : isValue
+        ? String(defaultValue)
+        : String(defaultValue);
+
     const defaultOption =
-      options.find((option) =>
-        isValue ? option.label === defaultValue : option.value === defaultValue
+      normalizedOptions.find((option) =>
+        isValue
+          ? option.label === resolvedDefault
+          : String(option.value) === resolvedDefault
       ) || null;
     setSelectedOption(defaultOption);
     const sync = setValueRef.current;
@@ -255,11 +286,18 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
           fieldName,
           requiredMessage ? { required: requiredMessage } : {}
         )}
-        options={options}
+        options={normalizedOptions}
         value={selectedOption}
         onChange={handleChange}
         isDisabled={isDisabled}
-        placeholder={placeholder || `Select ${controlId}`}
+        isClearable={
+          isClearable &&
+          !(
+            selectedOption &&
+            ["", "all"].includes(String(selectedOption.value).toLowerCase())
+          )
+        }
+        placeholder={placeholder ?? DEFAULT_SELECT_LABEL}
         onBlur={() => {
           if (!selectedOption && setValue) {
             setValue(fieldName, "", { shouldValidate: false });

@@ -22,4 +22,13 @@ export interface FranchiseModel {
   /** API may return this key instead of `service_ids`. */
   services?: string[];
   service_names?: string[];
+  /**
+   * Populated from `GET /franchise/get/:id` when the API returns mapping rows
+   * (`categories_list`, `franchise_categories`, etc.) with `{ category_id, is_active }`.
+   */
+  franchise_category_active?: Record<string, boolean>;
+  /**
+   * Same for services (`services_list`, `franchise_services`, … `{ service_id, is_active }`).
+   */
+  franchise_service_active?: Record<string, boolean>;
 }

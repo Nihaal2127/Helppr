@@ -8,21 +8,29 @@ import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { CategoryModel } from "../../models/CategoryModel";
 import { ServiceModel } from "../../models/ServiceModel";
-import {
-  fetchCategory,
-  deleteCategory,
-  fetchCategoryById,
-} from "../../services/categoryService";
-import {
-  deleteService,
-  fetchService,
-  fetchServiceById,
-} from "../../services/servicesService";
+import { fetchCategory, fetchCategoryById } from "../../services/categoryService";
+import { fetchService, fetchServiceById } from "../../services/servicesService";
 import { getCount } from "../../services/getCountService";
 import CustomActionColumn from "../../components/CustomActionColumn";
-import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import { showErrorAlert } from "../../helper/alertHelper";
+
+const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
+const SERVICE_ROW_ID_KEYS = ["_id", "service_id", "id"] as const;
+
+function recordIdFromRow(
+  row: { original?: Record<string, unknown> },
+  keys: readonly string[]
+): string {
+  const o = row?.original;
+  if (!o || typeof o !== "object") return "";
+  for (const k of keys) {
+    const v = o[k];
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
 
 const requestStatusCell = () => ({ row }: { row: any }) => {
   const o = row?.original;
@@ -327,9 +335,12 @@ const ServiceManagement = () => {
           <CustomActionColumn
             row={row}
             onView={async () => {
-              const { response, category } = await fetchCategoryById(
-                row.original._id
-              );
+              const cid = recordIdFromRow(row, CATEGORY_ROW_ID_KEYS);
+              if (!cid) {
+                showErrorAlert("Unable to open category: missing identifier.");
+                return;
+              }
+              const { response, category } = await fetchCategoryById(cid);
               AddEditCategoryDialog.show(
                 true,
                 response && category ? category : row.original,
@@ -340,19 +351,6 @@ const ServiceManagement = () => {
             // onEdit={() => {
             //     AddEditCategoryDialog.show(true, row.original, () => refreshData("box-category"), false);
             // }}
-            onDelete={async () => {
-              openConfirmDialog(
-                "Are you sure you want to void this category? ",
-                "Void",
-                "Cancel",
-                async () => {
-                  const response = await deleteCategory(row.original._id);
-                  if (response) {
-                    void refreshTableAfterMutation("box-category");
-                  }
-                }
-              );
-            }}
           />
         ),
       },
@@ -383,9 +381,12 @@ const ServiceManagement = () => {
           <CustomActionColumn
             row={row}
             onView={async () => {
-              const { response, service } = await fetchServiceById(
-                row.original._id
-              );
+              const sid = recordIdFromRow(row, SERVICE_ROW_ID_KEYS);
+              if (!sid) {
+                showErrorAlert("Unable to open service: missing identifier.");
+                return;
+              }
+              const { response, service } = await fetchServiceById(sid);
               AddEditServiceDialog.show(
                 true,
                 response && service ? service : row.original,
@@ -396,19 +397,6 @@ const ServiceManagement = () => {
             // onEdit={() => {
             //     AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"));
             // }}
-            onDelete={async () => {
-              openConfirmDialog(
-                "Are you sure you want to void this service? ",
-                "Void",
-                "Cancel",
-                async () => {
-                  const response = await deleteService(row.original._id);
-                  if (response) {
-                    void refreshTableAfterMutation("box-service");
-                  }
-                }
-              );
-            }}
           />
         ),
       },
@@ -445,9 +433,12 @@ const ServiceManagement = () => {
           <CustomActionColumn
             row={row}
             onView={async () => {
-              const { response, category } = await fetchCategoryById(
-                row.original._id
-              );
+              const cid = recordIdFromRow(row, CATEGORY_ROW_ID_KEYS);
+              if (!cid) {
+                showErrorAlert("Unable to open category: missing identifier.");
+                return;
+              }
+              const { response, category } = await fetchCategoryById(cid);
               AddEditCategoryDialog.show(
                 true,
                 response && category ? category : row.original,
@@ -458,19 +449,6 @@ const ServiceManagement = () => {
             // onEdit={() => {
             //     AddEditCategoryDialog.show(true, row.original, openRequestedCategory);
             // }}
-            onDelete={async () => {
-              openConfirmDialog(
-                "Are you sure you want to void this category? ",
-                "Void",
-                "Cancel",
-                async () => {
-                  const response = await deleteCategory(row.original._id);
-                  if (response) {
-                    void refreshTableAfterMutation("box-category");
-                  }
-                }
-              );
-            }}
           />
         ),
       },
@@ -508,27 +486,17 @@ const ServiceManagement = () => {
           <CustomActionColumn
             row={row}
             onView={async () => {
-              const { response, service } = await fetchServiceById(
-                row.original._id
-              );
+              const sid = recordIdFromRow(row, SERVICE_ROW_ID_KEYS);
+              if (!sid) {
+                showErrorAlert("Unable to open service: missing identifier.");
+                return;
+              }
+              const { response, service } = await fetchServiceById(sid);
               AddEditServiceDialog.show(
                 true,
                 response && service ? service : row.original,
                 openRequestedService,
                 true
-              );
-            }}
-            onDelete={async () => {
-              openConfirmDialog(
-                "Are you sure you want to void this service? ",
-                "Void",
-                "Cancel",
-                async () => {
-                  const response = await deleteService(row.original._id);
-                  if (response) {
-                    void refreshTableAfterMutation("box-service");
-                  }
-                }
               );
             }}
           />
@@ -611,6 +579,7 @@ const ServiceManagement = () => {
           onSearch={(value) => {
             handleFilterChange({ keyword: value });
           }}
+          syncKeyword={activeFilters.keyword ?? ""}
         />
 
         <CustomTable

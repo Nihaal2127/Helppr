@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Row, Col } from "react-bootstrap";
+import { Modal, Row, Col, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { DetailsRow, WideLabelValueBlock } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
@@ -14,6 +14,9 @@ import {
   formatQuoteScheduleForView,
   formatServiceAddressLines,
 } from "./quoteScheduleDisplay";
+import { convertQuoteToOrder } from "../../services/quoteService";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 
 export type { QuoteViewData };
 
@@ -45,6 +48,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const isSuccess = statusKey === "success";
   const isNew = statusKey === "new";
   const isAccepted = statusKey === "accepted";
+  const quoteMongoId = String(displayQuote._id ?? displayQuote.quote_id ?? "").trim();
 
   const showPartnerEdit = isNew || isAccepted;
   const showEmployeeEdit = true;
@@ -141,6 +145,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <Col xs="auto" className="text-end">
                 {editIcon(() => {
                   QuoteEditQuoteFieldsDialog.show(
+                    quoteMongoId,
                     {
                       defaultPrice: displayQuote.service_price ?? 0,
                       defaultStatus: displayQuote.status ?? "",
@@ -200,6 +205,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <Col xs="auto" className="pt-1 flex-shrink-0 align-self-start">
                 {editIcon(() => {
                   QuoteEditScheduleDetailsDialog.show(
+                    quoteMongoId,
                     displayQuote.quote_id,
                     {
                       scheduled_date: displayQuote.scheduled_date,
@@ -306,6 +312,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                     ""
                   ).trim();
                   QuoteUpdatePartnerDialog.show(
+                    quoteMongoId || undefined,
                     displayQuote.service_id,
                     defaultPid || undefined,
                     (partnerId, partnerName) => {
@@ -362,6 +369,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <Col className="text-end">
                 {editIcon(() => {
                   QuoteSelectEmployeeDialog.show(
+                    quoteMongoId || undefined,
                     displayQuote.quote_id,
                     {
                       employee_id: displayQuote.employee_id,
@@ -394,6 +402,34 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
             </Col>
           </Row>
         </section>
+
+        {isAccepted && quoteMongoId ? (
+          <div className="px-4 pb-3 pt-2 border-top">
+            <Button
+              type="button"
+              className="custom-btn-primary"
+              onClick={() => {
+                openConfirmDialog(
+                  "Convert this quote to an order?",
+                  "Convert",
+                  "Cancel",
+                  async () => {
+                    const ok = await convertQuoteToOrder(quoteMongoId);
+                    if (ok) {
+                      showSuccessAlert("Quote converted to order.");
+                      onRefreshData?.();
+                      onClose();
+                    } else {
+                      showErrorAlert("Could not convert quote.");
+                    }
+                  }
+                );
+              }}
+            >
+              Convert to order
+            </Button>
+          </div>
+        ) : null}
       </Modal.Body>
     </Modal>
   );

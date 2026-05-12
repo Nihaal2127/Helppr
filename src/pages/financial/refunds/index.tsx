@@ -366,6 +366,7 @@ const RefundsPage = () => {
           setSearchValue(value);
           setCurrentPage(1);
         }}
+        syncKeyword={searchValue}
       />
 
       {ordersLoading ? (

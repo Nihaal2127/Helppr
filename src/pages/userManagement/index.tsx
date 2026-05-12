@@ -415,6 +415,7 @@ const UserManagement = () => {
             setSearchKeyword(value);
             setCurrentPage(1);
           }}
+          syncKeyword={searchKeyword}
         />
 
         <CustomTable

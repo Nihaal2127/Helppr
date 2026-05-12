@@ -5,7 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader from "../../components/CustomImageUploader";
-import { DetailsRow, FullDetailsRow } from "../../helper/utility";
+import { DetailsRow } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
@@ -219,10 +219,32 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
           <div className="col-md-12 custom-helper-column">
             <DetailsRow title="Service name" value={request.name} />
             <DetailsRow title="Category" value={request.category_name} />
-            <FullDetailsRow
-              title="Description"
-              value={request.description || "-"}
-            />
+            <div className="mb-2">
+              <p
+                className="mb-1 small text-uppercase fw-semibold"
+                style={{
+                  color: "var(--primary-color)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Description
+              </p>
+              <div
+                className="mb-0 w-100"
+                title={String(request.description ?? "").trim() || undefined}
+                style={{
+                  color: "var(--content-txt-color)",
+                  fontSize: "0.95rem",
+                  lineHeight: 1.45,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  minWidth: 0,
+                }}
+              >
+                {request.description?.trim() ? request.description : "-"}
+              </div>
+            </div>
             <Row className="row custom-personal-row">
               <label className="col custom-personal-row-title">Status</label>
               <label className="col custom-personal-row-value text-truncate">

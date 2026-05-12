@@ -349,6 +349,7 @@ const OffersManagement = () => {
         searchHint="Search Offer Name / Offer ID"
         searchOnlyToolbar
         onSearch={(value) => setKeyword(value)}
+        syncKeyword={keyword}
         onSortClick={(value) => setSortDirection(value)}
         onDownloadClick={downloadCsv}
         onMoreClick={() => {}}

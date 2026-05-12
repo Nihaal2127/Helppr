@@ -310,6 +310,7 @@ const OrderPayments = () => {
   const [toDate, setToDate] = useState("");
   const [filterEpoch, setFilterEpoch] = useState(0);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState("");
   const [keywordActive, setKeywordActive] = useState(false);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
 
@@ -594,6 +595,7 @@ const OrderPayments = () => {
             setFromDate("");
             setToDate("");
             setKeywordActive(false);
+            setAppliedSearchKeyword("");
             setSortBy([]);
             listParamsRef.current = {
               keyword: undefined,
@@ -929,6 +931,7 @@ const OrderPayments = () => {
         }
         toolsInlineRow
         onSearch={(value) => handleSearch(value)}
+        syncKeyword={appliedSearchKeyword}
       />
 
       {filterControls}

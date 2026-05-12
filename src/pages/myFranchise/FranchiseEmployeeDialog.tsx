@@ -17,11 +17,21 @@ import {
   createFranchiseEmployee,
   updateFranchiseEmployee,
 } from "../../services/myFranchiseService";
+import {
+  isNonEmptyName,
+  isValidUserEmail,
+  isValidE164StylePhone,
+  sanitizeE164PhoneInput,
+  validateStrongPassword,
+  passwordsMatch,
+} from "../../helper/userFormValidation";
 
 type EmployeeFormValues = {
   name: string;
   phone: string;
   email: string;
+  password: string;
+  confirmPassword: string;
   is_active: string;
   chat_enabled: boolean;
 };
@@ -60,12 +70,15 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     setValue,
     reset,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<EmployeeFormValues>({
     defaultValues: {
       name: "",
       phone: "",
       email: "",
+      password: "",
+      confirmPassword: "",
       is_active: "true",
       chat_enabled: true,
     },
@@ -85,6 +98,8 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         name: "",
         phone: "",
         email: "",
+        password: "",
+        confirmPassword: "",
         is_active: "true",
         chat_enabled: true,
       });
@@ -94,8 +109,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     if (employee && isEditing) {
       reset({
         name: employee.name,
-        phone: employee.phone,
+        phone: sanitizeE164PhoneInput(String(employee.phone ?? "")),
         email: employee.email,
+        password: "",
+        confirmPassword: "",
         is_active: String(employee.is_active),
         chat_enabled: Boolean(
           employee.is_active && (employee.chat_enabled ?? true)
@@ -123,7 +140,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     );
     return {
       name: data.name.trim(),
-      phone: data.phone.trim(),
+      phone: sanitizeE164PhoneInput(data.phone.trim()),
       email: data.email.trim(),
       is_active,
       chat_enabled,
@@ -143,17 +160,30 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
       is_active: isActiveStr,
       chat_enabled: Boolean(watch("chat_enabled")),
     });
-    if (!payload.name) {
-      showErrorAlert("Name is required");
+    if (!isNonEmptyName(payload.name)) {
+      showErrorAlert("Please enter a name.");
       return;
     }
-    if (!payload.email) {
-      showErrorAlert("Email is required");
+    if (!isValidUserEmail(payload.email)) {
+      showErrorAlert("Please enter a valid email address.");
       return;
     }
-    if (!payload.phone) {
-      showErrorAlert("Phone is required");
+    if (!isValidE164StylePhone(payload.phone)) {
+      showErrorAlert(
+        "Please enter a valid phone number (optional +, 7–15 digits)."
+      );
       return;
+    }
+    if (isAdd) {
+      const pwErr = validateStrongPassword(data.password ?? "");
+      if (pwErr) {
+        showErrorAlert(pwErr);
+        return;
+      }
+      if (!passwordsMatch(data.password ?? "", data.confirmPassword ?? "")) {
+        showErrorAlert("Password and confirm password do not match.");
+        return;
+      }
     }
     if (payload.screenPermissionKeys.length === 0) {
       showErrorAlert("Select at least one screen permission.");
@@ -161,7 +191,15 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     }
 
     if (isAdd) {
-      const ok = await createFranchiseEmployee(payload);
+      const ok = await createFranchiseEmployee({
+        name: payload.name,
+        phone: payload.phone,
+        email: payload.email,
+        is_active: payload.is_active,
+        chat_enabled: payload.chat_enabled,
+        screenPermissionKeys: payload.screenPermissionKeys,
+        password: data.password.trim(),
+      });
       if (ok) {
         showSuccessAlert("Employee added");
         onRefreshData();
@@ -258,7 +296,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           placeholder="Enter Name"
           register={register}
           error={errors.name}
-          validation={{ required: "Name is required" }}
+          validation={{
+            validate: (v: string) =>
+              isNonEmptyName(v) || "Name cannot be empty.",
+          }}
           value={watch("name") ?? ""}
           onChange={(v) =>
             setValue("name", v, { shouldDirty: true, shouldValidate: false })
@@ -267,13 +308,21 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         <CustomTextField
           label="Phone"
           controlId="phone"
-          placeholder="Enter Phone"
+          placeholder="+919876543210 or digits (E.164)"
           register={register}
           error={errors.phone}
-          validation={{ required: "Phone is required" }}
+          maxLength={16}
+          validation={{
+            validate: (v: string) =>
+              isValidE164StylePhone(v) ||
+              "Use optional + then digits (7–15 digits).",
+          }}
           value={watch("phone") ?? ""}
           onChange={(v) =>
-            setValue("phone", v, { shouldDirty: true, shouldValidate: false })
+            setValue("phone", sanitizeE164PhoneInput(v), {
+              shouldDirty: true,
+              shouldValidate: false,
+            })
           }
         />
         <CustomTextField
@@ -282,13 +331,61 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           placeholder="Enter Email"
           register={register}
           error={errors.email}
-          validation={{ required: "Email is required" }}
+          validation={{
+            validate: (v: string) =>
+              isValidUserEmail(v) || "Enter a valid email address.",
+          }}
           inputType="email"
           value={watch("email") ?? ""}
           onChange={(v) =>
             setValue("email", v, { shouldDirty: true, shouldValidate: false })
           }
         />
+        {isAdd ? (
+          <>
+            <CustomTextField
+              label="Password"
+              controlId="password"
+              placeholder="Min 8 chars, upper, lower, number, special"
+              register={register}
+              error={errors.password}
+              inputType="password"
+              autoComplete="new-password"
+              validation={{
+                validate: (v: string) =>
+                  validateStrongPassword(v) ?? true,
+              }}
+              value={watch("password") ?? ""}
+              onChange={(v) =>
+                setValue("password", v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+            <CustomTextField
+              label="Confirm password"
+              controlId="confirmPassword"
+              placeholder="Re-enter password"
+              register={register}
+              error={errors.confirmPassword}
+              inputType="password"
+              autoComplete="new-password"
+              validation={{
+                validate: (v: string) =>
+                  passwordsMatch(getValues("password"), v) ||
+                  "Passwords do not match.",
+              }}
+              value={watch("confirmPassword") ?? ""}
+              onChange={(v) =>
+                setValue("confirmPassword", v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+          </>
+        ) : null}
         <Row className="align-items-center mb-3">
           <Col sm={4} className="d-flex align-items-center">
             <label className="custom-profile-lable">Chat</label>

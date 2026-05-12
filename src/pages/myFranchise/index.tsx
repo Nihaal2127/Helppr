@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Form } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
@@ -6,7 +12,7 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { statusCell } from "../../helper/utility";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
@@ -14,12 +20,13 @@ import type {
   AreaRow,
   CategoryRow,
   EmployeeRow,
+  MyFranchiseDataSlice,
   RequestedCategoryRow,
   RequestedServiceRow,
   ServiceRow,
 } from "../../services/myFranchiseService";
 import {
-  fetchMyFranchiseBoxData,
+  fetchMyFranchiseDataSlices,
   setCategoryActive as apiSetCategoryActive,
   setEmployeeChatEnabled as apiSetEmployeeChatEnabled,
   setServiceActive as apiSetServiceActive,
@@ -27,6 +34,7 @@ import {
   voidRequestedCategory,
   voidRequestedService,
 } from "../../services/myFranchiseService";
+import { getCount } from "../../services/getCountService";
 import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
 import RequestedCategoryDialog from "./RequestedCategoryDialog";
 import RequestedServiceDialog from "./RequestedServiceDialog";
@@ -135,13 +143,105 @@ function franchiseRequestedCategoryServicesCell({ row }: { row: any }) {
   return renderCategoryServicesNamesHover(rc.service_names ?? []);
 }
 
-function serviceNamesForCatalogCategory(
-  cat: CategoryRow,
-  servicesList: ServiceRow[]
-): string[] {
-  return servicesList
-    .filter((s) => s.category_name === cat.name)
-    .map((s) => s.name);
+/** Service labels for a franchise catalogue category row (from `GET /category/get/:id`). */
+function categoryCatalogServiceNames(cat: CategoryRow): string[] {
+  if (Array.isArray(cat.service_names) && cat.service_names.length) {
+    return cat.service_names
+      .map((n) => String(n ?? "").trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/** Normalize `POST /api/getCount` `record` values (numbers or numeric strings). */
+function countRecordNumber(rec: Record<string, unknown>, keys: string[]): number {
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(rec, k)) continue;
+    const v = rec[k];
+    if (v === undefined || v === null || v === "") continue;
+    const n = typeof v === "number" ? v : Number(String(v).trim());
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+/**
+ * Maps `getCount("my-franchise")` `record` into `CustomSummaryBox` `data` shapes.
+ * Accepts extra snake_case / alias keys from the API; falls back to implied inactive when omitted.
+ */
+function summariesFromMyFranchiseCountRecord(
+  record: unknown
+): {
+  employees: Record<string, number>;
+  areas: Record<string, number>;
+  services: Record<string, number>;
+  categories: Record<string, number>;
+} | null {
+  if (!record || typeof record !== "object") return null;
+  const rec = record as Record<string, unknown>;
+
+  const triplet = (
+    totalKeys: string[],
+    activeKeys: string[],
+    inactiveKeys: string[]
+  ) => {
+    const total = countRecordNumber(rec, totalKeys);
+    const active = countRecordNumber(rec, activeKeys);
+    let inactive = countRecordNumber(rec, inactiveKeys);
+    const inactiveExplicit = inactiveKeys.some((k) =>
+      Object.prototype.hasOwnProperty.call(rec, k)
+    );
+    if (!inactiveExplicit && (total > 0 || active > 0)) {
+      inactive = Math.max(0, total - active);
+    }
+    return { Total: total, Active: active, Inactive: inactive };
+  };
+
+  const requestedService = Math.max(
+    countRecordNumber(rec, [
+      "requested_service",
+      "total_requestedservice",
+      "pending_requestedservice",
+    ]),
+    0
+  );
+  const requestedCategory = Math.max(
+    countRecordNumber(rec, [
+      "requested_category",
+      "total_requestedcategory",
+      "pending_requestedcategory",
+    ]),
+    0
+  );
+
+  return {
+    employees: triplet(
+      ["total_employee", "total_employees"],
+      ["active_employee", "active_employees"],
+      ["inactive_employee", "inactive_employees"]
+    ),
+    areas: triplet(
+      ["total_area", "total_areas"],
+      ["active_area", "active_areas"],
+      ["inactive_area", "inactive_areas"]
+    ),
+    services: {
+      ...triplet(
+        ["total_service", "total_services"],
+        ["active_service", "active_services"],
+        ["inactive_service", "inactive_services"]
+      ),
+      requested_service: requestedService,
+    },
+    categories: {
+      ...triplet(
+        ["total_category", "total_categories"],
+        ["active_category", "active_categories"],
+        ["inactive_category", "inactive_categories"]
+      ),
+      requested_category: requestedCategory,
+    },
+  };
 }
 
 const MyFranchise = () => {
@@ -170,44 +270,122 @@ const MyFranchise = () => {
     RequestedCategoryRow[]
   >([]);
 
-  const reloadFranchiseData = useCallback(async () => {
-    const data = await fetchMyFranchiseBoxData();
-    setEmployees(
-      (data.employees as unknown as EmployeeRow[]).map((e) => ({
-        ...e,
-        chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
-      }))
-    );
-    setAreas(data.areas as unknown as AreaRow[]);
-    setServices(data.services as unknown as ServiceRow[]);
-    setCategories(data.categories as unknown as CategoryRow[]);
-    setRequestedServices(data.requested_services as RequestedServiceRow[]);
-    setRequestedCategories(data.requested_categories as RequestedCategoryRow[]);
+  /** Dashboard totals from `POST /api/getCount` `{ type: "my-franchise" }` (preferred over list-length counts). */
+  const [countSummaries, setCountSummaries] = useState<{
+    employees: Record<string, number>;
+    areas: Record<string, number>;
+    services: Record<string, number>;
+    categories: Record<string, number>;
+  } | null>(null);
+
+  const loadedSlicesRef = useRef<Set<MyFranchiseDataSlice>>(new Set());
+
+  const mapEmployeesWithChat = useCallback((rows: EmployeeRow[]) => {
+    return rows.map((e) => ({
+      ...e,
+      chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
+    }));
   }, []);
+
+  const refreshMyFranchiseCountSummaries = useCallback(async () => {
+    const countRes = await getCount("my-franchise");
+    if (countRes.responseCount && countRes.countModel) {
+      const mapped = summariesFromMyFranchiseCountRecord(countRes.countModel);
+      setCountSummaries(mapped);
+    } else {
+      setCountSummaries(null);
+    }
+  }, []);
+
+  const hydrateFranchiseSlices = useCallback(
+    async (slices: MyFranchiseDataSlice[], opts?: { force?: boolean }) => {
+      const need = slices.filter(
+        (s) => opts?.force || !loadedSlicesRef.current.has(s)
+      );
+      if (need.length === 0) return;
+      const data = await fetchMyFranchiseDataSlices(need);
+      if (data.employees) {
+        setEmployees(mapEmployeesWithChat(data.employees as EmployeeRow[]));
+      }
+      if (data.areas) {
+        setAreas(data.areas as unknown as AreaRow[]);
+      }
+      if (data.services) {
+        setServices(data.services as unknown as ServiceRow[]);
+      }
+      if (data.categories) {
+        setCategories(data.categories as unknown as CategoryRow[]);
+      }
+      if (data.requested_services) {
+        setRequestedServices(data.requested_services as RequestedServiceRow[]);
+      }
+      if (data.requested_categories) {
+        setRequestedCategories(
+          data.requested_categories as RequestedCategoryRow[]
+        );
+      }
+      need.forEach((s) => loadedSlicesRef.current.add(s));
+    },
+    [mapEmployeesWithChat]
+  );
+
+  const reloadFranchiseData = useCallback(async () => {
+    await refreshMyFranchiseCountSummaries();
+    const loaded = Array.from(
+      loadedSlicesRef.current
+    ) as MyFranchiseDataSlice[];
+    if (loaded.length === 0) {
+      await hydrateFranchiseSlices(["employees"], { force: true });
+      return;
+    }
+    await hydrateFranchiseSlices(loaded, { force: true });
+  }, [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const data = await fetchMyFranchiseBoxData();
+      await refreshMyFranchiseCountSummaries();
       if (cancelled) return;
-      setEmployees(
-        (data.employees as unknown as EmployeeRow[]).map((e) => ({
-          ...e,
-          chat_enabled: e.is_active ? e.chat_enabled ?? true : false,
-        }))
-      );
-      setAreas(data.areas as unknown as AreaRow[]);
-      setServices(data.services as unknown as ServiceRow[]);
-      setCategories(data.categories as unknown as CategoryRow[]);
-      setRequestedServices(data.requested_services as RequestedServiceRow[]);
-      setRequestedCategories(
-        data.requested_categories as RequestedCategoryRow[]
-      );
+      await hydrateFranchiseSlices(["employees"], { force: true });
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]);
+
+  const slicesForCurrentSelection = useMemo((): MyFranchiseDataSlice[] => {
+    switch (selectedBox) {
+      case "box-employees":
+        return ["employees"];
+      case "box-areas":
+        return ["areas"];
+      case "box-services":
+        return servicesViewMode === "catalog"
+          ? ["services"]
+          : ["requested_services"];
+      case "box-categories":
+        return categoriesViewMode === "catalog"
+          ? ["categories"]
+          : ["requested_categories", "services"];
+      default:
+        return ["employees"];
+    }
+  }, [selectedBox, servicesViewMode, categoriesViewMode]);
+
+  useEffect(() => {
+    const isDefaultHome =
+      selectedBox === "box-employees" &&
+      servicesViewMode === "catalog" &&
+      categoriesViewMode === "catalog";
+    if (isDefaultHome) return;
+    void hydrateFranchiseSlices(slicesForCurrentSelection);
+  }, [
+    slicesForCurrentSelection,
+    hydrateFranchiseSlices,
+    selectedBox,
+    servicesViewMode,
+    categoriesViewMode,
+  ]);
 
   const handleEmployeeVoid = useCallback(
     (id: string) => {
@@ -261,15 +439,58 @@ const MyFranchise = () => {
     };
   }, [categories, requestedCategories]);
 
-  const handleBoxSelect = (divId: string) => {
-    setSelectedBox(divId as BoxId);
-    setServicesViewMode("catalog");
-    setCategoriesViewMode("catalog");
-    setStatusFilter(undefined);
-    setSearchKeyword("");
-    setAreaSortBy([]);
-    setCurrentPage(1);
-  };
+  const employeesSummaryForBox = useMemo(
+    () => countSummaries?.employees ?? employeesSummary,
+    [countSummaries, employeesSummary]
+  );
+  const areasSummaryForBox = useMemo(
+    () => countSummaries?.areas ?? areasSummary,
+    [countSummaries, areasSummary]
+  );
+  const servicesSummaryForBox = useMemo(
+    () => countSummaries?.services ?? servicesSummary,
+    [countSummaries, servicesSummary]
+  );
+  const categoriesSummaryForBox = useMemo(
+    () => countSummaries?.categories ?? categoriesSummary,
+    [countSummaries, categoriesSummary]
+  );
+
+  const handleBoxSelect = useCallback(
+    (divId: string) => {
+      const boxId = divId as BoxId;
+      setSelectedBox(boxId);
+      setServicesViewMode("catalog");
+      setCategoriesViewMode("catalog");
+      setStatusFilter(undefined);
+      setSearchKeyword("");
+      setAreaSortBy([]);
+      setCurrentPage(1);
+
+      const slices: MyFranchiseDataSlice[] =
+        boxId === "box-employees"
+          ? ["employees"]
+          : boxId === "box-areas"
+          ? ["areas"]
+          : boxId === "box-services"
+          ? ["services"]
+          : boxId === "box-categories"
+          ? ["categories"]
+          : ["employees"];
+
+      const forceServicesOrCategories =
+        boxId === "box-services" || boxId === "box-categories";
+
+      void hydrateFranchiseSlices(slices, {
+        force: forceServicesOrCategories,
+      });
+
+      if (forceServicesOrCategories) {
+        void refreshMyFranchiseCountSummaries();
+      }
+    },
+    [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]
+  );
 
   const handleFilterChange = useCallback((filter: { status?: string }) => {
     setStatusFilter(filter.status);
@@ -377,14 +598,12 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const svcHay = serviceNamesForCatalogCategory(row, services)
-        .join(" ")
-        .toLowerCase();
+      const svcHay = categoryCatalogServiceNames(row).join(" ").toLowerCase();
       const hay = [row.name, svcHay].join(" ").toLowerCase();
       const matchesKw = !keyword || hay.includes(keyword);
       return matchesStatus && matchesKw;
     });
-  }, [categories, services, statusFilter, keyword]);
+  }, [categories, statusFilter, keyword]);
 
   const filteredRequestedCategories = useMemo(() => {
     return requestedCategories.filter((row: RequestedCategoryRow) => {
@@ -444,21 +663,47 @@ const MyFranchise = () => {
     showSuccessAlert("Chat status updated");
   }, []);
 
-  const setServiceActive = (id: string, is_active: boolean) => {
-    void apiSetServiceActive(id, is_active);
-    setServices((prev) =>
-      prev.map((s) => (s._id === id ? { ...s, is_active } : s))
-    );
-    showSuccessAlert("Service status updated");
-  };
+  const setServiceActive = useCallback(
+    async (id: string, is_active: boolean) => {
+      const prev = services.find((s) => s._id === id)?.is_active;
+      setServices((p) =>
+        p.map((s) => (s._id === id ? { ...s, is_active } : s))
+      );
+      const ok = await apiSetServiceActive(id, is_active);
+      if (ok) {
+        showSuccessAlert("Service status updated");
+      } else {
+        if (prev !== undefined) {
+          setServices((p) =>
+            p.map((s) => (s._id === id ? { ...s, is_active: prev } : s))
+          );
+        }
+        showErrorAlert("Could not update service status.");
+      }
+    },
+    [services]
+  );
 
-  const setCategoryActive = (id: string, is_active: boolean) => {
-    void apiSetCategoryActive(id, is_active);
-    setCategories((prev) =>
-      prev.map((c) => (c._id === id ? { ...c, is_active } : c))
-    );
-    showSuccessAlert("Category status updated");
-  };
+  const setCategoryActive = useCallback(
+    async (id: string, is_active: boolean) => {
+      const prev = categories.find((c) => c._id === id)?.is_active;
+      setCategories((p) =>
+        p.map((c) => (c._id === id ? { ...c, is_active } : c))
+      );
+      const ok = await apiSetCategoryActive(id, is_active);
+      if (ok) {
+        showSuccessAlert("Category status updated");
+      } else {
+        if (prev !== undefined) {
+          setCategories((p) =>
+            p.map((c) => (c._id === id ? { ...c, is_active: prev } : c))
+          );
+        }
+        showErrorAlert("Could not update category status.");
+      }
+    },
+    [categories]
+  );
 
   const handleRequestedServiceVoid = useCallback(
     (id: string) => {
@@ -707,7 +952,7 @@ const MyFranchise = () => {
         },
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, setServiceActive]
   );
 
   const requestedServiceColumns = useMemo(
@@ -824,9 +1069,7 @@ const MyFranchise = () => {
         accessor: "service_names_display",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
-          return renderCategoryServicesNamesHover(
-            serviceNamesForCatalogCategory(cat, services)
-          );
+          return renderCategoryServicesNamesHover(categoryCatalogServiceNames(cat));
         },
       },
       {
@@ -850,7 +1093,7 @@ const MyFranchise = () => {
         },
       },
     ],
-    [currentPage, pageSize, services]
+    [currentPage, pageSize, setCategoryActive]
   );
 
   const tableColumns = useMemo(() => {
@@ -887,7 +1130,7 @@ const MyFranchise = () => {
       {
         id: "box-employees",
         title: "Employees",
-        data: employeesSummary,
+        data: employeesSummaryForBox,
         isAddShow: true,
         addLabel: "Add Employee",
         onAdd: () => {
@@ -899,14 +1142,14 @@ const MyFranchise = () => {
       {
         id: "box-areas",
         title: "Areas",
-        data: areasSummary,
+        data: areasSummaryForBox,
         isAddShow: false,
         addLabel: "",
       },
       {
         id: "box-services",
         title: "Services",
-        data: servicesSummary,
+        data: servicesSummaryForBox,
         isAddShow: true,
         addLabel: "Add request",
         onAdd: () => {
@@ -918,7 +1161,7 @@ const MyFranchise = () => {
       {
         id: "box-categories",
         title: "Categories",
-        data: categoriesSummary,
+        data: categoriesSummaryForBox,
         isAddShow: true,
         addLabel: "Add request",
         onAdd: () => {
@@ -932,10 +1175,10 @@ const MyFranchise = () => {
       },
     ];
   }, [
-    employeesSummary,
-    areasSummary,
-    servicesSummary,
-    categoriesSummary,
+    employeesSummaryForBox,
+    areasSummaryForBox,
+    servicesSummaryForBox,
+    categoriesSummaryForBox,
     categorySelectOptions,
     franchiseServiceOptionsForCategoryDialog,
     reloadFranchiseData,
@@ -956,10 +1199,7 @@ const MyFranchise = () => {
             divId={cfg.id}
             title={cfg.title}
             data={cfg.data}
-            onSelect={(divId) => {
-              handleBoxSelect(divId as BoxId);
-              handleFilterChange({});
-            }}
+            onSelect={handleBoxSelect}
             isSelected={selectedBox === cfg.id}
             onFilterChange={handleFilterChange}
             isAddShow={cfg.isAddShow}
@@ -999,6 +1239,7 @@ const MyFranchise = () => {
           setSearchKeyword(value);
           setCurrentPage(1);
         }}
+        syncKeyword={searchKeyword}
       />
 
       <div className="my-franchise-table-wrap">

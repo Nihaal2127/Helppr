@@ -8,10 +8,15 @@ import React, {
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { fetchQuotePartnerDropDown } from "../../services/quoteService";
+import {
+  fetchQuotePartnerDropDown,
+  filterCatalogPartnerRecordsByService,
+  updateQuotePartner,
+} from "../../services/quoteService";
+import { getQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { DetailsRow } from "../../helper/utility";
 
 export type QuoteUpdatePartnerContext = {
@@ -22,6 +27,7 @@ export type QuoteUpdatePartnerContext = {
 };
 
 type QuoteUpdatePartnerDialogProps = {
+  quoteMongoId?: string;
   serviceId?: string;
   defaultPartnerId?: string;
   context?: QuoteUpdatePartnerContext;
@@ -53,6 +59,7 @@ function displayPartnerServices(
 
 const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
   show: (
+    quoteMongoId: string | undefined,
     serviceId: string | undefined,
     defaultPartnerId: string | undefined,
     onAssigned: (partnerId: string, partnerName: string) => void,
@@ -60,6 +67,7 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     partnerOnly?: boolean
   ) => void;
 } = ({
+  quoteMongoId,
   serviceId,
   defaultPartnerId,
   context,
@@ -103,6 +111,23 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
+      const snap = getQuoteFranchiseCatalogSnapshot();
+      const fromCatalog = snap?.partnerRecords?.length
+        ? filterCatalogPartnerRecordsByService(
+            snap.partnerRecords,
+            serviceId
+          )
+        : [];
+      if (fromCatalog.length) {
+        setPartnerRecords(fromCatalog);
+        setPartners(
+          fromCatalog.map((p: Record<string, unknown>) => ({
+            value: String(p.partner_id ?? p._id ?? p.user_id ?? "").trim(),
+            label: String(p.partner_name ?? p.name ?? "").trim(),
+          })).filter((o) => o.value)
+        );
+        return;
+      }
       const { partners: records } = await fetchQuotePartnerDropDown(serviceId);
       setPartnerRecords(records as Record<string, unknown>[]);
       setPartners(
@@ -120,12 +145,20 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
     void loadPartners();
   }, [loadPartners]);
 
-  const onSubmit = (data: { partner_id?: string }) => {
+  const onSubmit = async (data: { partner_id?: string }) => {
     const partnerId = data.partner_id ?? "";
     const partner = partners.find((p) => p.value === partnerId);
     const partnerName = partner?.label ?? "";
     if (!partnerId) {
       return;
+    }
+    const qid = String(quoteMongoId ?? "").trim();
+    if (qid) {
+      const ok = await updateQuotePartner(qid, partnerId);
+      if (!ok) {
+        showErrorAlert("Could not update partner. Please try again.");
+        return;
+      }
     }
     onAssigned(partnerId, partnerName);
     showSuccessAlert("Partner updated successfully.");
@@ -172,6 +205,7 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
               defaultValue={defaultPartnerId}
               setValue={setValue as (name: string, value: any) => void}
               menuPortal
+              isClearable
             />
           </Row>
 
@@ -261,6 +295,7 @@ const QuoteUpdatePartnerDialog: React.FC<QuoteUpdatePartnerDialogProps> & {
 };
 
 QuoteUpdatePartnerDialog.show = (
+  quoteMongoId: string | undefined,
   serviceId: string | undefined,
   defaultPartnerId: string | undefined,
   onAssigned: (partnerId: string, partnerName: string) => void,
@@ -269,6 +304,7 @@ QuoteUpdatePartnerDialog.show = (
 ) => {
   openDialog("quote-update-partner-modal", (close) => (
     <QuoteUpdatePartnerDialog
+      quoteMongoId={quoteMongoId}
       serviceId={serviceId}
       defaultPartnerId={defaultPartnerId}
       context={context}

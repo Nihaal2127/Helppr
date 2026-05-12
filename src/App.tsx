@@ -84,7 +84,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isRouteProtected, isAuthRoute, location.pathname]);
+  }, [isAuthenticated, isRouteProtected, isAuthRoute]);
 
   return (
     <div

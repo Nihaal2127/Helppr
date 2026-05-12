@@ -42,6 +42,13 @@ import {
   FranchiseDropDownOption,
 } from "../../../services/franchiseService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import {
+  isValidUserEmail,
+  isValidE164StylePhone,
+  sanitizeE164PhoneInput,
+  validateStrongPassword,
+  passwordsMatch,
+} from "../../../helper/userFormValidation";
 
 const emptyRoleForm = {
   roleName: "",
@@ -52,14 +59,8 @@ const emptyRoleForm = {
   assignedFranchise: "",
   status: "active" as "active" | "inactive",
   screenPermissions: [] as string[],
-};
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const isValidEmail = (v: string) => EMAIL_PATTERN.test(v.trim());
-const isValidPhone10 = (v: string) => /^\d{10}$/.test(v.trim());
-const toLocalPhone10Digits = (phone?: string) => {
-  const digits = String(phone ?? "").replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
+  password: "",
+  confirmPassword: "",
 };
 
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
@@ -76,6 +77,8 @@ const emptyStaffForm = {
   screenPermissions: [] as string[],
   allFranchises: true,
   franchisePermissions: [] as string[],
+  password: "",
+  confirmPassword: "",
 };
 
 /** Profile image for franchise/staff role view: backend path or absolute URL; mock `uploads/…` uses placeholder. */
@@ -226,7 +229,7 @@ const RoleManagement = () => {
       setForm({
         roleName: item.roleName,
         email: item.email ?? "",
-        phone_number: item.phone_number ?? "",
+        phone_number: sanitizeE164PhoneInput(String(item.phone_number ?? "")),
         profile_url: item.profile_url ?? "",
         roleType: item.roleType,
         assignedFranchise: item.assignedFranchise || "",
@@ -235,6 +238,8 @@ const RoleManagement = () => {
           item.roleType === "employee"
             ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
             : rawPerms,
+        password: "",
+        confirmPassword: "",
       });
       setShowForm(true);
       setRoleImageFile(null);
@@ -257,7 +262,7 @@ const RoleManagement = () => {
       setStaffForm({
         name: item.name,
         email: item.email ?? "",
-        phone_number: item.phone_number ?? "",
+        phone_number: sanitizeE164PhoneInput(String(item.phone_number ?? "")),
         profile_url: item.profile_url ?? "",
         status: item.status,
         screenPermissions: item.screenPermissions?.length
@@ -267,6 +272,8 @@ const RoleManagement = () => {
         franchisePermissions: item.franchisePermissions?.length
           ? [...item.franchisePermissions]
           : [],
+        password: "",
+        confirmPassword: "",
       });
       setShowStaffModal(true);
       setStaffImageFile(null);
@@ -282,7 +289,7 @@ const RoleManagement = () => {
     setForm({
       roleName: editing.roleName,
       email: editing.email ?? "",
-      phone_number: toLocalPhone10Digits(editing.phone_number),
+      phone_number: sanitizeE164PhoneInput(String(editing.phone_number ?? "")),
       profile_url: editing.profile_url ?? "",
       roleType: editing.roleType,
       assignedFranchise: editing.assignedFranchise || "",
@@ -291,6 +298,8 @@ const RoleManagement = () => {
         editing.roleType === "employee"
           ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
           : rawPerms,
+      password: "",
+      confirmPassword: "",
     });
     setRoleImageFile(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when modal opens / role id changes; avoid resetting on unrelated `editing` churn
@@ -301,7 +310,7 @@ const RoleManagement = () => {
     setStaffForm({
       name: staffEditing.name,
       email: staffEditing.email ?? "",
-      phone_number: toLocalPhone10Digits(staffEditing.phone_number),
+      phone_number: sanitizeE164PhoneInput(String(staffEditing.phone_number ?? "")),
       profile_url: staffEditing.profile_url ?? "",
       status: staffEditing.status,
       screenPermissions: staffEditing.screenPermissions?.length
@@ -311,6 +320,8 @@ const RoleManagement = () => {
       franchisePermissions: staffEditing.franchisePermissions?.length
         ? [...staffEditing.franchisePermissions]
         : [],
+      password: "",
+      confirmPassword: "",
     });
     setStaffImageFile(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as role modal above
@@ -904,6 +915,7 @@ const RoleManagement = () => {
               setStaffKeyword(value);
               setStaffCurrentPage(1);
             }}
+            syncKeyword={staffKeyword}
             hideUtilityActions
             hideMoreIcon={true}
           />
@@ -959,6 +971,7 @@ const RoleManagement = () => {
             setKeyword(value);
             setRoleCurrentPage(1);
           }}
+          syncKeyword={keyword}
           hideUtilityActions
           hideMoreIcon={true}
         />
@@ -1135,20 +1148,54 @@ const RoleManagement = () => {
                 <CustomFormInput
                   label="Phone number"
                   controlId="role_phone"
-                  placeholder="10-digit mobile number"
+                  placeholder="+919876543210 or digits (E.164)"
                   register={register}
                   inputType="tel"
                   asCol={false}
-                  maxLength={10}
+                  maxLength={16}
                   value={form.phone_number}
                   onChange={(value: string) =>
                     setForm((p) => ({
                       ...p,
-                      phone_number: value.replace(/\D/g, "").slice(0, 10),
+                      phone_number: sanitizeE164PhoneInput(value),
                     }))
                   }
                 />
               </div>
+              {!editing && (
+                <>
+                  <div className="col-md-12">
+                    <CustomFormInput
+                      label="Password"
+                      controlId="role_password"
+                      placeholder="Min 8 chars, upper, lower, number, special"
+                      register={register}
+                      inputType="password"
+                      asCol={false}
+                      autoComplete="new-password"
+                      value={form.password}
+                      onChange={(value: string) =>
+                        setForm((p) => ({ ...p, password: value }))
+                      }
+                    />
+                  </div>
+                  <div className="col-md-12">
+                    <CustomFormInput
+                      label="Confirm password"
+                      controlId="role_confirm_password"
+                      placeholder="Re-enter password"
+                      register={register}
+                      inputType="password"
+                      asCol={false}
+                      autoComplete="new-password"
+                      value={form.confirmPassword}
+                      onChange={(value: string) =>
+                        setForm((p) => ({ ...p, confirmPassword: value }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
               <div className="col-md-12">
                 <CustomImageUploader
                   label="Profile photo"
@@ -1274,13 +1321,26 @@ const RoleManagement = () => {
                   showErrorAlert("Please enter name.");
                   return;
                 }
-                if (!form.email.trim() || !isValidEmail(form.email)) {
+                if (!form.email.trim() || !isValidUserEmail(form.email)) {
                   showErrorAlert("Please enter a valid email address.");
                   return;
                 }
-                if (!isValidPhone10(form.phone_number)) {
-                  showErrorAlert("Please enter a valid 10-digit phone number.");
+                if (!isValidE164StylePhone(form.phone_number)) {
+                  showErrorAlert(
+                    "Please enter a valid phone number (optional +, 7–15 digits)."
+                  );
                   return;
+                }
+                if (!editing) {
+                  const pwErr = validateStrongPassword(form.password);
+                  if (pwErr) {
+                    showErrorAlert(pwErr);
+                    return;
+                  }
+                  if (!passwordsMatch(form.password, form.confirmPassword)) {
+                    showErrorAlert("Password and confirm password do not match.");
+                    return;
+                  }
                 }
                 const rolePayload = {
                   roleId:
@@ -1339,7 +1399,8 @@ const RoleManagement = () => {
                 try {
                   const ok = await createRoleUserWithApi(
                     rolePayload,
-                    roleImageFile ?? undefined
+                    roleImageFile ?? undefined,
+                    form.password.trim()
                   );
                   if (ok) {
                     setRoleImageFile(null);
@@ -1487,20 +1548,54 @@ const RoleManagement = () => {
                 <CustomFormInput
                   label="Phone number"
                   controlId="staff_phone"
-                  placeholder="10-digit mobile number"
+                  placeholder="+919876543210 or digits (E.164)"
                   register={register}
                   inputType="tel"
                   asCol={false}
-                  maxLength={10}
+                  maxLength={16}
                   value={staffForm.phone_number}
                   onChange={(value: string) =>
                     setStaffForm((p) => ({
                       ...p,
-                      phone_number: value.replace(/\D/g, "").slice(0, 10),
+                      phone_number: sanitizeE164PhoneInput(value),
                     }))
                   }
                 />
               </div>
+              {!staffEditing && (
+                <>
+                  <div className="col-md-12">
+                    <CustomFormInput
+                      label="Password"
+                      controlId="staff_password"
+                      placeholder="Min 8 chars, upper, lower, number, special"
+                      register={register}
+                      inputType="password"
+                      asCol={false}
+                      autoComplete="new-password"
+                      value={staffForm.password}
+                      onChange={(value: string) =>
+                        setStaffForm((p) => ({ ...p, password: value }))
+                      }
+                    />
+                  </div>
+                  <div className="col-md-12">
+                    <CustomFormInput
+                      label="Confirm password"
+                      controlId="staff_confirm_password"
+                      placeholder="Re-enter password"
+                      register={register}
+                      inputType="password"
+                      asCol={false}
+                      autoComplete="new-password"
+                      value={staffForm.confirmPassword}
+                      onChange={(value: string) =>
+                        setStaffForm((p) => ({ ...p, confirmPassword: value }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
               <div className="col-md-12">
                 <CustomImageUploader
                   label="Profile photo"
@@ -1603,13 +1698,34 @@ const RoleManagement = () => {
                   showErrorAlert("Please enter name.");
                   return;
                 }
-                if (!staffForm.email.trim() || !isValidEmail(staffForm.email)) {
+                if (
+                  !staffForm.email.trim() ||
+                  !isValidUserEmail(staffForm.email)
+                ) {
                   showErrorAlert("Please enter a valid email address.");
                   return;
                 }
-                if (!isValidPhone10(staffForm.phone_number)) {
-                  showErrorAlert("Please enter a valid 10-digit phone number.");
+                if (!isValidE164StylePhone(staffForm.phone_number)) {
+                  showErrorAlert(
+                    "Please enter a valid phone number (optional +, 7–15 digits)."
+                  );
                   return;
+                }
+                if (!staffEditing) {
+                  const pwErr = validateStrongPassword(staffForm.password);
+                  if (pwErr) {
+                    showErrorAlert(pwErr);
+                    return;
+                  }
+                  if (
+                    !passwordsMatch(
+                      staffForm.password,
+                      staffForm.confirmPassword
+                    )
+                  ) {
+                    showErrorAlert("Password and confirm password do not match.");
+                    return;
+                  }
                 }
                 if (
                   !staffForm.allFranchises &&
@@ -1659,7 +1775,8 @@ const RoleManagement = () => {
                 try {
                   const ok = await createStaffUserWithApi(
                     staffPayload,
-                    staffImageFile ?? undefined
+                    staffImageFile ?? undefined,
+                    staffForm.password.trim()
                   );
                   if (ok) {
                     setStaffImageFile(null);

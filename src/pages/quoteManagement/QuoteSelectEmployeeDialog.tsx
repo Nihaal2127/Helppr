@@ -3,12 +3,14 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { fetchUserDropDown } from "../../services/userService";
+import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
 import type { UserModel } from "../../models/UserModel";
+import { getQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
 import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { updateQuoteEmployee } from "../../services/quoteService";
 
-const EMPLOYEE_USER_TYPE = 2;
+const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
 
 export type QuoteEmployeeSelectionPatch = {
   employee_id: string;
@@ -17,6 +19,7 @@ export type QuoteEmployeeSelectionPatch = {
 };
 
 type QuoteSelectEmployeeDialogProps = {
+  quoteMongoId?: string;
   quoteId: string;
   defaultEmployeeId?: string;
   defaultEmployeeName?: string;
@@ -29,6 +32,7 @@ type FormValues = { employee_id: string };
 
 const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
   show: (
+    quoteMongoId: string | undefined,
     quoteId: string,
     defaults: {
       employee_id?: string;
@@ -38,6 +42,7 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
     onSaved: (patch: QuoteEmployeeSelectionPatch) => void
   ) => void;
 } = ({
+  quoteMongoId,
   quoteId,
   defaultEmployeeId,
   defaultEmployeeName,
@@ -64,6 +69,40 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
+      const snap = getQuoteFranchiseCatalogSnapshot();
+      const rows = snap?.employeeRows ?? [];
+      if (rows.length) {
+        const users = rows.map(
+          (e) =>
+            ({
+              _id: String(e._id ?? ""),
+              name: String(e.name ?? e.user_name ?? "").trim() || null,
+              phone_number:
+                e.phone_number != null
+                  ? String(e.phone_number).trim() || null
+                  : null,
+              user_id:
+                e.user_id != null ? String(e.user_id).trim() || null : null,
+            }) as UserModel
+        );
+        const mapped = users.map((u) => ({
+          value: u._id,
+          label: (u.name && String(u.name).trim()) || u.user_id || "Unnamed",
+        }));
+        const currentId = defaultEmployeeId ?? "";
+        if (currentId && !mapped.some((o) => o.value === currentId)) {
+          mapped.unshift({
+            value: currentId,
+            label:
+              (defaultEmployeeName && String(defaultEmployeeName).trim()) ||
+              "Current assignee",
+          });
+        }
+        setRecords(users);
+        setOptions(mapped);
+        return;
+      }
+
       const { users } = await fetchUserDropDown(EMPLOYEE_USER_TYPE);
       const mapped = users.map((u) => ({
         value: u._id,
@@ -148,6 +187,7 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
               setValue={setValue as (name: string, value: any) => void}
               placeholder="Select employee"
               menuPortal
+              isClearable
             />
           </Row>
           <Row className="mt-4">
@@ -174,6 +214,7 @@ const QuoteSelectEmployeeDialog: React.FC<QuoteSelectEmployeeDialogProps> & {
 };
 
 QuoteSelectEmployeeDialog.show = (
+  quoteMongoId: string | undefined,
   quoteId: string,
   defaults: {
     employee_id?: string;
@@ -184,6 +225,7 @@ QuoteSelectEmployeeDialog.show = (
 ) => {
   openDialog("quote-select-employee-modal", (close) => (
     <QuoteSelectEmployeeDialog
+      quoteMongoId={quoteMongoId}
       quoteId={quoteId}
       defaultEmployeeId={defaults.employee_id}
       defaultEmployeeName={defaults.employee_name}

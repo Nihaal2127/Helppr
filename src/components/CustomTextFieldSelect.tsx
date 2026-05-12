@@ -23,6 +23,13 @@ interface CustomTextFieldSelectProps {
   noRowBottomMargin?: boolean;
   /** Passed to `CustomFormSelect` — removes control bottom margin. */
   noBottomMargin?: boolean;
+  /** When true (default), user can clear the selection (react-select ×). Pass `false` to disable. */
+  isClearable?: boolean;
+  /** Passed to `CustomFormSelect` — prepends `{ value: "" }` (default true). */
+  includeEmptyOption?: boolean;
+  emptyOptionLabel?: string;
+  /** Disables the select (e.g. until franchise is chosen in Add Quote). */
+  isDisabled?: boolean;
 }
 
 const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
@@ -42,6 +49,10 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
   menuPortal = false,
   noRowBottomMargin = false,
   noBottomMargin = false,
+  isClearable = true,
+  includeEmptyOption,
+  emptyOptionLabel,
+  isDisabled = false,
 }) => {
   const rowMarginClass = noRowBottomMargin ? "" : labelSize !== 4 ? "mb-4" : "";
   return (
@@ -69,6 +80,10 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
           placeholder={placeholder}
           menuPortal={menuPortal}
           noBottomMargin={noBottomMargin}
+          isClearable={isClearable}
+          includeEmptyOption={includeEmptyOption}
+          emptyOptionLabel={emptyOptionLabel}
+          isDisabled={isDisabled}
         />
       </Col>
     </Row>

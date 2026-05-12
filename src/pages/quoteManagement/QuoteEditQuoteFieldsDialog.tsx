@@ -5,8 +5,9 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
+import { applyQuoteHeaderPatch } from "../../services/quoteService";
 
 export type QuoteQuoteFieldsPatch = {
   service_price?: number;
@@ -14,6 +15,7 @@ export type QuoteQuoteFieldsPatch = {
 };
 
 type QuoteEditQuoteFieldsDialogProps = {
+  quoteMongoId: string;
   defaultPrice: number;
   defaultStatus: string;
   showPrice: boolean;
@@ -53,6 +55,7 @@ type FormValues = {
 
 const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
   show: (
+    quoteMongoId: string,
     defaults: {
       defaultPrice: number;
       defaultStatus: string;
@@ -62,6 +65,7 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     onSaved: (patch: QuoteQuoteFieldsPatch) => void
   ) => void;
 } = ({
+  quoteMongoId,
   defaultPrice,
   defaultStatus,
   showPrice,
@@ -84,7 +88,7 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     });
   }, [defaultPrice, defaultStatus, reset]);
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = async (data: FormValues) => {
     const patch: QuoteQuoteFieldsPatch = {};
 
     if (showPrice) {
@@ -105,6 +109,18 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     if (Object.keys(patch).length === 0) {
       onClose();
       return;
+    }
+
+    const id = String(quoteMongoId ?? "").trim();
+    if (id) {
+      const ok = await applyQuoteHeaderPatch(id, {
+        service_price: patch.service_price,
+        status: patch.status,
+      });
+      if (!ok) {
+        showErrorAlert("Could not update quote. Please try again.");
+        return;
+      }
     }
 
     onSaved(patch);
@@ -212,6 +228,7 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
 };
 
 QuoteEditQuoteFieldsDialog.show = (
+  quoteMongoId: string,
   defaults: {
     defaultPrice: number;
     defaultStatus: string;
@@ -222,6 +239,7 @@ QuoteEditQuoteFieldsDialog.show = (
 ) => {
   openDialog("quote-edit-quote-fields-modal", (close) => (
     <QuoteEditQuoteFieldsDialog
+      quoteMongoId={quoteMongoId}
       defaultPrice={defaults.defaultPrice}
       defaultStatus={defaults.defaultStatus}
       showPrice={defaults.showPrice}

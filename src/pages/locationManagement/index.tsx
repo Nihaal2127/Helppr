@@ -756,8 +756,9 @@ const LocationManagement = () => {
         ) : undefined
       }
       onSearch={(value: string) => {
-        handleFilterChange({ name: value.trim() });
+        void handleFilterChange({ name: value.trim() });
       }}
+      syncKeyword={activeFilters.name ?? ""}
     />
   ) : null;
 

@@ -47,6 +47,7 @@ const PartnerPayout = () => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState("");
   const [keywordActive, setKeywordActive] = useState(false);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const listRef = useRef({ walletStatus: "all", fromDate: "", toDate: "" });
@@ -329,8 +330,10 @@ const PartnerPayout = () => {
         onSearch={(value) => {
           setKeywordActive(!!value.trim());
           keywordRef.current = value;
+          setAppliedSearchKeyword(value);
           void handleFilterChange({ keyword: value });
         }}
+        syncKeyword={appliedSearchKeyword}
       />
 
       {filterControls}

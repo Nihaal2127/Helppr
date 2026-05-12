@@ -4,7 +4,7 @@ import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
 
 export const getCount = async (
-  /** Omit to send `{}`. Otherwise `{ type }` (number or string, e.g. `"service-management"`). */
+  /** Omit to send `{}`. Otherwise `{ type }` — e.g. `"service-management"`, `"my-franchise"` (franchise-scoped dashboard `record`), `"quote-management"` (quote tab totals in `record`). */
   type?: number | string
 ): Promise<{
   countModel: CountModel | null | null;
@@ -14,8 +14,20 @@ export const getCount = async (
     const payload = type === undefined ? {} : { type };
     const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);
     if (response.success) {
+      const d = response.data as Record<string, unknown> | undefined;
+      const inner =
+        d &&
+        typeof d.data === "object" &&
+        d.data !== null &&
+        !Array.isArray(d.data)
+          ? (d.data as Record<string, unknown>)
+          : d;
+      const record =
+        (inner?.record as CountModel | null | undefined) ??
+        (d?.record as CountModel | null | undefined) ??
+        null;
       return {
-        countModel: response.data.record,
+        countModel: record,
         responseCount: true,
       };
     } else {

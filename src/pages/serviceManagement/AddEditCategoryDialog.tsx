@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CategoryModel } from "../../models/CategoryModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import {
-  DetailsRow,
-  FullDetailsRow,
-  getStatusOptions,
-} from "../../helper/utility";
+import { getStatusOptions } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
@@ -19,7 +21,7 @@ import {
 } from "../../services/categoryService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
-import { fetchServiceDropDown } from "../../services/servicesService";
+import { fetchServicesForCategoryDialog } from "../../services/servicesService";
 import { openDialog } from "../../helper/DialogManager";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 
@@ -88,16 +90,30 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
   const [draftCategoryId, setDraftCategoryId] = useState<string>("");
   const [draftImageUrl, setDraftImageUrl] = useState<string>("");
   const approvalStatus = watch("approval_status");
+  /** Same as `draftCategoryId` state, updated synchronously before opening Add Service so `loadServiceOptions` never reads a stale empty draft (React state lags one render). */
+  const draftCategoryIdRef = useRef<string>("");
+
+  useEffect(() => {
+    draftCategoryIdRef.current = draftCategoryId;
+  }, [draftCategoryId]);
 
   const loadServiceOptions = useCallback(async () => {
-    const serviceOpts = await fetchServiceDropDown();
+    const editingId = String(category?._id ?? "").trim();
+    const draft = String(draftCategoryIdRef.current ?? "").trim();
+    const mode = editingId ? ("edit" as const) : ("add" as const);
+    const scopeId = mode === "edit" ? editingId : draft || undefined;
+
+    const serviceOpts = await fetchServicesForCategoryDialog({
+      mode,
+      categoryId: scopeId,
+    });
     const options = [
       { value: SELECT_ALL_OPTION, label: "Select All" },
       ...serviceOpts,
     ];
     setServiceOptions(options);
     return options;
-  }, []);
+  }, [category?._id]);
 
   useEffect(() => {
     if (!category) return;
@@ -118,13 +134,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     } as any);
   }, [category, localViewMode, reset]);
 
+  /** Load / reload services when category, draft id, or mode changes so add vs edit lists stay correct. */
   useEffect(() => {
-    if (localViewMode || serviceOptions.length > 0) return;
     void loadServiceOptions();
-  }, [localViewMode, serviceOptions.length, loadServiceOptions]);
+  }, [loadServiceOptions, draftCategoryId]);
 
   useEffect(() => {
-    if (isEditable && category) {
+    const hydrateIds = isEditable || localViewMode;
+    if (hydrateIds && category) {
       // Supports both old shape (`service_ids`) and API detail shape (`services: [{ _id, name }]`).
       const idsFromServiceIds = Array.isArray((category as any).service_ids)
         ? (category as any).service_ids.map(String)
@@ -142,34 +159,13 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       });
       setDraftCategoryId("");
       setDraftImageUrl("");
-    } else {
+    } else if (!category) {
       setServiceIds([]);
+      setDraftCategoryId("");
+      setDraftImageUrl("");
       setValue("franchise_id", "", { shouldValidate: false });
     }
-  }, [isEditable, category, setValue]);
-
-  // Static fallback: if API doesn't return linked service IDs/names, preselect first N services.
-  // This keeps the UI functional until the backend provides proper service_names/service_ids.
-  useEffect(() => {
-    if (!isEditable || !category) return;
-
-    const hasProvidedIds =
-      Array.isArray(category.service_ids) && category.service_ids.length > 0;
-    if (hasProvidedIds) return;
-
-    const count = category.services;
-    if (!count || count <= 0) return;
-
-    if (serviceOptions.length === 0) return;
-    if (serviceIds.length > 0) return;
-
-    const fallbackIds = serviceOptions
-      .filter((s) => s.value !== SELECT_ALL_OPTION)
-      .slice(0, count)
-      .map((s) => String(s.value));
-
-    setServiceIds(fallbackIds);
-  }, [isEditable, category, serviceOptions, serviceIds.length]);
+  }, [isEditable, localViewMode, category, setValue]);
 
   useEffect(() => {
     if (isEditable && category?.is_active !== undefined) {
@@ -234,9 +230,12 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         showErrorAlert("Please save category first, then add service.");
         return;
       }
+      draftCategoryIdRef.current = resolvedCategoryId;
       setDraftCategoryId(resolvedCategoryId);
       setDraftImageUrl(String(fileList[0]));
     }
+
+    draftCategoryIdRef.current = resolvedCategoryId;
 
     const previousServiceIds = new Set(
       serviceOptions
@@ -344,14 +343,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
   const linkedServiceNamesForView = useMemo(() => {
     if (!category) return [];
-    if (
-      Array.isArray((category as any).services) &&
-      (category as any).services.length > 0 &&
-      typeof (category as any).services[0] === "object"
-    ) {
-      return (category as any).services
-        .map((s: any) => String(s?.name ?? ""))
-        .filter(Boolean);
+    const rawServices = (category as any).services;
+    if (Array.isArray(rawServices) && rawServices.length > 0) {
+      if (typeof rawServices[0] === "object") {
+        return rawServices
+          .map((s: any) => String(s?.name ?? s?.label ?? ""))
+          .filter(Boolean);
+      }
+      return rawServices.map((s: any) => String(s)).filter(Boolean);
     }
     if (
       Array.isArray(category.service_names) &&
@@ -362,7 +361,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
     const idsFromApi = (category.service_ids ?? []).map(String);
     const ids = idsFromApi.length > 0 ? idsFromApi : serviceIds;
-    return ids
+    const fromOptions = ids
       .map(
         (id) =>
           serviceOptions.find(
@@ -370,6 +369,18 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
           )?.label
       )
       .filter(Boolean) as string[];
+    if (fromOptions.length > 0) return fromOptions;
+
+    const countHint =
+      typeof category.services === "number" && category.services > 0
+        ? category.services
+        : ids.length > 0
+        ? ids.length
+        : 0;
+    if (countHint > 0) {
+      return [`${countHint} service(s) linked`];
+    }
+    return [];
   }, [category, serviceOptions, serviceIds]);
 
   const onSubmitEvent = async (data: CategoryFormValues) => {
@@ -477,7 +488,12 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             style={{ padding: "14px 16px", borderRadius: 12 }}
           >
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h3 className="mb-0">Category Information</h3>
+              <h3
+                className="mb-0"
+                style={{ color: "var(--primary-color)", fontWeight: 600 }}
+              >
+                Category Information
+              </h3>
               {isEditable && (
                 <i
                   className="bi bi-pencil-fill fs-6 text-danger"
@@ -489,97 +505,157 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
               )}
             </div>
 
-            <Row className="g-3">
-              <Col xs={12} md={6}>
-                <DetailsRow title="Category Name" value={category.name ?? "-"} />
+            <Row className="g-4 align-items-start">
+              <Col md={6}>
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
+                  style={{
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Category name
+                </p>
+                <p
+                  className="mb-0 fw-medium"
+                  style={{ color: "var(--content-txt-color)", fontSize: "1rem" }}
+                >
+                  {category.name ?? "-"}
+                </p>
               </Col>
-              <Col xs={12} md={6}>
-                <Row className="row custom-personal-row mb-0">
-                  <label className="col custom-personal-row-title">Status</label>
-                  <label className="col custom-personal-row-value text-truncate">
-                    <span
-                      style={{
-                        color: category.is_active ? "#198754" : "#dc3545",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {category.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </label>
-                </Row>
-              </Col>
-              <Col xs={12}>
-                <FullDetailsRow title="Description" value={category.desc ?? "-"} />
-              </Col>
-              {category.image_url ? (
-                <Col xs={12} md={6}>
-                  <p
-                    className="mb-2"
-                    style={{ color: "var(--primary-color)", fontWeight: 600 }}
+              <Col md={6}>
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
+                  style={{
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Status
+                </p>
+                <p className="mb-0">
+                  <span
+                    style={{
+                      color: category.is_active ? "#198754" : "#dc3545",
+                      fontWeight: 600,
+                      fontSize: "1rem",
+                    }}
                   >
-                    Category image
-                  </p>
+                    {category.is_active ? "Active" : "Inactive"}
+                  </span>
+                </p>
+              </Col>
+
+              <Col xs={12}>
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
+                  style={{
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Description
+                </p>
+                <div
+                  className="mb-0 w-100"
+                  title={String(category.desc ?? "").trim() || undefined}
+                  style={{
+                    color: "var(--content-txt-color)",
+                    fontSize: "0.95rem",
+                    lineHeight: 1.45,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                  }}
+                >
+                  {category.desc?.trim() ? category.desc : "-"}
+                </div>
+              </Col>
+
+              <Col md={6}>
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
+                  style={{
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Category image
+                </p>
+                {category.image_url ? (
                   <img
                     src={`${AppConstant.IMAGE_BASE_URL}${
                       category.image_url
                     }?t=${Date.now()}`}
                     alt="Category"
+                    className="d-block"
                     style={{
                       width: "100%",
-                      maxWidth: 280,
-                      maxHeight: 200,
+                      maxHeight: 220,
                       borderRadius: 10,
                       objectFit: "contain",
                       background: "#fff",
                       border: "1px solid var(--txtfld-border)",
                     }}
                   />
-                </Col>
-              ) : null}
-              <Col xs={12}>
-                <p className="fw-semibold mb-2" style={{ color: "var(--content-txt-color)" }}>
-                  Services
-                </p>
-                <div
+                ) : (
+                  <span className="text-muted small">No image</span>
+                )}
+              </Col>
+              <Col md={6}>
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
                   style={{
-                    maxHeight: 180,
-                    overflowY:
-                      linkedServiceNamesForView.length > 6 ? "auto" : "visible",
-                    border:
-                      linkedServiceNamesForView.length > 0
-                        ? "1px solid var(--txtfld-border)"
-                        : "none",
-                    borderRadius: linkedServiceNamesForView.length > 0 ? 8 : 0,
-                    padding: linkedServiceNamesForView.length > 0 ? 10 : 0,
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
                   }}
                 >
-                  {linkedServiceNamesForView.length > 0 ? (
-                    linkedServiceNamesForView.map((svc: string, idx: number) => (
+                  Services
+                </p>
+                {linkedServiceNamesForView.length > 0 ? (
+                  <div
+                    style={{
+                      maxHeight: 220,
+                      overflowY:
+                        linkedServiceNamesForView.length > 8
+                          ? "auto"
+                          : "visible",
+                      border: "1px solid var(--txtfld-border)",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      background: "var(--bs-body-bg, #fff)",
+                    }}
+                  >
+                    {linkedServiceNamesForView.map((svc: string, idx: number) => (
                       <div
-                        key={svc}
+                        key={`${svc}-${idx}`}
                         style={{
                           display: "flex",
                           gap: 8,
                           alignItems: "start",
-                          padding: "6px 4px",
+                          padding: "6px 0",
                           borderBottom:
                             idx !== linkedServiceNamesForView.length - 1
                               ? "1px dashed var(--txtfld-border)"
                               : "none",
                         }}
                       >
-                        <span style={{ color: "var(--primary-color)" }}>
+                        <span
+                          className="flex-shrink-0"
+                          style={{ color: "var(--primary-color)", fontWeight: 600 }}
+                        >
                           {idx + 1}.
                         </span>
                         <span style={{ color: "var(--content-txt-color)" }}>
                           {svc}
                         </span>
                       </div>
-                    ))
-                  ) : (
-                    <span className="text-muted small">-</span>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-muted small">No services linked</span>
+                )}
               </Col>
             </Row>
           </section>
@@ -590,10 +666,10 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             id="profile-form"
             onSubmit={handleSubmit(onSubmitEvent)}
           >
-            <Row>
+            <Row className="g-4 align-items-start">
               <Col md={6}>
                 <CustomFormInput
-                  label="Category"
+                  label="Category name"
                   controlId="name"
                   placeholder="Enter Category Name"
                   register={register}
@@ -608,36 +684,6 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   error={errors.name}
                   asCol={false}
                   validation={{ required: "Category name is required" }}
-                />
-              </Col>
-
-              <Col md={6}>
-                <CustomMultiSelect
-                  label="Services"
-                  controlId="Service"
-                  options={serviceOptions}
-                  value={selectedServiceOptions}
-                  onChange={(selectedOptions) => {
-                    void handleServiceSelection(selectedOptions);
-                  }}
-                  asCol={false}
-                  menuPortal
-                  menuFooter={addServiceMenuFooter}
-                />
-              </Col>
-
-              <Col md={6}>
-                <CustomImageUploader
-                  label="Category image"
-                  maxFiles={1}
-                  isEditable={isEditable}
-                  existingImages={
-                    category?.image_url ? [category.image_url] : []
-                  }
-                  onFileChange={(files, replaceUrlsFromUploader) => {
-                    setFileInputs(files);
-                    setReplaceUrl(replaceUrlsFromUploader);
-                  }}
                 />
               </Col>
               <Col md={6}>
@@ -686,6 +732,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   />
                 </Col>
               )}
+
               <Col md={12}>
                 <CustomFormInput
                   label="Description"
@@ -705,6 +752,35 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   validation={{ required: "Category description is required" }}
                   as="textarea"
                   rows={4}
+                />
+              </Col>
+
+              <Col md={6}>
+                <CustomImageUploader
+                  label="Category image"
+                  maxFiles={1}
+                  isEditable={isEditable}
+                  existingImages={
+                    category?.image_url ? [category.image_url] : []
+                  }
+                  onFileChange={(files, replaceUrlsFromUploader) => {
+                    setFileInputs(files);
+                    setReplaceUrl(replaceUrlsFromUploader);
+                  }}
+                />
+              </Col>
+              <Col md={6}>
+                <CustomMultiSelect
+                  label="Services"
+                  controlId="Service"
+                  options={serviceOptions}
+                  value={selectedServiceOptions}
+                  onChange={(selectedOptions) => {
+                    void handleServiceSelection(selectedOptions);
+                  }}
+                  asCol={false}
+                  menuPortal
+                  menuFooter={addServiceMenuFooter}
                 />
               </Col>
             </Row>

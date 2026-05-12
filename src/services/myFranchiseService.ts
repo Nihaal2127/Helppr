@@ -1,7 +1,6 @@
 import { fetchArea } from "./areaService";
-import { fetchCategory } from "./categoryService";
-import { fetchService } from "./servicesService";
-import { fetchFranchiseById } from "./franchiseService";
+import { fetchCategoryById } from "./categoryService";
+import { fetchServiceById } from "./servicesService";
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
@@ -62,6 +61,8 @@ export type CategoryRow = {
   category_id: string;
   name: string;
   is_active: boolean;
+  /** From `GET /category/get/:id` when API sends `service_names` (optional). */
+  service_names?: string[];
 };
 
 export type RequestedServiceRow = {
@@ -251,6 +252,302 @@ async function resolveSessionFranchiseId(): Promise<string | undefined> {
   }
 }
 
+const CATALOG_HYDRATE_CONCURRENCY = 8;
+
+/** `GET …/franchise-service|category/getAll` — My Franchise catalogue (see API-Service-Category-Franchise-Requests.txt). */
+type FranchiseServiceMapCache = {
+  mapId: string;
+  franchise_id: string;
+  services_list: { service_id: string; is_active: boolean }[];
+  active_services?: boolean;
+  inactive_services?: boolean;
+  order_number?: number;
+};
+
+type FranchiseCategoryMapCache = {
+  mapId: string;
+  franchise_id: string;
+  categories_list: { category_id: string; is_active: boolean }[];
+  active_categories?: boolean;
+  inactive_categories?: boolean;
+  order_number?: number;
+};
+
+let franchiseMapCacheScopeFid: string | null = null;
+let cachedFranchiseServiceMap: FranchiseServiceMapCache | null = null;
+let cachedFranchiseCategoryMap: FranchiseCategoryMapCache | null = null;
+
+function syncFranchiseMapCacheScope(franchiseId: string) {
+  if (franchiseMapCacheScopeFid !== franchiseId) {
+    franchiseMapCacheScopeFid = franchiseId;
+    cachedFranchiseServiceMap = null;
+    cachedFranchiseCategoryMap = null;
+  }
+}
+
+function listPayloadRecords(data: unknown): any[] {
+  if (!data || typeof data !== "object") return [];
+  const d = data as Record<string, unknown>;
+  const inner =
+    d.data && typeof d.data === "object" && !Array.isArray(d.data)
+      ? (d.data as Record<string, unknown>)
+      : d;
+  const rec = inner.records ?? d.records;
+  return Array.isArray(rec) ? rec : [];
+}
+
+function listPayloadTotalPages(data: unknown): number {
+  if (!data || typeof data !== "object") return 0;
+  const d = data as Record<string, unknown>;
+  const inner =
+    d.data && typeof d.data === "object" && !Array.isArray(d.data)
+      ? (d.data as Record<string, unknown>)
+      : d;
+  const tp = Number(inner.totalPages ?? d.totalPages ?? 0);
+  return Number.isFinite(tp) ? tp : 0;
+}
+
+/** Match catalogue `_id` to map `service_id` / `category_id` (case-insensitive 24-hex). */
+function idsLooselyEqual(a: string, b: string): boolean {
+  const x = String(a ?? "").trim();
+  const y = String(b ?? "").trim();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  return x.toLowerCase() === y.toLowerCase();
+}
+
+function findFranchiseServiceListIndex(
+  list: { service_id: string; is_active: boolean }[],
+  catalogueMongoOrServiceId: string
+): number {
+  const id = String(catalogueMongoOrServiceId ?? "").trim();
+  return list.findIndex((s) => idsLooselyEqual(s.service_id, id));
+}
+
+function findFranchiseCategoryListIndex(
+  list: { category_id: string; is_active: boolean }[],
+  catalogueMongoOrCategoryId: string
+): number {
+  const id = String(catalogueMongoOrCategoryId ?? "").trim();
+  return list.findIndex((c) => idsLooselyEqual(c.category_id, id));
+}
+
+function pickFranchiseScopedRecord(records: any[], franchiseId: string): any | null {
+  if (!Array.isArray(records) || !records.length) return null;
+  const fid = String(franchiseId ?? "").trim();
+  const exact = records.find(
+    (raw) => String(raw?.franchise_id ?? "").trim() === fid
+  );
+  return exact ?? records[0];
+}
+
+const franchiseServiceMapInflight = new Map<
+  string,
+  Promise<FranchiseServiceMapCache | null>
+>();
+const franchiseCategoryMapInflight = new Map<
+  string,
+  Promise<FranchiseCategoryMapCache | null>
+>();
+
+async function fetchFranchiseServiceMapForFranchiseDeduped(
+  franchiseId: string
+): Promise<FranchiseServiceMapCache | null> {
+  const fid = String(franchiseId ?? "").trim();
+  if (!fid) return null;
+  const existing = franchiseServiceMapInflight.get(fid);
+  if (existing) return existing;
+  const p = fetchFranchiseServiceMapForFranchise(fid).finally(() => {
+    franchiseServiceMapInflight.delete(fid);
+  });
+  franchiseServiceMapInflight.set(fid, p);
+  return p;
+}
+
+async function fetchFranchiseCategoryMapForFranchiseDeduped(
+  franchiseId: string
+): Promise<FranchiseCategoryMapCache | null> {
+  const fid = String(franchiseId ?? "").trim();
+  if (!fid) return null;
+  const existing = franchiseCategoryMapInflight.get(fid);
+  if (existing) return existing;
+  const p = fetchFranchiseCategoryMapForFranchise(fid).finally(() => {
+    franchiseCategoryMapInflight.delete(fid);
+  });
+  franchiseCategoryMapInflight.set(fid, p);
+  return p;
+}
+
+/** Pending franchise catalogue requests (exclude rejected / approved rows). */
+function includeInFranchisePendingRequests(record: any): boolean {
+  if (!record || typeof record !== "object") return false;
+  if (record.is_request === false) return false;
+  if (record.is_rejected === true) return false;
+  const ap = String(record.approval_status ?? record.status ?? "")
+    .trim()
+    .toLowerCase();
+  if (ap === "rejected" || ap === "reject") return false;
+  if (ap === "approve" || ap === "approved") return false;
+  return true;
+}
+
+function normalizeFranchiseServiceList(
+  raw: unknown
+): { service_id: string; is_active: boolean }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { service_id: string; is_active: boolean }[] = [];
+  for (const item of raw) {
+    if (item == null) continue;
+    if (typeof item === "string" || typeof item === "number") {
+      const sid = String(item).trim();
+      if (sid) out.push({ service_id: sid, is_active: true });
+      continue;
+    }
+    if (typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const sid = String(o.service_id ?? o._id ?? o.id ?? "").trim();
+    if (!sid) continue;
+    out.push({ service_id: sid, is_active: normalizeBooleanLike(o.is_active) });
+  }
+  return out;
+}
+
+function normalizeFranchiseCategoryList(
+  raw: unknown
+): { category_id: string; is_active: boolean }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { category_id: string; is_active: boolean }[] = [];
+  for (const item of raw) {
+    if (item == null) continue;
+    if (typeof item === "string" || typeof item === "number") {
+      const cid = String(item).trim();
+      if (cid) out.push({ category_id: cid, is_active: true });
+      continue;
+    }
+    if (typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const cid = String(o.category_id ?? o._id ?? o.id ?? "").trim();
+    if (!cid) continue;
+    out.push({
+      category_id: cid,
+      is_active: normalizeBooleanLike(o.is_active),
+    });
+  }
+  return out;
+}
+
+async function fetchFranchiseServiceMapForFranchise(
+  franchiseId: string
+): Promise<FranchiseServiceMapCache | null> {
+  const fid = String(franchiseId ?? "").trim();
+  if (!fid) return null;
+  const limit = 50;
+  const maxPages = 30;
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const response = await apiRequest(
+      `${ApiPaths.GET_FRANCHISE_SERVICE_ALL()}?page=${page}&limit=${limit}&franchise_id=${encodeURIComponent(
+        fid
+      )}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true,
+      true
+    );
+    if (!response.success) return null;
+    const records = listPayloadRecords(response.data);
+    const raw = pickFranchiseScopedRecord(records, fid);
+    if (raw) {
+      const rowFid = String(raw?.franchise_id ?? "").trim();
+      const services_list = normalizeFranchiseServiceList(raw?.services_list);
+      if (services_list.length) {
+        const mapId = String(raw?._id ?? "").trim();
+        if (mapId) {
+          return {
+            mapId,
+            franchise_id: rowFid || fid,
+            services_list,
+            active_services:
+              typeof raw?.active_services === "boolean"
+                ? raw.active_services
+                : undefined,
+            inactive_services:
+              typeof raw?.inactive_services === "boolean"
+                ? raw.inactive_services
+                : undefined,
+            order_number:
+              typeof raw?.order_number === "number"
+                ? raw.order_number
+                : undefined,
+          };
+        }
+      }
+    }
+    const totalPages = listPayloadTotalPages(response.data);
+    if (!totalPages || page >= totalPages) break;
+  }
+  return null;
+}
+
+async function fetchFranchiseCategoryMapForFranchise(
+  franchiseId: string
+): Promise<FranchiseCategoryMapCache | null> {
+  const fid = String(franchiseId ?? "").trim();
+  if (!fid) return null;
+  const limit = 50;
+  const maxPages = 30;
+  for (let page = 1; page <= maxPages; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const response = await apiRequest(
+      `${ApiPaths.GET_FRANCHISE_CATEGORY_ALL()}?page=${page}&limit=${limit}&franchise_id=${encodeURIComponent(
+        fid
+      )}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true,
+      true
+    );
+    if (!response.success) return null;
+    const records = listPayloadRecords(response.data);
+    const raw = pickFranchiseScopedRecord(records, fid);
+    if (raw) {
+      const rowFid = String(raw?.franchise_id ?? "").trim();
+      const categories_list = normalizeFranchiseCategoryList(
+        raw?.categories_list
+      );
+      if (categories_list.length) {
+        const mapId = String(raw?._id ?? "").trim();
+        if (mapId) {
+          return {
+            mapId,
+            franchise_id: rowFid || fid,
+            categories_list,
+            active_categories:
+              typeof raw?.active_categories === "boolean"
+                ? raw.active_categories
+                : undefined,
+            inactive_categories:
+              typeof raw?.inactive_categories === "boolean"
+                ? raw.inactive_categories
+                : undefined,
+            order_number:
+              typeof raw?.order_number === "number"
+                ? raw.order_number
+                : undefined,
+          };
+        }
+      }
+    }
+    const totalPages = listPayloadTotalPages(response.data);
+    if (!totalPages || page >= totalPages) break;
+  }
+  return null;
+}
+
 async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   const filters: { franchise_id?: string } = {};
   const fid = await resolveSessionFranchiseId();
@@ -286,94 +583,83 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
 }
 
 async function fetchCategoryRowsForMyFranchise(): Promise<CategoryRow[] | null> {
-  const fid = await resolveSessionFranchiseId();
+  const fid = (await resolveSessionFranchiseId()) ?? "";
   if (!fid) return [];
-  const franchise = await fetchFranchiseById(fid);
-  if (!franchise) return [];
-  const categoryIds = Array.from(
-    new Set([
-      ...((franchise.category_ids ?? []).map(String) || []),
-      ...((franchise.categories ?? []).map(String) || []),
-    ])
-  )
-    .map((id) => id.trim())
-    .filter(Boolean);
-  if (categoryIds.length === 0) return [];
+  syncFranchiseMapCacheScope(fid);
 
-  const pageSize = 200;
-  const maxPages = 50;
-  const all: any[] = [];
-  for (let page = 1; page <= maxPages; page += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const res = await fetchCategory(page, pageSize, {}, []);
-    if (!res.response) return null;
-    all.push(...(res.categories ?? []));
-    if (!res.totalPages || page >= res.totalPages) break;
+  const catMap = await fetchFranchiseCategoryMapForFranchiseDeduped(fid);
+  if (!catMap?.categories_list?.length) {
+    cachedFranchiseCategoryMap = null;
+    return [];
   }
+  cachedFranchiseCategoryMap = catMap;
 
-  return all
-    .filter((raw: any) => categoryIds.includes(String(raw?._id ?? "").trim()))
-    .map((raw: any) => {
-      const id = String(raw?._id ?? raw?.id ?? "").trim();
-      const isActiveRaw = raw?.is_active;
-      const isActive =
-        typeof isActiveRaw === "boolean"
-          ? isActiveRaw
-          : String(isActiveRaw).toLowerCase() === "true" ||
-            String(isActiveRaw) === "1";
-      return {
-        _id: id,
-        category_id: String(raw?.category_id ?? id).trim() || id,
-        name: String(raw?.name ?? "").trim() || "-",
-        is_active: isActive,
-      } as CategoryRow;
-    });
+  const list = catMap.categories_list;
+  const rows: CategoryRow[] = [];
+  for (let i = 0; i < list.length; i += CATALOG_HYDRATE_CONCURRENCY) {
+    const chunk = list.slice(i, i + CATALOG_HYDRATE_CONCURRENCY);
+    // eslint-disable-next-line no-await-in-loop
+    const chunkRows = await Promise.all(
+      chunk.map(async (entry) => {
+        const { response, category } = await fetchCategoryById(entry.category_id);
+        if (!response || !category) return null;
+        const id = String(category._id ?? entry.category_id).trim();
+        const sn = (category as { service_names?: unknown }).service_names;
+        const service_names = Array.isArray(sn)
+          ? sn.map((x) => String(x).trim()).filter(Boolean)
+          : [];
+        return {
+          _id: id,
+          category_id: String(category.category_id ?? id).trim() || id,
+          name: String(category.name ?? "").trim() || "-",
+          is_active: entry.is_active,
+          ...(service_names.length ? { service_names } : {}),
+        } as CategoryRow;
+      })
+    );
+    for (const r of chunkRows) {
+      if (r) rows.push(r);
+    }
+  }
+  return rows;
 }
 
 async function fetchServiceRowsForMyFranchise(): Promise<ServiceRow[] | null> {
-  const fid = await resolveSessionFranchiseId();
+  const fid = (await resolveSessionFranchiseId()) ?? "";
   if (!fid) return [];
-  const franchise = await fetchFranchiseById(fid);
-  if (!franchise) return [];
-  const serviceIds = Array.from(
-    new Set([
-      ...((franchise.service_ids ?? []).map(String) || []),
-      ...((franchise.services ?? []).map(String) || []),
-    ])
-  )
-    .map((id) => id.trim())
-    .filter(Boolean);
-  if (serviceIds.length === 0) return [];
+  syncFranchiseMapCacheScope(fid);
 
-  const pageSize = 200;
-  const maxPages = 50;
-  const all: any[] = [];
-  for (let page = 1; page <= maxPages; page += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const res = await fetchService(page, pageSize, {}, []);
-    if (!res.response) return null;
-    all.push(...(res.services ?? []));
-    if (!res.totalPages || page >= res.totalPages) break;
+  const svcMap = await fetchFranchiseServiceMapForFranchiseDeduped(fid);
+  if (!svcMap?.services_list?.length) {
+    cachedFranchiseServiceMap = null;
+    return [];
   }
+  cachedFranchiseServiceMap = svcMap;
 
-  return all
-    .filter((raw: any) => serviceIds.includes(String(raw?._id ?? "").trim()))
-    .map((raw: any) => {
-      const id = String(raw?._id ?? raw?.id ?? "").trim();
-      const isActiveRaw = raw?.is_active;
-      const isActive =
-        typeof isActiveRaw === "boolean"
-          ? isActiveRaw
-          : String(isActiveRaw).toLowerCase() === "true" ||
-            String(isActiveRaw) === "1";
-      return {
-        _id: id,
-        service_id: String(raw?.service_id ?? id).trim() || id,
-        name: String(raw?.name ?? "").trim() || "-",
-        category_name: String(raw?.category_name ?? "").trim() || "-",
-        is_active: isActive,
-      } as ServiceRow;
-    });
+  const list = svcMap.services_list;
+  const rows: ServiceRow[] = [];
+  for (let i = 0; i < list.length; i += CATALOG_HYDRATE_CONCURRENCY) {
+    const chunk = list.slice(i, i + CATALOG_HYDRATE_CONCURRENCY);
+    // eslint-disable-next-line no-await-in-loop
+    const chunkRows = await Promise.all(
+      chunk.map(async (entry) => {
+        const { response, service } = await fetchServiceById(entry.service_id);
+        if (!response || !service) return null;
+        const id = String(service._id ?? entry.service_id).trim();
+        return {
+          _id: id,
+          service_id: String(service.service_id ?? id).trim() || id,
+          name: String(service.name ?? "").trim() || "-",
+          category_name: String(service.category_name ?? "").trim() || "-",
+          is_active: entry.is_active,
+        } as ServiceRow;
+      })
+    );
+    for (const r of chunkRows) {
+      if (r) rows.push(r);
+    }
+  }
+  return rows;
 }
 
 function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
@@ -468,10 +754,10 @@ async function fetchAllCategoryRows(
       true
     );
     if (!response.success) return null;
-    const records = response.data?.records;
-    if (!Array.isArray(records)) break;
+    const records = listPayloadRecords(response.data);
+    if (!records.length) break;
     all.push(...records);
-    const totalPages = Number(response.data?.totalPages ?? 0);
+    const totalPages = listPayloadTotalPages(response.data);
     if (!totalPages || page >= totalPages) break;
   }
   return all;
@@ -495,44 +781,107 @@ async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
       true
     );
     if (!response.success) return null;
-    const records = response.data?.records;
-    if (!Array.isArray(records)) break;
+    const records = listPayloadRecords(response.data);
+    if (!records.length) break;
     all.push(...records);
-    const totalPages = Number(response.data?.totalPages ?? 0);
+    const totalPages = listPayloadTotalPages(response.data);
     if (!totalPages || page >= totalPages) break;
   }
   return all;
 }
 
-export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
-  const [
-    apiEmployeeRows,
-    apiAreaRows,
-    apiServiceRows,
-    apiCategoryRows,
-    requestedCategoryRows,
-    requestedServiceRows,
-  ] = await Promise.all([
-    fetchEmployeeRowsForMyFranchise(),
-    // Areas: use live `/area/getAll` (see `areaService` + `ApiPaths`) so the grid shows server data; names come as `name` in API.
-    fetchAreaRowsForMyFranchise(),
-    fetchServiceRowsForMyFranchise(),
-    fetchCategoryRowsForMyFranchise(),
-    fetchAllCategoryRows(true),
-    fetchAllServiceRows(true),
-  ]);
+/** Subset of `MyFranchiseBoxData` the UI can lazy-load per tab / view mode. */
+export type MyFranchiseDataSlice =
+  | "employees"
+  | "areas"
+  | "services"
+  | "categories"
+  | "requested_services"
+  | "requested_categories";
 
+const ALL_MY_FRANCHISE_SLICES: MyFranchiseDataSlice[] = [
+  "employees",
+  "areas",
+  "services",
+  "categories",
+  "requested_services",
+  "requested_categories",
+];
+
+/** Loads only the requested slices (parallel per slice). Use on My Franchise to avoid firing every `getAll` on initial paint. */
+export async function fetchMyFranchiseDataSlices(
+  slices: readonly MyFranchiseDataSlice[]
+): Promise<Partial<MyFranchiseBoxData>> {
+  const need = new Set(slices);
+  const out: Partial<MyFranchiseBoxData> = {};
+  const tasks: Promise<void>[] = [];
+
+  if (need.has("employees")) {
+    tasks.push(
+      (async () => {
+        const r = await fetchEmployeeRowsForMyFranchise();
+        out.employees = r ?? [];
+      })()
+    );
+  }
+  if (need.has("areas")) {
+    tasks.push(
+      (async () => {
+        const r = await fetchAreaRowsForMyFranchise();
+        out.areas = r ?? [];
+      })()
+    );
+  }
+  if (need.has("services")) {
+    tasks.push(
+      (async () => {
+        const r = await fetchServiceRowsForMyFranchise();
+        out.services = r ?? [];
+      })()
+    );
+  }
+  if (need.has("categories")) {
+    tasks.push(
+      (async () => {
+        const r = await fetchCategoryRowsForMyFranchise();
+        out.categories = r ?? [];
+      })()
+    );
+  }
+  if (need.has("requested_services")) {
+    tasks.push(
+      (async () => {
+        const raw = await fetchAllServiceRows(true);
+        out.requested_services = (raw ?? [])
+          .filter(includeInFranchisePendingRequests)
+          .map(mapApiRequestedServiceRow);
+      })()
+    );
+  }
+  if (need.has("requested_categories")) {
+    tasks.push(
+      (async () => {
+        const raw = await fetchAllCategoryRows(true);
+        out.requested_categories = (raw ?? [])
+          .filter(includeInFranchisePendingRequests)
+          .map(mapApiRequestedCategoryRow);
+      })()
+    );
+  }
+
+  await Promise.all(tasks);
+  return out;
+}
+
+export async function fetchMyFranchiseBoxData(): Promise<MyFranchiseBoxData> {
+  const partial = await fetchMyFranchiseDataSlices(ALL_MY_FRANCHISE_SLICES);
   return {
-    employees: apiEmployeeRows ?? [],
-    areas: apiAreaRows ?? [],
-    services: apiServiceRows ?? [],
-    categories: apiCategoryRows ?? [],
-    requested_services: (requestedServiceRows ?? [])
-      .filter((r) => r?.is_rejected == null)
-      .map(mapApiRequestedServiceRow),
-    requested_categories: (requestedCategoryRows ?? [])
-      .filter((r) => r?.is_rejected == null)
-      .map(mapApiRequestedCategoryRow),
+    employees: partial.employees ?? [],
+    areas: partial.areas ?? [],
+    services: partial.services ?? [],
+    categories: partial.categories ?? [],
+    requested_services: partial.requested_services ?? [],
+    requested_categories: partial.requested_categories ?? [],
   };
 }
 
@@ -545,36 +894,194 @@ export async function setEmployeeChatEnabled(
   return false;
 }
 
+async function ensureFranchiseServiceMapLoaded(): Promise<FranchiseServiceMapCache | null> {
+  const fid = (await resolveSessionFranchiseId()) ?? "";
+  if (!fid) return null;
+  syncFranchiseMapCacheScope(fid);
+  if (cachedFranchiseServiceMap?.services_list?.length) {
+    return cachedFranchiseServiceMap;
+  }
+  const map = await fetchFranchiseServiceMapForFranchiseDeduped(fid);
+  if (map?.services_list?.length) {
+    cachedFranchiseServiceMap = map;
+    return map;
+  }
+  return null;
+}
+
+async function ensureFranchiseCategoryMapLoaded(): Promise<FranchiseCategoryMapCache | null> {
+  const fid = (await resolveSessionFranchiseId()) ?? "";
+  if (!fid) return null;
+  syncFranchiseMapCacheScope(fid);
+  if (cachedFranchiseCategoryMap?.categories_list?.length) {
+    return cachedFranchiseCategoryMap;
+  }
+  const map = await fetchFranchiseCategoryMapForFranchiseDeduped(fid);
+  if (map?.categories_list?.length) {
+    cachedFranchiseCategoryMap = map;
+    return map;
+  }
+  return null;
+}
+
+function recordFromUpdateResponse(data: unknown): any | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const inner =
+    d.data && typeof d.data === "object" && !Array.isArray(d.data)
+      ? (d.data as Record<string, unknown>)
+      : d;
+  const rec = inner.record ?? d.record;
+  return rec && typeof rec === "object" ? rec : null;
+}
+
+/**
+ * Franchise-scoped active flag: `PUT /franchise-service/update/:mapId` with full
+ * `services_list` (franchise admin contract). Falls back to `PUT /service/update/:id`
+ * when no mapping row exists.
+ */
 export async function setServiceActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  const response = await apiRequest(
-    ApiPaths.UPDATE_SERVICE(id),
-    "PUT",
-    { is_active },
-    false,
-    false,
-    false,
-    true
-  );
-  return Boolean(response.success);
+  const catalogueId = String(id ?? "").trim();
+  if (!catalogueId) return false;
+
+  const map = await ensureFranchiseServiceMapLoaded();
+  if (map?.mapId && map.services_list.length) {
+    const idx = findFranchiseServiceListIndex(map.services_list, catalogueId);
+    if (idx >= 0) {
+      const services_list = map.services_list.map((s, i) =>
+        i === idx ? { service_id: s.service_id, is_active } : { ...s }
+      );
+      const body: Record<string, unknown> = {
+        services_list,
+        franchise_id: map.franchise_id,
+      };
+      if (map.active_services !== undefined) {
+        body.active_services = map.active_services;
+      }
+      if (map.inactive_services !== undefined) {
+        body.inactive_services = map.inactive_services;
+      }
+      if (map.order_number !== undefined) {
+        body.order_number = map.order_number;
+      }
+      const response = await apiRequest(
+        ApiPaths.UPDATE_FRANCHISE_SERVICE(map.mapId),
+        "PUT",
+        body,
+        false,
+        false,
+        false,
+        true
+      );
+      if (!response.success) return false;
+      const rec = recordFromUpdateResponse(response.data);
+      if (rec) {
+        const next = normalizeFranchiseServiceList(rec.services_list);
+        if (next.length) {
+          cachedFranchiseServiceMap = {
+            ...map,
+            services_list: next,
+            active_services:
+              typeof rec.active_services === "boolean"
+                ? rec.active_services
+                : map.active_services,
+            inactive_services:
+              typeof rec.inactive_services === "boolean"
+                ? rec.inactive_services
+                : map.inactive_services,
+            order_number:
+              typeof rec.order_number === "number"
+                ? rec.order_number
+                : map.order_number,
+          };
+        } else {
+          cachedFranchiseServiceMap = { ...map, services_list };
+        }
+      } else {
+        cachedFranchiseServiceMap = { ...map, services_list };
+      }
+      return true;
+    }
+  }
+
+  return false;
 }
 
+/**
+ * Same pattern as services: `PUT /franchise-category/update/:mapId` with full
+ * `categories_list` (no catalogue `PUT /category/update`).
+ */
 export async function setCategoryActive(
   id: string,
   is_active: boolean
 ): Promise<boolean> {
-  const response = await apiRequest(
-    ApiPaths.UPDATE_CATEGORY(id),
-    "PUT",
-    { is_active },
-    false,
-    false,
-    false,
-    true
-  );
-  return Boolean(response.success);
+  const catalogueId = String(id ?? "").trim();
+  if (!catalogueId) return false;
+
+  const map = await ensureFranchiseCategoryMapLoaded();
+  if (map?.mapId && map.categories_list.length) {
+    const idx = findFranchiseCategoryListIndex(map.categories_list, catalogueId);
+    if (idx >= 0) {
+      const categories_list = map.categories_list.map((c, i) =>
+        i === idx ? { category_id: c.category_id, is_active } : { ...c }
+      );
+      const body: Record<string, unknown> = {
+        categories_list,
+        franchise_id: map.franchise_id,
+      };
+      if (map.active_categories !== undefined) {
+        body.active_categories = map.active_categories;
+      }
+      if (map.inactive_categories !== undefined) {
+        body.inactive_categories = map.inactive_categories;
+      }
+      if (map.order_number !== undefined) {
+        body.order_number = map.order_number;
+      }
+      const response = await apiRequest(
+        ApiPaths.UPDATE_FRANCHISE_CATEGORY(map.mapId),
+        "PUT",
+        body,
+        false,
+        false,
+        false,
+        true
+      );
+      if (!response.success) return false;
+      const rec = recordFromUpdateResponse(response.data);
+      if (rec) {
+        const next = normalizeFranchiseCategoryList(rec.categories_list);
+        if (next.length) {
+          cachedFranchiseCategoryMap = {
+            ...map,
+            categories_list: next,
+            active_categories:
+              typeof rec.active_categories === "boolean"
+                ? rec.active_categories
+                : map.active_categories,
+            inactive_categories:
+              typeof rec.inactive_categories === "boolean"
+                ? rec.inactive_categories
+                : map.inactive_categories,
+            order_number:
+              typeof rec.order_number === "number"
+                ? rec.order_number
+                : map.order_number,
+          };
+        } else {
+          cachedFranchiseCategoryMap = { ...map, categories_list };
+        }
+      } else {
+        cachedFranchiseCategoryMap = { ...map, categories_list };
+      }
+      return true;
+    }
+  }
+
+  return false;
 }
 
 type FranchiseEmployeeInput = {
@@ -584,6 +1091,8 @@ type FranchiseEmployeeInput = {
   is_active: boolean;
   chat_enabled: boolean;
   screenPermissionKeys: string[];
+  /** Required when creating a new employee (`createFranchiseEmployee`). */
+  password?: string;
 };
 
 export async function createFranchiseEmployee(
@@ -603,11 +1112,18 @@ export async function createFranchiseEmployee(
     return false;
   }
 
+  const pwd = String(input.password ?? "").trim();
+  if (!pwd) {
+    showErrorAlert("Password is required.");
+    return false;
+  }
+
   const res = await createWebManagementUser({
     name: input.name.trim(),
     email: input.email.trim(),
     phone_number: input.phone.trim(),
     type: WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE,
+    password: pwd,
     status: input.is_active ? "active" : "inactive",
     is_from_web: true,
     created_by_id: createdById,
@@ -644,11 +1160,20 @@ export async function createRequestedService(
   input: RequestedServiceInput
 ): Promise<boolean> {
   const franchiseId = await resolveSessionFranchiseId();
+  const imageUrl = String(input.image_url ?? "").trim();
   const payload = {
     name: input.name.trim(),
     category_id: input.category_id,
     desc: input.description.trim(),
-    ...(input.image_url ? { image_url: input.image_url } : {}),
+    ...(imageUrl ? { image_url: imageUrl } : {}),
+    tax: 0,
+    commission: 0,
+    payment_type: "per_hour",
+    minimum_deposit: 0,
+    price: 0,
+    is_active: false,
+    city_ids: [] as string[],
+    state_ids: [] as string[],
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
     is_request: true,
   };
@@ -668,11 +1193,20 @@ export async function updateRequestedService(
   id: string,
   input: RequestedServiceInput
 ): Promise<boolean> {
+  const imageUrl = String(input.image_url ?? "").trim();
   const payload = {
     name: input.name.trim(),
     category_id: input.category_id,
     desc: input.description.trim(),
-    ...(input.image_url ? { image_url: input.image_url } : {}),
+    ...(imageUrl ? { image_url: imageUrl } : {}),
+    tax: 0,
+    commission: 0,
+    payment_type: "per_hour",
+    minimum_deposit: 0,
+    price: 0,
+    is_active: false,
+    city_ids: [] as string[],
+    state_ids: [] as string[],
     is_request: true,
   };
   const response = await apiRequest(
@@ -716,6 +1250,8 @@ export async function createRequestedCategory(
     service_ids: input.service_ids,
     desc: input.description.trim(),
     ...(input.image_url ? { image_url: input.image_url } : {}),
+    city_ids: [] as string[],
+    state_ids: [] as string[],
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
     is_request: true,
   };
@@ -740,6 +1276,8 @@ export async function updateRequestedCategory(
     service_ids: input.service_ids,
     desc: input.description.trim(),
     ...(input.image_url ? { image_url: input.image_url } : {}),
+    city_ids: [] as string[],
+    state_ids: [] as string[],
     is_request: true,
   };
   const response = await apiRequest(

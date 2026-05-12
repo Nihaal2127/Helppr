@@ -1,6 +1,8 @@
 export type QuoteTabKey = "new" | "pending" | "accepted" | "success" | "failed";
 
 export type AddQuoteFormValues = {
+  /** Super-admin / staff: franchise for `POST /quote/create`. */
+  franchise_id?: string;
   /** Selected user id (dropdown value). */
   user_id: string;
   user_name: string;

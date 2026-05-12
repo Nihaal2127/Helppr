@@ -112,6 +112,65 @@ function toIdArray(raw: unknown): string[] {
   return raw.map((x) => String(x ?? "").trim()).filter(Boolean);
 }
 
+function normalizeBooleanLike(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  const s = String(value ?? "").toLowerCase().trim();
+  if (s === "active" || s === "true") return true;
+  if (s === "inactive" || s === "false") return false;
+  return true;
+}
+
+/**
+ * Collects catalogue `_id`s from franchise mapping arrays (Postman / staging:
+ * `categories_list` / `services_list` as `{ category_id|service_id, is_active }`, or plain id strings).
+ */
+function mergeCatalogLinks(
+  lists: unknown[],
+  idKeys: string[]
+): { ids: string[]; activeById: Record<string, boolean> } {
+  const idOrder: string[] = [];
+  const seen = new Set<string>();
+  const activeById: Record<string, boolean> = {};
+
+  const pushId = (id: string) => {
+    const t = id.trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    idOrder.push(t);
+  };
+
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (item == null) continue;
+      if (typeof item === "string" || typeof item === "number") {
+        pushId(String(item));
+        continue;
+      }
+      if (typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      let id = "";
+      for (const k of idKeys) {
+        const v = o[k];
+        if (v != null && String(v).trim()) {
+          id = String(v).trim();
+          break;
+        }
+      }
+      if (!id) continue;
+      pushId(id);
+      if ("is_active" in o && o.is_active !== undefined && o.is_active !== null) {
+        activeById[id] = normalizeBooleanLike(o.is_active);
+      } else if (!(id in activeById)) {
+        activeById[id] = true;
+      }
+    }
+  }
+  return { ids: idOrder, activeById };
+}
+
 function mapFranchiseRow(
   raw: any,
   adminContacts?: Map<string, AdminContact>
@@ -145,12 +204,78 @@ function mapFranchiseRow(
       ""
   ).trim();
 
+  const categoryLinkSources: unknown[] = [
+    raw?.categories_list,
+    raw?.franchise_categories,
+    raw?.franchise_category,
+    raw?.category_list,
+  ];
+  if (
+    Array.isArray(raw?.categories) &&
+    raw.categories.length &&
+    typeof raw.categories[0] === "object"
+  ) {
+    categoryLinkSources.push(raw.categories);
+  }
+  const categoryLinks = mergeCatalogLinks(
+    categoryLinkSources.filter((x) => x != null),
+    ["category_id", "_id", "id"]
+  );
+
+  const serviceLinkSources: unknown[] = [
+    raw?.services_list,
+    raw?.franchise_services,
+    raw?.franchise_service,
+    raw?.service_list,
+  ];
+  if (
+    Array.isArray(raw?.services) &&
+    raw.services.length &&
+    typeof raw.services[0] === "object"
+  ) {
+    serviceLinkSources.push(raw.services);
+  }
+  const serviceLinks = mergeCatalogLinks(
+    serviceLinkSources.filter((x) => x != null),
+    ["service_id", "_id", "id"]
+  );
+
+  const categoriesPrimitiveIds =
+    Array.isArray(raw?.categories) &&
+    raw.categories.length &&
+    typeof raw.categories[0] !== "object"
+      ? toIdArray(raw.categories)
+      : [];
+  const servicesPrimitiveIds =
+    Array.isArray(raw?.services) &&
+    raw.services.length &&
+    typeof raw.services[0] !== "object"
+      ? toIdArray(raw.services)
+      : [];
+
   const categoryIdsMerged = Array.from(
-    new Set([...toIdArray(raw?.category_ids), ...toIdArray(raw?.categories)])
+    new Set([
+      ...toIdArray(raw?.category_ids),
+      ...categoriesPrimitiveIds,
+      ...categoryLinks.ids,
+    ])
   );
   const serviceIdsMerged = Array.from(
-    new Set([...toIdArray(raw?.service_ids), ...toIdArray(raw?.services)])
+    new Set([
+      ...toIdArray(raw?.service_ids),
+      ...servicesPrimitiveIds,
+      ...serviceLinks.ids,
+    ])
   );
+
+  const franchise_category_active =
+    Object.keys(categoryLinks.activeById).length > 0
+      ? categoryLinks.activeById
+      : undefined;
+  const franchise_service_active =
+    Object.keys(serviceLinks.activeById).length > 0
+      ? serviceLinks.activeById
+      : undefined;
 
   return {
     ...raw,
@@ -158,21 +283,37 @@ function mapFranchiseRow(
     phone_number: mappedPhone || undefined,
     ...(categoryIdsMerged.length ? { category_ids: categoryIdsMerged } : {}),
     ...(serviceIdsMerged.length ? { service_ids: serviceIdsMerged } : {}),
+    ...(franchise_category_active
+      ? { franchise_category_active }
+      : {}),
+    ...(franchise_service_active ? { franchise_service_active } : {}),
   } as FranchiseModel;
 }
 
-export const fetchFranchiseDropDown = async (
-  options?: { onlyUnassigned?: boolean }
-): Promise<FranchiseDropDownOption[]> => {
-  if (USE_MOCK_FRANCHISE_API) {
-    return mockFranchises.map((f: any) => ({
-      value: f._id,
-      label: f.name,
-      state_id: f.state_id ? String(f.state_id) : undefined,
-      city_id: f.city_id ? String(f.city_id) : undefined,
-    }));
-  }
+/** Same query string → one network round-trip (e.g. `CustomHeader` + quote page both mount together). */
+const FRANCHISE_DROPDOWN_CACHE_MS = 45_000;
 
+type FranchiseDropdownCacheEntry = {
+  data: FranchiseDropDownOption[];
+  expiresAt: number;
+  inflight?: Promise<FranchiseDropDownOption[]>;
+};
+
+const franchiseDropdownCache = new Map<string, FranchiseDropdownCacheEntry>();
+
+function franchiseDropdownCacheKey(options?: { onlyUnassigned?: boolean }) {
+  return options?.onlyUnassigned ? "only_unassigned" : "all";
+}
+
+function cloneFranchiseDropdownRows(
+  rows: FranchiseDropDownOption[]
+): FranchiseDropDownOption[] {
+  return rows.map((o) => ({ ...o }));
+}
+
+async function fetchFranchiseDropDownUncached(
+  options?: { onlyUnassigned?: boolean }
+): Promise<FranchiseDropDownOption[]> {
   const query = new URLSearchParams();
   if (options?.onlyUnassigned) {
     query.set("only_unassigned", "true");
@@ -189,62 +330,107 @@ export const fetchFranchiseDropDown = async (
       state_id: franchise.state_id ? String(franchise.state_id) : undefined,
       city_id: franchise.city_id ? String(franchise.city_id) : undefined,
     }));
-  } else {
-    // Some roles/environments deny `/franchise/getDropDown` (403) while allowing `/franchise/getAll`.
-    // Fallback to getAll so dropdown behavior matches super-admin visibility.
-    if (options?.onlyUnassigned) {
-      showLog(response.message || "Failed to fetch franchise");
-      return [];
-    }
-    const pageSize = 200;
-    let page = 1;
-    const rows: any[] = [];
-    for (;;) {
-      // eslint-disable-next-line no-await-in-loop
-      const listRes = await apiRequest(
-        `${ApiPaths.GET_FRANCHISE()}?${new URLSearchParams({
-          page: String(page),
-          limit: String(pageSize),
-        }).toString()}`,
-        "GET",
-        undefined,
-        false,
-        true,
-        true
-      );
-      if (!listRes.success) break;
-      const payload = (listRes as any).data ?? {};
-      const inner =
-        payload &&
-        typeof payload.data === "object" &&
-        !Array.isArray(payload.data)
-          ? payload.data
-          : payload;
-      const records = Array.isArray(inner.records)
-        ? inner.records
-        : Array.isArray(payload.records)
-        ? payload.records
-        : [];
-      rows.push(...records);
-      const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
-      if (!totalPages || page >= totalPages) break;
-      page += 1;
-      if (page > 100) break;
-    }
-    const unique = new Map<string, FranchiseDropDownOption>();
-    rows.forEach((franchise: any) => {
-      const value = String(franchise?._id ?? franchise?.id ?? "").trim();
-      if (!value) return;
-      if (unique.has(value)) return;
-      unique.set(value, {
-        value,
-        label: String(franchise?.name ?? "").trim() || value,
-        state_id: franchise?.state_id ? String(franchise.state_id) : undefined,
-        city_id: franchise?.city_id ? String(franchise.city_id) : undefined,
-      });
-    });
-    return Array.from(unique.values());
   }
+  // Some roles/environments deny `/franchise/getDropDown` (403) while allowing `/franchise/getAll`.
+  // Fallback to getAll so dropdown behavior matches super-admin visibility.
+  if (options?.onlyUnassigned) {
+    showLog(response.message || "Failed to fetch franchise");
+    return [];
+  }
+  const pageSize = 200;
+  let page = 1;
+  const rows: any[] = [];
+  for (;;) {
+    // eslint-disable-next-line no-await-in-loop
+    const listRes = await apiRequest(
+      `${ApiPaths.GET_FRANCHISE()}?${new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+      }).toString()}`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true
+    );
+    if (!listRes.success) break;
+    const payload = (listRes as any).data ?? {};
+    const inner =
+      payload &&
+      typeof payload.data === "object" &&
+      !Array.isArray(payload.data)
+        ? payload.data
+        : payload;
+    const records = Array.isArray(inner.records)
+      ? inner.records
+      : Array.isArray(payload.records)
+      ? payload.records
+      : [];
+    rows.push(...records);
+    const totalPages = Number(inner.totalPages ?? payload.totalPages ?? 0) || 0;
+    if (!totalPages || page >= totalPages) break;
+    page += 1;
+    if (page > 100) break;
+  }
+  const unique = new Map<string, FranchiseDropDownOption>();
+  rows.forEach((franchise: any) => {
+    const value = String(franchise?._id ?? franchise?.id ?? "").trim();
+    if (!value) return;
+    if (unique.has(value)) return;
+    unique.set(value, {
+      value,
+      label: String(franchise?.name ?? "").trim() || value,
+      state_id: franchise?.state_id ? String(franchise.state_id) : undefined,
+      city_id: franchise?.city_id ? String(franchise.city_id) : undefined,
+    });
+  });
+  return Array.from(unique.values());
+}
+
+export const fetchFranchiseDropDown = async (
+  options?: { onlyUnassigned?: boolean }
+): Promise<FranchiseDropDownOption[]> => {
+  if (USE_MOCK_FRANCHISE_API) {
+    return mockFranchises.map((f: any) => ({
+      value: f._id,
+      label: f.name,
+      state_id: f.state_id ? String(f.state_id) : undefined,
+      city_id: f.city_id ? String(f.city_id) : undefined,
+    }));
+  }
+
+  const key = franchiseDropdownCacheKey(options);
+  const now = Date.now();
+  let bucket = franchiseDropdownCache.get(key);
+
+  if (bucket?.inflight) {
+    return cloneFranchiseDropdownRows(await bucket.inflight);
+  }
+  if (bucket && bucket.expiresAt > now) {
+    return cloneFranchiseDropdownRows(bucket.data);
+  }
+
+  const inflight = fetchFranchiseDropDownUncached(options)
+    .then((data) => {
+      franchiseDropdownCache.set(key, {
+        data,
+        expiresAt: Date.now() + FRANCHISE_DROPDOWN_CACHE_MS,
+      });
+      return data;
+    })
+    .catch((err) => {
+      franchiseDropdownCache.delete(key);
+      throw err;
+    });
+
+  franchiseDropdownCache.set(key, {
+    data: bucket?.data ?? [],
+    expiresAt: bucket?.expiresAt ?? 0,
+    inflight,
+  });
+
+  const data = await inflight;
+  return cloneFranchiseDropdownRows(data);
 };
 
 /** Single franchise by id (GET /franchise/get/:id). Used when header filters to one franchise. */

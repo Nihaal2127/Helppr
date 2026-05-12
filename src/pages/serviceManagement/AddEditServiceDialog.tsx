@@ -11,17 +11,27 @@ import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
-import { fetchCategoryDropDown } from "../../services/categoryService";
-import { createOrUpdateService } from "../../services/servicesService";
+import {
+  fetchCategoriesAsSelectOptions,
+} from "../../services/categoryService";
+import {
+  createOrUpdateService,
+  normalizeServiceCategoryRef,
+} from "../../services/servicesService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { openDialog } from "../../helper/DialogManager";
 import { FullDetailsRow } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
+import {
+  extractMinDepositTypeKey,
+  formatMinDepositDisplay,
+} from "../../helper/serviceMinDepositDisplay";
 
 function mapPaymentTypeToMinDepositType(s: ServiceModel | null): string {
   if (!s) return "";
   const any = s as any;
-  return String(any.min_deposit_type ?? any.payment_type ?? "").trim();
+  const raw = String(any.min_deposit_type ?? any.payment_type ?? "").trim();
+  return extractMinDepositTypeKey(raw);
 }
 
 function mapMinimumDepositValue(s: ServiceModel | null): string {
@@ -30,6 +40,25 @@ function mapMinimumDepositValue(s: ServiceModel | null): string {
   const v = any.min_deposit_value ?? any.minimum_deposit;
   if (v === undefined || v === null) return "";
   return String(v);
+}
+
+const MIN_DEPOSIT_TYPE_LABELS: Record<string, string> = {
+  per_hour: "Per Hour",
+  per_day: "Per Day",
+  per_month: "Per Month",
+  per_consultancy: "Per Consultancy",
+};
+
+/** Human-readable payment / min-deposit type (matches `CustomFormSelect` options). */
+function labelForMinDepositType(raw: string): string {
+  const key = String(raw ?? "").trim().toLowerCase();
+  if (!key) return "";
+  if (MIN_DEPOSIT_TYPE_LABELS[key]) return MIN_DEPOSIT_TYPE_LABELS[key];
+  return key
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
 /** Maps API `approval_status` and legacy `is_rejected` to form values. */
@@ -50,6 +79,15 @@ function mapApprovalStatusFromService(
 
 function requestStatusLabel(status: "pending" | "approved" | "rejected") {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function isTruthyFormBool(v: unknown): boolean {
+  return (
+    v === true ||
+    v === "true" ||
+    v === 1 ||
+    v === "1"
+  );
 }
 
 type AddEditServiceDialogProps = {
@@ -104,7 +142,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       min_deposit_type: mapPaymentTypeToMinDepositType(service),
       min_deposit_value: mapMinimumDepositValue(service) as any,
       is_active: service?.is_active ?? true,
-      category_id: service?.category_id || "",
+      category_id: normalizeServiceCategoryRef(service?.category_id),
       approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any,
@@ -119,7 +157,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       min_deposit_type: mapPaymentTypeToMinDepositType(service),
       min_deposit_value: mapMinimumDepositValue(service) as any,
       is_active: service?.is_active ?? true,
-      category_id: service?.category_id || lockCategory?.id || "",
+      category_id:
+        normalizeServiceCategoryRef(service?.category_id) ||
+        String(lockCategory?.id ?? "").trim(),
       approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any);
@@ -131,25 +171,26 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
   const fetchRef = useRef(false);
+  /** Used so Payment Type's `CustomFormSelect` sync does not wipe loaded `minimum_deposit` for non-consultancy rows. */
+  const prevPaymentTypeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    prevPaymentTypeRef.current = null;
+  }, [service?._id]);
 
   // const depositType = watch("min_deposit_type");
+  const serviceCategoryId = normalizeServiceCategoryRef(
+    service?.category_id
+  );
   const categoryLabelForView =
-    service?.category_id &&
-    categories.find((c) => c.value === service.category_id)?.label;
+    serviceCategoryId &&
+    categories.find((c) => c.value === serviceCategoryId)?.label;
 
   const resolvedPaymentType = mapPaymentTypeToMinDepositType(service);
-  const resolvedMinimumDeposit = mapMinimumDepositValue(service);
 
-  const minDepositValueForView =
-    resolvedPaymentType === "per_consultancy" && resolvedMinimumDeposit !== ""
-      ? resolvedMinimumDeposit
-      : "";
-
-  const minDepositLabelForView = resolvedPaymentType
-    ? resolvedMinimumDeposit !== ""
-      ? `${resolvedPaymentType} (${resolvedMinimumDeposit}${AppConstant.percentageSymbol})`
-      : resolvedPaymentType
-    : "-";
+  const minDepositLabelForView = formatMinDepositDisplay(
+    service as unknown as Record<string, unknown>
+  );
 
   /** Percentage 0–100; allows decimals (e.g. 4.5). Max 2 fraction digits; caps at 100 while typing. */
   const sanitizePercentageText = (raw: string) => {
@@ -210,12 +251,25 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         }
         return;
       }
-      const categoryOptions = await fetchCategoryDropDown();
+      let categoryOptions = await fetchCategoriesAsSelectOptions();
+      const currentId = normalizeServiceCategoryRef(service?.category_id);
+      const currentName = String(service?.category_name ?? "").trim();
+      if (
+        currentId &&
+        !categoryOptions.some((r) => r.value === currentId)
+      ) {
+        categoryOptions = [
+          ...categoryOptions,
+          { value: currentId, label: currentName || currentId },
+        ].sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+        );
+      }
       setCategory(categoryOptions);
     } finally {
       fetchRef.current = false;
     }
-  }, [lockCategory, setValue]);
+  }, [lockCategory, setValue, service]);
 
   useEffect(() => {
     void fetchDataFromApi();
@@ -228,24 +282,23 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   }, [isEditable, service?.is_active, setValue]);
 
   useEffect(() => {
-    if (service?.category_id && categories.length > 0) {
-      const selectedCategory = categories.find(
-        (category) => category.value === service.category_id
-      );
-
-      if (selectedCategory) {
-        setValue("category_id", service.category_id as any, {
-          shouldValidate: true,
-          shouldDirty: true,
-          shouldTouch: true,
-        });
-      }
+    if (!serviceCategoryId || categories.length === 0) return;
+    const selectedCategory = categories.find(
+      (category) => category.value === serviceCategoryId
+    );
+    if (selectedCategory) {
+      setValue("category_id", serviceCategoryId as any, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     }
-  }, [categories, service?.category_id, setValue]);
+  }, [categories, serviceCategoryId, setValue]);
 
   useEffect(() => {
     const t = mapPaymentTypeToMinDepositType(service);
     if (isEditable && t) {
+      prevPaymentTypeRef.current = t;
       setValue("min_deposit_type" as any, t, {
         shouldValidate: true,
         shouldDirty: true,
@@ -254,11 +307,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     }
   }, [isEditable, service, setValue]);
 
+  const isRequestService = Boolean((service as any)?.is_request);
   const approvalStatus = watch("approval_status");
   const approvalStatusDefaultForEdit =
     mapApprovalStatusFromService(service) === "pending"
       ? "approved"
       : mapApprovalStatusFromService(service);
+  const categoryIdWatch = watch("category_id");
 
   const serviceImagePath = useMemo(() => {
     if (!service) return "";
@@ -306,7 +361,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       return;
     }
 
-    const mdType = String((data as any).min_deposit_type ?? "").trim();
+    const mdType = extractMinDepositTypeKey(
+      String((data as any).min_deposit_type ?? "")
+    );
     const mdRaw = (data as any).min_deposit_value;
     const mdParsed =
       mdRaw === "" || mdRaw === undefined || mdRaw === null
@@ -323,21 +380,23 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       min_deposit_value:
         mdType === "per_consultancy" ? mdParsed : 0,
       minimum_deposit: mdParsed,
-      is_active: isEditable
-        ? data.approval_status !== "rejected"
-        : data.is_active,
+      is_active:
+        isEditable && isRequestService
+          ? data.approval_status !== "rejected"
+          : isTruthyFormBool(data.is_active),
       ...(isEditable &&
-        service?.is_request &&
+        isRequestService &&
         data.approval_status &&
         data.approval_status !== "pending" && {
           is_rejected: data.approval_status === "rejected",
         }),
-      ...(isEditable && {
-        rejection_reason:
-          data.approval_status === "rejected"
-            ? (data.rejection_reason ?? "").trim()
-            : "",
-      }),
+      ...(isEditable &&
+        isRequestService && {
+          rejection_reason:
+            data.approval_status === "rejected"
+              ? (data.rejection_reason ?? "").trim()
+              : "",
+        }),
       category_id: resolvedCategoryId,
       ...(image_url !== "" && { image_url }),
     };
@@ -477,7 +536,30 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
 
             <Row className="g-3 mt-1">
               <Col xs={12}>
-                <FullDetailsRow title="Description" value={service.desc ?? "-"} />
+                <p
+                  className="mb-1 small text-uppercase fw-semibold"
+                  style={{
+                    color: "var(--primary-color)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Description
+                </p>
+                <div
+                  className="mb-0 w-100"
+                  title={String(service.desc ?? "").trim() || undefined}
+                  style={{
+                    color: "var(--content-txt-color)",
+                    fontSize: "0.95rem",
+                    lineHeight: 1.45,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                  }}
+                >
+                  {service.desc?.trim() ? service.desc : "-"}
+                </div>
               </Col>
             </Row>
 
@@ -536,7 +618,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     error={errors.category_id}
                     asCol={false}
                     requiredMessage="Please select category"
-                    defaultValue={isEditable ? service?.category_id : ""}
+                    defaultValue={String(categoryIdWatch ?? "").trim()}
                     setValue={(name: string, value: any) => {
                       setValue(name as any, value, {
                         shouldValidate: true,
@@ -646,13 +728,19 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   requiredMessage="Please select payment type"
                   defaultValue={mapPaymentTypeToMinDepositType(service)}
                   setValue={(name: string, value: any) => {
+                    const next = String(value ?? "");
+                    const prev = prevPaymentTypeRef.current;
+                    prevPaymentTypeRef.current = next;
+
                     setValue(name as any, value, {
                       shouldValidate: true,
                       shouldDirty: true,
                       shouldTouch: true,
                     });
 
-                    if (value !== "per_consultancy") {
+                    // Only clear when leaving per_consultancy. Initial select sync calls this with
+                    // e.g. `per_month` and would otherwise erase API `minimum_deposit` / form reset.
+                    if (prev === "per_consultancy" && next !== "per_consultancy") {
                       setValue("min_deposit_value" as any, "" as any, {
                         shouldValidate: true,
                         shouldDirty: true,
@@ -721,7 +809,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               </Col>
 
               <Col md={6} className="mb-3">
-                {isEditable ? (
+                {isEditable && isRequestService ? (
                   <CustomRadioSelection
                     label="Approval status"
                     name="approval_status"
@@ -739,14 +827,18 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     name="is_active"
                     options={getStatusOptions()}
                     defaultValue={
-                      isEditable ? service?.is_active?.toString() : "true"
+                      isEditable
+                        ? service?.is_active !== undefined
+                          ? String(service.is_active)
+                          : "true"
+                        : "true"
                     }
                     isEditable={isEditable}
                     setValue={setValue}
                   />
                 )}
               </Col>
-              {isEditable && approvalStatus === "rejected" && (
+              {isEditable && isRequestService && approvalStatus === "rejected" && (
                 <Col md={12}>
                   <CustomFormInput
                     label="Rejection Note"

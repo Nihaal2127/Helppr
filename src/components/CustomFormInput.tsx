@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import { Eye, EyeOff } from "react-feather";
 import classNames from "classnames";
@@ -46,16 +46,19 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   autoComplete,
 }) => {
   const isControlled = value !== undefined;
-  const [inputValue, setInputValue] = useState<string>(String(value ?? ""));
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  useEffect(() => {
-    if (isControlled) {
-      setInputValue(String(value ?? ""));
-    }
-  }, [isControlled, value]);
+  const fieldRegistration = register(controlId, validation);
+  const { onChange: rhfOnChange, ...fieldReg } = fieldRegistration;
+
+  const handleFieldChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    rhfOnChange(e);
+    onChangeRef.current?.(e.target.value);
+  };
 
   return inputType === "password" ? (
     <Form.Group
@@ -71,16 +74,10 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           className="custom-form-input"
           type={showPassword ? "text" : "password"}
           placeholder={placeholder}
-          {...register(controlId, validation)}
+          {...fieldReg}
           isInvalid={!!error}
-          value={isControlled ? value : inputValue}
-          onChange={(e) => {
-            const next = e.target.value;
-            if (!isControlled) {
-              setInputValue(next);
-            }
-            onChangeRef.current?.(next);
-          }}
+          {...(isControlled ? { value: String(value ?? "") } : {})}
+          onChange={handleFieldChange}
           readOnly={!isEditable}
           autoComplete={autoComplete}
           maxLength={maxLength}
@@ -146,16 +143,10 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         className={classNames("custom-form-input", inputClassName)}
         type={inputType}
         placeholder={placeholder}
-        {...register(controlId, validation)}
+        {...fieldReg}
         isInvalid={!!error}
-        value={isControlled ? value : inputValue}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (!isControlled) {
-            setInputValue(next);
-          }
-          onChangeRef.current?.(next);
-        }}
+        {...(isControlled ? { value: String(value ?? "") } : {})}
+        onChange={handleFieldChange}
         readOnly={!isEditable}
         autoComplete={autoComplete}
         maxLength={maxLength}

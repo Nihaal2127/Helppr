@@ -4,9 +4,10 @@ import { CategoryModel } from "../models/CategoryModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
-export const fetchCategoryDropDown = async (
+/** Hoisted so helpers below never see an uninitialized binding (HMR / circular import edge cases). */
+export async function fetchCategoryDropDown(
   cityId?: string
-): Promise<{ value: string; label: string }[]> => {
+): Promise<{ value: string; label: string }[]> {
   const params = new URLSearchParams({
     ...(cityId && { city_id: cityId }),
   });
@@ -17,14 +18,14 @@ export const fetchCategoryDropDown = async (
 
   if (response.success) {
     return response.data.records.map((category: any) => ({
-      value: category._id,
-      label: category.name,
+      value: String(category._id ?? ""),
+      label: String(category.name ?? ""),
     }));
   } else {
     showLog(response.message || "Failed to fetch category");
     return [];
   }
-};
+}
 
 export const fetchCategory = async (
   page: number,
@@ -85,6 +86,54 @@ export const fetchCategory = async (
       totalRecords: 0,
     };
   }
+};
+
+/**
+ * Options for admin catalogue UIs (e.g. assign service → category).
+ * Paginates `GET /category/getAll` so the list is not limited like `getDropDown`,
+ * then merges `getDropDown` rows so nothing is missing if APIs differ.
+ */
+export const fetchCategoriesAsSelectOptions = async (opts?: {
+  pageSize?: number;
+  filters?: {
+    keyword?: string;
+    status?: string;
+    sort?: string;
+    is_request?: string;
+    is_rejected?: string;
+  };
+}): Promise<{ value: string; label: string }[]> => {
+  const pageSize = opts?.pageSize ?? 200;
+  const filters = opts?.filters ?? {};
+  const byId = new Map<string, { value: string; label: string }>();
+  let page = 1;
+  for (;;) {
+    const res = await fetchCategory(page, pageSize, filters, []);
+    if (!res.response) break;
+    for (const c of res.categories) {
+      const id = String((c as { _id?: string })._id ?? "").trim();
+      if (!id) continue;
+      byId.set(id, {
+        value: id,
+        label:
+          String((c as { name?: string }).name ?? "").trim() || id,
+      });
+    }
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 50) break;
+  }
+  try {
+    const drop = await fetchCategoryDropDown();
+    for (const o of drop) {
+      if (o.value && !byId.has(o.value)) byId.set(o.value, o);
+    }
+  } catch {
+    /* ignore */
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
 };
 
 export const deleteCategory = async (id: string): Promise<boolean> => {

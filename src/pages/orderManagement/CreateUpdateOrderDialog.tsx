@@ -23,7 +23,7 @@ import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { fetchUserDropDown } from "../../services/userService";
+import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
 import { getOffers } from "../../services/settingsService";
 import { UserModel } from "../../models/UserModel";
 import { getLocalStorage } from "../../helper/localStorageHelper";
@@ -277,7 +277,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
-      const { users } = await fetchUserDropDown(4);
+      const { users } = await fetchUserDropDown(APP_USER_TYPE.CUSTOMER);
       setSelectedUser(users.find((user) => user.phone_number === phone_number));
     } finally {
       fetchRef.current = false;
@@ -349,7 +349,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       })),
     ]);
     const loadEmployees = async () => {
-      const { users } = await fetchUserDropDown(2);
+      const { users } = await fetchUserDropDown(APP_USER_TYPE.FRANCHISE_EMPLOYEE);
       setEmployeeOptions(
         users.map((u) => ({
           value: u._id,
@@ -358,7 +358,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       );
     };
     const loadCustomers = async () => {
-      const { users } = await fetchUserDropDown(4);
+      const { users } = await fetchUserDropDown(APP_USER_TYPE.CUSTOMER);
       setCustomerUsers(users);
       setCustomerUserOptions(
         users.map((u) => ({

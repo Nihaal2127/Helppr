@@ -320,6 +320,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
         }}
         onMoreClick={() => {}}
         onSearch={(value) => handleFilterChange({ name: value })}
+        syncKeyword={filters.name ?? ""}
       />
       {portfolioFilterControls}
 

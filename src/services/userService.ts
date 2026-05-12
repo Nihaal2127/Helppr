@@ -17,14 +17,35 @@ import { mainMenuItems } from "../layout/menuItems";
 import { UserRole } from "../constant/AppConstant";
 
 /**
- * Web dashboard user `type` values (DB / `POST /user/create` / login `record.type`).
- * 1 Admin (franchise), 3 Employee, 5 Super Admin, 6 Staff — aligns with product enum.
+ * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /
+ * `GET /user/getDropDown?type=…`). Use these instead of inline numeric literals so we don't accidentally
+ * load partners where employees were intended.
+ *
+ * - `1` Franchise admin
+ * - `2` Partner
+ * - `3` Franchise employee
+ * - `4` User / customer
+ * - `5` Super admin
+ * - `6` Staff
  */
-export const WEB_MANAGEMENT_USER_TYPE = {
+export const APP_USER_TYPE = {
   FRANCHISE_ADMIN: 1,
+  PARTNER: 2,
   FRANCHISE_EMPLOYEE: 3,
+  CUSTOMER: 4,
   SUPER_ADMIN: 5,
   STAFF: 6,
+} as const;
+
+/**
+ * Web dashboard subset of `APP_USER_TYPE` — types that can sign into the web app.
+ * Excludes `PARTNER` (mobile partner app) and `CUSTOMER` (mobile customer app).
+ */
+export const WEB_MANAGEMENT_USER_TYPE = {
+  FRANCHISE_ADMIN: APP_USER_TYPE.FRANCHISE_ADMIN,
+  FRANCHISE_EMPLOYEE: APP_USER_TYPE.FRANCHISE_EMPLOYEE,
+  SUPER_ADMIN: APP_USER_TYPE.SUPER_ADMIN,
+  STAFF: APP_USER_TYPE.STAFF,
 } as const;
 
 /** Session role string stored under `AppConstant.userRole`, derived from `UserModel.type` after login. */
@@ -117,6 +138,8 @@ export type CreateWebManagementUserBody = {
   email: string;
   phone_number: string;
   type: number;
+  /** Required for most environments when creating a login-capable user. */
+  password?: string;
   /** Optional API status (typically `active` or `inactive`). */
   status?: string;
   is_from_web: boolean;
@@ -167,6 +190,10 @@ export const createWebManagementUser = async (
     is_from_web: body.is_from_web,
     created_by_id: body.created_by_id,
   };
+  const pw = String(body.password ?? "").trim();
+  if (pw) {
+    requestBody.password = pw;
+  }
   if (body.available_pages !== undefined) {
     requestBody.available_pages = pageRows;
     // Same as `available_pages` — server expects the same structure for `accessible_screens`.
@@ -256,15 +283,40 @@ export function menuKeysFromUserAccess(
   return Array.from(merged);
 }
 
+function hasPersistedMenuAccessKeys(): boolean {
+  const raw = getLocalStorage(AppConstant.userAccessibleMenuKeys);
+  if (!raw || !String(raw).trim()) return false;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return (
+      Array.isArray(parsed) &&
+      parsed.some((x) => String(x ?? "").trim().length > 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Refresh current session's accessible menu keys from `/user/get/:id`
  * without forcing logout/login.
  * Returns `true` when stored keys were updated.
+ *
+ * By default skips the HTTP call when `userAccessibleMenuKeys` is already
+ * populated (login persisted it). Pass `{ force: true }` to always refetch
+ * (e.g. after an admin updates your permissions).
  */
-export async function refreshSessionAccessibleMenuKeys(): Promise<boolean> {
+export async function refreshSessionAccessibleMenuKeys(options?: {
+  force?: boolean;
+}): Promise<boolean> {
+  const force = Boolean(options?.force);
   const authToken = String(getLocalStorage(AppConstant.authToken) ?? "").trim();
   const currentUserId = String(getLocalStorage(AppConstant.adminId) ?? "").trim();
   if (!authToken || !currentUserId) return false;
+
+  if (!force && hasPersistedMenuAccessKeys()) {
+    return false;
+  }
 
   const response = await apiRequest(
     `${ApiPaths.GET_USER_BY_ID()}/${currentUserId}`,
@@ -309,13 +361,46 @@ export async function refreshSessionAccessibleMenuKeys(): Promise<boolean> {
 /** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
 export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
 
+/** Staging/API may return `records` on `data`, `data.data`, or a bare array — keep dropdowns from going empty. */
+function extractUserDropDownRecords(data: unknown): UserModel[] {
+  if (Array.isArray(data)) return data as UserModel[];
+  if (!data || typeof data !== "object") return [];
+  const root = data as Record<string, unknown>;
+  if (Array.isArray(root.records)) return root.records as UserModel[];
+  const nested = root.data;
+  if (Array.isArray(nested)) return nested as UserModel[];
+  if (nested && typeof nested === "object") {
+    const inner = nested as Record<string, unknown>;
+    if (Array.isArray(inner.records)) return inner.records as UserModel[];
+    const deeper = inner.data;
+    if (Array.isArray(deeper)) return deeper as UserModel[];
+    if (deeper && typeof deeper === "object") {
+      const d2 = deeper as Record<string, unknown>;
+      if (Array.isArray(d2.records)) return d2.records as UserModel[];
+    }
+  }
+  return [];
+}
+
+export type UserDropDownExtraQuery = {
+  /** When set (e.g. super admin Add Quote), forwarded as `franchise_id` for scoped lists (`type=3` employees, often `type=4` customers). */
+  franchise_id?: string;
+};
+
+/**
+ * `GET /api/user/getDropDown?type=…` — `type` uses {@link APP_USER_TYPE} (`4` customer, `3` franchise employee, `2` partner, etc.).
+ * Optional `service_id` for partner-style lists; optional `franchise_id` when the API scopes dropdowns by franchise.
+ */
 export const fetchUserDropDown = async (
   type: number,
-  serviceId?: string
+  serviceId?: string,
+  extra?: UserDropDownExtraQuery
 ): Promise<{ users: UserModel[] }> => {
+  const fid = String(extra?.franchise_id ?? "").trim();
   const params = new URLSearchParams({
     type: String(type),
     ...(serviceId && { service_id: serviceId }),
+    ...(fid ? { franchise_id: fid } : {}),
   });
   const response = await apiRequest(
     `${ApiPaths.GET_USER_DROP_DOWN()}?${params.toString()}`,
@@ -324,7 +409,7 @@ export const fetchUserDropDown = async (
 
   if (response.success) {
     return {
-      users: response.data.records,
+      users: extractUserDropDownRecords(response.data),
     };
   } else {
     showLog(response.message || "Failed to fetch user");
@@ -332,6 +417,9 @@ export const fetchUserDropDown = async (
   }
 };
 
+/**
+ * `GET /api/user/getPartnerDropDown` — preferred for partner pickers when `service_id` is known (Postman: Quote / partner lists).
+ */
 export const fetchPartnerDropDown = async (
   serviceId?: string
 ): Promise<{ partners: UserModel[] }> => {
@@ -344,9 +432,7 @@ export const fetchPartnerDropDown = async (
   );
 
   if (response.success) {
-    return {
-      partners: response.data.records,
-    };
+    return { partners: extractUserDropDownRecords(response.data) };
   } else {
     showLog(response.message || "Failed to fetch partner");
     return { partners: [] };

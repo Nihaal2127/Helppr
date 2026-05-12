@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import classNames from "classnames";
 import { Form } from "react-bootstrap";
 import searchIcon from "../assets/icons/search.svg";
@@ -16,6 +16,11 @@ type CustomUtilityBoxProps = {
   onSortClick?: (sortValue: "-1" | "1") => void;
   onMoreClick?: () => void;
   onSearch?: (value: string) => void;
+  /**
+   * When set, the input text is replaced whenever this value changes (e.g. parent
+   * cleared filters or switched tabs). Omit for purely local search state.
+   */
+  syncKeyword?: string;
   hideMoreIcon?: boolean;
   /** When true, download / sort / more icons are hidden (search + optional slots only). */
   hideUtilityActions?: boolean;
@@ -37,6 +42,7 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
   titleSlot,
   searchHint = "",
   onSearch = () => {},
+  syncKeyword,
   onDownloadClick,
   onSortClick,
   onMoreClick,
@@ -51,6 +57,17 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
 }) => {
   const [searchValue, setSearchValue] = useState("");
   const [sortDirection, setSortDirection] = useState<"-1" | "1">("-1");
+
+  useEffect(() => {
+    if (syncKeyword === undefined) return;
+    setSearchValue(syncKeyword);
+  }, [syncKeyword]);
+
+  const showSearchClear = searchValue.trim().length > 0;
+  const clearSearch = () => {
+    setSearchValue("");
+    onSearch("");
+  };
 
   const handleEnterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -126,16 +143,30 @@ const CustomUtilityBox: React.FC<CustomUtilityBoxProps> = ({
                 fontSize: "14px",
                 fontWeight: "normal",
                 fontFamily: "Inter",
+                paddingRight: showSearchClear ? "4.5rem" : "2.75rem",
               }}
               onKeyDown={handleEnterKey}
             />
+            {showSearchClear ? (
+              <button
+                type="button"
+                className="custom-search-clear-btn"
+                aria-label="Clear search"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  clearSearch();
+                }}
+              >
+                ×
+              </button>
+            ) : null}
             <img
               src={searchIcon}
               alt="search"
               className="custom-search-icon"
               onClick={() => {
                 onSearch(searchValue);
-                setSearchValue("");
               }}
             />
           </div>

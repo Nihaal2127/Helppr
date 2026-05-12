@@ -35,12 +35,22 @@ export const ApiPaths = {
   DELETE_CITY: (id: string) => `/city/delete/${id}`,
   EXPORT_CITY: `/export/city`,
   GET_FRANCHISE_DROP_DOWN: () => "/franchise/getDropDown",
+  /** Scoped catalogue + people for a franchise (quote / order flows). */
+  GET_FRANCHISE_RELATED_CATALOG: (franchiseId: string) =>
+    `/franchise/related-catalog/${franchiseId}`,
   GET_FRANCHISE: () => "/franchise/getAll",
   GET_FRANCHISE_BY_ID: (id: string) => `/franchise/get/${id}`,
   CREATE_FRANCHISE: "/franchise/create",
   UPDATE_FRANCHISE: (id: string) => `/franchise/update/${id}`,
   DELETE_FRANCHISE: (id: string) => `/franchise/delete/${id}`,
   EXPORT_FRANCHISE: `/export/franchise`,
+  /** Franchise ↔ catalogue mapping (see API-Service-Category-Franchise-Requests.txt). */
+  GET_FRANCHISE_SERVICE_ALL: () => `/franchise-service/getAll`,
+  UPDATE_FRANCHISE_SERVICE: (id: string) =>
+    `/franchise-service/update/${id}`,
+  GET_FRANCHISE_CATEGORY_ALL: () => `/franchise-category/getAll`,
+  UPDATE_FRANCHISE_CATEGORY: (id: string) =>
+    `/franchise-category/update/${id}`,
   /** List — GET with query: page, limit, sort, name, city_id, state_id, is_active, pincode */
   GET_AREA: () => `/area/getAll`,
   GET_AREA_BY_ID: (id: string) => `/area/get/${id}`,
@@ -125,8 +135,17 @@ export const ApiPaths = {
     `/expense-category-management/update/${id}`,
   DELETE_EXPENSE_CATEGORY: (id: string) =>
     `/expense-category-management/delete/${id}`,
-  // Quotes management — GET query: page, limit, tab, keyword?, from_date?, to_date?, sort_by?, sort_order? (asc|desc)
+  // Quotes — see Help-PR-Area-Franchise-Subscription Postman folder "Quote"
   GET_QUOTES: () => `/quote/getAll`,
+  GET_QUOTE_BY_ID: (id: string) => `/quote/get/${id}`,
+  GET_QUOTE_CUSTOMER_QUOTES: () => `/quote/getCustomerQuotes`,
+  CREATE_QUOTE: () => `/quote/create`,
+  UPDATE_QUOTE: (id: string) => `/quote/update/${id}`,
+  APPROVE_QUOTE: (id: string) => `/quote/approve/${id}`,
+  REJECT_QUOTE: (id: string) => `/quote/reject/${id}`,
+  CANCEL_QUOTE: (id: string) => `/quote/cancel/${id}`,
+  CONVERT_QUOTE: (id: string) => `/quote/convert/${id}`,
+  DELETE_QUOTE: (id: string) => `/quote/delete/${id}`,
   // Partner management
   /** Global subscription tier catalog (Postman: `/subscription-plan/*`). */
   SUBSCRIPTION_PLAN_GET_ALL: () => `/subscription-plan/getAll`,

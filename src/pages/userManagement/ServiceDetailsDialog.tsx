@@ -33,6 +33,7 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState("");
   const fetchRef = useRef(false);
 
   const fetchData = useCallback(
@@ -216,7 +217,11 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
             <CustomServiceUtilityBox
               searchHint={"Search ID, Service Name"}
               showExtraActions={false}
-              onSearch={(value) => handleFilterChange({ keyword: value })}
+              syncKeyword={appliedSearchKeyword}
+              onSearch={(value) => {
+                setAppliedSearchKeyword(value);
+                void handleFilterChange({ keyword: value });
+              }}
             />
             <CustomServiceTable
               columns={serviceColumns}

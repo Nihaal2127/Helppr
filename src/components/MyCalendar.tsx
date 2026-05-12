@@ -436,6 +436,7 @@ const MyCalendar: React.FC = () => {
           onSearch={(value) => {
             setSearchKeyword(value);
           }}
+          syncKeyword={searchKeyword}
         />
       </div>
 

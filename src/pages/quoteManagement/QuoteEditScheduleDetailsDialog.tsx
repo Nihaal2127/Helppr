@@ -8,6 +8,7 @@ import CustomTimePicker from "../../components/CustomTimePicker";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { applyQuoteSchedulePatch } from "../../services/quoteService";
 
 export type QuoteScheduleDetailsPatch = {
   scheduled_date: string;
@@ -25,6 +26,7 @@ type SchedulePickerForm = {
 };
 
 type QuoteEditScheduleDetailsDialogProps = {
+  quoteMongoId: string;
   quoteId: string;
   defaults: {
     scheduled_date?: string;
@@ -106,11 +108,12 @@ function pickerStrToTimeDisplay(s: string | null): string {
 
 const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogProps> & {
   show: (
+    quoteMongoId: string,
     quoteId: string,
     defaults: QuoteEditScheduleDetailsDialogProps["defaults"],
     onSaved: (patch: QuoteScheduleDetailsPatch) => void
   ) => void;
-} = ({ quoteId, defaults, onClose, onSaved }) => {
+} = ({ quoteMongoId, quoteId, defaults, onClose, onSaved }) => {
   const { register, setValue } = useForm<SchedulePickerForm>({
     defaultValues: {
       scheduled_date: "",
@@ -150,7 +153,7 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
     defaults.status,
   ]);
 
-  const runSave = () => {
+  const runSave = async () => {
     if (!scheduledDateStr?.trim()) {
       showErrorAlert("Please select a scheduled date.");
       return;
@@ -171,12 +174,23 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
       showErrorAlert("End time must be after start time.");
       return;
     }
-    onSaved({
+    const patch: QuoteScheduleDetailsPatch = {
       scheduled_date: calendarDateToQuoteIso(scheduledDateStr),
       scheduled_time_from: fromLabel,
       scheduled_time_to: toLabel,
       status: quoteStatus,
-    });
+    };
+
+    const id = String(quoteMongoId ?? "").trim();
+    if (id) {
+      const ok = await applyQuoteSchedulePatch(id, patch);
+      if (!ok) {
+        showErrorAlert("Could not update schedule. Please try again.");
+        return;
+      }
+    }
+
+    onSaved(patch);
     showSuccessAlert("Schedule updated successfully.");
     onClose();
   };
@@ -330,12 +344,14 @@ const QuoteEditScheduleDetailsDialog: React.FC<QuoteEditScheduleDetailsDialogPro
 };
 
 QuoteEditScheduleDetailsDialog.show = (
+  quoteMongoId: string,
   quoteId: string,
   defaults: QuoteEditScheduleDetailsDialogProps["defaults"],
   onSaved: (patch: QuoteScheduleDetailsPatch) => void
 ) => {
   openDialog("quote-edit-schedule-details-modal", (close) => (
     <QuoteEditScheduleDetailsDialog
+      quoteMongoId={quoteMongoId}
       quoteId={quoteId}
       defaults={defaults}
       onClose={close}

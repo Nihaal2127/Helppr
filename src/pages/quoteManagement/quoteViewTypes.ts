@@ -1,5 +1,7 @@
 /** Shared quote view shape (modal + list mapping). No runtime imports — avoids circular chunks with Routes/apiHelper. */
 export type QuoteViewData = {
+  /** Quote document Mongo id (used on quote API paths as the path segment id). */
+  _id?: string;
   quote_id: string;
   status: string;
   requested_services: string;

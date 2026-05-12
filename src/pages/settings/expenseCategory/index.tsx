@@ -255,6 +255,12 @@ const ExpenseCategoryManagement = () => {
     setTablePage(1);
   };
 
+  const clearExpenseCategorySearch = () => {
+    setSearchDraft("");
+    setKeyword("");
+    setTablePage(1);
+  };
+
   const filterControls = (
     <Row className="row-cols-1 row-cols-sm-2 row-cols-md-auto gx-3 gy-2 mt-3 mb-3 align-items-end justify-content-end">
      
@@ -313,6 +319,8 @@ const ExpenseCategoryManagement = () => {
                 fontSize: "14px",
                 fontWeight: "normal",
                 fontFamily: "Inter",
+                paddingRight:
+                  searchDraft.trim() || keyword.trim() ? "4.5rem" : "2.75rem",
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -321,6 +329,20 @@ const ExpenseCategoryManagement = () => {
                 }
               }}
             />
+            {searchDraft.trim() || keyword.trim() ? (
+              <button
+                type="button"
+                className="custom-search-clear-btn"
+                aria-label="Clear search"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  clearExpenseCategorySearch();
+                }}
+              >
+                ×
+              </button>
+            ) : null}
             <img
               src={searchIcon}
               alt="search"

@@ -5,10 +5,10 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import { OrderModel } from "../../models/OrderModel";
 import { createOrUpdateOrder } from "../../services/orderService";
-import { fetchUserDropDown } from "../../services/userService";
+import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
 import { openDialog } from "../../helper/DialogManager";
 
-const EMPLOYEE_USER_TYPE = 2;
+const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
 
 type EditOrderEmployeeDialogProps = {
   orderDetails: OrderModel;

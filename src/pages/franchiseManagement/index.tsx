@@ -671,6 +671,7 @@ const FranchiseManagement = () => {
             </div>
           }
           onSearch={(value) => handleFilterChange({ search: value })}
+          syncKeyword={String(filters.search ?? "")}
           afterSearchSlot={
             <Button
               variant="outline-secondary"

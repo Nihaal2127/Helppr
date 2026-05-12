@@ -243,6 +243,7 @@ const NotificationsPage: React.FC = () => {
         onSearch={(value) => {
           setFilters((prev) => ({ ...prev, keyword: value }));
         }}
+        syncKeyword={filters.keyword}
       />
 
       <CustomTable

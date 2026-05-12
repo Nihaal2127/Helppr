@@ -215,6 +215,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         onSearch={(value: string) => {
           setSearchText(value);
         }}
+        syncKeyword={searchText}
       />
 
       <CustomTable

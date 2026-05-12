@@ -711,6 +711,11 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             handlePartnerSubscriptionFilterChange({ name: value });
           }
         }}
+        syncKeyword={
+          activeBox === "plans"
+            ? planFilters.name ?? ""
+            : partnerFilters.name ?? ""
+        }
       />
       {activeBox === "partner_subscription_list" && partnerFilterControls}
 

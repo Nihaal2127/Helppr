@@ -595,6 +595,7 @@ function ShowPartnerPayout() {
               setKeyword(value.trim());
               setLedgerPage(1);
             }}
+            syncKeyword={keyword}
             onDownloadClick={() => {}}
             onSortClick={() => {}}
             onMoreClick={() => {}}
