@@ -457,7 +457,8 @@ export const fetchUser = async (
   page: number,
   pageSize: number,
   filters: UserListFilters,
-  sortBy: ServerTableSortBy = []
+  sortBy: ServerTableSortBy = [],
+  signal?: AbortSignal
 ): Promise<{ response: boolean; users: UserModel[]; totalPages: number }> => {
   if (isVerification && !shouldUseRealVerificationApi()) {
     return getMockVerificationListPage(page, pageSize, filters);
@@ -510,8 +511,18 @@ export const fetchUser = async (
     `${
       isVerification ? ApiPaths.GET_VERIFICATION() : ApiPaths.GET_USER()
     }?${params.toString()}`,
-    "GET"
+    "GET",
+    undefined,
+    false,
+    false,
+    false,
+    false,
+    signal
   );
+
+  if ((response as { aborted?: boolean }).aborted) {
+    return { response: false, users: [], totalPages: 0 };
+  }
 
   if (response.success) {
     return {

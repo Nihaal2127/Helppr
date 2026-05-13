@@ -1597,14 +1597,6 @@ body:has(.modal.show ~ .modal.show) {
   padding-top: 8px !important;
 }
 
-.franchise-requested-category-thumb {
-  max-width: 120px;
-  max-height: 120px;
-  border-radius: 10px;
-  object-fit: cover;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
 .franchise-requested-category-form .form-label,
 .franchise-requested-category-form label {
   font-weight: 600;

@@ -278,10 +278,7 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   };
 
   const existingForUploader = useMemo(
-    () =>
-      request?.image_url && !String(request.image_url).startsWith("data:")
-        ? [request.image_url]
-        : [],
+    () => (request?.image_url ? [String(request.image_url)] : []),
     [request?.image_url]
   );
 
@@ -341,22 +338,6 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
           <label style={{ color: "var(--primary-color)" }}>
             Image size should be 512*512
           </label>
-          {request?.image_url &&
-          String(request.image_url).startsWith("data:") ? (
-            <div className="mt-2">
-              <p className="small text-muted mb-1">Current image</p>
-              <img
-                alt=""
-                src={request.image_url}
-                style={{
-                  maxWidth: 120,
-                  maxHeight: 120,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                }}
-              />
-            </div>
-          ) : null}
         </Col>
         <Col md={12}>
           <CustomFormInput

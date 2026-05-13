@@ -19,11 +19,8 @@ interface CustomImageUploaderProps {
 export function resolveExistingImageSrc(url?: string): string {
   const u = (url ?? "").trim();
   if (!u) return "";
-  if (
-    u.startsWith("http://") ||
-    u.startsWith("https://") ||
-    u.startsWith("data:")
-  ) {
+  if (u.startsWith("data:")) return u;
+  if (u.startsWith("http://") || u.startsWith("https://")) {
     return `${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
   }
   if (u.startsWith("//")) {
@@ -67,6 +64,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
 }) => {
   const [fileInputs, setFileInputs] = useState<(File | null)[]>([null]);
   const [replaceUrls, setReplaceUrls] = useState<string[]>([]);
+  const [dragDepth, setDragDepth] = useState(0);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const initKeyRef = useRef<string>("");
   const existingImagesKey = existingImages.join("|");
@@ -130,8 +128,24 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     inputRefs.current[index]?.click();
   };
 
-  const previewSize = maxFiles === 1 ? 132 : 100;
+  const previewSize = maxFiles === 1 ? 168 : 100;
   const isSingle = maxFiles === 1;
+  const isDragOver = dragDepth > 0;
+
+  const validateAndApplyFile = (index: number, selectedFile: File | null) => {
+    if (
+      selectedFile &&
+      !isSupportedImageFile(selectedFile)
+    ) {
+      showErrorAlert(
+        `Only ${extLabel} formats up to ${maxKb} KB are supported.`
+      );
+      const input = inputRefs.current[index];
+      if (input) input.value = "";
+      return;
+    }
+    handleFileChange(index, selectedFile);
+  };
 
   return (
     <Row className="w-100 g-0 mx-0">
@@ -160,6 +174,190 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
               const existing = (existingImages[index] ?? "").trim();
               const hasPreview = Boolean(file || existing);
 
+              if (isSingle) {
+                return (
+                  <div
+                    key={index}
+                    className="custom-image-uploader-single rounded-3 border overflow-hidden"
+                    style={{
+                      borderColor: isDragOver
+                        ? "var(--primary-color)"
+                        : "var(--txtfld-border)",
+                      background: "var(--bg-color)",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragDepth((d) => d + 1);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragDepth((d) => Math.max(0, d - 1));
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragDepth(0);
+                      const dropped = e.dataTransfer.files?.[0] ?? null;
+                      if (dropped) validateAndApplyFile(index, dropped);
+                    }}
+                  >
+                    <div
+                      className="d-flex flex-column flex-md-row align-items-stretch gap-3 p-3"
+                      style={{ minHeight: previewSize + 24 }}
+                    >
+                      <div
+                        className="position-relative flex-shrink-0 align-self-center align-self-md-start"
+                        style={{ width: previewSize, height: previewSize }}
+                      >
+                        <button
+                          type="button"
+                          className="border-0 p-0 bg-transparent w-100 h-100 rounded-2 overflow-hidden"
+                          onClick={() => openPicker(index)}
+                          aria-label={
+                            hasPreview
+                              ? "Replace image — choose file"
+                              : "Choose image file"
+                          }
+                          style={{
+                            cursor: "pointer",
+                            outline: "none",
+                            boxShadow: hasPreview
+                              ? "inset 0 0 0 1px var(--txtfld-border)"
+                              : "inset 0 0 0 2px dashed var(--txtfld-border)",
+                            background: "rgba(0,0,0,0.03)",
+                          }}
+                        >
+                          {file ? (
+                            <LocalFilePreview file={file} />
+                          ) : existing ? (
+                            <img
+                              alt=""
+                              src={resolveExistingImageSrc(existing)}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className="d-flex flex-column align-items-center justify-content-center px-2 h-100"
+                              style={{ minHeight: previewSize }}
+                            >
+                              <i
+                                className="bi bi-image"
+                                style={{
+                                  fontSize: "2rem",
+                                  color: "var(--primary-color)",
+                                  opacity: 0.85,
+                                  lineHeight: 1,
+                                }}
+                                aria-hidden
+                              />
+                              <span
+                                className="text-center mt-2 px-1"
+                                style={{
+                                  color: "var(--placeholder-txt)",
+                                  fontSize: 12,
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                No image yet
+                              </span>
+                            </div>
+                          )}
+                        </button>
+                        {file ? (
+                          <button
+                            type="button"
+                            className="position-absolute border-0 rounded-circle d-flex align-items-center justify-content-center"
+                            aria-label="Remove selected image"
+                            title="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleClearSlot(index);
+                            }}
+                            style={{
+                              top: 6,
+                              right: 6,
+                              width: 28,
+                              height: 28,
+                              fontSize: 16,
+                              lineHeight: 1,
+                              background: "rgba(255,255,255,0.96)",
+                              color: "#b02a37",
+                              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className="d-flex flex-column justify-content-center flex-grow-1"
+                        style={{ minWidth: 0, gap: 10 }}
+                      >
+                        <p
+                          className="small mb-0"
+                          style={{
+                            color: "var(--placeholder-txt)",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {extLabel} · up to {maxKb} KB. Drop a file on the
+                          preview or use the button.
+                        </p>
+                        <div className="d-flex flex-wrap align-items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline-primary"
+                            size="sm"
+                            className="text-nowrap px-3 py-2"
+                            style={{
+                              borderColor: "var(--primary-color)",
+                              color: "var(--primary-color)",
+                              fontWeight: 600,
+                              lineHeight: 1.25,
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openPicker(index);
+                            }}
+                          >
+                            <i className="bi bi-folder2-open me-2" aria-hidden />
+                            {hasPreview ? "Replace image" : "Choose image"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={(el) => {
+                        inputRefs.current[index] = el;
+                      }}
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const selectedFile = e.target.files?.[0] || null;
+                        validateAndApplyFile(index, selectedFile);
+                      }}
+                    />
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={index}
@@ -169,29 +367,18 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                     border: "1px solid var(--txtfld-border)",
                     background: "var(--bg-color)",
                     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                    width: isSingle ? "100%" : undefined,
-                    maxWidth: isSingle ? "100%" : undefined,
                     position: "relative",
-                    display: isSingle ? "flex" : undefined,
-                    flexDirection: isSingle ? "row" : undefined,
-                    alignItems: isSingle ? "stretch" : undefined,
-                    gap: isSingle ? 14 : undefined,
                   }}
                 >
                 <div
                   style={{
                     position: "relative",
                     flexShrink: 0,
-                    alignSelf: isSingle ? "center" : undefined,
                   }}
                 >
                   <button
                     type="button"
-                    className={
-                      isSingle
-                        ? "border-0 p-0 bg-transparent d-block"
-                        : "w-100 border-0 p-0 text-center bg-transparent"
-                    }
+                    className="w-100 border-0 p-0 text-center bg-transparent"
                     onClick={() => openPicker(index)}
                     aria-label="Choose image file"
                     style={{ cursor: "pointer" }}
@@ -200,7 +387,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                       style={{
                         width: previewSize,
                         height: previewSize,
-                        margin: isSingle ? 0 : "0 auto",
+                        margin: "0 auto",
                         borderRadius: 8,
                         border: hasPreview
                           ? "1px solid var(--txtfld-border)"
@@ -234,7 +421,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                           <i
                             className="bi bi-cloud-arrow-up"
                             style={{
-                              fontSize: isSingle ? "1.65rem" : "1.35rem",
+                              fontSize: "1.35rem",
                               color: "var(--primary-color)",
                               opacity: 0.92,
                               lineHeight: 1,
@@ -286,58 +473,6 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                   ) : null}
                 </div>
 
-                {isSingle ? (
-                  <div
-                    className="d-flex flex-column justify-content-center"
-                    style={{ flex: "1 1 0", minWidth: 0, gap: 8 }}
-                  >
-                    <p
-                      className="small mb-0"
-                      style={{ color: "var(--placeholder-txt)", lineHeight: 1.45 }}
-                    >
-                      {extLabel} · up to {maxKb} KB
-                    </p>
-                    {file ? (
-                      <p
-                        className="small fw-medium mb-0 text-truncate"
-                        style={{ color: "var(--content-txt-color)" }}
-                        title={file.name}
-                      >
-                        {file.name}
-                      </p>
-                    ) : existing ? (
-                      <p
-                        className="small mb-0"
-                        style={{ color: "var(--content-txt-color)", lineHeight: 1.45 }}
-                      >
-                        Preview shows your current image. Pick a new file to replace it.
-                      </p>
-                    ) : (
-                      <p
-                        className="small mb-0"
-                        style={{ color: "var(--content-txt-color)", lineHeight: 1.45 }}
-                      >
-                        Tap the preview or use the link below to choose a file.
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-link p-0 text-decoration-none align-self-start"
-                      style={{
-                        color: "var(--primary-color)",
-                        fontSize: "0.875rem",
-                        fontWeight: 600,
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        openPicker(index);
-                      }}
-                    >
-                      {hasPreview ? "Replace image" : "Browse files"}
-                    </button>
-                  </div>
-                ) : null}
-
                 <input
                   type="file"
                   ref={(el) => {
@@ -347,17 +482,7 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                   style={{ display: "none" }}
                   onChange={(e) => {
                     const selectedFile = e.target.files?.[0] || null;
-                    if (
-                      selectedFile &&
-                      !isSupportedImageFile(selectedFile)
-                    ) {
-                      showErrorAlert(
-                        `Only ${extLabel} formats up to ${maxKb} KB are supported.`
-                      );
-                      e.target.value = "";
-                      return;
-                    }
-                    handleFileChange(index, selectedFile);
+                    validateAndApplyFile(index, selectedFile);
                   }}
                 />
               </div>

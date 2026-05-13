@@ -1,6 +1,4 @@
 import { fetchArea } from "./areaService";
-import { fetchCategoryById } from "./categoryService";
-import { fetchServiceById } from "./servicesService";
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
@@ -96,6 +94,15 @@ type MyFranchiseBoxData = {
   requested_services: RequestedServiceRow[];
   requested_categories: RequestedCategoryRow[];
 };
+
+/** Subset of `MyFranchiseBoxData` the UI can lazy-load per tab / view mode. */
+export type MyFranchiseDataSlice =
+  | "employees"
+  | "areas"
+  | "services"
+  | "categories"
+  | "requested_services"
+  | "requested_categories";
 
 function normalizeBooleanLike(value: unknown): boolean {
   if (typeof value === "boolean") return value;
@@ -255,15 +262,61 @@ async function resolveSessionFranchiseId(): Promise<string | undefined> {
   }
 }
 
-const CATALOG_HYDRATE_CONCURRENCY = 8;
-
 type ServiceCatalogHint = { name?: string; category_name?: string };
+
+type CategoryCatalogHint = {
+  name?: string;
+  service_names?: string[];
+};
+
+/** Query options for franchise ↔ catalogue mapping lists (server filters rows). */
+export type FranchiseMappingFetchOpts = {
+  /** When set, `GET …/franchise-*-category|service/getAll?is_active=…` (franchise on/off). Omit = all. */
+  mappingIsActive?: boolean;
+};
+
+/** Options passed from My Franchise UI (summary Total / Active / Inactive + requested sub-mode). */
+export type MyFranchiseDataFetchOptions = {
+  franchiseMappingFilter?: "all" | "active" | "inactive";
+  /** Global `category` / `service` getAll when `is_request=true`; default pending queue. */
+  requestedApprovalStatus?: "pending" | "all";
+};
+
+export function myFranchiseDataCacheKey(
+  slice: MyFranchiseDataSlice,
+  opts?: MyFranchiseDataFetchOptions
+): string {
+  const m = opts?.franchiseMappingFilter ?? "all";
+  const r = opts?.requestedApprovalStatus ?? "pending";
+  switch (slice) {
+    case "categories":
+    case "services":
+      return `${slice}|m:${m}`;
+    case "requested_categories":
+    case "requested_services":
+      return `${slice}|r:${r}`;
+    default:
+      return slice;
+  }
+}
+
+function franchiseMappingIsActiveFromFetchOptions(
+  slice: MyFranchiseDataSlice,
+  opts?: MyFranchiseDataFetchOptions
+): boolean | undefined {
+  if (slice !== "categories" && slice !== "services") return undefined;
+  const f = opts?.franchiseMappingFilter ?? "all";
+  if (f === "all") return undefined;
+  return f === "active";
+}
 
 /** `GET …/franchise-service|category/getAll` — My Franchise catalogue (see API-Service-Category-Franchise-Requests.txt). */
 type FranchiseServiceMapCache = {
   mapId: string;
   franchise_id: string;
   services_list: { service_id: string; is_active: boolean }[];
+  /** Same response as `mergeFranchiseServiceListFromAllServices` — join locally, no per-id service GETs. */
+  all_services?: unknown[];
   /** Labels from embedded `service_id` on mapping GET (merged after PUT when API returns embeds). */
   serviceCatalogHints?: Record<string, ServiceCatalogHint>;
   active_services?: boolean;
@@ -275,6 +328,10 @@ type FranchiseCategoryMapCache = {
   mapId: string;
   franchise_id: string;
   categories_list: { category_id: string; is_active: boolean }[];
+  /** Same response as `mergeFranchiseCategoryListFromAllCategories` — join locally, no `GET /category/get/:id`. */
+  all_categories?: unknown[];
+  /** Labels when `categories_list` embeds populated `category_id` objects. */
+  categoryCatalogHints?: Record<string, CategoryCatalogHint>;
   active_categories?: boolean;
   inactive_categories?: boolean;
   order_number?: number;
@@ -330,7 +387,7 @@ function listPayloadRootArray(data: unknown, key: string): any[] {
     d.data && typeof d.data === "object" && !Array.isArray(d.data)
       ? (d.data as Record<string, unknown>)
       : d;
-  const arr = inner[key];
+  const arr = inner[key] ?? d[key];
   return Array.isArray(arr) ? arr : [];
 }
 
@@ -363,6 +420,50 @@ function buildServiceCatalogHintsFromRawList(
       }
     }
     hints[key] = { ...(hints[key] ?? {}), name, category_name };
+  }
+  return hints;
+}
+
+function buildCategoryCatalogHintsFromRawList(
+  rawList: unknown
+): Record<string, CategoryCatalogHint> {
+  const hints: Record<string, CategoryCatalogHint> = {};
+  if (!Array.isArray(rawList)) return hints;
+  for (const item of rawList) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const ref = row.category_id;
+    if (!ref || typeof ref !== "object") continue;
+    const rawDoc = ref as Record<string, unknown>;
+    const doc =
+      rawDoc._doc &&
+      typeof rawDoc._doc === "object" &&
+      !Array.isArray(rawDoc._doc)
+        ? (rawDoc._doc as Record<string, unknown>)
+        : rawDoc;
+    const id =
+      apiDocumentId(doc._id) || apiDocumentId(doc) || String(doc._id ?? "").trim();
+    if (!id) continue;
+    const key = id.trim().toLowerCase();
+    const name = String(doc.name ?? "").trim() || undefined;
+    let service_names: string[] | undefined;
+    const fromRelated = serviceNamesFromCategoryDoc(doc);
+    if (fromRelated.length) {
+      service_names = fromRelated;
+    } else {
+      const sn = doc.service_names;
+      if (Array.isArray(sn)) {
+        const names = sn
+          .map((x) => (typeof x === "string" ? x : String(x ?? "")).trim())
+          .filter(Boolean);
+        if (names.length) service_names = names;
+      }
+    }
+    hints[key] = {
+      ...(hints[key] ?? {}),
+      ...(name ? { name } : {}),
+      ...(service_names?.length ? { service_names } : {}),
+    };
   }
   return hints;
 }
@@ -454,6 +555,86 @@ function orderedServiceRows(
   );
 }
 
+/**
+ * When `GET …/franchise-service/getAll` returns `all_services`, use it as the full
+ * catalogue for My Franchise while keeping mapping `is_active` when the row exists
+ * in `services_list`, otherwise `franchise_active`. Same shape as category merge.
+ */
+function mergeFranchiseServiceListFromAllServices(
+  normalizedFromMap: { service_id: string; is_active: boolean }[],
+  allSvcs: unknown[] | undefined,
+  orderIds: unknown
+): { service_id: string; is_active: boolean }[] {
+  if (!Array.isArray(allSvcs) || !allSvcs.length) {
+    return orderedServiceRows(normalizedFromMap, orderIds);
+  }
+  const fromMap = new Map(
+    normalizedFromMap.map((s) => [s.service_id.trim().toLowerCase(), s.is_active])
+  );
+  const seen = new Set<string>();
+  const merged: { service_id: string; is_active: boolean }[] = [];
+
+  for (const item of allSvcs) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const sid =
+      apiDocumentId(o._id) || apiDocumentId(o) || String(o._id ?? "").trim();
+    if (!sid) continue;
+    const key = sid.trim().toLowerCase();
+    seen.add(key);
+    const fa = o.franchise_active;
+    const franchiseActive =
+      typeof fa === "boolean" ? fa : normalizeBooleanLike(fa ?? false);
+    const is_active = fromMap.has(key) ? fromMap.get(key)! : franchiseActive;
+    merged.push({ service_id: sid, is_active });
+  }
+
+  for (const row of normalizedFromMap) {
+    const key = row.service_id.trim().toLowerCase();
+    if (!seen.has(key)) {
+      merged.push(row);
+      seen.add(key);
+    }
+  }
+
+  return orderedServiceRows(merged, orderIds);
+}
+
+/** Hints keyed by catalogue service Mongo `_id` from flat `all_services` docs. */
+function buildServiceCatalogHintsFromServiceDocArray(
+  docs: unknown
+): Record<string, ServiceCatalogHint> {
+  const hints: Record<string, ServiceCatalogHint> = {};
+  if (!Array.isArray(docs)) return hints;
+  for (const item of docs) {
+    if (!item || typeof item !== "object") continue;
+    const doc = item as Record<string, unknown>;
+    const id =
+      apiDocumentId(doc._id) || apiDocumentId(doc) || String(doc._id ?? "").trim();
+    if (!id) continue;
+    const key = id.trim().toLowerCase();
+    const name = String(doc.name ?? "").trim() || undefined;
+    let category_name: string | undefined;
+    const flatCn = doc.category_name;
+    if (typeof flatCn === "string" && flatCn.trim()) {
+      category_name = flatCn.trim();
+    } else {
+      const cat = doc.category_id;
+      if (cat && typeof cat === "object") {
+        category_name =
+          String((cat as Record<string, unknown>).name ?? "").trim() ||
+          undefined;
+      }
+    }
+    hints[key] = {
+      ...(hints[key] ?? {}),
+      ...(name ? { name } : {}),
+      ...(category_name ? { category_name } : {}),
+    };
+  }
+  return hints;
+}
+
 /** Match catalogue `_id` to map `service_id` / `category_id` (case-insensitive 24-hex). */
 function idsLooselyEqual(a: string, b: string): boolean {
   const x = String(a ?? "").trim();
@@ -499,15 +680,24 @@ const franchiseCategoryMapInflight = new Map<
 >();
 
 async function fetchFranchiseServiceMapForFranchiseDeduped(
-  franchiseId: string
+  franchiseId: string,
+  mapOpts?: FranchiseMappingFetchOpts
 ): Promise<FranchiseServiceMapCache | null> {
   const fid = String(franchiseId ?? "").trim();
-  const dedupeKey =
-    fid || (isFranchiseCatalogTokenScoped() ? "__scoped__" : "");
-  if (!dedupeKey) return null;
+  const scoped = isFranchiseCatalogTokenScoped();
+  if (!scoped && !fid) return null;
+  const baseKey = fid || (scoped ? "__scoped__" : "");
+  if (!baseKey) return null;
+  const mapTag =
+    mapOpts?.mappingIsActive === true
+      ? "1"
+      : mapOpts?.mappingIsActive === false
+      ? "0"
+      : "all";
+  const dedupeKey = `${baseKey}|svc|map:${mapTag}`;
   const existing = franchiseServiceMapInflight.get(dedupeKey);
   if (existing) return existing;
-  const p = fetchFranchiseServiceMapForFranchise(fid).finally(() => {
+  const p = fetchFranchiseServiceMapForFranchise(fid, mapOpts).finally(() => {
     franchiseServiceMapInflight.delete(dedupeKey);
   });
   franchiseServiceMapInflight.set(dedupeKey, p);
@@ -515,15 +705,24 @@ async function fetchFranchiseServiceMapForFranchiseDeduped(
 }
 
 async function fetchFranchiseCategoryMapForFranchiseDeduped(
-  franchiseId: string
+  franchiseId: string,
+  mapOpts?: FranchiseMappingFetchOpts
 ): Promise<FranchiseCategoryMapCache | null> {
   const fid = String(franchiseId ?? "").trim();
-  const dedupeKey =
-    fid || (isFranchiseCatalogTokenScoped() ? "__scoped__" : "");
-  if (!dedupeKey) return null;
+  const scoped = isFranchiseCatalogTokenScoped();
+  if (!scoped && !fid) return null;
+  const baseKey = fid || (scoped ? "__scoped__" : "");
+  if (!baseKey) return null;
+  const mapTag =
+    mapOpts?.mappingIsActive === true
+      ? "1"
+      : mapOpts?.mappingIsActive === false
+      ? "0"
+      : "all";
+  const dedupeKey = `${baseKey}|cat|map:${mapTag}`;
   const existing = franchiseCategoryMapInflight.get(dedupeKey);
   if (existing) return existing;
-  const p = fetchFranchiseCategoryMapForFranchise(fid).finally(() => {
+  const p = fetchFranchiseCategoryMapForFranchise(fid, mapOpts).finally(() => {
     franchiseCategoryMapInflight.delete(dedupeKey);
   });
   franchiseCategoryMapInflight.set(dedupeKey, p);
@@ -604,7 +803,8 @@ function normalizeFranchiseCategoryList(
 }
 
 async function fetchFranchiseServiceMapForFranchise(
-  franchiseId: string
+  franchiseId: string,
+  mapOpts?: FranchiseMappingFetchOpts
 ): Promise<FranchiseServiceMapCache | null> {
   const fid = String(franchiseId ?? "").trim();
   const scoped = isFranchiseCatalogTokenScoped();
@@ -617,6 +817,9 @@ async function fetchFranchiseServiceMapForFranchise(
       limit: String(limit),
     });
     if (!scoped && fid) params.set("franchise_id", fid);
+    if (mapOpts?.mappingIsActive === true) params.set("is_active", "true");
+    else if (mapOpts?.mappingIsActive === false)
+      params.set("is_active", "false");
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
       `${ApiPaths.GET_FRANCHISE_SERVICE_ALL()}?${params.toString()}`,
@@ -632,18 +835,27 @@ async function fetchFranchiseServiceMapForFranchise(
     const raw = pickFranchiseScopedRecord(records, fid);
     if (raw) {
       const rowFid = apiDocumentId(raw?.franchise_id) || fid;
-      let services_list = normalizeFranchiseServiceList(raw?.services_list);
-      services_list = orderedServiceRows(services_list, raw?.services_order);
+      const normalized = normalizeFranchiseServiceList(raw?.services_list);
+      const allSvcs = listPayloadRootArray(response.data, "all_services");
+      const services_list = mergeFranchiseServiceListFromAllServices(
+        normalized,
+        allSvcs,
+        raw?.services_order
+      );
       if (services_list.length) {
         const mapId = String(raw?._id ?? "").trim();
         if (mapId) {
+          const hintsFromList = buildServiceCatalogHintsFromRawList(
+            raw?.services_list
+          );
+          const hintsFromAll =
+            buildServiceCatalogHintsFromServiceDocArray(allSvcs);
           return {
             mapId,
             franchise_id: rowFid,
             services_list,
-            serviceCatalogHints: buildServiceCatalogHintsFromRawList(
-              raw?.services_list
-            ),
+            ...(allSvcs.length ? { all_services: allSvcs } : {}),
+            serviceCatalogHints: { ...hintsFromAll, ...hintsFromList },
             active_services:
               typeof raw?.active_services === "boolean"
                 ? raw.active_services
@@ -667,7 +879,8 @@ async function fetchFranchiseServiceMapForFranchise(
 }
 
 async function fetchFranchiseCategoryMapForFranchise(
-  franchiseId: string
+  franchiseId: string,
+  mapOpts?: FranchiseMappingFetchOpts
 ): Promise<FranchiseCategoryMapCache | null> {
   const fid = String(franchiseId ?? "").trim();
   const scoped = isFranchiseCatalogTokenScoped();
@@ -680,6 +893,9 @@ async function fetchFranchiseCategoryMapForFranchise(
       limit: String(limit),
     });
     if (!scoped && fid) params.set("franchise_id", fid);
+    if (mapOpts?.mappingIsActive === true) params.set("is_active", "true");
+    else if (mapOpts?.mappingIsActive === false)
+      params.set("is_active", "false");
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
       `${ApiPaths.GET_FRANCHISE_CATEGORY_ALL()}?${params.toString()}`,
@@ -709,6 +925,10 @@ async function fetchFranchiseCategoryMapForFranchise(
             mapId,
             franchise_id: rowFid,
             categories_list,
+            all_categories: allCats,
+            categoryCatalogHints: buildCategoryCatalogHintsFromRawList(
+              raw?.categories_list
+            ),
             active_categories:
               typeof raw?.active_categories === "boolean"
                 ? raw.active_categories
@@ -765,120 +985,209 @@ async function fetchAreaRowsForMyFranchise(): Promise<AreaRow[] | null> {
   return all.map(mapApiAreaToFranchiseAreaRow);
 }
 
-async function fetchCategoryRowsForMyFranchise(): Promise<CategoryRow[] | null> {
-  const fid = (await resolveSessionFranchiseId()) ?? "";
-  if (!isFranchiseCatalogTokenScoped() && !fid) return [];
-  syncFranchiseMapCacheScope(fid);
-
-  const catMap = await fetchFranchiseCategoryMapForFranchiseDeduped(fid);
-  if (!catMap?.categories_list?.length) {
-    cachedFranchiseCategoryMap = null;
-    return [];
+function serviceNamesFromCategoryDoc(doc: Record<string, unknown>): string[] {
+  const related = doc.related_services;
+  if (Array.isArray(related) && related.length) {
+    const out: string[] = [];
+    for (const r of related) {
+      if (!r || typeof r !== "object") continue;
+      const o = r as Record<string, unknown>;
+      const nm = String(o.name ?? "").trim();
+      if (nm) {
+        out.push(nm);
+        continue;
+      }
+      const humanId = String(o.service_id ?? "").trim();
+      if (humanId) out.push(humanId);
+    }
+    if (out.length) return out;
   }
-  cachedFranchiseCategoryMap = catMap;
 
-  const list = catMap.categories_list;
-  const rows: CategoryRow[] = [];
-  for (let i = 0; i < list.length; i += CATALOG_HYDRATE_CONCURRENCY) {
-    const chunk = list.slice(i, i + CATALOG_HYDRATE_CONCURRENCY);
-    // eslint-disable-next-line no-await-in-loop
-    const chunkRows = await Promise.all(
-      chunk.map(async (entry) => {
-        const { response, category } = await fetchCategoryById(entry.category_id);
-        if (!response || !category) return null;
-        const id = String(category._id ?? entry.category_id).trim();
-        const sn = (category as { service_names?: unknown }).service_names;
-        const service_names = Array.isArray(sn)
-          ? sn.map((x) => String(x).trim()).filter(Boolean)
-          : [];
-        return {
-          _id: id,
-          category_id: String(category.category_id ?? id).trim() || id,
-          name: String(category.name ?? "").trim() || "-",
-          is_active: entry.is_active,
-          ...(service_names.length ? { service_names } : {}),
-        } as CategoryRow;
-      })
-    );
-    for (const r of chunkRows) {
-      if (r) rows.push(r);
+  const sn = doc.service_names;
+  if (Array.isArray(sn)) {
+    const out = sn
+      .map((x) =>
+        typeof x === "string" ? x.trim() : String(x ?? "").trim()
+      )
+      .filter(Boolean);
+    if (out.length) return out;
+  }
+
+  const idToName = new Map<string, string>();
+  if (Array.isArray(related)) {
+    for (const r of related) {
+      if (!r || typeof r !== "object") continue;
+      const o = r as Record<string, unknown>;
+      const id =
+        apiDocumentId(o._id) || apiDocumentId(o) || String(o._id ?? "").trim();
+      const nm = String(o.name ?? "").trim();
+      if (id && nm) idToName.set(id.trim().toLowerCase(), nm);
     }
   }
-  return rows;
+
+  const services = doc.services;
+  if (!Array.isArray(services)) return [];
+  const names: string[] = [];
+  for (const s of services) {
+    if (typeof s === "string") {
+      const t = s.trim();
+      if (!t) continue;
+      const resolved = idToName.get(t.toLowerCase());
+      if (resolved) {
+        names.push(resolved);
+      } else if (!/^[a-f0-9]{24}$/i.test(t)) {
+        names.push(t);
+      }
+    } else if (s && typeof s === "object") {
+      const nm = String((s as Record<string, unknown>).name ?? "").trim();
+      if (nm) names.push(nm);
+    }
+  }
+  return names;
 }
 
-async function fetchServiceRowsForMyFranchise(): Promise<ServiceRow[] | null> {
+/** One franchise-category GET supplies mapping + catalogue rows — no per-id category GETs. */
+function categoryRowsFromFranchiseCategoryMap(
+  catMap: FranchiseCategoryMapCache
+): CategoryRow[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const item of catMap.all_categories ?? []) {
+    if (!item || typeof item !== "object") continue;
+    const doc = item as Record<string, unknown>;
+    const id =
+      apiDocumentId(doc._id) ||
+      apiDocumentId(doc) ||
+      String(doc._id ?? "").trim();
+    if (id) byId.set(id.trim().toLowerCase(), doc);
+  }
+
+  return catMap.categories_list
+    .map((entry): CategoryRow | null => {
+      const cid = String(entry.category_id ?? "").trim();
+      if (!cid) return null;
+      const key = cid.toLowerCase();
+      const hint = catMap.categoryCatalogHints?.[key];
+      const doc = byId.get(key);
+      const name =
+        (hint?.name && String(hint.name).trim()) ||
+        (doc ? String(doc.name ?? "").trim() : "") ||
+        "-";
+      const fromHint = hint?.service_names?.length
+        ? hint.service_names.map((x) => String(x).trim()).filter(Boolean)
+        : [];
+      const fromDoc = doc ? serviceNamesFromCategoryDoc(doc) : [];
+      const service_names = fromHint.length > 0 ? fromHint : fromDoc;
+        return {
+        _id: cid,
+        category_id: cid,
+        name,
+          is_active: entry.is_active,
+          ...(service_names.length ? { service_names } : {}),
+      };
+    })
+    .filter((r): r is CategoryRow => r != null);
+}
+
+/** One franchise-service GET supplies mapping + `all_services` catalogue rows — no per-id service GETs. */
+function serviceRowsFromFranchiseServiceMap(
+  svcMap: FranchiseServiceMapCache
+): ServiceRow[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const item of svcMap.all_services ?? []) {
+    if (!item || typeof item !== "object") continue;
+    const doc = item as Record<string, unknown>;
+    const id =
+      apiDocumentId(doc._id) ||
+      apiDocumentId(doc) ||
+      String(doc._id ?? "").trim();
+    if (id) byId.set(id.trim().toLowerCase(), doc);
+  }
+
+  return svcMap.services_list
+    .map((entry): ServiceRow | null => {
+      const sid = String(entry.service_id ?? "").trim();
+      if (!sid) return null;
+      const key = sid.toLowerCase();
+      const hint = svcMap.serviceCatalogHints?.[key];
+      const doc = byId.get(key);
+      const mongoId =
+        doc
+          ? apiDocumentId(doc._id) ||
+            apiDocumentId(doc) ||
+            String(doc._id ?? "").trim() ||
+            sid
+          : sid;
+      const humanSvcId = doc
+        ? String(doc.service_id ?? "").trim() || mongoId
+        : mongoId;
+      const name =
+        (hint?.name && String(hint.name).trim()) ||
+        (doc ? String(doc.name ?? "").trim() : "") ||
+        "-";
+      let category_name =
+        (hint?.category_name && String(hint.category_name).trim()) || "";
+      if (!category_name && doc) {
+        const cat = doc.category_id;
+        if (cat && typeof cat === "object") {
+          category_name =
+            String((cat as Record<string, unknown>).name ?? "").trim() || "";
+        }
+      }
+      if (!category_name) category_name = "-";
+      return {
+        _id: mongoId,
+        service_id: humanSvcId,
+        name,
+        category_name,
+        is_active: entry.is_active,
+      };
+    })
+    .filter((r): r is ServiceRow => r != null);
+}
+
+async function fetchCategoryRowsForMyFranchise(
+  mapOpts?: FranchiseMappingFetchOpts
+): Promise<CategoryRow[] | null> {
   const fid = (await resolveSessionFranchiseId()) ?? "";
   if (!isFranchiseCatalogTokenScoped() && !fid) return [];
   syncFranchiseMapCacheScope(fid);
 
-  const svcMap = await fetchFranchiseServiceMapForFranchiseDeduped(fid);
-  if (!svcMap?.services_list?.length) {
-    cachedFranchiseServiceMap = null;
+  const catMap = await fetchFranchiseCategoryMapForFranchiseDeduped(
+    fid,
+    mapOpts
+  );
+  if (!catMap?.categories_list?.length) {
+    if (mapOpts?.mappingIsActive === undefined) {
+      cachedFranchiseCategoryMap = null;
+    }
     return [];
   }
-  cachedFranchiseServiceMap = svcMap;
-
-  const list = svcMap.services_list;
-  const rows: ServiceRow[] = [];
-  for (let i = 0; i < list.length; i += CATALOG_HYDRATE_CONCURRENCY) {
-    const chunk = list.slice(i, i + CATALOG_HYDRATE_CONCURRENCY);
-    // eslint-disable-next-line no-await-in-loop
-    const chunkRows = await Promise.all(
-      chunk.map(async (entry) => {
-        const sid = String(entry.service_id ?? "").trim();
-        const hintKey = sid.toLowerCase();
-        const hint = svcMap.serviceCatalogHints?.[hintKey];
-        let name = hint?.name?.trim() ?? "";
-        let category_name = hint?.category_name?.trim() ?? "";
-
-        if (!name || !category_name) {
-          const { response, service } = await fetchServiceById(entry.service_id);
-          if (!response || !service) return null;
-          const id = String(service._id ?? entry.service_id).trim();
-          if (!name) {
-            name = String(service.name ?? "").trim() || "-";
-          }
-          if (!category_name) {
-            category_name =
-              String(service.category_name ?? "").trim() || "";
-          }
-          if (!category_name || category_name === "-") {
-            const cid = apiDocumentId(
-              (service as { category_id?: unknown }).category_id
-            );
-            if (cid) {
-              const { response: cr, category } = await fetchCategoryById(cid);
-              if (cr && category) {
-                category_name =
-                  String(category.name ?? "").trim() || category_name || "-";
-              }
-            }
-          }
-          if (!category_name) category_name = "-";
-          return {
-            _id: id,
-            service_id: String(service.service_id ?? id).trim() || id,
-            name,
-            category_name,
-            is_active: entry.is_active,
-          } as ServiceRow;
-        }
-
-        return {
-          _id: sid,
-          service_id: sid,
-          name: name || "-",
-          category_name: category_name || "-",
-          is_active: entry.is_active,
-        } as ServiceRow;
-      })
-    );
-    for (const r of chunkRows) {
-      if (r) rows.push(r);
-    }
+  if (mapOpts?.mappingIsActive === undefined) {
+    cachedFranchiseCategoryMap = catMap;
   }
-  return rows;
+
+  return categoryRowsFromFranchiseCategoryMap(catMap);
+}
+
+async function fetchServiceRowsForMyFranchise(
+  mapOpts?: FranchiseMappingFetchOpts
+): Promise<ServiceRow[] | null> {
+  const fid = (await resolveSessionFranchiseId()) ?? "";
+  if (!isFranchiseCatalogTokenScoped() && !fid) return [];
+  syncFranchiseMapCacheScope(fid);
+
+  const svcMap = await fetchFranchiseServiceMapForFranchiseDeduped(fid, mapOpts);
+  if (!svcMap?.services_list?.length) {
+    if (mapOpts?.mappingIsActive === undefined) {
+    cachedFranchiseServiceMap = null;
+    }
+    return [];
+  }
+  if (mapOpts?.mappingIsActive === undefined) {
+  cachedFranchiseServiceMap = svcMap;
+  }
+
+  return serviceRowsFromFranchiseServiceMap(svcMap);
 }
 
 function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
@@ -915,9 +1224,9 @@ function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
   };
 }
 
-async function fetchEmployeeRowsForMyFranchise(): Promise<
-  EmployeeRow[] | null
-> {
+async function fetchEmployeeRowsForMyFranchise(
+  signal?: AbortSignal
+): Promise<EmployeeRow[] | null> {
   const currentUserRole = String(
     getLocalStorage(AppConstant.userRole) ?? ""
   ).trim();
@@ -934,6 +1243,7 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
   const all: any[] = [];
 
   for (let page = 1; page <= maxPages; page += 1) {
+    if (signal?.aborted) return null;
     // type=3 => franchise employee
     // franchise_id ensures only current franchise employees are listed.
     // eslint-disable-next-line no-await-in-loop
@@ -943,8 +1253,10 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
       page,
       pageSize,
       franchiseId ? { franchise_id: franchiseId } : {},
-      []
+      [],
+      signal
     );
+    if (signal?.aborted) return null;
     if (!res.response) return null;
     all.push(...(res.users ?? []));
     if (!res.totalPages || page >= res.totalPages) break;
@@ -954,17 +1266,24 @@ async function fetchEmployeeRowsForMyFranchise(): Promise<
 }
 
 async function fetchAllCategoryRows(
-  isRequest: boolean
+  isRequest: boolean,
+  opts?: { approval_status?: string }
 ): Promise<any[] | null> {
-  const limit = 100;
+  const limit = 200;
   const maxPages = 30;
   const all: any[] = [];
   for (let page = 1; page <= maxPages; page += 1) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      is_request: String(isRequest),
+    });
+    if (opts?.approval_status) {
+      params.set("approval_status", opts.approval_status);
+    }
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
-      `${ApiPaths.GET_CATEGORY()}?page=${page}&limit=${limit}&is_request=${String(
-        isRequest
-      )}`,
+      `${ApiPaths.GET_CATEGORY()}?${params.toString()}`,
       "GET",
       undefined,
       false,
@@ -982,16 +1301,25 @@ async function fetchAllCategoryRows(
   return all;
 }
 
-async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
-  const limit = 100;
+async function fetchAllServiceRows(
+  isRequest: boolean,
+  opts?: { approval_status?: string }
+): Promise<any[] | null> {
+  const limit = 200;
   const maxPages = 30;
   const all: any[] = [];
   for (let page = 1; page <= maxPages; page += 1) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      is_request: String(isRequest),
+    });
+    if (opts?.approval_status) {
+      params.set("approval_status", opts.approval_status);
+    }
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
-      `${ApiPaths.GET_SERVICE()}?page=${page}&limit=${limit}&is_request=${String(
-        isRequest
-      )}`,
+      `${ApiPaths.GET_SERVICE()}?${params.toString()}`,
       "GET",
       undefined,
       false,
@@ -1008,15 +1336,6 @@ async function fetchAllServiceRows(isRequest: boolean): Promise<any[] | null> {
   }
   return all;
 }
-
-/** Subset of `MyFranchiseBoxData` the UI can lazy-load per tab / view mode. */
-export type MyFranchiseDataSlice =
-  | "employees"
-  | "areas"
-  | "services"
-  | "categories"
-  | "requested_services"
-  | "requested_categories";
 
 const ALL_MY_FRANCHISE_SLICES: MyFranchiseDataSlice[] = [
   "employees",
@@ -1027,13 +1346,21 @@ const ALL_MY_FRANCHISE_SLICES: MyFranchiseDataSlice[] = [
   "requested_categories",
 ];
 
-/** Loads only the requested slices (parallel per slice). Use on My Franchise to avoid firing every `getAll` on initial paint. */
+/** Loads only the requested slices (parallel per slice). Pass `opts` so franchise mapping GETs use server-side filters (Total / Active / Inactive). */
 export async function fetchMyFranchiseDataSlices(
-  slices: readonly MyFranchiseDataSlice[]
+  slices: readonly MyFranchiseDataSlice[],
+  opts?: MyFranchiseDataFetchOptions
 ): Promise<Partial<MyFranchiseBoxData>> {
   const need = new Set(slices);
   const out: Partial<MyFranchiseBoxData> = {};
   const tasks: Promise<void>[] = [];
+
+  const svcMapOpts: FranchiseMappingFetchOpts = {
+    mappingIsActive: franchiseMappingIsActiveFromFetchOptions("services", opts),
+  };
+  const catMapOpts: FranchiseMappingFetchOpts = {
+    mappingIsActive: franchiseMappingIsActiveFromFetchOptions("categories", opts),
+  };
 
   if (need.has("employees")) {
     tasks.push(
@@ -1054,7 +1381,7 @@ export async function fetchMyFranchiseDataSlices(
   if (need.has("services")) {
     tasks.push(
       (async () => {
-        const r = await fetchServiceRowsForMyFranchise();
+        const r = await fetchServiceRowsForMyFranchise(svcMapOpts);
         out.services = r ?? [];
       })()
     );
@@ -1062,7 +1389,7 @@ export async function fetchMyFranchiseDataSlices(
   if (need.has("categories")) {
     tasks.push(
       (async () => {
-        const r = await fetchCategoryRowsForMyFranchise();
+        const r = await fetchCategoryRowsForMyFranchise(catMapOpts);
         out.categories = r ?? [];
       })()
     );
@@ -1070,7 +1397,12 @@ export async function fetchMyFranchiseDataSlices(
   if (need.has("requested_services")) {
     tasks.push(
       (async () => {
-        const raw = await fetchAllServiceRows(true);
+        const raw = await fetchAllServiceRows(
+          true,
+          opts?.requestedApprovalStatus === "all"
+            ? {}
+            : { approval_status: "pending" }
+        );
         out.requested_services = (raw ?? [])
           .filter(includeInFranchisePendingRequests)
           .map(mapApiRequestedServiceRow);
@@ -1080,7 +1412,12 @@ export async function fetchMyFranchiseDataSlices(
   if (need.has("requested_categories")) {
     tasks.push(
       (async () => {
-        const raw = await fetchAllCategoryRows(true);
+        const raw = await fetchAllCategoryRows(
+          true,
+          opts?.requestedApprovalStatus === "all"
+            ? {}
+            : { approval_status: "pending" }
+        );
         out.requested_categories = (raw ?? [])
           .filter(includeInFranchisePendingRequests)
           .map(mapApiRequestedCategoryRow);
@@ -1141,7 +1478,7 @@ async function ensureFranchiseServiceMapLoaded(): Promise<FranchiseServiceMapCac
   if (cachedFranchiseServiceMap?.services_list?.length) {
     return cachedFranchiseServiceMap;
   }
-  const map = await fetchFranchiseServiceMapForFranchiseDeduped(fid);
+  const map = await fetchFranchiseServiceMapForFranchiseDeduped(fid, {});
   if (map?.services_list?.length) {
     cachedFranchiseServiceMap = map;
     return map;
@@ -1156,7 +1493,7 @@ async function ensureFranchiseCategoryMapLoaded(): Promise<FranchiseCategoryMapC
   if (cachedFranchiseCategoryMap?.categories_list?.length) {
     return cachedFranchiseCategoryMap;
   }
-  const map = await fetchFranchiseCategoryMapForFranchiseDeduped(fid);
+  const map = await fetchFranchiseCategoryMapForFranchiseDeduped(fid, {});
   if (map?.categories_list?.length) {
     cachedFranchiseCategoryMap = map;
     return map;
@@ -1218,19 +1555,28 @@ export async function setServiceActive(
       );
       if (!response.success) return false;
       const rec = recordFromUpdateResponse(response.data);
-      const hintPatch = rec
-        ? buildServiceCatalogHintsFromRawList(rec.services_list)
-        : {};
+      const hintPatch = {
+        ...buildServiceCatalogHintsFromServiceDocArray(map.all_services ?? []),
+        ...(rec
+          ? buildServiceCatalogHintsFromRawList(rec.services_list)
+          : {}),
+      };
       if (rec) {
-        const next = normalizeFranchiseServiceList(rec.services_list);
-        if (next.length) {
+        const fromRec = normalizeFranchiseServiceList(rec.services_list);
+        const baseList = fromRec.length ? fromRec : services_list;
+        const next = mergeFranchiseServiceListFromAllServices(
+          baseList,
+          map.all_services,
+          rec.services_order
+        );
           cachedFranchiseServiceMap = {
             ...map,
-            services_list: next,
-            serviceCatalogHints: {
-              ...(map.serviceCatalogHints ?? {}),
-              ...hintPatch,
-            },
+          services_list: next.length ? next : baseList,
+          ...(map.all_services?.length ? { all_services: map.all_services } : {}),
+          serviceCatalogHints: {
+            ...(map.serviceCatalogHints ?? {}),
+            ...hintPatch,
+          },
             active_services:
               typeof rec.active_services === "boolean"
                 ? rec.active_services
@@ -1244,16 +1590,6 @@ export async function setServiceActive(
                 ? rec.order_number
                 : map.order_number,
           };
-        } else {
-          cachedFranchiseServiceMap = {
-            ...map,
-            services_list,
-            serviceCatalogHints: {
-              ...(map.serviceCatalogHints ?? {}),
-              ...hintPatch,
-            },
-          };
-        }
       } else {
         cachedFranchiseServiceMap = { ...map, services_list };
       }
@@ -1514,16 +1850,8 @@ export async function updateRequestedService(
 }
 
 export async function voidRequestedService(id: string): Promise<boolean> {
-  const response = await apiRequest(
-    ApiPaths.DELETE_SERVICE(id),
-    "DELETE",
-    undefined,
-    false,
-    false,
-    false,
-    true
-  );
-  return Boolean(response.success);
+  void id;
+  return false;
 }
 
 export type RequestedCategoryInput = {
@@ -1587,14 +1915,6 @@ export async function updateRequestedCategory(
 }
 
 export async function voidRequestedCategory(id: string): Promise<boolean> {
-  const response = await apiRequest(
-    ApiPaths.DELETE_CATEGORY(id),
-    "DELETE",
-    undefined,
-    false,
-    false,
-    false,
-    true
-  );
-  return Boolean(response.success);
+  void id;
+  return false;
 }

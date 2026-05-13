@@ -16,7 +16,9 @@ export const apiRequest = async (
   skipLoader: boolean = false,
   suppressErrorAlert: boolean = false,
   /** When true, non-GET success responses do not show the global “Operation successful” toast. */
-  suppressSuccessAlert: boolean = false
+  suppressSuccessAlert: boolean = false,
+  /** When aborted, the promise resolves with `{ success: false, aborted: true }` (no error toast). */
+  signal?: AbortSignal
 ) => {
   try {
     if (!skipLoader) showLoader();
@@ -42,6 +44,7 @@ export const apiRequest = async (
     const response = await fetch(requestUrl, {
       method,
       headers,
+      ...(signal ? { signal } : {}),
       ...(method !== "GET" && payload !== undefined
         ? { body: isMultipart ? payload : JSON.stringify(payload) }
         : {}),
@@ -101,6 +104,10 @@ export const apiRequest = async (
   } catch (error: any) {
     if (!skipLoader) hideLoader();
     showLog("API Error:", error);
+
+    if (error?.name === "AbortError") {
+      return { success: false, aborted: true as const, error: "aborted" };
+    }
 
     const errorMessage =
       error?.message === "Failed to fetch"

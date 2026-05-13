@@ -64,7 +64,10 @@ const requestStatusCell = () => ({ row }: { row: any }) => {
 };
 
 const ServiceManagement = () => {
-  const { register, setValue } = useForm<any>();
+  const { register, setValue, watch } = useForm<any>({
+    defaultValues: { franchise_id: "all" },
+  });
+  const headerFranchiseId = watch("franchise_id") as string | undefined;
   const [selectedBox, setSelectedBox] = useState<string>("box-category");
   const [categoryData, setCategoryData] = useState<Record<string, number>>({});
   const [serviceData, setServiceData] = useState<Record<string, number>>({});
@@ -93,9 +96,15 @@ const ServiceManagement = () => {
   const fetchGenerationRef = useRef(0);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
 
-  /** Overall totals from `POST /api/getCount` with `{ type: "service-management" }` — independent of table filters. */
+  /** Overall totals from `POST /api/getCount` with `{ type: "service-management", franchise_id? }` — header franchise scopes counts for admin/staff. */
   const refreshSummaryCounts = useCallback(async () => {
-    const { responseCount, countModel } = await getCount("service-management");
+    const fid = String(headerFranchiseId ?? "").trim();
+    const scope =
+      fid && fid !== "all" ? { franchise_id: fid } : undefined;
+    const { responseCount, countModel } = await getCount(
+      "service-management",
+      scope
+    );
     if (!responseCount || !countModel) return;
     setCategoryData({
       Total: countModel.total_category ?? 0,
@@ -111,7 +120,7 @@ const ServiceManagement = () => {
       requested_service:
         countModel.requested_service ?? countModel.total_requestedservice ?? 0,
     });
-  }, []);
+  }, [headerFranchiseId]);
 
   const fetchData = useCallback(
     async (

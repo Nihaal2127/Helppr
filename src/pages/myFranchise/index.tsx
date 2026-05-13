@@ -12,7 +12,11 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import {
+  showErrorAlert,
+  showInfoAlert,
+  showSuccessAlert,
+} from "../../helper/alertHelper";
 import { statusCell } from "../../helper/utility";
 import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
@@ -20,6 +24,7 @@ import type {
   AreaRow,
   CategoryRow,
   EmployeeRow,
+  MyFranchiseDataFetchOptions,
   MyFranchiseDataSlice,
   RequestedCategoryRow,
   RequestedServiceRow,
@@ -27,6 +32,7 @@ import type {
 } from "../../services/myFranchiseService";
 import {
   fetchMyFranchiseDataSlices,
+  myFranchiseDataCacheKey,
   setCategoryActive as apiSetCategoryActive,
   setEmployeeChatEnabled as apiSetEmployeeChatEnabled,
   setServiceActive as apiSetServiceActive,
@@ -274,7 +280,40 @@ const MyFranchise = () => {
     categories: Record<string, number>;
   } | null>(null);
 
-  const loadedSlicesRef = useRef<Set<MyFranchiseDataSlice>>(new Set());
+  const loadedKeysRef = useRef<Set<string>>(new Set());
+
+  const myFranchiseFetchOptions = useMemo((): MyFranchiseDataFetchOptions => {
+    const o: MyFranchiseDataFetchOptions = {};
+    if (
+      selectedBox === "box-categories" &&
+      categoriesViewMode === "catalog"
+    ) {
+      o.franchiseMappingFilter =
+        statusFilter === "true"
+          ? "active"
+          : statusFilter === "false"
+          ? "inactive"
+          : "all";
+    } else if (
+      selectedBox === "box-services" &&
+      servicesViewMode === "catalog"
+    ) {
+      o.franchiseMappingFilter =
+        statusFilter === "true"
+          ? "active"
+          : statusFilter === "false"
+          ? "inactive"
+          : "all";
+    }
+    if (
+      (selectedBox === "box-categories" &&
+        categoriesViewMode === "requested") ||
+      (selectedBox === "box-services" && servicesViewMode === "requested")
+    ) {
+      o.requestedApprovalStatus = "pending";
+    }
+    return o;
+  }, [selectedBox, categoriesViewMode, servicesViewMode, statusFilter]);
 
   const mapEmployeesWithChat = useCallback((rows: EmployeeRow[]) => {
     return rows.map((e) => ({
@@ -294,12 +333,15 @@ const MyFranchise = () => {
   }, []);
 
   const hydrateFranchiseSlices = useCallback(
-    async (slices: MyFranchiseDataSlice[], opts?: { force?: boolean }) => {
+    async (slices: MyFranchiseDataSlice[]) => {
       const need = slices.filter(
-        (s) => opts?.force || !loadedSlicesRef.current.has(s)
+        (s) =>
+          !loadedKeysRef.current.has(
+            myFranchiseDataCacheKey(s, myFranchiseFetchOptions)
+          )
       );
       if (need.length === 0) return;
-      const data = await fetchMyFranchiseDataSlices(need);
+      const data = await fetchMyFranchiseDataSlices(need, myFranchiseFetchOptions);
       if (data.employees) {
         setEmployees(mapEmployeesWithChat(data.employees as EmployeeRow[]));
       }
@@ -320,21 +362,14 @@ const MyFranchise = () => {
           data.requested_categories as RequestedCategoryRow[]
         );
       }
-      need.forEach((s) => loadedSlicesRef.current.add(s));
+      need.forEach((s) =>
+        loadedKeysRef.current.add(
+          myFranchiseDataCacheKey(s, myFranchiseFetchOptions)
+        )
+      );
     },
-    [mapEmployeesWithChat]
+    [mapEmployeesWithChat, myFranchiseFetchOptions]
   );
-
-  const reloadFranchiseData = useCallback(async () => {
-    await refreshMyFranchiseCountSummaries();
-    const loaded = Array.from(
-      loadedSlicesRef.current
-    ) as MyFranchiseDataSlice[];
-    if (loaded.length === 0) {
-      return;
-    }
-    await hydrateFranchiseSlices(loaded, { force: true });
-  }, [hydrateFranchiseSlices, refreshMyFranchiseCountSummaries]);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,11 +401,26 @@ const MyFranchise = () => {
     }
   }, [selectedBox, servicesViewMode, categoriesViewMode]);
 
+  const reloadFranchiseData = useCallback(async () => {
+    await refreshMyFranchiseCountSummaries();
+    loadedKeysRef.current.clear();
+    await hydrateFranchiseSlices(slicesForCurrentSelection);
+  }, [
+    hydrateFranchiseSlices,
+    refreshMyFranchiseCountSummaries,
+    slicesForCurrentSelection,
+  ]);
+
   /** Load table data only for the active section (and catalog vs requested sub-mode). */
   useEffect(() => {
     if (slicesForCurrentSelection.length === 0) return;
     void hydrateFranchiseSlices(slicesForCurrentSelection);
-  }, [selectedBox, slicesForCurrentSelection, hydrateFranchiseSlices]);
+  }, [
+    selectedBox,
+    slicesForCurrentSelection,
+    hydrateFranchiseSlices,
+    myFranchiseFetchOptions,
+  ]);
 
   const handleEmployeeVoid = useCallback(
     (id: string) => {
@@ -383,6 +433,8 @@ const MyFranchise = () => {
           if (ok) {
             showSuccessAlert("Employee voided");
             await reloadFranchiseData();
+          } else {
+            showInfoAlert("Void is display-only — nothing was removed.");
           }
         }
       );
@@ -694,6 +746,8 @@ const MyFranchise = () => {
           if (ok) {
             showSuccessAlert("Service request voided");
             await reloadFranchiseData();
+          } else {
+            showInfoAlert("Void is display-only — nothing was removed.");
           }
         }
       );
@@ -712,6 +766,8 @@ const MyFranchise = () => {
           if (ok) {
             showSuccessAlert("Category request voided");
             await reloadFranchiseData();
+          } else {
+            showInfoAlert("Void is display-only — nothing was removed.");
           }
         }
       );
@@ -1112,7 +1168,7 @@ const MyFranchise = () => {
         title: "Categories",
         data: categoriesSummaryForBox,
         isAddShow: true,
-        addLabel: "Add category",
+        addLabel: "Add Request",
         onAdd: () => {
           RequestedCategoryDialog.showAdd(() => {
             void reloadFranchiseData();
@@ -1124,7 +1180,7 @@ const MyFranchise = () => {
         title: "Services",
         data: servicesSummaryForBox,
         isAddShow: true,
-        addLabel: "Add service",
+        addLabel: "Add Request",
         onAdd: () => {
           RequestedServiceDialog.showAdd(categorySelectOptions, () => {
             void reloadFranchiseData();

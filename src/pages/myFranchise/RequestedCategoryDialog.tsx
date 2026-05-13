@@ -212,10 +212,7 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   };
 
   const existingForUploader = useMemo(
-    () =>
-      request?.image_url && !String(request.image_url).startsWith("data:")
-        ? [request.image_url]
-        : [],
+    () => (request?.image_url ? [String(request.image_url)] : []),
     [request?.image_url]
   );
 
@@ -251,20 +248,6 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
               setFileInputs(files);
             }}
           />
-          <p className="small text-muted mb-0 mt-1 franchise-requested-category-image-hint">
-            Square image recommended (e.g. 512×512 px).
-          </p>
-          {request?.image_url &&
-          String(request.image_url).startsWith("data:") ? (
-            <div className="mt-2">
-              <p className="small text-muted mb-1">Current image</p>
-              <img
-                alt=""
-                src={request.image_url}
-                className="franchise-requested-category-thumb"
-              />
-            </div>
-          ) : null}
         </Col>
         <Col xs={12} md={6}>
           <CustomFormInput
