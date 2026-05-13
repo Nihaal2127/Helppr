@@ -113,7 +113,10 @@ const PARTNER_PLAN_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
-  const { register, setValue } = useForm<any>();
+  const { register, setValue, watch } = useForm<any>({
+    defaultValues: { franchise_id: "all" },
+  });
+  const headerFranchiseId = watch("franchise_id") as string | undefined;
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isFranchiseAdminSession = currentUserRole === UserRole.FRANCHISE_ADMIN;
   const isSuperAdminOrStaff =
@@ -211,11 +214,17 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     setCurrentPage(1);
   }, [selectedBox]);
 
-  /** Summary boxes: POST /getCount with type partner-management (once on mount). */
+  /** Summary boxes: `POST /getCount` `{ type: "partner-management", franchise_id? }`. */
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { responseCount, countModel } = await getCount("partner-management");
+      const fid = String(headerFranchiseId ?? "").trim();
+      const scope =
+        fid && fid !== "all" ? { franchise_id: fid } : undefined;
+      const { responseCount, countModel } = await getCount(
+        "partner-management",
+        scope
+      );
       if (cancelled || !responseCount || !countModel) return;
       setPlanData({
         Total: Number(countModel.total_plans ?? 0),
@@ -231,7 +240,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [headerFranchiseId]);
 
   const fetchData = useCallback(async () => {
     if (fetchRef.current) return;

@@ -22,7 +22,10 @@ import { fetchArea } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
-import { fetchService } from "../../services/servicesService";
+import {
+  fetchService,
+  normalizeServiceCategoryRef,
+} from "../../services/servicesService";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
@@ -51,6 +54,7 @@ import type {
   PartnerCategoryBlock,
   PartnerCatalogServiceLite,
   PartnerServiceRow,
+  PartnerCatalogFlattenOk,
 } from "./partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
 
@@ -239,46 +243,25 @@ function AddEditUserDialogView({
   useEffect(() => {
     if (!(isAddPartner || isPartnerEdit)) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const svcRes = await fetchService(1, 500, {});
-        if (cancelled) return;
-        const list =
-          svcRes?.response && Array.isArray(svcRes.services)
-            ? svcRes.services
-            : [];
-        setAllServices(
-          list.map((s) => ({
-            _id: String((s as { _id?: string })._id ?? ""),
-            name: String((s as { name?: string }).name ?? ""),
-            category_id: String(
-              (s as { category_id?: string }).category_id ?? ""
-            ),
-            category_name: (s as { category_name?: string }).category_name
-              ? String((s as { category_name?: string }).category_name)
-              : undefined,
-            desc: String((s as { desc?: string }).desc ?? ""),
-            price:
-              (s as { price?: number | null }).price !== undefined &&
-              (s as { price?: number | null }).price !== null
-                ? Number((s as { price?: number }).price)
-                : undefined,
-          }))
-        );
-      } catch {
-        if (!cancelled) setAllServices([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAddPartner, isPartnerEdit]);
 
-  useEffect(() => {
-    if (!(isAddPartner || isPartnerEdit)) return;
-    let cancelled = false;
-    const effectiveCityId =
-      watchedCityId || (isPartnerEdit ? user?.city_id ?? "" : "");
+    const cityId = String(
+      watchedCityId || (isPartnerEdit ? user?.city_id ?? "" : "")
+    ).trim();
+    const stateId = String(
+      watchedStateId || (isPartnerEdit ? user?.state_id ?? "" : "")
+    ).trim();
+
+    if (!cityId) {
+      setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+      setAllServices([]);
+      if (isAddPartner) {
+        setCategoryIds([]);
+        setServiceIds([]);
+        setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+      }
+      return;
+    }
+
     if (isAddPartner) {
       setCategoryIds([]);
       setServiceIds([]);
@@ -292,10 +275,18 @@ function AddEditUserDialogView({
       setCategoryIds([]);
       setServiceIds([]);
     }
+
     void (async () => {
       try {
-        const cats = await fetchCategoryDropDown(effectiveCityId || undefined);
+        const [cats, svcRes] = await Promise.all([
+          fetchCategoryDropDown(cityId),
+          fetchService(1, 500, {
+            city_id: cityId,
+            ...(stateId ? { state_id: stateId } : {}),
+          }),
+        ]);
         if (cancelled) return;
+
         const catList = Array.isArray(cats)
           ? cats.filter((c: OptionType) => c?.value)
           : [];
@@ -303,15 +294,48 @@ function AddEditUserDialogView({
           { value: "select-all", label: "Select All" },
           ...catList,
         ]);
+
+        const list =
+          svcRes?.response && Array.isArray(svcRes.services)
+            ? svcRes.services
+            : [];
+        setAllServices(
+          list.map((s) => ({
+            _id: String((s as { _id?: string })._id ?? ""),
+            name: String((s as { name?: string }).name ?? ""),
+            category_id: normalizeServiceCategoryRef(
+              (s as { category_id?: unknown }).category_id
+            ),
+            category_name: (s as { category_name?: string }).category_name
+              ? String((s as { category_name?: string }).category_name)
+              : undefined,
+            desc: String((s as { desc?: string }).desc ?? ""),
+            price:
+              (s as { price?: number | null }).price !== undefined &&
+              (s as { price?: number | null }).price !== null
+                ? Number((s as { price?: number }).price)
+                : undefined,
+          }))
+        );
       } catch {
-        if (!cancelled)
+        if (!cancelled) {
           setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+          setAllServices([]);
+        }
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [isAddPartner, isPartnerEdit, watchedCityId, user?.city_id]);
+  }, [
+    isAddPartner,
+    isPartnerEdit,
+    watchedCityId,
+    watchedStateId,
+    user?.city_id,
+    user?.state_id,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -409,9 +433,15 @@ function AddEditUserDialogView({
   }, [isPartnerEdit, user?._id]);
 
   const categorySelectOptions = useMemo((): OptionType[] => {
+    if (isAddPartner) {
+      const cid = String(watchedCityId ?? "").trim();
+      if (!cid) {
+        return [{ value: "", label: "Select city first" }];
+      }
+    }
     const rest = categoryOptions.filter((c) => c.value !== "select-all");
     return [{ value: "", label: "Select category" }, ...rest];
-  }, [categoryOptions]);
+  }, [categoryOptions, isAddPartner, watchedCityId]);
 
   const catalogServicesForBlocks = useMemo((): PartnerCatalogServiceLite[] => {
     return allServices.map((s) => ({
@@ -554,6 +584,7 @@ function AddEditUserDialogView({
   }, [serviceIds, allServices, isAddPartner, isPartnerEdit]);
 
   const onSubmitEvent = async (data: AddEditUserFormValues) => {
+    let partnerCatalogFlat: PartnerCatalogFlattenOk | null = null;
     let profile_url = "";
     if (fileInputs.length > 0) {
       const formData = new FormData();
@@ -597,6 +628,7 @@ function AddEditUserDialogView({
           showErrorAlert(catalogFlat.message);
           return;
         }
+        partnerCatalogFlat = catalogFlat;
       } else {
         if (categoryIds.length === 0) {
           showErrorAlert("Please select at least one category.");
@@ -664,27 +696,21 @@ function AddEditUserDialogView({
           confirm_password: String(data.confirm_password ?? "").trim(),
         }),
       ...(role === PARTNER_ROLE &&
-        (isAddPartner
-          ? (() => {
-              const catalogFlat = flattenPartnerBlocksForSave(
-                partnerCatalogBlocks,
-                catalogServicesForBlocks
-              );
-              if (!catalogFlat.ok) {
-                return {};
-              }
-              return {
-                category_ids: catalogFlat.category_ids,
-                service_ids: catalogFlat.service_ids,
-                service_names: catalogFlat.service_names,
-                service_descriptions: catalogFlat.service_descriptions,
-                service_prices: catalogFlat.service_prices,
-              };
-            })()
-          : {
+        (isAddPartner && partnerCatalogFlat
+          ? {
+              category_ids: partnerCatalogFlat.category_ids,
+              service_ids: partnerCatalogFlat.service_ids,
+              service_names: partnerCatalogFlat.service_names,
+              service_descriptions: partnerCatalogFlat.service_descriptions,
+              service_prices: partnerCatalogFlat.service_prices,
+              partner_services: partnerCatalogFlat.partner_services,
+            }
+          : isPartnerEdit
+          ? {
               category_ids: categoryIds,
               service_ids: serviceIds,
-            })),
+            }
+          : {})),
       ...(isAddPartner && {
         bank_account: {
           account_holder_name: (data.partner_bank_holder ?? "").trim(),
@@ -1156,6 +1182,11 @@ function AddEditUserDialogView({
                   style={{ padding: "10px" }}
                 >
                   <h3 className="mb-2">Categories and services</h3>
+                  {isAddPartner && !String(watchedCityId ?? "").trim() ? (
+                    <p className="text-muted small mb-3">
+                      Select state and city above to load categories and services.
+                    </p>
+                  ) : null}
                   {partnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}

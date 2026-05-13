@@ -28,9 +28,82 @@ import {
   getOrderPartnerDisplayName,
   getPartnerPaymentStatusLabel,
 } from "../../helper/orderDisplayHelpers";
+import { getCount } from "../../services/getCountService";
+import {
+  FRANCHISE_HEADER_ALL,
+  useFranchiseHeaderForm,
+} from "../../hooks/useFranchiseScopedGetCount";
 
 const ORDER_TAB_KEYS = [2, 3, 4, 5] as const;
 type OrderTabKey = (typeof ORDER_TAB_KEYS)[number];
+
+/**
+ * Maps `getCount` `record` for `type: "order-management"` into tab totals (status keys 2–5).
+ */
+function mapGetCountRecordToOrderTabCounts(
+  record: Record<string, unknown> | null | undefined
+): Partial<Record<OrderTabKey, number>> | null {
+  if (!record || typeof record !== "object") return null;
+  const byLower = new Map(
+    Object.entries(record).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  const pick = (...aliases: string[]): number | null => {
+    for (const a of aliases) {
+      const v = byLower.get(a.toLowerCase());
+      if (v !== undefined && v !== null) {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return null;
+  };
+  const out: Partial<Record<OrderTabKey, number>> = {};
+  const assign = (key: OrderTabKey, ...aliases: string[]) => {
+    const n = pick(...aliases);
+    if (n !== null) out[key] = n;
+  };
+  assign(
+    2,
+    "order_in_progress",
+    "in_progress",
+    "orders_in_progress",
+    "order_status_2",
+    "status_2",
+    "total_order_in_progress"
+  );
+  assign(
+    3,
+    "order_completed",
+    "completed",
+    "orders_completed",
+    "order_status_3",
+    "status_3",
+    "total_order_completed"
+  );
+  assign(
+    4,
+    "order_cancelled",
+    "cancelled",
+    "orders_cancelled",
+    "order_status_4",
+    "status_4",
+    "total_order_cancelled"
+  );
+  assign(
+    5,
+    "order_refunded",
+    "refunded",
+    "orders_refunded",
+    "order_status_5",
+    "status_5",
+    "total_order_refunded"
+  );
+  if (Object.keys(out).length === 0) return null;
+  for (const k of ORDER_TAB_KEYS) {
+    if (out[k] === undefined) out[k] = 0;
+  }
+  return out;
+}
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
@@ -41,7 +114,8 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
 };
 
 const OrderManagement = () => {
-  const { register, setValue } = useForm<any>();
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
   const { register: dateFilterRegister, setValue: setDateFilterValue } =
     useForm<{
       from_date: string;
@@ -96,33 +170,53 @@ const OrderManagement = () => {
     await fetchData({ status: selectedStatus.toString() });
   }, [fetchData, selectedStatus]);
 
+  /** Tab badges: `POST /getCount` `{ type: "order-management", franchise_id? }`; falls back to list totals if unmapped. */
+  const reloadTabCounts = useCallback(async () => {
+    const fid = String(headerFranchiseId ?? "").trim();
+    const scope =
+      fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : undefined;
+    const { responseCount, countModel } = await getCount(
+      "order-management",
+      scope
+    );
+    const rec =
+      countModel != null
+        ? (countModel as unknown as Record<string, unknown>)
+        : null;
+    const mapped =
+      responseCount && rec ? mapGetCountRecordToOrderTabCounts(rec) : null;
+    if (mapped) {
+      setOrderCountsByTab(mapped);
+      return;
+    }
+    const results = await Promise.all(
+      ORDER_TAB_KEYS.map((key) =>
+        fetchOrder(1, 1, {
+          status: String(key),
+          ...listFilters,
+        })
+      )
+    );
+    const next: Partial<Record<OrderTabKey, number>> = {};
+    ORDER_TAB_KEYS.forEach((key, i) => {
+      const res = results[i];
+      next[key] = res.response ? res.totalCount : 0;
+    });
+    setOrderCountsByTab(next);
+  }, [headerFranchiseId, listFilters]);
+
+  const bumpListsAndTabCounts = useCallback(async () => {
+    await reloadTabCounts();
+    await refreshData();
+  }, [reloadTabCounts, refreshData]);
+
   useEffect(() => {
     void refreshData();
   }, [refreshData, currentPage, selectedStatus]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const results = await Promise.all(
-        ORDER_TAB_KEYS.map((key) =>
-          fetchOrder(1, 1, {
-            status: String(key),
-            ...listFilters,
-          })
-        )
-      );
-      if (cancelled) return;
-      const next: Partial<Record<OrderTabKey, number>> = {};
-      ORDER_TAB_KEYS.forEach((key, i) => {
-        const res = results[i];
-        next[key] = res.response ? res.totalCount : 0;
-      });
-      setOrderCountsByTab(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [listFilters]);
+    void reloadTabCounts();
+  }, [reloadTabCounts]);
 
   const handleFilterChange = async (filters: {
     keyword?: string;
@@ -150,19 +244,19 @@ const OrderManagement = () => {
   const orderShow = useCallback(
     (id: string) => {
       showOrderInfoDialog(id, () => {
-        void refreshData();
+        void bumpListsAndTabCounts();
       });
     },
-    [refreshData]
+    [bumpListsAndTabCounts]
   );
 
   const userShow = useCallback(
     (userId: string) => {
       UserDetailsDialog.show(userId, () => {
-        void refreshData();
+        void bumpListsAndTabCounts();
       });
     },
-    [refreshData]
+    [bumpListsAndTabCounts]
   );
 
   const handleOrderVoid = useCallback(
@@ -174,12 +268,12 @@ const OrderManagement = () => {
         async () => {
           const response = await deleteOrder(orderId);
           if (response) {
-            void refreshData();
+            void bumpListsAndTabCounts();
           }
         }
       );
     },
-    [refreshData]
+    [bumpListsAndTabCounts]
   );
 
   const orderColumns = React.useMemo(
@@ -268,7 +362,9 @@ const OrderManagement = () => {
               type="button"
               className="custom-btn-secondary w-auto"
               onClick={() =>
-                CreateUpdateOrderDialog.show(false, null, () => refreshData())
+                CreateUpdateOrderDialog.show(false, null, () =>
+                  bumpListsAndTabCounts()
+                )
               }
             >
               Create Order

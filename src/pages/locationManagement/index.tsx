@@ -13,7 +13,10 @@ import { deleteCity, fetchCity } from "../../services/cityService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { CityModel } from "../../models/CityModel";
-import { getCount } from "../../services/getCountService";
+import {
+  useFranchiseHeaderForm,
+  useFranchiseScopedGetCount,
+} from "../../hooks/useFranchiseScopedGetCount";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../remote/apiPaths";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
@@ -81,10 +84,20 @@ const LocationManagement = () => {
         area_franchise_id: "",
       },
     });
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
-    franchise_id: string;
-  }>({
-    defaultValues: { franchise_id: "all" },
+  const { register: cityFilterRegister, setValue: setCityFilterValue } =
+    useForm<{
+      city_state_id: string;
+    }>({
+      defaultValues: { city_state_id: "" },
+    });
+  const {
+    register: headerRegister,
+    setValue: setHeaderValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
+  const { countModel: locationCountModel } = useFranchiseScopedGetCount({
+    type: 1,
+    franchiseId: headerFranchiseId,
   });
 
   const sanitizeFilters = (filters: LocationFilters): LocationFilters =>
@@ -208,30 +221,23 @@ const LocationManagement = () => {
   }, [selectedBox, pageSize, currentPage, activeFilters, fetchData]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { responseCount, countModel } = await getCount(1);
-      if (!responseCount || !countModel || cancelled) return;
-      setStateData({
-        Total: countModel.total_state,
-        Active: countModel.active_state,
-        Inactive: countModel.inactive_state,
-      });
-      setCityData({
-        Total: countModel.total_city,
-        Active: countModel.active_city,
-        Inactive: countModel.inactive_city,
-      });
-      setAreaData({
-        Total: countModel.total_area,
-        Active: countModel.active_area,
-        Inactive: countModel.inactive_area,
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!locationCountModel) return;
+    setStateData({
+      Total: locationCountModel.total_state,
+      Active: locationCountModel.active_state,
+      Inactive: locationCountModel.inactive_state,
+    });
+    setCityData({
+      Total: locationCountModel.total_city,
+      Active: locationCountModel.active_city,
+      Inactive: locationCountModel.inactive_city,
+    });
+    setAreaData({
+      Total: locationCountModel.total_area,
+      Active: locationCountModel.active_area,
+      Inactive: locationCountModel.inactive_area,
+    });
+  }, [locationCountModel]);
 
   const refreshData = useCallback(
     async (selected: string, filters: LocationFilters = activeFilters) => {

@@ -73,4 +73,10 @@ export interface CountModel {
   quote_success?: number;
   quote_failed?: number;
   total_quotes?: number;
+
+  /** Present when `POST /getCount` body includes `{ "type": "order-management" }` (field names vary by backend). */
+  order_in_progress?: number;
+  order_completed?: number;
+  order_cancelled?: number;
+  order_refunded?: number;
 }

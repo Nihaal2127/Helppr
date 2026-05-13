@@ -165,6 +165,13 @@ type FlatRow = {
   price: string;
 };
 
+export type PartnerServiceCreateRow = {
+  category_id: string;
+  service_id: string;
+  description: string;
+  price: number;
+};
+
 export type PartnerCatalogFlattenOk = {
   ok: true;
   category_ids: string[];
@@ -172,6 +179,8 @@ export type PartnerCatalogFlattenOk = {
   service_names: string[];
   service_descriptions: string[];
   service_prices: string[];
+  /** `POST /user/create` (multipart) — Postman-style `partner_services` JSON array. */
+  partner_services: PartnerServiceCreateRow[];
 };
 
 export type PartnerCatalogFlattenErr = { ok: false; message: string };
@@ -232,6 +241,15 @@ export function flattenPartnerBlocksForSave(
     (x) => allServices.find((s) => String(s._id) === x.serviceId)?.name ?? ""
   );
 
+  const partner_services: PartnerServiceCreateRow[] = meaningful.map((x) => ({
+    category_id: x.categoryId,
+    service_id: x.serviceId,
+    description: x.description.trim(),
+    price:
+      Number(String(x.price ?? "").replace(/[^\d.]/g, "")) ||
+      0,
+  }));
+
   return {
     ok: true,
     category_ids,
@@ -239,6 +257,7 @@ export function flattenPartnerBlocksForSave(
     service_names,
     service_descriptions,
     service_prices,
+    partner_services,
   };
 }
 

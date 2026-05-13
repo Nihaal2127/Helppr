@@ -451,6 +451,8 @@ export type UserListFilters = {
   wallet_status?: string;
   from_date?: string;
   to_date?: string;
+  /** `GET /user/getVerificationAll` — e.g. `1` for pending (matches Postman `verification_status`). */
+  verification_status?: string;
 };
 
 export const fetchUser = async (
@@ -469,10 +471,16 @@ export const fetchUser = async (
   const primarySort = sortBy[0];
   const mappedSortField = (() => {
     if (!primarySort?.id) return undefined;
-    if (primarySort.id === "name") {
-      return type === 4 ? "user_name" : "partner_name";
+    const id = primarySort.id;
+    if (id === "name") {
+      if (type === APP_USER_TYPE.CUSTOMER) return "user_name";
+      if (type === APP_USER_TYPE.PARTNER) return "name";
+      return id;
     }
-    return primarySort.id;
+    if (type === APP_USER_TYPE.PARTNER && id === "no_of_services") {
+      return "no_of_services";
+    }
+    return id;
   })();
 
   const statusRaw = String(filters.status ?? "").trim().toLowerCase();
@@ -492,6 +500,11 @@ export const fetchUser = async (
     ...(filters.keyword && { search: filters.keyword }),
     ...(filters.keyword && { user_name: filters.keyword }),
     ...(filters.keyword && { partner_name: filters.keyword }),
+    ...(isVerification &&
+      filters.verification_status !== undefined &&
+      filters.verification_status !== "" && {
+        verification_status: String(filters.verification_status),
+      }),
     ...(filters.status &&
       filters.status !== "All" &&
       statusRaw !== "blocked" && { is_active: filters.status.toLowerCase() }),

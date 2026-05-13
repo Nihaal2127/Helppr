@@ -191,6 +191,13 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               />
             </Col>
           </Row>
+          <Row className="mt-2">
+            <Col xs={12}>
+              <WideLabelValueBlock label="Quote description" whiteSpace="pre-line">
+                {(displayQuote.description ?? "").trim() || "-"}
+              </WideLabelValueBlock>
+            </Col>
+          </Row>
           <Row className="mt-2 align-items-start g-2">
             <Col className="min-w-0" style={{ flex: "1 1 0%" }}>
               <WideLabelValueBlock

@@ -549,6 +549,8 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
       r.partner_phone ?? partnerObj?.phone_number
     ) || undefined,
     partner_city: str(r.partner_city ?? partnerObj?.city_name) || undefined,
+    description:
+      str(r.description ?? r.quote_description ?? r.notes) || undefined,
   };
 }
 
@@ -998,6 +1000,7 @@ export type CreateQuoteBody = {
   total_work_hours: number;
   work_start_time: string;
   work_end_time: string;
+  description?: string;
 };
 
 export async function createQuote(body: CreateQuoteBody): Promise<boolean> {
@@ -1168,6 +1171,7 @@ export function buildCreateQuotePayload(input: {
   requested_time: string;
   requested_time_from: string;
   requested_time_to: string;
+  description?: string;
 }): CreateQuoteBody | null {
   const created_by_id = str(getLocalStorage(AppConstant.createdById));
   const franchise_id = str(input.franchise_id);
@@ -1213,6 +1217,7 @@ export function buildCreateQuotePayload(input: {
   const days = daysInclusive(from_date, to_date);
   const total_work_hours = Math.round(perDay * days * 10) / 10;
 
+  const desc = str(input.description);
   return {
     user_id,
     category_id,
@@ -1229,5 +1234,6 @@ export function buildCreateQuotePayload(input: {
     total_work_hours,
     work_start_time,
     work_end_time,
+    ...(desc ? { description: desc } : {}),
   };
 }

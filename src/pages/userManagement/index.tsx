@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -10,16 +11,21 @@ import {
   shouldUseRealVerificationApi,
   MOCK_VERIFICATION_SUMMARY,
 } from "../../mockData/verificationTableMock";
-import { getCount } from "../../services/getCountService";
+import {
+  FRANCHISE_HEADER_ALL,
+  useFranchiseHeaderForm,
+  useFranchiseScopedGetCount,
+} from "../../hooks/useFranchiseScopedGetCount";
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import ChangePartnerPasswordDialog from "./ChangePartnerPasswordDialog";
 
 const UserManagement = () => {
+  const location = useLocation();
   const [selectedBox, setSelectedBox] = useState<string>("box-user");
   const [userData, setUserData] = useState<{}>({});
   const [partnerData, setParnterData] = useState<{}>({});
@@ -34,50 +40,74 @@ const UserManagement = () => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     undefined
   );
+  const [verificationStatusFilter, setVerificationStatusFilter] = useState<
+    string | undefined
+  >(undefined);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const { register, setValue } = useForm();
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
+  const { countModel: userCountModel } = useFranchiseScopedGetCount({
+    type: "user-management",
+    franchiseId: headerFranchiseId,
+  });
 
-  /** Summary boxes only: one getCount on initial mount (not on search / page / tab changes). */
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { responseCount, countModel } = await getCount(3);
-      if (cancelled) return;
-      if (responseCount && countModel) {
-        setUserData({
-          Total: countModel.total_user,
-          Active: countModel.active_user,
-          Inactive: countModel.inactive_user,
-          Blocked: countModel.blocked_user,
-        });
-        setParnterData({
-          Total: countModel.total_partner,
-          Active: countModel.active_partner,
-          Inactive: countModel.inactive_partner,
-          Blocked: countModel.blocked_partner,
-        });
-        if (shouldUseRealVerificationApi()) {
-          setVerificationData({
-            Total: countModel.total_document,
-            Pending: countModel.pending_document,
-          });
-        }
-      }
-      if (!shouldUseRealVerificationApi()) {
-        setVerificationData({ ...MOCK_VERIFICATION_SUMMARY });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!shouldUseRealVerificationApi()) {
+      setVerificationData({ ...MOCK_VERIFICATION_SUMMARY });
+    }
+    if (!userCountModel) return;
+    setUserData({
+      Total: userCountModel.total_user,
+      Active: userCountModel.active_user,
+      Inactive: userCountModel.inactive_user,
+      Blocked: userCountModel.blocked_user,
+    });
+    setParnterData({
+      Total: userCountModel.total_partner,
+      Active: userCountModel.active_partner,
+      Inactive: userCountModel.inactive_partner,
+      Blocked: userCountModel.blocked_partner,
+    });
+    if (shouldUseRealVerificationApi()) {
+      setVerificationData({
+        Total: userCountModel.total_document,
+        Pending: userCountModel.pending_document,
+      });
+    }
+  }, [userCountModel]);
+
+  useEffect(() => {
+    const tab = (location.state as { initialTab?: string } | null)?.initialTab;
+    if (tab !== "partners") return;
+    setSelectedBox("box-partner");
+    setCurrentPage(1);
+    setSearchKeyword("");
+    setStatusFilter(undefined);
+    setVerificationStatusFilter(undefined);
+    setSortBy([]);
+    setUtilitySearchKey((k) => k + 1);
+  }, [location.state]);
+
+  /** Summary boxes: `POST /getCount` `{ type: "user-management", franchise_id? }` — refetches when header franchise changes. */
 
   const fetchData = useCallback(async () => {
+    const franchiseScope =
+      headerFranchiseId &&
+      String(headerFranchiseId).trim() !== "" &&
+      headerFranchiseId !== FRANCHISE_HEADER_ALL
+        ? String(headerFranchiseId).trim()
+        : undefined;
+
     const filters = {
       keyword: searchKeyword || undefined,
       status: statusFilter,
+      ...(franchiseScope ? { franchise_id: franchiseScope } : {}),
+      ...(selectedBox === "box-verification" &&
+      verificationStatusFilter !== undefined &&
+      verificationStatusFilter !== ""
+        ? { verification_status: verificationStatusFilter }
+        : {}),
     };
-    const selectedSortBy = selectedBox === "box-verification" ? [] : sortBy;
 
     if (selectedBox === "box-verification") {
       const { response, users, totalPages } = await fetchUser(
@@ -86,7 +116,7 @@ const UserManagement = () => {
         currentPage,
         pageSize,
         filters,
-        selectedSortBy
+        sortBy
       );
       if (response) {
         setVerificationList(users);
@@ -102,7 +132,7 @@ const UserManagement = () => {
         currentPage,
         pageSize,
         filters,
-        selectedSortBy
+        sortBy
       );
       if (response) {
         const list = Array.isArray(users) ? users : [];
@@ -118,7 +148,16 @@ const UserManagement = () => {
         setTotalPages(0);
       }
     }
-  }, [currentPage, pageSize, searchKeyword, selectedBox, sortBy, statusFilter]);
+  }, [
+    currentPage,
+    pageSize,
+    searchKeyword,
+    selectedBox,
+    sortBy,
+    statusFilter,
+    verificationStatusFilter,
+    headerFranchiseId,
+  ]);
 
   useEffect(() => {
     void fetchData();
@@ -165,6 +204,13 @@ const UserManagement = () => {
     },
     [refreshData]
   );
+
+  const partnerChangePassword = useCallback((row: { original: UserModel }) => {
+    const u = row.original;
+    ChangePartnerPasswordDialog.show(String(u._id), u.name ?? undefined, () => {
+      void refreshData("box-partner");
+    });
+  }, [refreshData]);
 
   const handleUserDelete = useCallback(
     (id: string, selected: "box-user" | "box-partner") => {
@@ -276,7 +322,7 @@ const UserManagement = () => {
         accessor: "name",
         sort: true,
       },
-      { Header: "No. of services", accessor: "no_of_services" },
+      { Header: "No. of services", accessor: "no_of_services", sort: true },
       // { Header: "Service Provided", accessor: "completed_service" },
       {
         Header: "Total Earnings",
@@ -301,12 +347,13 @@ const UserManagement = () => {
           <CustomActionColumn
             row={row}
             onView={() => partnerShow(row.original._id)}
+            onChangePassword={() => partnerChangePassword(row)}
             onDelete={() => handleUserDelete(row.original._id, "box-partner")}
           />
         ),
       },
     ],
-    [currentPage, pageSize, handleUserDelete, partnerShow]
+    [currentPage, pageSize, handleUserDelete, partnerShow, partnerChangePassword]
   );
 
   const verificationColumns = React.useMemo(
@@ -318,7 +365,7 @@ const UserManagement = () => {
           (currentPage - 1) * pageSize + row.index + 1,
       },
 
-      { Header: "Name", accessor: "name" },
+      { Header: "Name", accessor: "name", sort: true },
       {
         Header: "Email",
         accessor: "email",
@@ -375,6 +422,7 @@ const UserManagement = () => {
                 setCurrentPage(1);
                 setSearchKeyword("");
                 setStatusFilter(undefined);
+                setVerificationStatusFilter(undefined);
                 setSortBy([]);
                 setUtilitySearchKey((k) => k + 1);
               }}
@@ -383,6 +431,18 @@ const UserManagement = () => {
                 setStatusFilter(filter.status);
                 setCurrentPage(1);
               }}
+              onItemClick={
+                id === "box-verification" && shouldUseRealVerificationApi()
+                  ? (key) => {
+                      if (key === "Pending") {
+                        setVerificationStatusFilter("1");
+                      } else if (key === "Total") {
+                        setVerificationStatusFilter(undefined);
+                      }
+                      setCurrentPage(1);
+                    }
+                  : undefined
+              }
               isAddShow={id === "box-verification" ? false : true}
               addButtonLable={capitalizeString(
                 id.replace("box-", "Add ").replace("-", " ")
@@ -438,7 +498,10 @@ const UserManagement = () => {
             setCurrentPage(1);
           }}
           manualSortBy={
-            selectedBox === "box-user" || selectedBox === "box-partner"
+            selectedBox === "box-user" ||
+            selectedBox === "box-partner" ||
+            (selectedBox === "box-verification" &&
+              shouldUseRealVerificationApi())
           }
           sortBy={sortBy}
           onSortChange={handleSortChange}

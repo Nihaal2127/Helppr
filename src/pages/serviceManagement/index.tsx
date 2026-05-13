@@ -10,10 +10,12 @@ import { CategoryModel } from "../../models/CategoryModel";
 import { ServiceModel } from "../../models/ServiceModel";
 import { fetchCategory, fetchCategoryById } from "../../services/categoryService";
 import { fetchService, fetchServiceById } from "../../services/servicesService";
-import { getCount } from "../../services/getCountService";
 import CustomActionColumn from "../../components/CustomActionColumn";
-import { useForm } from "react-hook-form";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import {
+  useFranchiseHeaderForm,
+  useFranchiseScopedGetCount,
+} from "../../hooks/useFranchiseScopedGetCount";
 import { showErrorAlert } from "../../helper/alertHelper";
 
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
@@ -64,10 +66,13 @@ const requestStatusCell = () => ({ row }: { row: any }) => {
 };
 
 const ServiceManagement = () => {
-  const { register, setValue, watch } = useForm<any>({
-    defaultValues: { franchise_id: "all" },
-  });
-  const headerFranchiseId = watch("franchise_id") as string | undefined;
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
+  const { countModel, refresh: refreshSummaryCounts } =
+    useFranchiseScopedGetCount({
+      type: "service-management",
+      franchiseId: headerFranchiseId,
+    });
   const [selectedBox, setSelectedBox] = useState<string>("box-category");
   const [categoryData, setCategoryData] = useState<Record<string, number>>({});
   const [serviceData, setServiceData] = useState<Record<string, number>>({});
@@ -96,16 +101,8 @@ const ServiceManagement = () => {
   const fetchGenerationRef = useRef(0);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
 
-  /** Overall totals from `POST /api/getCount` with `{ type: "service-management", franchise_id? }` — header franchise scopes counts for admin/staff. */
-  const refreshSummaryCounts = useCallback(async () => {
-    const fid = String(headerFranchiseId ?? "").trim();
-    const scope =
-      fid && fid !== "all" ? { franchise_id: fid } : undefined;
-    const { responseCount, countModel } = await getCount(
-      "service-management",
-      scope
-    );
-    if (!responseCount || !countModel) return;
+  useEffect(() => {
+    if (!countModel) return;
     setCategoryData({
       Total: countModel.total_category ?? 0,
       Active: countModel.active_category ?? 0,
@@ -120,7 +117,7 @@ const ServiceManagement = () => {
       requested_service:
         countModel.requested_service ?? countModel.total_requestedservice ?? 0,
     });
-  }, [headerFranchiseId]);
+  }, [countModel]);
 
   const fetchData = useCallback(
     async (
@@ -205,10 +202,6 @@ const ServiceManagement = () => {
     },
     [refreshSummaryCounts, refreshData]
   );
-
-  useEffect(() => {
-    void refreshSummaryCounts();
-  }, [refreshSummaryCounts]);
 
   useEffect(() => {
     void refreshData(selectedBox);

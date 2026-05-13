@@ -140,6 +140,9 @@ export const fetchService = async (
     sort?: string;
     is_request?: string;
     is_rejected?: string;
+    /** `GET /service/getAll` — scope catalogue rows when API supports it (see `apiPaths`). */
+    city_id?: string;
+    state_id?: string;
   },
   sortBy: ServerTableSortBy = []
 ): Promise<{
@@ -149,6 +152,8 @@ export const fetchService = async (
   totalRecords: number;
 }> => {
   const primarySort = sortBy[0];
+  const cityId = String(filters.city_id ?? "").trim();
+  const stateId = String(filters.state_id ?? "").trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
@@ -162,6 +167,8 @@ export const fetchService = async (
       filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(cityId && { city_id: cityId }),
+    ...(stateId && { state_id: stateId }),
   });
 
   const response = await apiRequest(
@@ -170,15 +177,34 @@ export const fetchService = async (
   );
 
   if (response.success) {
+    const payload = (response as { data?: unknown }).data;
+    const rawRecords =
+      payload &&
+      typeof payload === "object" &&
+      Array.isArray((payload as { records?: unknown }).records)
+        ? (payload as { records: ServiceModel[] }).records
+        : payload &&
+            typeof payload === "object" &&
+            (payload as { data?: { records?: unknown } }).data &&
+            Array.isArray(
+              (payload as { data: { records?: unknown } }).data.records
+            )
+        ? (payload as { data: { records: ServiceModel[] } }).data.records
+        : [];
+
     return {
       response: true,
-      services: response.data.records,
-      totalPages: response.data.totalPages,
+      services: rawRecords,
+      totalPages: Number(
+        (payload as { totalPages?: number })?.totalPages ??
+          (payload as { data?: { totalPages?: number } })?.data?.totalPages ??
+          0
+      ),
       totalRecords: Number(
-        response.data.totalRecords ??
-          response.data.total ??
-          response.data.count ??
-          (Array.isArray(response.data.records) ? response.data.records.length : 0)
+        (payload as { totalRecords?: number })?.totalRecords ??
+          (payload as { total?: number })?.total ??
+          (payload as { count?: number })?.count ??
+          (Array.isArray(rawRecords) ? rawRecords.length : 0)
       ),
     };
   } else {

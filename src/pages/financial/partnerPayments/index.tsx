@@ -10,7 +10,10 @@ import {
 } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
 import { fetchFinancial } from "../../../services/financialService";
-import { getCount } from "../../../services/getCountService";
+import {
+  useFranchiseHeaderForm,
+  useFranchiseScopedGetCount,
+} from "../../../hooks/useFranchiseScopedGetCount";
 import { FinancialModel } from "../../../models/FinancialModel";
 import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
 import { ROUTES } from "../../../routes/Routes";
@@ -20,6 +23,12 @@ import { AppConstant } from "../../../constant/AppConstant";
 
 const PartnerPayments = () => {
   const navigate = useNavigate();
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
+  const { countModel: financialCountModel } = useFranchiseScopedGetCount({
+    type: 5,
+    franchiseId: headerFranchiseId,
+  });
   const statuses: [number, { value: number; label: string }][] = [
     [1, { value: 2, label: "Pending" }],
     [2, { value: 1, label: "Completed" }],
@@ -37,6 +46,15 @@ const PartnerPayments = () => {
   const [totalPages, setTotalPages] = useState(0);
   const fetchRef = useRef(false);
 
+  useEffect(() => {
+    if (!financialCountModel) return;
+    setUserData({
+      completed_amount: financialCountModel.completed_amount,
+      pending_amount: financialCountModel.pending_amount,
+      returned_amount: financialCountModel.returned_amount,
+    });
+  }, [financialCountModel]);
+
   const fetchData = useCallback(
     async (filters: {
       keyword?: string;
@@ -47,14 +65,6 @@ const PartnerPayments = () => {
       if (fetchRef.current) return;
       fetchRef.current = true;
       filters.service_status = "3";
-      const { responseCount, countModel } = await getCount(5);
-      if (responseCount && countModel) {
-        setUserData({
-          completed_amount: countModel.completed_amount,
-          pending_amount: countModel.pending_amount,
-          returned_amount: countModel.returned_amount,
-        });
-      }
       const { response, financials, totalPages } = await fetchFinancial(
         currentPage,
         pageSize,
@@ -156,6 +166,8 @@ const PartnerPayments = () => {
         <CustomHeader
           title="Financial — Partner Payments"
           titlePrefix={<FinancialSubPageBackButton />}
+          register={register}
+          setValue={setValue}
         />
 
         <div className="d-flex gap-2" style={{ width: "100%" }}>

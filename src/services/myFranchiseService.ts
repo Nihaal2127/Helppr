@@ -580,12 +580,21 @@ function mergeFranchiseServiceListFromAllServices(
     const sid =
       apiDocumentId(o._id) || apiDocumentId(o) || String(o._id ?? "").trim();
     if (!sid) continue;
-    const key = sid.trim().toLowerCase();
-    seen.add(key);
+    const docCandidates = catalogueServiceDocIdCandidates(o);
+    const cands = docCandidates.length ? docCandidates : [sid];
+    for (const c of cands) {
+      seen.add(c.trim().toLowerCase());
+    }
     const fa = o.franchise_active;
     const franchiseActive =
       typeof fa === "boolean" ? fa : normalizeBooleanLike(fa ?? false);
-    const is_active = fromMap.has(key) ? fromMap.get(key)! : franchiseActive;
+    const resolved = resolveServiceMappingIsActive(
+      fromMap,
+      normalizedFromMap,
+      cands
+    );
+    const is_active =
+      resolved !== undefined ? resolved : franchiseActive;
     merged.push({ service_id: sid, is_active });
   }
 
@@ -644,12 +653,90 @@ function idsLooselyEqual(a: string, b: string): boolean {
   return x.toLowerCase() === y.toLowerCase();
 }
 
+/** Mongo `_id` and any distinct `service_id` on a catalogue row (mapping may key either). */
+function catalogueServiceDocIdCandidates(doc: Record<string, unknown>): string[] {
+  const raw: string[] = [];
+  const mongo =
+    apiDocumentId(doc._id) ||
+    apiDocumentId(doc) ||
+    String(doc._id ?? "").trim();
+  if (mongo) raw.push(mongo);
+  const refId = apiDocumentId(doc.service_id);
+  if (refId) raw.push(refId);
+  const plain = doc.service_id;
+  if (
+    (typeof plain === "string" || typeof plain === "number") &&
+    String(plain).trim()
+  ) {
+    const p = String(plain).trim();
+    if (!raw.some((x) => idsLooselyEqual(x, p))) raw.push(p);
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of raw) {
+    const t = x.trim();
+    const k = t.toLowerCase();
+    if (!t || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
+
+function resolveServiceMappingIsActive(
+  fromMap: Map<string, boolean>,
+  normalizedRows: { service_id: string; is_active: boolean }[],
+  docCandidates: string[]
+): boolean | undefined {
+  for (const cand of docCandidates) {
+    const key = cand.trim().toLowerCase();
+    if (fromMap.has(key)) return fromMap.get(key);
+  }
+  for (const row of normalizedRows) {
+    for (const cand of docCandidates) {
+      if (idsLooselyEqual(row.service_id, cand)) return row.is_active;
+    }
+  }
+  for (const [mapKey, val] of Array.from(fromMap.entries())) {
+    for (const cand of docCandidates) {
+      if (idsLooselyEqual(mapKey, cand)) return val;
+    }
+  }
+  return undefined;
+}
+
 function findFranchiseServiceListIndex(
   list: { service_id: string; is_active: boolean }[],
   catalogueMongoOrServiceId: string
 ): number {
   const id = String(catalogueMongoOrServiceId ?? "").trim();
   return list.findIndex((s) => idsLooselyEqual(s.service_id, id));
+}
+
+/** Resolve `services_list` row when UI sends catalogue `_id` or `service_id` that must match embedded catalogue docs. */
+function resolveFranchiseServiceListIndex(
+  map: FranchiseServiceMapCache,
+  catalogueMongoOrServiceId: string
+): number {
+  const id = String(catalogueMongoOrServiceId ?? "").trim();
+  if (!id) return -1;
+  let idx = findFranchiseServiceListIndex(map.services_list, id);
+  if (idx >= 0) return idx;
+  for (const item of map.all_services ?? []) {
+    if (!item || typeof item !== "object") continue;
+    const doc = item as Record<string, unknown>;
+    const mongo =
+      apiDocumentId(doc._id) ||
+      apiDocumentId(doc) ||
+      String(doc._id ?? "").trim();
+    const altSvc = String(doc.service_id ?? "").trim();
+    if (!idsLooselyEqual(mongo, id) && !idsLooselyEqual(altSvc, id)) continue;
+    for (const cand of [mongo, altSvc].filter((x) => String(x ?? "").trim())) {
+      idx = findFranchiseServiceListIndex(map.services_list, String(cand));
+      if (idx >= 0) return idx;
+    }
+  }
+  return -1;
 }
 
 function findFranchiseCategoryListIndex(
@@ -1096,11 +1183,11 @@ function serviceRowsFromFranchiseServiceMap(
   for (const item of svcMap.all_services ?? []) {
     if (!item || typeof item !== "object") continue;
     const doc = item as Record<string, unknown>;
-    const id =
-      apiDocumentId(doc._id) ||
-      apiDocumentId(doc) ||
-      String(doc._id ?? "").trim();
-    if (id) byId.set(id.trim().toLowerCase(), doc);
+    const keys = catalogueServiceDocIdCandidates(doc);
+    if (!keys.length) continue;
+    for (const c of keys) {
+      byId.set(c.trim().toLowerCase(), doc);
+    }
   }
 
   return svcMap.services_list
@@ -1117,9 +1204,6 @@ function serviceRowsFromFranchiseServiceMap(
             String(doc._id ?? "").trim() ||
             sid
           : sid;
-      const humanSvcId = doc
-        ? String(doc.service_id ?? "").trim() || mongoId
-        : mongoId;
       const name =
         (hint?.name && String(hint.name).trim()) ||
         (doc ? String(doc.name ?? "").trim() : "") ||
@@ -1136,10 +1220,10 @@ function serviceRowsFromFranchiseServiceMap(
       if (!category_name) category_name = "-";
       return {
         _id: mongoId,
-        service_id: humanSvcId,
+        service_id: sid,
         name,
         category_name,
-        is_active: entry.is_active,
+        is_active: normalizeBooleanLike(entry.is_active),
       };
     })
     .filter((r): r is ServiceRow => r != null);
@@ -1526,7 +1610,7 @@ export async function setServiceActive(
 
   const map = await ensureFranchiseServiceMapLoaded();
   if (map?.mapId && map.services_list.length) {
-    const idx = findFranchiseServiceListIndex(map.services_list, catalogueId);
+    const idx = resolveFranchiseServiceListIndex(map, catalogueId);
     if (idx >= 0) {
       const services_list = map.services_list.map((s, i) =>
         i === idx ? { service_id: s.service_id, is_active } : { ...s }

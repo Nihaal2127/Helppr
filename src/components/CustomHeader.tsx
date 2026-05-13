@@ -21,12 +21,9 @@ interface CustomHeaderProps {
   title: string;
   /** Shown to the left of the title (e.g. financial sub-page back arrow). */
   titlePrefix?: React.ReactNode;
+  /** Intentionally `any` — RHF generics cause TS2589; strict `setValue` types break narrow form fields. */
   register?: any;
-  setValue?: (
-    name: string,
-    value: any,
-    options?: { shouldValidate?: boolean }
-  ) => void;
+  setValue?: any;
   onLocationChange?: (selectedLocation: string) => void;
   rightActions?: React.ReactNode;
   /** Hide top-right franchise selector for pages that should not expose it. */
@@ -159,7 +156,7 @@ const CustomHeader = ({
         className="d-flex justify-content-end align-items-center gap-3 p-0 m-0"
       >
         {rightActions}
-        {shouldShowFranchiseDropdown && (
+        {shouldShowFranchiseDropdown && register && setValue && (
           <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
             <CustomFormSelect
               label=""

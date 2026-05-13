@@ -41,15 +41,19 @@ type EmployeeFormValues = {
 
 type FranchiseEmployeeDialogProps = {
   onClose: () => void;
-  onRefreshData: () => void;
+  /** Return a Promise so add/update can await getCount + list reload before closing. */
+  onRefreshData: () => void | Promise<void>;
 } & (
   | { mode: "add"; employee: null }
   | { mode: "view-edit"; employee: EmployeeRow }
 );
 
 const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
-  showAdd: (onRefreshData: () => void) => void;
-  showView: (employee: EmployeeRow, onRefreshData: () => void) => void;
+  showAdd: (onRefreshData: () => void | Promise<void>) => void;
+  showView: (
+    employee: EmployeeRow,
+    onRefreshData: () => void | Promise<void>
+  ) => void;
 } = (props) => {
   const { onClose, onRefreshData } = props;
   const isAdd = props.mode === "add";
@@ -207,7 +211,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
       });
       if (ok) {
         showSuccessAlert("Employee added");
-        onRefreshData();
+        await Promise.resolve(onRefreshData());
         onClose();
       }
       return;
@@ -221,7 +225,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     const ok = await updateFranchiseEmployee(employee._id, payload);
     if (ok) {
       showSuccessAlert("Employee updated");
-      onRefreshData();
+      await Promise.resolve(onRefreshData());
       onClose();
     }
   };
@@ -397,9 +401,16 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             <Form.Check
               type="switch"
               id="franchise-employee-form-chat"
-              className="franchise-chat-switch"
+              className="franchise-chat-switch franchise-status-switch"
               checked={isActiveBool ? Boolean(chatEnabled) : false}
               disabled={!isActiveBool}
+              aria-label={
+                !isActiveBool
+                  ? "Chat unavailable when employee is inactive"
+                  : chatEnabled
+                  ? "Chat on, switch to turn off"
+                  : "Chat off, switch to turn on"
+              }
               title={
                 isActiveBool
                   ? "Chat on / off"
@@ -504,7 +515,9 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   );
 };
 
-FranchiseEmployeeDialog.showAdd = (onRefreshData: () => void) => {
+FranchiseEmployeeDialog.showAdd = (
+  onRefreshData: () => void | Promise<void>
+) => {
   openDialog("franchise-employee-modal", (close) => (
     <FranchiseEmployeeDialog
       mode="add"
@@ -517,7 +530,7 @@ FranchiseEmployeeDialog.showAdd = (onRefreshData: () => void) => {
 
 FranchiseEmployeeDialog.showView = (
   employee: EmployeeRow,
-  onRefreshData: () => void
+  onRefreshData: () => void | Promise<void>
 ) => {
   openDialog("franchise-employee-modal", (close) => (
     <FranchiseEmployeeDialog

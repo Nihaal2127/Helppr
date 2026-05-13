@@ -245,6 +245,19 @@ function summariesFromMyFranchiseCountRecord(
   };
 }
 
+/**
+ * Normalizes mapping `is_active` for controlled switches (API may send 0/1, strings, etc.).
+ */
+function coerceCatalogRowActive(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  const s = String(value ?? "").trim().toLowerCase();
+  if (s === "true" || s === "active" || s === "yes") return true;
+  if (s === "false" || s === "inactive" || s === "no") return false;
+  return false;
+}
+
 const MyFranchise = () => {
   const { register, setValue } = useForm();
   /** Employees section is selected on first paint so the list loads with the page. */
@@ -281,6 +294,8 @@ const MyFranchise = () => {
   } | null>(null);
 
   const loadedKeysRef = useRef<Set<string>>(new Set());
+  /** Drops stale hydrate results when `reloadFranchiseData` + `useEffect` both refetch after cache clear. */
+  const hydrateRequestIdRef = useRef(0);
 
   const myFranchiseFetchOptions = useMemo((): MyFranchiseDataFetchOptions => {
     const o: MyFranchiseDataFetchOptions = {};
@@ -341,7 +356,9 @@ const MyFranchise = () => {
           )
       );
       if (need.length === 0) return;
+      const requestId = ++hydrateRequestIdRef.current;
       const data = await fetchMyFranchiseDataSlices(need, myFranchiseFetchOptions);
+      if (requestId !== hydrateRequestIdRef.current) return;
       if (data.employees) {
         setEmployees(mapEmployeesWithChat(data.employees as EmployeeRow[]));
       }
@@ -403,10 +420,15 @@ const MyFranchise = () => {
 
   const reloadFranchiseData = useCallback(async () => {
     await refreshMyFranchiseCountSummaries();
-    loadedKeysRef.current.clear();
+    for (const s of slicesForCurrentSelection) {
+      loadedKeysRef.current.delete(
+        myFranchiseDataCacheKey(s, myFranchiseFetchOptions)
+      );
+    }
     await hydrateFranchiseSlices(slicesForCurrentSelection);
   }, [
     hydrateFranchiseSlices,
+    myFranchiseFetchOptions,
     refreshMyFranchiseCountSummaries,
     slicesForCurrentSelection,
   ]);
@@ -695,23 +717,40 @@ const MyFranchise = () => {
 
   const setServiceActive = useCallback(
     async (id: string, is_active: boolean) => {
-      const prev = services.find((s) => s._id === id)?.is_active;
-      setServices((p) =>
-        p.map((s) => (s._id === id ? { ...s, is_active } : s))
-      );
-      const ok = await apiSetServiceActive(id, is_active);
+      const sid = String(id ?? "").trim();
+      let prev: boolean | undefined;
+      setServices((p) => {
+        prev = p.find(
+          (s) =>
+            String(s._id ?? "").trim() === sid ||
+            String(s.service_id ?? "").trim() === sid
+        )?.is_active;
+        return p.map((s) =>
+          String(s._id ?? "").trim() === sid ||
+          String(s.service_id ?? "").trim() === sid
+            ? { ...s, is_active }
+            : s
+        );
+      });
+      const ok = await apiSetServiceActive(sid, is_active);
       if (ok) {
         showSuccessAlert("Service status updated");
+        await reloadFranchiseData();
       } else {
         if (prev !== undefined) {
           setServices((p) =>
-            p.map((s) => (s._id === id ? { ...s, is_active: prev } : s))
+            p.map((s) =>
+              String(s._id ?? "").trim() === sid ||
+              String(s.service_id ?? "").trim() === sid
+                ? { ...s, is_active: prev! }
+                : s
+            )
           );
         }
         showErrorAlert("Could not update service status.");
       }
     },
-    [services]
+    [reloadFranchiseData]
   );
 
   const setCategoryActive = useCallback(
@@ -723,6 +762,7 @@ const MyFranchise = () => {
       const ok = await apiSetCategoryActive(id, is_active);
       if (ok) {
         showSuccessAlert("Category status updated");
+        await reloadFranchiseData();
       } else {
         if (prev !== undefined) {
           setCategories((p) =>
@@ -732,7 +772,7 @@ const MyFranchise = () => {
         showErrorAlert("Could not update category status.");
       }
     },
-    [categories]
+    [categories, reloadFranchiseData]
   );
 
   const handleRequestedServiceVoid = useCallback(
@@ -845,9 +885,16 @@ const MyFranchise = () => {
             <Form.Check
               type="switch"
               id={`franchise-chat-${emp._id}`}
-              className="franchise-chat-switch"
+              className="franchise-chat-switch franchise-status-switch"
               checked={chatOn}
               disabled={!emp.is_active}
+              aria-label={
+                !emp.is_active
+                  ? "Chat unavailable for inactive employees"
+                  : chatOn
+                  ? "Chat on, switch to turn off"
+                  : "Chat off, switch to turn on"
+              }
               title={
                 emp.is_active
                   ? "Chat on / off"
@@ -878,9 +925,7 @@ const MyFranchise = () => {
             row={row}
             onView={(r) => {
               const emp = r.original as EmployeeRow;
-              FranchiseEmployeeDialog.showView(emp, () => {
-                void reloadFranchiseData();
-              });
+              FranchiseEmployeeDialog.showView(emp, () => reloadFranchiseData());
             }}
             onDelete={(r) => {
               const emp = r.original as EmployeeRow;
@@ -962,21 +1007,34 @@ const MyFranchise = () => {
       {
         Header: "Status",
         accessor: "is_active",
+        className: "my-franchise-col-active-toggle",
         Cell: ({ row }: { row: any }) => {
           const svc = row.original as ServiceRow;
           return (
-            <Form.Select
-              size="sm"
-              value={svc.is_active ? "active" : "inactive"}
+            <Form.Check
+              type="switch"
+              id={`franchise-service-active-${svc._id}`}
+              className="franchise-chat-switch franchise-status-switch"
+              checked={coerceCatalogRowActive(svc.is_active)}
+              aria-label={
+                coerceCatalogRowActive(svc.is_active)
+                  ? "Active, switch to deactivate"
+                  : "Inactive, switch to activate"
+              }
+              title={
+                coerceCatalogRowActive(svc.is_active)
+                  ? "Active — turn off to deactivate"
+                  : "Inactive — turn on to activate"
+              }
               onChange={(e) => {
                 e.stopPropagation();
-                setServiceActive(svc._id, e.target.value === "active");
+                const toggleId =
+                  String(svc.service_id ?? "").trim() ||
+                  String(svc._id ?? "").trim();
+                void setServiceActive(toggleId, e.target.checked);
               }}
-              style={{ minWidth: "130px" }}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Form.Select>
+              onClick={(e) => e.stopPropagation()}
+            />
           );
         },
       },
@@ -1092,20 +1150,31 @@ const MyFranchise = () => {
       {
         Header: "Status",
         accessor: "is_active",
+        className: "my-franchise-col-active-toggle",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
           return (
-            <Form.Select
-              size="sm"
-              value={cat.is_active ? "active" : "inactive"}
+            <Form.Check
+              type="switch"
+              id={`franchise-category-active-${cat._id}`}
+              className="franchise-chat-switch franchise-status-switch"
+              checked={coerceCatalogRowActive(cat.is_active)}
+              aria-label={
+                coerceCatalogRowActive(cat.is_active)
+                  ? "Active, switch to deactivate"
+                  : "Inactive, switch to activate"
+              }
+              title={
+                coerceCatalogRowActive(cat.is_active)
+                  ? "Active — turn off to deactivate"
+                  : "Inactive — turn on to activate"
+              }
               onChange={(e) => {
                 e.stopPropagation();
-                setCategoryActive(cat._id, e.target.value === "active");
+                void setCategoryActive(cat._id, e.target.checked);
               }}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Form.Select>
+              onClick={(e) => e.stopPropagation()}
+            />
           );
         },
       },
@@ -1151,9 +1220,7 @@ const MyFranchise = () => {
         isAddShow: true,
         addLabel: "Add Employee",
         onAdd: () => {
-          FranchiseEmployeeDialog.showAdd(() => {
-            void reloadFranchiseData();
-          });
+          FranchiseEmployeeDialog.showAdd(() => reloadFranchiseData());
         },
       },
       {

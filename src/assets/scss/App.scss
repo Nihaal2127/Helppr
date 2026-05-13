@@ -1534,13 +1534,18 @@ body:has(.modal.show ~ .modal.show) {
       text-overflow: ellipsis;
     }
     &.my-franchise-col-chat {
-      min-width: 88px !important;
-      max-width: 112px;
+      min-width: 100px !important;
+      max-width: 120px;
       vertical-align: middle !important;
     }
     &.my-franchise-col-status {
       min-width: 122px !important;
       max-width: 150px;
+    }
+    &.my-franchise-col-active-toggle {
+      min-width: 128px !important;
+      max-width: 148px;
+      vertical-align: middle !important;
     }
     &.my-franchise-col-actions {
       min-width: 88px !important;
@@ -1555,7 +1560,7 @@ body:has(.modal.show ~ .modal.show) {
     justify-content: center;
     margin: 0 auto;
     padding-left: 0;
-    min-height: 1.5em;
+    min-height: 1.85em;
   }
 
   // .my-franchise-status-select {
@@ -1646,8 +1651,13 @@ body:has(.modal.show ~ .modal.show) {
   }
 }
 
-/* My Franchise chat toggle — shared by employees table and add/edit employee modal */
-.franchise-chat-switch .form-check-input {
+/*
+ * Chat-only switch skin (red when "on") — must NOT apply to `.franchise-status-switch` rows:
+ * those use green-on / red-off below. A single `.franchise-chat-switch` ancestor used to make
+ * `:checked { background: red }` fight Bootstrap + the status skin so services looked "off" (red)
+ * after toggling even when `checked` was true.
+ */
+.franchise-chat-switch:not(.franchise-status-switch) .form-check-input {
   width: 2.5em;
   height: 1.28em;
   margin-left: 0;
@@ -1663,6 +1673,41 @@ body:has(.modal.show ~ .modal.show) {
   &:focus {
     box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.28);
     border-color: #dc3545;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  &:checked:disabled {
+    background-color: #adb5bd;
+    border-color: #6c757d;
+  }
+}
+
+/* My Franchise — services/categories active + employee chat: larger switch, green on / red off (table + modals) */
+.franchise-status-switch.franchise-chat-switch .form-check-input {
+  width: 3.35em;
+  height: 1.72em;
+  margin-left: 0;
+  cursor: pointer;
+  background-color: #dc3545;
+  border-color: #b02a37;
+
+  &:checked {
+    background-color: #198754;
+    border-color: #146c43;
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 0.22rem rgba(220, 53, 69, 0.28);
+    border-color: #dc3545;
+  }
+
+  &:checked:focus {
+    box-shadow: 0 0 0 0.22rem rgba(25, 135, 84, 0.32);
+    border-color: #198754;
   }
 
   &:disabled {

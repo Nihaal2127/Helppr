@@ -18,6 +18,8 @@ export type AddQuoteFormValues = {
   requested_time_from: string;
   requested_time_to: string;
   service_price: string;
+  /** Optional; sent as `description` on create. */
+  description: string;
 };
 
 export type QuoteRow = {
@@ -68,4 +70,5 @@ export type QuoteRow = {
   partner_user_id?: string;
   partner_phone?: string;
   partner_city?: string;
+  description?: string;
 };

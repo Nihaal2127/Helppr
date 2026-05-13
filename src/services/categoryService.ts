@@ -4,12 +4,25 @@ import { CategoryModel } from "../models/CategoryModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
+function extractCategoryDropDownRecords(data: unknown): any[] {
+  if (!data || typeof data !== "object") return [];
+  const root = data as Record<string, unknown>;
+  if (Array.isArray(root.records)) return root.records as any[];
+  const nested = root.data;
+  if (nested && typeof nested === "object") {
+    const inner = nested as Record<string, unknown>;
+    if (Array.isArray(inner.records)) return inner.records as any[];
+  }
+  return [];
+}
+
 /** Hoisted so helpers below never see an uninitialized binding (HMR / circular import edge cases). */
 export async function fetchCategoryDropDown(
   cityId?: string
 ): Promise<{ value: string; label: string }[]> {
+  const cid = String(cityId ?? "").trim();
   const params = new URLSearchParams({
-    ...(cityId && { city_id: cityId }),
+    ...(cid ? { city_id: cid } : {}),
   });
   const response = await apiRequest(
     `${ApiPaths.GET_CATEGORY_DROP_DOWN()}?${params.toString()}`,
@@ -17,7 +30,8 @@ export async function fetchCategoryDropDown(
   );
 
   if (response.success) {
-    return response.data.records.map((category: any) => ({
+    const rows = extractCategoryDropDownRecords(response.data);
+    return rows.map((category: any) => ({
       value: String(category._id ?? ""),
       label: String(category.name ?? ""),
     }));

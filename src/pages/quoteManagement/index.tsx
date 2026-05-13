@@ -225,6 +225,7 @@ const toQuoteViewData = (row: QuoteRow): QuoteViewData => ({
   payment_status: row.payment_status,
   payment_reference: row.payment_reference,
   payment_date: row.payment_date,
+  description: row.description,
 });
 
 const QuoteManagement = () => {
@@ -243,7 +244,10 @@ const QuoteManagement = () => {
     }>({
       defaultValues: { from_date: "", to_date: "" },
     });
-  const { register, setValue } = useForm<any>();
+  const { register, setValue, watch } = useForm<any>({
+    defaultValues: { franchise_id: "all" },
+  });
+  const headerFranchiseScope = watch("franchise_id") as string | undefined;
   const {
     register: addQuoteRegister,
     handleSubmit: handleAddQuoteSubmit,
@@ -266,6 +270,7 @@ const QuoteManagement = () => {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
+      description: "",
     },
   });
   const addQuote = watchAddQuote();
@@ -371,6 +376,7 @@ const QuoteManagement = () => {
     setAddQuoteValue("requested_time_from", "", { shouldValidate: false });
     setAddQuoteValue("requested_time_to", "", { shouldValidate: false });
     setAddQuoteValue("service_price", "", { shouldValidate: false });
+    setAddQuoteValue("description", "", { shouldValidate: false });
     setCreateQuoteAddressId("");
   }, [setAddQuoteValue]);
 
@@ -450,19 +456,31 @@ const QuoteManagement = () => {
   const [sortBy, setSortBy] = useState<QuoteListSort>([]);
 
   const fetchRef = useRef(false);
-  /** First list load runs after tab totals (`getCount`); later filter/tab/page changes only refetch the active tab list. */
-  const quoteCountsBootstrappedRef = useRef(false);
 
   const quoteListFilters = useMemo(
     () => ({
       keyword: searchKeyword,
       from_date: fromDate,
       to_date: toDate,
-      franchise_id: effectiveFranchiseId || undefined,
+      franchise_id:
+        (isSuperAdminOrStaff
+          ? (() => {
+              const h = String(headerFranchiseScope ?? "").trim();
+              return h && h !== "all" ? h : undefined;
+            })()
+          : effectiveFranchiseId) || undefined,
     }),
-    [searchKeyword, fromDate, toDate, effectiveFranchiseId]
+    [
+      searchKeyword,
+      fromDate,
+      toDate,
+      effectiveFranchiseId,
+      isSuperAdminOrStaff,
+      headerFranchiseScope,
+    ]
   );
 
+  /** First list load runs after tab totals (`getCount`); later filter/tab/page changes only refetch the active tab list. */
   const fetchData = useCallback(async () => {
     if (!isSuperAdminOrStaff && !effectiveFranchiseId) {
       setQuoteRows([]);
@@ -499,9 +517,15 @@ const QuoteManagement = () => {
     sortBy,
   ]);
 
-  /** Tab badges: `POST /getCount` with `{ type: "quote-management" }` only (no N×`getAll` fallback — avoids spamming every tab on staging shape drift). */
+  /** Tab badges: `POST /getCount` with `{ type: "quote-management", franchise_id? }`. */
   const refreshQuoteSummaryFromGetCount = useCallback(async () => {
-    const { responseCount, countModel } = await getCount("quote-management");
+    const fid = String(headerFranchiseScope ?? "").trim();
+    const scope =
+      fid && fid !== "all" ? { franchise_id: fid } : undefined;
+    const { responseCount, countModel } = await getCount(
+      "quote-management",
+      scope
+    );
     const rec =
       countModel != null
         ? (countModel as unknown as Record<string, unknown>)
@@ -513,7 +537,7 @@ const QuoteManagement = () => {
       return;
     }
     setQuoteCountsByTab({});
-  }, []);
+  }, [headerFranchiseScope]);
 
   const refreshCountsThenFetchQuotes = useCallback(() => {
     return refreshQuoteSummaryFromGetCount().then(() => fetchData());
@@ -597,18 +621,15 @@ const QuoteManagement = () => {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if (!quoteCountsBootstrappedRef.current) {
-        await refreshQuoteSummaryFromGetCount();
-        quoteCountsBootstrappedRef.current = true;
-        if (cancelled) return;
-      }
+    void (async () => {
+      await refreshQuoteSummaryFromGetCount();
+      if (cancelled) return;
       await fetchData();
     })();
     return () => {
       cancelled = true;
     };
-  }, [fetchData, refreshQuoteSummaryFromGetCount]);
+  }, [fetchData, refreshQuoteSummaryFromGetCount, headerFranchiseScope]);
 
   useEffect(
     () => () => {
@@ -763,6 +784,7 @@ const QuoteManagement = () => {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
+      description: "",
     });
   }, [showAddQuote, resetAddQuote]);
 
@@ -846,6 +868,7 @@ const QuoteManagement = () => {
       requested_time: data.requested_time,
       requested_time_from: data.requested_time_from,
       requested_time_to: data.requested_time_to,
+      description: String(data.description ?? "").trim() || undefined,
     });
 
     if (!body) {
@@ -1202,6 +1225,9 @@ const QuoteManagement = () => {
                         setAddQuoteValue("service_price", "", {
                           shouldValidate: false,
                         });
+                        setAddQuoteValue("description", "", {
+                          shouldValidate: false,
+                        });
                         if (!String(value ?? "").trim()) {
                           setAddQuoteValue("requested_partner", "", {
                             shouldValidate: false,
@@ -1258,6 +1284,9 @@ const QuoteManagement = () => {
                           shouldValidate: false,
                         });
                         setAddQuoteValue("service_price", "", {
+                          shouldValidate: false,
+                        });
+                        setAddQuoteValue("description", "", {
                           shouldValidate: false,
                         });
                         if (!String(value ?? "").trim()) {
@@ -1566,20 +1595,39 @@ const QuoteManagement = () => {
                 </>
               ) : null}
               {hasAddQuoteServiceSelected && isAddQuoteScheduleComplete ? (
-                <Row className="mt-2">
-                  <Col xs={12} md={6} className="mt-2">
-                    <CustomTextField
-                      label="Service Price"
-                      controlId="service_price"
-                      placeholder="Enter price"
-                      register={addQuoteRegister}
-                      error={addQuoteErrors.service_price}
-                      asCol={false}
-                      inputType="text"
-                      isEditable={!addQuoteFieldsLocked}
-                    />
-                  </Col>
-                </Row>
+                <>
+                  <Row className="mt-2">
+                    <Col xs={12} md={6} className="mt-2">
+                      <CustomTextField
+                        label="Service Price"
+                        controlId="service_price"
+                        placeholder="Enter price"
+                        register={addQuoteRegister}
+                        error={addQuoteErrors.service_price}
+                        asCol={false}
+                        inputType="text"
+                        isEditable={!addQuoteFieldsLocked}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="mt-2">
+                    <Col xs={12} className="mt-2">
+                      <CustomTextField
+                        label="Quote Description"
+                        controlId="description"
+                        placeholder="Optional notes for this quote"
+                        register={addQuoteRegister}
+                        error={addQuoteErrors.description}
+                        asCol={false}
+                        inputType="text"
+                        as="textarea"
+                        rows={4}
+                        maxLength={2000}
+                        isEditable={!addQuoteFieldsLocked}
+                      />
+                    </Col>
+                  </Row>
+                </>
               ) : null}
               </div>
             </section>

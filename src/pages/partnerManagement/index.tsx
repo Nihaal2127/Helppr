@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import SubscriptionPlans from "./subscriptionPlans/subscriptionPlans";
@@ -6,22 +7,30 @@ import PortfolioManagement from "./portfolioManagement/PortfolioManagement";
 import PostManagement from "./postManagement/PostManagement";
 
 const PartnerManagement = () => {
+  const navigate = useNavigate();
   const { register, setValue } = useForm<any>();
 
   const [selectedPage, setSelectedPage] = useState<string>("");
 
-  const [cardList] = useState<string[]>([
-    "Subscription\nPlans",
-    "Portfolio\nManagement",
-    "Post\nManagement",
+  const [cardList] = useState<
+    { title: string; action: "subscription" | "portfolio" | "post" | "partners" }[]
+  >([
+    { title: "Subscription\nPlans", action: "subscription" },
+    { title: "Portfolio\nManagement", action: "portfolio" },
+    { title: "Post\nManagement", action: "post" },
+    { title: "Partners", action: "partners" },
   ]);
 
-  const handleOnClick = (title: string) => {
-    if (title === "Subscription\nPlans") {
+  const handleOnClick = (action: (typeof cardList)[number]["action"]) => {
+    if (action === "partners") {
+      navigate("/user-management", { state: { initialTab: "partners" } });
+      return;
+    }
+    if (action === "subscription") {
       setSelectedPage("subscription");
-    } else if (title === "Portfolio\nManagement") {
+    } else if (action === "portfolio") {
       setSelectedPage("portfolio");
-    } else if (title === "Post\nManagement") {
+    } else if (action === "post") {
       setSelectedPage("post");
     }
   };
@@ -51,10 +60,10 @@ const PartnerManagement = () => {
           <div
             className="custom-grid-box"
             key={index}
-            onClick={() => handleOnClick(card)}
+            onClick={() => handleOnClick(card.action)}
             style={{ cursor: "pointer", whiteSpace: "pre-line" }}
           >
-            {card}
+            {card.title}
           </div>
         ))}
       </div>

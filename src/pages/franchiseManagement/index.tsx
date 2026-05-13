@@ -312,19 +312,36 @@ const FranchiseManagement = () => {
     };
   }, []);
 
-  /** Global summary counts from getCount whenever the list is unscoped (no search, status, sort, or header franchise). */
+  /** Summary counts: `POST /getCount` `{ type: "franchise-management", franchise_id? }`. */
   useEffect(() => {
-    const searchQ = String(filters.search ?? "").trim();
-    const statusF = String(filters.status ?? "").trim();
-    const hasScoped =
-      searchQ !== "" ||
-      (statusF !== "" && statusF !== "All") ||
-      sortBy.length > 0 ||
-      headerFranchiseId !== "all";
-    if (hasScoped) return;
     let cancelled = false;
+    const fid = String(headerFranchiseId ?? "").trim();
     void (async () => {
-      const { responseCount, countModel } = await getCount();
+      if (fid && fid !== "all") {
+        const { responseCount, countModel } = await getCount(
+          "franchise-management",
+          {
+            franchise_id: fid,
+          }
+        );
+        if (cancelled || !responseCount || !countModel) return;
+        setFranchiseData({
+          Total: countModel.total_franchise ?? 0,
+          Active: countModel.active_franchise ?? 0,
+          Inactive: countModel.inactive_franchise ?? 0,
+        });
+        return;
+      }
+      const searchQ = String(filters.search ?? "").trim();
+      const statusF = String(filters.status ?? "").trim();
+      const hasScoped =
+        searchQ !== "" ||
+        (statusF !== "" && statusF !== "All") ||
+        sortBy.length > 0;
+      if (hasScoped) return;
+      const { responseCount, countModel } = await getCount(
+        "franchise-management"
+      );
       if (cancelled || !responseCount || !countModel) return;
       setFranchiseData({
         Total: countModel.total_franchise,
@@ -388,13 +405,6 @@ const FranchiseManagement = () => {
 
       setFranchiseList(rows);
       setTotalPages(rows.length ? 1 : 0);
-      const total = rows.length;
-      const active = rows.filter((r) => r.is_active).length;
-      setFranchiseData({
-        Total: total,
-        Active: active,
-        Inactive: total - active,
-      });
     } else {
       const listRes = await fetchFranchise(
         currentPage,

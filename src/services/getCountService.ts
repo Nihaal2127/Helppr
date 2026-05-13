@@ -9,16 +9,18 @@ export type GetCountExtra = {
 };
 
 export const getCount = async (
-  /** Omit to send `{}`. Otherwise `{ type }` — e.g. `"service-management"`, `"my-franchise"` (franchise-scoped dashboard `record`), `"quote-management"` (quote tab totals in `record`). */
-  type?: number | string,
+  /**
+   * Required by the API (`POST /getCount` returns 400 if `type` is missing).
+   * Examples: `"service-management"`, `"user-management"`, `"order-management"`, `"franchise-management"`, `"my-franchise"`, `"quote-management"`, or numeric codes where the API still expects them (e.g. location `1`).
+   */
+  type: number | string,
   extra?: GetCountExtra
 ): Promise<{
   countModel: CountModel | null | null;
   responseCount: boolean;
 }> => {
   try {
-    const payload: Record<string, unknown> =
-      type === undefined ? {} : { type };
+    const payload: Record<string, unknown> = { type };
     const fid = String(extra?.franchise_id ?? "").trim();
     if (fid && fid !== "all") {
       payload.franchise_id = fid;

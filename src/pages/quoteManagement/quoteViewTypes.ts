@@ -46,4 +46,5 @@ export type QuoteViewData = {
   payment_status?: string;
   payment_reference?: string;
   payment_date?: string;
+  description?: string;
 };
