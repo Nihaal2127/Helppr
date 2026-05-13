@@ -50,10 +50,8 @@ import {
 } from "../../../services/userService";
 import {
   fetchFranchiseDropDown,
-  clearFranchiseDropdownCache,
   FranchiseDropDownOption,
 } from "../../../services/franchiseService";
-import AddEditFranchiseDialog from "../../franchiseManagement/AddEditFranchiseDialog";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import {
   isValidUserEmail,
@@ -77,9 +75,6 @@ const emptyRoleForm = {
   password: "",
   confirmPassword: "",
 };
-
-/** Assigned Franchise select → open global Add Franchise dialog (same as Franchise Management). */
-const ADD_FRANCHISE_DROPDOWN_VALUE = "__add_franchise__";
 
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
 const staffScreenPermissionMenuItems = mainMenuItems.filter(
@@ -222,6 +217,9 @@ const RoleManagement = () => {
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
     FranchiseDropDownOption[]
   >([]);
+  /** Assigned Franchise in Add/Edit Franchise Admin — `GET …/getDropDown` (assigned scope). Loaded only when that modal is open. */
+  const [franchiseAssignedAdminDropdownOptions, setFranchiseAssignedAdminDropdownOptions] =
+    useState<FranchiseDropDownOption[]>([]);
   const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
   const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
   const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] =
@@ -485,17 +483,30 @@ const RoleManagement = () => {
     ensureSettingsSeedData();
   }, []);
 
+  /** Full franchise list (`GET_FRANCHISE_DROP_DOWN` / full_list) — header filter + Employee Assigned Franchise. */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const options = await fetchFranchiseDropDown();
-      if (cancelled) return;
-      setFranchiseDropdownOptions(options);
+      const fullList = await fetchFranchiseDropDown();
+      if (!cancelled) setFranchiseDropdownOptions(fullList);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /** Assigned-admin dropdown (`GET_FRANCHISE_DROP_DOWN_ASSIGNED`) — only while Franchise Admin modal is open. */
+  useEffect(() => {
+    if (!showForm || form.roleType !== "franchise_admin") return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await fetchFranchiseDropDown({ assignedAdminDropdown: true });
+      if (!cancelled) setFranchiseAssignedAdminDropdownOptions(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showForm, form.roleType]);
 
   useEffect(() => {
     setInitialLoadDone(true);
@@ -735,9 +746,16 @@ const RoleManagement = () => {
     [staffSummaryCounts]
   );
 
-  /** Full franchise list from `getDropDown` (with `full_list` on the path); value/label are franchise name for `franchiseMetaByName`. */
+  /**
+   * Employee: `GET_FRANCHISE_DROP_DOWN` (full_list). Admin: `GET_FRANCHISE_DROP_DOWN_ASSIGNED`.
+   * Label → id map via `franchiseMetaByName`.
+   */
   const assignedFranchiseOptions = useMemo(() => {
-    const options = franchiseDropdownOptions.map((o) => ({
+    const source =
+      form.roleType === "employee"
+        ? franchiseDropdownOptions
+        : franchiseAssignedAdminDropdownOptions;
+    const options = source.map((o) => ({
       value: o.label,
       label: o.label,
     }));
@@ -753,22 +771,31 @@ const RoleManagement = () => {
     const head: { value: string; label: string }[] = [
       { value: "", label: "Select Franchise" },
     ];
-    const tail: { value: string; label: string }[] =
-      form.roleType === "franchise_admin"
-        ? [{ value: ADD_FRANCHISE_DROPDOWN_VALUE, label: "+ Add franchise" }]
-        : [];
-    return [...head, ...options, ...tail];
-  }, [franchiseDropdownOptions, form.assignedFranchise, form.roleType]);
+    return [...head, ...options];
+  }, [
+    form.roleType,
+    franchiseDropdownOptions,
+    franchiseAssignedAdminDropdownOptions,
+    form.assignedFranchise,
+  ]);
 
   const franchiseMetaByName = useMemo(() => {
+    const source =
+      form.roleType === "employee"
+        ? franchiseDropdownOptions
+        : franchiseAssignedAdminDropdownOptions;
     const map = new Map<string, FranchiseDropDownOption>();
-    franchiseDropdownOptions.forEach((option) => {
+    source.forEach((option) => {
       if (!map.has(option.label)) {
         map.set(option.label, option);
       }
     });
     return map;
-  }, [franchiseDropdownOptions]);
+  }, [
+    form.roleType,
+    franchiseDropdownOptions,
+    franchiseAssignedAdminDropdownOptions,
+  ]);
 
   const franchiseFilterOptions = useMemo(() => {
     const uniqueFranchises = Array.from(
@@ -1517,13 +1544,17 @@ const RoleManagement = () => {
                     ? { existingImages: [form.profile_url] }
                     : {})}
                   onFileChange={(files) => {
-                    setRoleImageFile(files[0] ?? null);
-                    setForm((p) => ({
-                      ...p,
-                      profile_url: files[0]
-                        ? `uploads/${files[0].name}`
-                        : p.profile_url,
-                    }));
+                    const f = files[0] ?? null;
+                    setRoleImageFile(f);
+                    setForm((p) => {
+                      if (!editing) {
+                        return { ...p, profile_url: "" };
+                      }
+                      if (f) {
+                        return { ...p, profile_url: `uploads/${f.name}` };
+                      }
+                      return { ...p, profile_url: p.profile_url };
+                    });
                   }}
                 />
               </div>
@@ -1539,20 +1570,6 @@ const RoleManagement = () => {
                   setValue={setValue}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    if (raw === ADD_FRANCHISE_DROPDOWN_VALUE) {
-                      const prev = form.assignedFranchise;
-                      AddEditFranchiseDialog.show(false, null, () => {
-                        clearFranchiseDropdownCache();
-                        void (async () => {
-                          const opts = await fetchFranchiseDropDown();
-                          setFranchiseDropdownOptions(opts);
-                        })();
-                      });
-                      setValue("assigned_franchise", prev ?? "", {
-                        shouldValidate: false,
-                      });
-                      return;
-                    }
                     setForm((p) => ({
                       ...p,
                       assignedFranchise: raw,
@@ -1726,12 +1743,12 @@ const RoleManagement = () => {
                 }
                 setRoleSavePending(true);
                 try {
-                  const ok = await createRoleUserWithApi(
+                  const result = await createRoleUserWithApi(
                     rolePayload,
                     roleImageFile ?? undefined,
                     form.password.trim()
                   );
-                  if (ok) {
+                  if (result.ok) {
                     setRoleImageFile(null);
                     setShowForm(false);
                     setRoleCurrentPage(1);

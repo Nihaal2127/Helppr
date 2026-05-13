@@ -304,7 +304,9 @@ const franchiseDropdownCache = new Map<string, FranchiseDropdownCacheEntry>();
 function franchiseDropdownCacheKey(options?: {
   onlyUnassigned?: boolean;
   fullList?: boolean;
+  assignedAdminDropdown?: boolean;
 }) {
+  if (options?.assignedAdminDropdown) return "assigned_admin";
   if (options?.onlyUnassigned) return "only_unassigned";
   if (options?.fullList) return "full_list";
   return "all";
@@ -336,8 +338,40 @@ export function clearFranchiseDropdownCache(): void {
 }
 
 async function fetchFranchiseDropDownUncached(
-  options?: { onlyUnassigned?: boolean; fullList?: boolean }
+  options?: {
+    onlyUnassigned?: boolean;
+    fullList?: boolean;
+    assignedAdminDropdown?: boolean;
+  }
 ): Promise<FranchiseDropDownOption[]> {
+  if (options?.assignedAdminDropdown) {
+    const url = ApiPaths.GET_FRANCHISE_DROP_DOWN_ASSIGNED();
+    const response = await apiRequest(url, "GET");
+    if (response.success) {
+      const payload = (response as { data?: unknown }).data;
+      const rows = normalizeFranchiseDropdownRecords(payload);
+      return rows
+        .map((franchise: any) => {
+          const value = String(
+            franchise?._id ?? franchise?.id ?? ""
+          ).trim();
+          const label =
+            String(franchise?.name ?? franchise?.franchise_name ?? "").trim() ||
+            value;
+          return {
+            value,
+            label,
+            state_id: franchise.state_id
+              ? String(franchise.state_id)
+              : undefined,
+            city_id: franchise.city_id ? String(franchise.city_id) : undefined,
+          };
+        })
+        .filter((o) => Boolean(o.value));
+    }
+    showLog(response.message || "Failed to fetch franchise");
+    return [];
+  }
   const query = new URLSearchParams();
   if (options?.onlyUnassigned) {
     query.set("only_unassigned", "true");
@@ -432,7 +466,11 @@ async function fetchFranchiseDropDownUncached(
 }
 
 export const fetchFranchiseDropDown = async (
-  options?: { onlyUnassigned?: boolean; fullList?: boolean }
+  options?: {
+    onlyUnassigned?: boolean;
+    fullList?: boolean;
+    assignedAdminDropdown?: boolean;
+  }
 ): Promise<FranchiseDropDownOption[]> => {
   if (USE_MOCK_FRANCHISE_API) {
     return mockFranchises.map((f: any) => ({

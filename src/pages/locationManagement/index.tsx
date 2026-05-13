@@ -8,16 +8,8 @@ import CustomTable from "../../components/CustomTable";
 import AddEditStateDialog from "./AddEditStateDialog";
 import AddEditCityDialog from "./AddEditCityDialog";
 import { StateModel } from "../../models/StateModel";
-import {
-  fetchState,
-  deleteState,
-  fetchStateDropDown,
-} from "../../services/stateService";
-import {
-  deleteCity,
-  fetchCity,
-  fetchCityDropDown,
-} from "../../services/cityService";
+import { fetchState, deleteState } from "../../services/stateService";
+import { deleteCity, fetchCity } from "../../services/cityService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { CityModel } from "../../models/CityModel";
@@ -63,24 +55,12 @@ const LocationManagement = () => {
   const [stateList, setStateList] = useState<StateModel[]>([]);
   const [cityList, setCityList] = useState<CityModel[]>([]);
   const [areaList, setAreaList] = useState<AreaModel[]>([]);
-  const [cityStateOptions, setCityStateOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
-  const [selectedCityStateId, setSelectedCityStateId] = useState("");
-  const [areaStateOptions, setAreaStateOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
-  const [areaCityOptions, setAreaCityOptions] = useState<
-    { value: string; label: string; state_id?: string }[]
-  >([]);
   const [areaFranchiseOptions, setAreaFranchiseOptions] = useState<
     { value: string; label: string }[]
   >([]);
   const [franchiseAreaIdsById, setFranchiseAreaIdsById] = useState<
     Map<string, Set<string>>
   >(new Map());
-  const [selectedAreaStateId, setSelectedAreaStateId] = useState("");
-  const [selectedAreaCityId, setSelectedAreaCityId] = useState("");
   const [selectedAreaFranchiseId, setSelectedAreaFranchiseId] = useState("");
   const [activeFilters, setActiveFilters] = useState<LocationFilters>({});
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
@@ -95,21 +75,11 @@ const LocationManagement = () => {
   const fetchRef = useRef(false);
   const { register: areaFilterRegister, setValue: setAreaFilterValue } =
     useForm<{
-      area_state_id: string;
-      area_city_id: string;
       area_franchise_id: string;
     }>({
       defaultValues: {
-        area_state_id: "",
-        area_city_id: "",
         area_franchise_id: "",
       },
-    });
-  const { register: cityFilterRegister, setValue: setCityFilterValue } =
-    useForm<{
-      city_state_id: string;
-    }>({
-      defaultValues: { city_state_id: "" },
     });
   const { register: headerRegister, setValue: setHeaderValue } = useForm<{
     franchise_id: string;
@@ -286,19 +256,8 @@ const LocationManagement = () => {
   };
 
   useEffect(() => {
-    const loadCityDropdowns = async () => {
-      if (selectedBox !== "box-city") return;
-      const states = await fetchStateDropDown();
-      setCityStateOptions(states);
-    };
-    loadCityDropdowns();
-  }, [selectedBox]);
-
-  useEffect(() => {
     const loadAreaDropdowns = async () => {
       if (selectedBox !== "box-area") return;
-      const states = await fetchStateDropDown();
-      setAreaStateOptions(states);
       const franchises = await fetchFranchiseDropDown();
       setAreaFranchiseOptions(franchises);
       // Fallback map: selected franchise -> assigned area ids.
@@ -325,58 +284,22 @@ const LocationManagement = () => {
         if (!res.totalPages || page >= res.totalPages) break;
       }
       setFranchiseAreaIdsById(areaMap);
-      if (!selectedAreaStateId) {
-        setAreaCityOptions([]);
-        return;
-      }
-      const cities = await fetchCityDropDown([selectedAreaStateId]);
-      setAreaCityOptions(cities);
     };
     loadAreaDropdowns();
-  }, [selectedBox, selectedAreaStateId]);
-
-  const handleAreaStateFilterChange = async (stateId: string) => {
-    setSelectedAreaStateId(stateId);
-    setSelectedAreaCityId("");
-    if (!stateId) {
-      setAreaCityOptions([]);
-      await handleFilterChange({ state_id: "", city_id: "" });
-      return;
-    }
-    const cities = await fetchCityDropDown([stateId]);
-    setAreaCityOptions(cities);
-    await handleFilterChange({ state_id: stateId, city_id: "" });
-  };
-
-  const handleAreaCityFilterChange = async (cityId: string) => {
-    setSelectedAreaCityId(cityId);
-    await handleFilterChange({ city_id: cityId });
-  };
+  }, [selectedBox]);
 
   const handleAreaFranchiseFilterChange = async (franchiseId: string) => {
     setSelectedAreaFranchiseId(franchiseId);
     await handleFilterChange({ franchise_id: franchiseId });
   };
 
-  const handleCityStateFilterChange = async (stateId: string) => {
-    setSelectedCityStateId(stateId);
-    await handleFilterChange({ state_id: stateId });
-  };
-
   const clearCityFilters = () => {
-    setSelectedCityStateId("");
-    setCityFilterValue("city_state_id", "", { shouldValidate: false });
     handleFilterChange({ state_id: "", name: "" });
     setUtilitySearchKey((k) => k + 1);
   };
 
   const clearAreaFilters = () => {
-    setSelectedAreaStateId("");
-    setSelectedAreaCityId("");
     setSelectedAreaFranchiseId("");
-    setAreaCityOptions([]);
-    setAreaFilterValue("area_state_id", "", { shouldValidate: false });
-    setAreaFilterValue("area_city_id", "", { shouldValidate: false });
     setAreaFilterValue("area_franchise_id", "", { shouldValidate: false });
     handleFilterChange({
       state_id: "",
@@ -387,20 +310,11 @@ const LocationManagement = () => {
     setUtilitySearchKey((k) => k + 1);
   };
 
-  const cityClearDisabled =
-    !activeFilters.state_id && !String(activeFilters.name ?? "").trim();
+  const cityClearDisabled = !String(activeFilters.name ?? "").trim();
   const areaClearDisabled =
-    !activeFilters.state_id &&
-    !activeFilters.city_id &&
     !activeFilters.franchise_id &&
     !String(activeFilters.name ?? "").trim();
 
-  const cityStateFilterOptions = [
-    { value: "", label: "All" },
-    ...cityStateOptions,
-  ];
-  const stateFilterOptions = [{ value: "", label: "All" }, ...areaStateOptions];
-  const cityFilterOptions = [{ value: "", label: "All" }, ...areaCityOptions];
   const franchiseFilterOptions = [
     { value: "", label: "All" },
     ...areaFranchiseOptions,
@@ -628,120 +542,46 @@ const LocationManagement = () => {
       : selectedBox === "box-city"
       ? "Cities"
       : "Areas";
-  const utilitySearchLabel =
+  const utilitySearchHint =
     selectedBox === "box-state"
-      ? "State"
+      ? "Search State Name"
       : selectedBox === "box-city"
-      ? "City"
-      : "Area";
+      ? "Search City or State Name"
+      : "Search State, City, Area";
 
   const locationUtilityBox = UtilityBoxComponent ? (
     <UtilityBoxComponent
       key={`location-utility-${selectedBox}-${utilitySearchKey}`}
       title={utilityTitle}
-      searchHint={`Search ${utilitySearchLabel} Name`}
-      toolsInlineRow={selectedBox === "box-city" || selectedBox === "box-area"}
+      searchHint={utilitySearchHint}
+      toolsInlineRow={
+        selectedBox === "box-city" || selectedBox === "box-area"
+      }
       controlSlot={
-        selectedBox === "box-city" ? (
-          <>
-            {/* Plain div siblings — matches Financial Refunds; Row breaks under .custom-utility-control-slot > div CSS */}
-            <div style={{ minWidth: "200px" }}>
-              {FormSelectComponent ? (
-                <FormSelectComponent
-                  label="State"
-                  controlId="city_filter_state"
-                  options={cityStateFilterOptions}
-                  register={
-                    cityFilterRegister as unknown as UseFormRegister<any>
-                  }
-                  fieldName="city_state_id"
-                  asCol={false}
-                  noBottomMargin
-                  selectWidth="200px"
-                  defaultValue={selectedCityStateId}
-                  setValue={
-                    setCityFilterValue as (name: string, value: any) => void
-                  }
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    handleCityStateFilterChange(e.target.value)
-                  }
-                />
-              ) : null}
-            </div>
-          </>
-        ) : selectedBox === "box-area" ? (
-          <>
-            <div style={{ minWidth: "200px" }}>
-              {FormSelectComponent ? (
-                <FormSelectComponent
-                  label="State"
-                  controlId="area_filter_state"
-                  options={stateFilterOptions}
-                  register={
-                    areaFilterRegister as unknown as UseFormRegister<any>
-                  }
-                  fieldName="area_state_id"
-                  asCol={false}
-                  noBottomMargin
-                  selectWidth="200px"
-                  defaultValue={selectedAreaStateId}
-                  setValue={
-                    setAreaFilterValue as (name: string, value: any) => void
-                  }
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    handleAreaStateFilterChange(e.target.value)
-                  }
-                />
-              ) : null}
-            </div>
-            <div style={{ minWidth: "200px" }}>
-              {FormSelectComponent ? (
-                <FormSelectComponent
-                  label="City"
-                  controlId="area_filter_city"
-                  options={cityFilterOptions}
-                  register={
-                    areaFilterRegister as unknown as UseFormRegister<any>
-                  }
-                  fieldName="area_city_id"
-                  asCol={false}
-                  noBottomMargin
-                  selectWidth="200px"
-                  defaultValue={selectedAreaCityId}
-                  setValue={
-                    setAreaFilterValue as (name: string, value: any) => void
-                  }
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    if (!selectedAreaStateId) return;
-                    handleAreaCityFilterChange(e.target.value);
-                  }}
-                />
-              ) : null}
-            </div>
-            <div style={{ minWidth: "200px" }}>
-              {FormSelectComponent ? (
-                <FormSelectComponent
-                  label="Franchise"
-                  controlId="area_filter_franchise"
-                  options={franchiseFilterOptions}
-                  register={
-                    areaFilterRegister as unknown as UseFormRegister<any>
-                  }
-                  fieldName="area_franchise_id"
-                  asCol={false}
-                  noBottomMargin
-                  selectWidth="200px"
-                  defaultValue={selectedAreaFranchiseId}
-                  setValue={
-                    setAreaFilterValue as (name: string, value: any) => void
-                  }
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    handleAreaFranchiseFilterChange(e.target.value)
-                  }
-                />
-              ) : null}
-            </div>
-          </>
+        selectedBox === "box-area" ? (
+          <div style={{ minWidth: "200px" }}>
+            {FormSelectComponent ? (
+              <FormSelectComponent
+                label="Franchise"
+                controlId="area_filter_franchise"
+                options={franchiseFilterOptions}
+                register={
+                  areaFilterRegister as unknown as UseFormRegister<any>
+                }
+                fieldName="area_franchise_id"
+                asCol={false}
+                noBottomMargin
+                selectWidth="200px"
+                defaultValue={selectedAreaFranchiseId}
+                setValue={
+                  setAreaFilterValue as (name: string, value: any) => void
+                }
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  handleAreaFranchiseFilterChange(e.target.value)
+                }
+              />
+            ) : null}
+          </div>
         ) : undefined
       }
       afterSearchSlot={
@@ -835,11 +675,7 @@ const LocationManagement = () => {
                   }
                   onSelect={(divId: string) => {
                     setSelectedBox(divId);
-                    setSelectedCityStateId("");
-                    setSelectedAreaStateId("");
-                    setSelectedAreaCityId("");
                     setSelectedAreaFranchiseId("");
-                    setAreaCityOptions([]);
                     setStateTableSortBy([]);
                     setCityTableSortBy([]);
                     setAreaTableSortBy([]);

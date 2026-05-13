@@ -34,7 +34,9 @@ export const ApiPaths = {
   UPDATE_CITY: (id: string) => `/city/update/${id}`,
   DELETE_CITY: (id: string) => `/city/delete/${id}`,
   EXPORT_CITY: `/export/city`,
+  
   GET_FRANCHISE_DROP_DOWN: () => "/franchise/getDropDown?full_list=true",
+  GET_FRANCHISE_DROP_DOWN_ASSIGNED: () => "/franchise/getDropDown",
   /** Scoped catalogue + people for a franchise (quote / order flows). */
   GET_FRANCHISE_RELATED_CATALOG: (franchiseId: string) =>
     `/franchise/related-catalog/${franchiseId}`,

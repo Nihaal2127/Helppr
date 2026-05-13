@@ -204,8 +204,10 @@ export const createWebManagementUser = async (
   ) {
     requestBody.accessible_screens = accessibleScreensRows;
   }
-  if (body.status) {
-    requestBody.status = String(body.status).trim().toLowerCase();
+  if (body.status != null && String(body.status).trim() !== "") {
+    const s = String(body.status).trim().toLowerCase();
+    requestBody.status = s;
+    requestBody.is_active = s !== "inactive";
   }
   if (body.franchise_id) requestBody.franchise_id = body.franchise_id;
   if (body.state_id) requestBody.state_id = body.state_id;

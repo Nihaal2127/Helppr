@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -7,11 +7,7 @@ import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
-import {
-  DetailsRow,
-  getNavigate,
-  getStatusOptions,
-} from "../../helper/utility";
+import { DetailsRow, getStatusOptions } from "../../helper/utility";
 import { showErrorAlert } from "../../helper/alertHelper";
 import {
   createOrUpdateFranchise,
@@ -36,7 +32,7 @@ import {
   USE_MOCK_FRANCHISE_CATALOG,
 } from "../../mockData/franchiseCatalogMock";
 import { openDialog } from "../../helper/DialogManager";
-import { ROUTES } from "../../routes/Routes";
+import { openAddFranchiseAdminModal } from "../../components/AddFranchiseAdminModal";
 
 type AddEditFranchiseDialogProps = {
   isEditable: boolean;
@@ -44,6 +40,8 @@ type AddEditFranchiseDialogProps = {
   franchise: FranchiseModel | null;
   onClose: () => void;
   onRefreshData: () => void;
+  /** When true, omit "+ Add admin" (opened from Management Roles → Assigned Franchise → + Add franchise). */
+  hideAddAdminOption?: boolean;
 };
 
 type OptionType = {
@@ -115,6 +113,40 @@ function filterAdminsNotAssignedElsewhere(
   });
 }
 
+/** Paginated franchise admins for Admin dropdown (`/user/getAll` type = franchise admin). */
+async function fetchFranchiseAdminSelectOptions(): Promise<OptionType[]> {
+  const pageSize = 200;
+  let page = 1;
+  const allUsers: any[] = [];
+  for (;;) {
+    const res = await fetchUser(
+      false,
+      WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
+      page,
+      pageSize,
+      {}
+    );
+    if (!res.response) break;
+    allUsers.push(...(res.users ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 100) break;
+  }
+  const unique = new Map<string, OptionType>();
+  allUsers.forEach((u: any) => {
+    const value = String(u?._id ?? "").trim();
+    if (!value) return;
+    const label = franchiseAdminOptionLabel(u as Record<string, unknown>);
+    if (!label) return;
+    if (!unique.has(value)) {
+      unique.set(value, { value, label });
+    }
+  });
+  return Array.from(unique.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
+}
+
 function toStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((v) => String(v ?? "").trim()).filter(Boolean);
@@ -150,7 +182,7 @@ const STATIC_STATE_OPTIONS: OptionType[] = [
   { value: "telangana", label: "Telangana" },
 ];
 
-/** Last option in Admin dropdown — navigates to Management Roles → Add Franchise Admin. */
+/** Synthetic Admin dropdown row — opens inline Add Franchise Admin over this dialog. */
 const ADD_ADMIN_DROPDOWN_VALUE = "__add_admin__";
 
 const STATIC_CITY_OPTIONS_MAP: Record<string, OptionType[]> = {
@@ -171,9 +203,17 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     isEditable: boolean,
     franchise: FranchiseModel | null,
     onRefreshData: () => void,
-    isViewMode?: boolean
+    isViewMode?: boolean,
+    options?: { hideAddAdminOption?: boolean }
   ) => void;
-} = ({ isEditable, isViewMode = false, franchise, onClose, onRefreshData }) => {
+} = ({
+  isEditable,
+  isViewMode = false,
+  franchise,
+  onClose,
+  onRefreshData,
+  hideAddAdminOption = false,
+}) => {
   const lastAdminSelectionRef = useRef<string>(
     String(franchise?.admin_id ?? "").trim()
   );
@@ -209,6 +249,8 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
   );
 
   const [adminOptions, setAdminOptions] = useState<OptionType[]>([]);
+  /** Remount Admin `CustomFormSelect` so it never shows the synthetic "+ Add admin" value as selected. */
+  const [adminSelectResetKey, setAdminSelectResetKey] = useState(0);
   const [stateOptions, setStateOptions] = useState<OptionType[]>([]);
   const [cityOptions, setCityOptions] = useState<OptionType[]>([]);
   const [localViewMode, setLocalViewMode] = useState(isViewMode);
@@ -234,13 +276,33 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     }
   }, [watchedAdminId]);
 
-  const adminSelectOptions = useMemo(
-    () => [
+  const adminSelectOptions = useMemo(() => {
+    if (hideAddAdminOption) return [...adminOptions];
+    return [
       ...adminOptions,
       { value: ADD_ADMIN_DROPDOWN_VALUE, label: "+ Add admin" },
-    ],
-    [adminOptions]
-  );
+    ];
+  }, [adminOptions, hideAddAdminOption]);
+
+  const reloadAdminOptions = useCallback(async () => {
+    try {
+      const [usersResult, occupancy] = await Promise.all([
+        fetchFranchiseAdminSelectOptions(),
+        loadFranchiseAdminOccupancy(),
+      ]);
+      const currentFranchiseId =
+        isEditable && franchise?._id ? String(franchise._id).trim() : "";
+      setAdminOptions(
+        filterAdminsNotAssignedElsewhere(
+          usersResult,
+          occupancy,
+          currentFranchiseId
+        )
+      );
+    } catch {
+      setAdminOptions([]);
+    }
+  }, [isEditable, franchise?._id]);
 
   const areaOptions = useMemo(() => {
     return fetchedAreaOptions ?? [];
@@ -266,53 +328,9 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     let cancelled = false;
     void (async () => {
       try {
-        const loadAllFranchiseAdmins = async (): Promise<OptionType[]> => {
-          const pageSize = 200;
-          let page = 1;
-          const allUsers: any[] = [];
-
-          for (;;) {
-            // Use /user/getAll only for Franchise dialog admin dropdown.
-            // type=1 => Franchise Admin
-            // eslint-disable-next-line no-await-in-loop
-            // Do not filter by is_active — inactive admins must still appear so the
-            // select can show their `name` (otherwise the label falls back to raw _id).
-            const res = await fetchUser(
-              false,
-              WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
-              page,
-              pageSize,
-              {}
-            );
-            if (!res.response) break;
-
-            allUsers.push(...(res.users ?? []));
-            if (!res.totalPages || page >= res.totalPages) break;
-            page += 1;
-            if (page > 100) break;
-          }
-
-          const unique = new Map<string, OptionType>();
-          allUsers.forEach((u: any) => {
-            const value = String(u?._id ?? "").trim();
-            if (!value) return;
-            const label = franchiseAdminOptionLabel(
-              u as Record<string, unknown>
-            );
-            if (!label) return;
-            if (!unique.has(value)) {
-              unique.set(value, { value, label });
-            }
-          });
-
-          return Array.from(unique.values()).sort((a, b) =>
-            a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
-          );
-        };
-
         const [states, usersResult, occupancy] = await Promise.all([
           fetchStateDropDown(),
-          loadAllFranchiseAdmins(),
+          fetchFranchiseAdminSelectOptions(),
           loadFranchiseAdminOccupancy(),
         ]);
         if (cancelled) return;
@@ -1074,6 +1092,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
               </Col>
               <Col md={6}>
                 <CustomFormSelect
+                  key={adminSelectResetKey}
                   label="Admin"
                   controlId="Admin"
                   options={adminSelectOptions}
@@ -1093,8 +1112,19 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                         shouldValidate: false,
                         shouldDirty: false,
                       });
-                      getNavigate()?.(ROUTES.ROLE.path, {
-                        state: { openAddFranchiseAdmin: true },
+                      setAdminSelectResetKey((k) => k + 1);
+                      openAddFranchiseAdminModal(({ userId }) => {
+                        void (async () => {
+                          await reloadAdminOptions();
+                          if (userId) {
+                            setValue("admin_id", userId, {
+                              shouldValidate: false,
+                              shouldDirty: true,
+                            });
+                            lastAdminSelectionRef.current = userId;
+                          }
+                          setAdminSelectResetKey((k) => k + 1);
+                        })();
                       });
                     }
                   }}
@@ -1235,7 +1265,8 @@ AddEditFranchiseDialog.show = (
   isEditable: boolean,
   franchise: FranchiseModel | null,
   onRefreshData: () => void,
-  isViewMode: boolean = false
+  isViewMode: boolean = false,
+  options?: { hideAddAdminOption?: boolean }
 ) => {
   openDialog("details-modal", (close) => (
     <AddEditFranchiseDialog
@@ -1244,6 +1275,7 @@ AddEditFranchiseDialog.show = (
       franchise={franchise}
       onClose={close}
       onRefreshData={onRefreshData}
+      hideAddAdminOption={options?.hideAddAdminOption}
     />
   ));
 };

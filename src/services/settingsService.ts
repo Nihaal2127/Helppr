@@ -519,11 +519,11 @@ export const createRoleUserWithApi = async (
   payload: Omit<RoleSettingsModel, "id" | "createdDate">,
   imageFile?: File,
   password?: string
-): Promise<boolean> => {
+): Promise<{ ok: true; newUserId?: string } | { ok: false }> => {
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
   if (!createdById) {
     showErrorAlert("Missing session (created_by_id). Please log in again.");
-    return false;
+    return { ok: false };
   }
 
   const type =
@@ -562,7 +562,7 @@ export const createRoleUserWithApi = async (
         }
   );
 
-  if (!result.ok) return false;
+  if (!result.ok) return { ok: false };
 
   const raw = result.record as Record<string, unknown> | null | undefined;
   const serverId = pickRecordId(raw);
@@ -586,7 +586,7 @@ export const createRoleUserWithApi = async (
     undefined,
     serverId ? { newId: serverId } : undefined
   );
-  return true;
+  return { ok: true, newUserId: serverId };
 };
 
 /** Update franchise admin / franchise employee via `PUT /user/update/:id`. */
