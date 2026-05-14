@@ -589,6 +589,11 @@ body {
   }
 }
 
+/* Edit / Add address modal: slightly wider than default (~500px) dialog */
+.modal-dialog.modal-vh-90.user-view-address-modal-wider {
+  max-width: min(560px, calc(100vw - 2rem));
+}
+
 /* User details + view address dialogs: fixed 90vh, inner body scroll */
 .modal-dialog.user-details-modal-vh,
 .modal-dialog.user-view-address-modal-vh {

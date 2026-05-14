@@ -12,7 +12,6 @@ import { UserModel } from "../../models/UserModel";
 import {
   getRoleLabel,
   getStatusOptions,
-  DetailsRow,
   DetailsRowLinkDocument,
 } from "../../helper/utility";
 import { showErrorAlert, showInfoAlert } from "../../helper/alertHelper";
@@ -21,10 +20,9 @@ import { fetchStateDropDown } from "../../services/stateService";
 import { fetchArea } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchCategoryDropDown, fetchCategory } from "../../services/categoryService";
 import {
   fetchService,
-  fetchServiceDropDown,
   normalizeServiceCategoryRef,
 } from "../../services/servicesService";
 import CustomTextField from "../../components/CustomTextField";
@@ -36,9 +34,10 @@ import CustomUploadDialog from "../../components/CustomUpload";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
+import { fetchFranchiseDropDown } from "../../services/franchiseService";
 
 import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { PARTNER_VERIFICATION } from "../../constant/partnerVerification";
 import { openDialog } from "../../helper/DialogManager";
 import {
@@ -62,10 +61,24 @@ import type {
   PartnerCatalogFlattenOk,
 } from "./partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
+const USER_ROLE = 4;
 
-/** Placeholder labels in add-partner UI when verification dates are not yet set. */
-const ADD_PARTNER_VERIFICATION_PREVIEW_STATUS = "-";
-const ADD_PARTNER_VERIFICATION_PREVIEW_DATE = "-";
+function formatServicePaymentCadence(paymentType: string): string {
+  const t = String(paymentType ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
+  if (!t) return "";
+  const map: Record<string, string> = {
+    per_hour: "per hour",
+    per_month: "per month",
+    per_day: "per day",
+    per_week: "per week",
+    per_service: "per service",
+  };
+  if (map[t]) return map[t];
+  return t.replace(/_/g, " ");
+}
 
 type OptionType = { value: string; label: string };
 
@@ -93,6 +106,8 @@ type AddPartnerFormFields = {
   subscription_plan_id?: string;
   subscription_start_date?: string;
   subscription_end_date?: string;
+  /** Super admin / staff: franchise for Add Partner category catalogue. */
+  add_partner_franchise_id?: string;
 };
 
 type AddEditUserFormValues = Partial<UserModel> & AddPartnerFormFields;
@@ -176,6 +191,7 @@ function AddEditUserDialogView({
 }: AddEditUserDialogProps) {
   const isAddPartner = role === PARTNER_ROLE && !isEditable;
   const isPartnerEdit = role === PARTNER_ROLE && isEditable;
+  const isUserUpdate = role === USER_ROLE && isEditable;
 
   const {
     register,
@@ -208,6 +224,7 @@ function AddEditUserDialogView({
       subscription_plan_id: "",
       subscription_start_date: "",
       subscription_end_date: "",
+      add_partner_franchise_id: "",
     },
   });
 
@@ -218,11 +235,10 @@ function AddEditUserDialogView({
   const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
   /** Partner edit: bulk-loaded services for legacy category/service sync. Add Partner: filled lazily per category. */
   const [allServices, setAllServices] = useState<ServiceLite[]>([]);
-  /** Add Partner only: services loaded via `fetchServiceDropDown(categoryId)` when a category is chosen. */
+  /** Add Partner: services loaded per category from franchise-scoped catalog. */
   const [servicesByCategoryId, setServicesByCategoryId] = useState<
     Record<string, PartnerCatalogServiceLite[]>
   >({});
-  const partnerAddCategoriesLoadedRef = useRef(false);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [partnerCatalogBlocks, setPartnerCatalogBlocks] = useState<
@@ -245,8 +261,50 @@ function AddEditUserDialogView({
   const [partnerPlanSelectOptions, setPartnerPlanSelectOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
+    OptionType[]
+  >([]);
   const fetchRef = useRef(false);
   const fetchCityRef = useRef(false);
+  const prevAddPartnerFranchiseRef = useRef<string | null>(null);
+
+  const currentUserRole = String(
+    getLocalStorage(AppConstant.userRole) ?? ""
+  ).trim();
+  const isSuperAdminOrStaff =
+    currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
+  const isFranchisePortalUser =
+    currentUserRole === UserRole.FRANCHISE_ADMIN ||
+    currentUserRole === UserRole.EMPLOYEE;
+
+  const watchedPartnerFranchiseId = watch("add_partner_franchise_id");
+
+  const effectiveAddPartnerFranchiseId = useMemo(() => {
+    if (!isAddPartner) return "";
+    if (isSuperAdminOrStaff)
+      return String(watchedPartnerFranchiseId ?? "").trim();
+    if (isFranchisePortalUser)
+      return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+    return "";
+  }, [
+    isAddPartner,
+    isSuperAdminOrStaff,
+    isFranchisePortalUser,
+    watchedPartnerFranchiseId,
+  ]);
+
+  const addPartnerCatalogLocked = useMemo(
+    () =>
+      isAddPartner &&
+      ((isSuperAdminOrStaff && !effectiveAddPartnerFranchiseId) ||
+        (isFranchisePortalUser && !effectiveAddPartnerFranchiseId)),
+    [
+      isAddPartner,
+      isSuperAdminOrStaff,
+      isFranchisePortalUser,
+      effectiveAddPartnerFranchiseId,
+    ]
+  );
 
   const fetchCityFromApi = useCallback(async (stateId: string) => {
     if (fetchCityRef.current) return;
@@ -258,6 +316,21 @@ function AddEditUserDialogView({
       fetchCityRef.current = false;
     }
   }, []);
+
+  const onStateChangeClearLocationChain = useCallback(
+    (stateId: string) => {
+      setValue("city_id", "", { shouldValidate: false });
+      setValue("area_id", "", { shouldValidate: false });
+      setValue("pincode", "", { shouldValidate: false });
+      void fetchCityFromApi(stateId);
+    },
+    [setValue, fetchCityFromApi]
+  );
+
+  const onCityChangeClearAreaPin = useCallback(() => {
+    setValue("area_id", "", { shouldValidate: false });
+    setValue("pincode", "", { shouldValidate: false });
+  }, [setValue]);
 
   const fetchStateFromApi = useCallback(async () => {
     if (fetchRef.current) return;
@@ -378,24 +451,79 @@ function AddEditUserDialogView({
     user?.state_id,
   ]);
 
-  /** Full category catalog (no `city_id`) — only when Add Partner category dropdown opens. */
-  const ensurePartnerAddCategoriesLoaded = useCallback(async () => {
-    if (!isAddPartner) return;
-    if (partnerAddCategoriesLoadedRef.current) return;
-    partnerAddCategoriesLoadedRef.current = true;
-    try {
-      const cats = await fetchCategoryDropDown();
-      const catList = Array.isArray(cats)
-        ? cats.filter((c: OptionType) => c?.value)
-        : [];
-      setCategoryOptions([
-        { value: "select-all", label: "Select All" },
-        ...catList,
-      ]);
-    } catch {
-      setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+  useEffect(() => {
+    if (!isAddPartner) {
+      prevAddPartnerFranchiseRef.current = null;
+      return;
     }
-  }, [isAddPartner]);
+    const fid = effectiveAddPartnerFranchiseId;
+    if (prevAddPartnerFranchiseRef.current === fid) return;
+    prevAddPartnerFranchiseRef.current = fid;
+    setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+    setServicesByCategoryId({});
+    setCategoryIds([]);
+    setServiceIds([]);
+  }, [isAddPartner, effectiveAddPartnerFranchiseId]);
+
+  useEffect(() => {
+    if (!isAddPartner || !isSuperAdminOrStaff) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchFranchiseDropDown({ fullList: true });
+        if (cancelled) return;
+        const opts = (Array.isArray(rows) ? rows : [])
+          .map((r) => ({
+            value: String(r.value ?? "").trim(),
+            label: String(r.label ?? "").trim(),
+          }))
+          .filter((o) => o.value);
+        setFranchiseDropdownOptions(opts);
+      } catch {
+        if (!cancelled) setFranchiseDropdownOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAddPartner, isSuperAdminOrStaff]);
+
+  useEffect(() => {
+    if (!isAddPartner) return;
+    const fid = effectiveAddPartnerFranchiseId;
+    if (!fid) {
+      setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchCategory(1, 5000, { status: "true" }, [], fid);
+        if (cancelled) return;
+        if (!res.response) {
+          setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+          return;
+        }
+        const catList = res.categories
+          .map((c) => ({
+            value: String(c._id ?? c.category_id ?? "").trim(),
+            label: String(c.name ?? "").trim(),
+          }))
+          .filter((c) => c.value);
+        setCategoryOptions([
+          { value: "select-all", label: "Select All" },
+          ...catList,
+        ]);
+      } catch {
+        if (!cancelled) {
+          setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAddPartner, effectiveAddPartnerFranchiseId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -631,6 +759,7 @@ function AddEditUserDialogView({
                 serviceRows: b.serviceRows.map((r) => ({
                   ...r,
                   serviceId: "",
+                  price: "",
                 })),
               }
             : b
@@ -638,25 +767,63 @@ function AddEditUserDialogView({
       );
       const cid = String(categoryId ?? "").trim();
       if (!cid || !isAddPartner) return;
+      const fid = effectiveAddPartnerFranchiseId;
+      if (!fid) {
+        setServicesByCategoryId((prev) => ({ ...prev, [cid]: [] }));
+        return;
+      }
+      const cityId = String(watchedCityId ?? "").trim();
+      const stateId = String(watchedStateId ?? "").trim();
       void (async () => {
         try {
-          const opts = await fetchServiceDropDown(cid);
-          const mapped: PartnerCatalogServiceLite[] = opts.map((o) => ({
-            _id: String(o.value),
-            name: String(o.label),
+          const svcRes = await fetchService(
+            1,
+            5000,
+            {
+              status: "true",
+              ...(cityId ? { city_id: cityId } : {}),
+              ...(stateId ? { state_id: stateId } : {}),
+            },
+            [],
+            fid
+          );
+          const list =
+            svcRes.response && Array.isArray(svcRes.services)
+              ? svcRes.services
+              : [];
+          const filtered = list.filter(
+            (s) => normalizeServiceCategoryRef(s.category_id) === cid
+          );
+          const mapped: PartnerCatalogServiceLite[] = filtered.map((s) => ({
+            _id: String((s as { _id?: string })._id ?? ""),
+            name: String((s as { name?: string }).name ?? ""),
             category_id: cid,
+            price:
+              (s as { price?: number | null }).price !== undefined &&
+              (s as { price?: number | null }).price !== null
+                ? Number((s as { price?: number }).price)
+                : undefined,
+            payment_type: String(
+              (s as { payment_type?: string }).payment_type ??
+                (s as { min_deposit_type?: string }).min_deposit_type ??
+                ""
+            ).trim(),
           }));
-          setServicesByCategoryId((prev) =>
-            prev[cid]?.length ? prev : { ...prev, [cid]: mapped }
-          );
+          setServicesByCategoryId((prev) => ({
+            ...prev,
+            [cid]: mapped,
+          }));
         } catch {
-          setServicesByCategoryId((prev) =>
-            prev[cid]?.length ? prev : { ...prev, [cid]: [] }
-          );
+          setServicesByCategoryId((prev) => ({ ...prev, [cid]: [] }));
         }
       })();
     },
-    [isAddPartner]
+    [
+      isAddPartner,
+      effectiveAddPartnerFranchiseId,
+      watchedCityId,
+      watchedStateId,
+    ]
   );
 
   const addServiceRow = useCallback((blockId: string) => {
@@ -796,6 +963,18 @@ function AddEditUserDialogView({
         return;
       }
       if (isAddPartner) {
+        if (isSuperAdminOrStaff && !effectiveAddPartnerFranchiseId) {
+          showErrorAlert(
+            "Please select a franchise before choosing categories and services."
+          );
+          return;
+        }
+        if (isFranchisePortalUser && !effectiveAddPartnerFranchiseId) {
+          showErrorAlert(
+            "Franchise context is missing. Please sign in again."
+          );
+          return;
+        }
         const catalogFlat = flattenPartnerBlocksForSave(
           partnerCatalogBlocks,
           catalogServicesForBlocks
@@ -868,8 +1047,9 @@ function AddEditUserDialogView({
         : typeof data.is_active === "boolean"
         ? data.is_active
         : true;
-    const isBlockedPayload =
-      typeof (data as any).is_blocked === "string"
+    const isBlockedPayload = isUserUpdate
+      ? Boolean((user as any)?.is_blocked)
+      : typeof (data as any).is_blocked === "string"
         ? String((data as any).is_blocked) === "true"
         : Boolean((data as any).is_blocked);
     const resolvedIsActivePayload = isBlockedPayload ? false : isActivePayload;
@@ -882,13 +1062,27 @@ function AddEditUserDialogView({
       name: data.name,
       email: data.email,
       phone_number: data.phone_number,
-      address: data.address,
-      state_id: data.state_id,
-      city_id: data.city_id,
-      area_id: (data as any).area_id,
+      address: isUserUpdate
+        ? normalizeAddressValue(user?.address)
+        : data.address,
+      state_id: isUserUpdate ? user?.state_id || "" : data.state_id,
+      city_id: isUserUpdate ? user?.city_id || "" : data.city_id,
+      area_id: isUserUpdate
+        ? normalizeIdLike((user as any)?.area_id)
+        : (data as any).area_id,
       is_active: resolvedIsActivePayload,
       is_blocked: isBlockedPayload,
-      pincode: sanitizeIndianPincodeInput(String(data.pincode ?? "")),
+      pincode: isUserUpdate
+        ? sanitizeIndianPincodeInput(
+            String(normalizePincodeValue(user?.pincode) ?? "")
+          )
+        : sanitizeIndianPincodeInput(String(data.pincode ?? "")),
+      ...(isUserUpdate &&
+      (user as any)?.extra_addresses &&
+      Array.isArray((user as any).extra_addresses) &&
+      (user as any).extra_addresses.length > 0
+        ? { extra_addresses: (user as any).extra_addresses }
+        : {}),
       ...(profile_url !== "" && { profile_url }),
       ...(!isEditable &&
         String(data.password ?? "").trim() && {
@@ -1004,12 +1198,8 @@ function AddEditUserDialogView({
       pincode: isEditable ? normalizePincodeValue(user?.pincode) : "",
       is_active: isEditable ? user?.is_active ?? true : true,
       is_blocked: isEditable ? (user as any)?.is_blocked ?? false : false,
-      password: isEditable ? String((user as any)?.password ?? "") : "",
-      confirm_password: isEditable
-        ? String(
-            (user as any)?.confirm_password ?? (user as any)?.password ?? ""
-          )
-        : "",
+      password: isEditable ? "" : "",
+      confirm_password: isEditable ? "" : "",
       partner_bank_holder: "",
       partner_bank_account_number: "",
       partner_bank_ifsc: "",
@@ -1020,6 +1210,7 @@ function AddEditUserDialogView({
       subscription_plan_id: "",
       subscription_start_date: "",
       subscription_end_date: "",
+      add_partner_franchise_id: "",
     });
   }, [isEditable, user?._id, isAddPartner, reset]);
 
@@ -1133,7 +1324,9 @@ function AddEditUserDialogView({
                         isEditable ? (user?.state_id ? user?.state_id : "") : ""
                       }
                       setValue={setValue as (name: string, value: any) => void}
-                      onChange={(e) => fetchCityFromApi(e.target.value)}
+                      onChange={(e) =>
+                        onStateChangeClearLocationChain(e.target.value)
+                      }
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1149,6 +1342,7 @@ function AddEditUserDialogView({
                         isEditable ? (user?.city_id ? user?.city_id : "") : ""
                       }
                       setValue={setValue as (name: string, value: any) => void}
+                      onChange={() => onCityChangeClearAreaPin()}
                     />
                   </Col>
                 </Row>
@@ -1187,22 +1381,6 @@ function AddEditUserDialogView({
                         isEditable ? normalizePincodeValue(user?.pincode) : ""
                       }
                       setValue={setValue as (name: string, value: any) => void}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomImageUploader
-                      label="Profile Photo"
-                      maxFiles={1}
-                      isEditable={Boolean(isEditable)}
-                      {...(user?.profile_url
-                        ? { existingImages: [user.profile_url] }
-                        : [])}
-                      onFileChange={(files, replaceUrls) => {
-                        setFileInputs(files);
-                        setReplaceUrl(replaceUrls);
-                      }}
                     />
                   </Col>
                 </Row>
@@ -1253,92 +1431,115 @@ function AddEditUserDialogView({
                 </Row>
                 <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
-                    <CustomFormSelect
-                      label="Subscription Plan"
-                      controlId="subscription_plan_id"
-                      options={partnerPlanSelectOptions}
-                      register={register as unknown as UseFormRegister<any>}
-                      fieldName="subscription_plan_id"
-                      error={errors.subscription_plan_id as any}
-                      asCol={false}
-                      defaultValue={String(
-                        watch("subscription_plan_id") ?? ""
-                      )}
-                      setValue={setValue as (name: string, value: any) => void}
-                      placeholder="Select subscription plan"
-                      menuPortal
-                      onChange={(e) => {
-                        const v = String(
-                          (e.target as HTMLSelectElement).value ?? ""
-                        );
-                        const opt = partnerPlanSelectOptions.find(
-                          (o) => o.value === v
-                        );
-                        const slug = (opt?.label ?? "")
-                          .trim()
-                          .toLowerCase()
-                          .replace(/\s+/g, "");
-                        setValue("subscription_plan", slug, {
-                          shouldValidate: false,
-                        });
+                    <CustomImageUploader
+                      label="Profile Photo"
+                      maxFiles={1}
+                      isEditable={Boolean(isEditable)}
+                      {...(user?.profile_url
+                        ? { existingImages: [user.profile_url] }
+                        : [])}
+                      onFileChange={(files, replaceUrls) => {
+                        setFileInputs(files);
+                        setReplaceUrl(replaceUrls);
                       }}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomDatePicker
-                      label="Subscription Start Date"
-                      controlId="subscription_start_date"
-                      selectedDate={toYmdString(subscriptionStartStr)}
-                      onChange={(date) => {
-                        const value = date
-                          ? date.toISOString().slice(0, 10)
-                          : "";
-                        setValue("subscription_start_date", value, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                      register={register as unknown as UseFormRegister<any>}
-                      setValue={setValue as any}
-                      asCol={false}
-                      groupClassName="mb-0 w-100 fw-medium"
-                      placeholderText="Start date"
-                      filterDate={() => true}
-                      validation={{
-                        required: "Subscription start date is required",
-                      }}
-                      error={errors.subscription_start_date}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomDatePicker
-                      label="Subscription End Date"
-                      controlId="subscription_end_date"
-                      selectedDate={toYmdString(subscriptionEndStr)}
-                      onChange={(date) => {
-                        const value = date
-                          ? date.toISOString().slice(0, 10)
-                          : "";
-                        setValue("subscription_end_date", value, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                      register={register as unknown as UseFormRegister<any>}
-                      setValue={setValue as any}
-                      asCol={false}
-                      groupClassName="mb-0 w-100 fw-medium"
-                      placeholderText="End date"
-                      filterDate={() => true}
-                      validation={{
-                        required: "Subscription end date is required",
-                      }}
-                      error={errors.subscription_end_date}
-                    />
-                  </Col>
-                </Row>
+
+                <section
+                  className="custom-other-details mt-4"
+                  style={{ padding: "10px" }}
+                >
+                  <h3 className="mb-2">Subscription</h3>
+                  <Row className="g-3 mb-2">
+                    <Col xs={12} md={6}>
+                      <CustomFormSelect
+                        label="Subscription Plan"
+                        controlId="subscription_plan_id"
+                        options={partnerPlanSelectOptions}
+                        register={register as unknown as UseFormRegister<any>}
+                        fieldName="subscription_plan_id"
+                        error={errors.subscription_plan_id as any}
+                        asCol={false}
+                        defaultValue={String(
+                          watch("subscription_plan_id") ?? ""
+                        )}
+                        setValue={setValue as (name: string, value: any) => void}
+                        placeholder="Select subscription plan"
+                        menuPortal
+                        onChange={(e) => {
+                          const v = String(
+                            (e.target as HTMLSelectElement).value ?? ""
+                          );
+                          const opt = partnerPlanSelectOptions.find(
+                            (o) => o.value === v
+                          );
+                          const slug = (opt?.label ?? "")
+                            .trim()
+                            .toLowerCase()
+                            .replace(/\s+/g, "");
+                          setValue("subscription_plan", slug, {
+                            shouldValidate: false,
+                          });
+                        }}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 mb-2">
+                    <Col xs={12} md={6}>
+                      <CustomDatePicker
+                        label="Subscription Start Date"
+                        controlId="subscription_start_date"
+                        selectedDate={toYmdString(subscriptionStartStr)}
+                        onChange={(date) => {
+                          const value = date
+                            ? date.toISOString().slice(0, 10)
+                            : "";
+                          setValue("subscription_start_date", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                        register={register as unknown as UseFormRegister<any>}
+                        setValue={setValue as any}
+                        asCol={false}
+                        groupClassName="mb-0 w-100 fw-medium"
+                        placeholderText="Start date"
+                        filterDate={() => true}
+                        validation={{
+                          required: "Subscription start date is required",
+                        }}
+                        error={errors.subscription_start_date}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomDatePicker
+                        label="Subscription End Date"
+                        controlId="subscription_end_date"
+                        selectedDate={toYmdString(subscriptionEndStr)}
+                        onChange={(date) => {
+                          const value = date
+                            ? date.toISOString().slice(0, 10)
+                            : "";
+                          setValue("subscription_end_date", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                        register={register as unknown as UseFormRegister<any>}
+                        setValue={setValue as any}
+                        asCol={false}
+                        groupClassName="mb-0 w-100 fw-medium"
+                        placeholderText="End date"
+                        filterDate={() => true}
+                        validation={{
+                          required: "Subscription end date is required",
+                        }}
+                        error={errors.subscription_end_date}
+                      />
+                    </Col>
+                  </Row>
+                </section>
               </>
             ) : (
               <Row>
@@ -1388,124 +1589,134 @@ function AddEditUserDialogView({
                     })
                   }
                 />
-                <CustomTextField
-                  label="Password"
-                  controlId="password"
-                  placeholder="Enter Password"
-                  register={register}
-                  error={errors.password}
-                  validation={{
-                    required: !isEditable ? "Password is required" : false,
-                  }}
-                  inputType="password"
-                  autoComplete={isEditable ? "current-password" : "new-password"}
-                  value={watch("password") ?? ""}
-                  onChange={(value) =>
-                    setValue("password", value, {
-                      shouldDirty: true,
-                      shouldValidate: false,
-                    })
-                  }
-                />
-                <CustomTextField
-                  label="Confirm Password"
-                  controlId="confirm_password"
-                  placeholder="Enter Confirm Password"
-                  register={register}
-                  error={errors.confirm_password}
-                  validation={{
-                    required: !isEditable
-                      ? "Confirm password is required"
-                      : false,
-                    validate: (value: string) =>
-                      value === watch("password") || "Passwords do not match",
-                  }}
-                  inputType="password"
-                  autoComplete={isEditable ? "current-password" : "new-password"}
-                  value={watch("confirm_password") ?? ""}
-                  onChange={(value) =>
-                    setValue("confirm_password", value, {
-                      shouldDirty: true,
-                      shouldValidate: false,
-                    })
-                  }
-                />
-                <CustomTextFieldSelect
-                  label="State"
-                  controlId="State"
-                  options={states}
-                  register={register}
-                  fieldName="state_id"
-                  error={errors.state_id}
-                  requiredMessage="Please select state"
-                  defaultValue={
-                    isEditable ? (user?.state_id ? user?.state_id : "") : ""
-                  }
-                  setValue={setValue as (name: string, value: any) => void}
-                  onChange={(e) => fetchCityFromApi(e.target.value)}
-                />
-                <CustomTextFieldSelect
-                  label="City"
-                  controlId="City"
-                  options={cities}
-                  register={register}
-                  fieldName="city_id"
-                  error={errors.city_id}
-                  requiredMessage="Please select city"
-                  defaultValue={
-                    isEditable ? (user?.city_id ? user?.city_id : "") : ""
-                  }
-                  setValue={setValue as (name: string, value: any) => void}
-                />
-                <CustomTextFieldSelect
-                  label="Area"
-                  controlId="Area"
-                  options={[
-                    { value: "", label: "Select Area" },
-                    ...areas,
-                  ]}
-                  register={register}
-                  fieldName="area_id"
-                  error={(errors as any).area_id}
-                  requiredMessage="Please select area"
-                  defaultValue={
-                    isEditable ? normalizeIdLike((user as any)?.area_id) : ""
-                  }
-                  setValue={setValue as (name: string, value: any) => void}
-                />
-                <CustomTextFieldSelect
-                  label="Pincode"
-                  controlId="Pincode"
-                  options={[
-                    { value: "", label: "Select Pincode" },
-                    ...pincodeOptions,
-                  ]}
-                  register={register}
-                  fieldName="pincode"
-                  error={errors.pincode}
-                  requiredMessage="Please select pincode"
-                  defaultValue={
-                    isEditable ? normalizePincodeValue(user?.pincode) : ""
-                  }
-                  setValue={setValue as (name: string, value: any) => void}
-                />
-                <CustomTextField
-                  label="Address"
-                  controlId="address"
-                  placeholder="Enter Address"
-                  register={register}
-                  error={errors.address}
-                  validation={{ required: "Address is required" }}
-                  as="textarea"
-                  rows={3}
-                  value={watch("address") ?? ""}
-                  onChange={(value) =>
-                    setValue("address", normalizeAddressValue(value), {
-                      shouldDirty: true,
-                      shouldValidate: false,
-                    })
-                  }
-                />
+                {!isEditable ? (
+                  <>
+                    <CustomTextField
+                      label="Password"
+                      controlId="password"
+                      placeholder="Enter Password"
+                      register={register}
+                      error={errors.password}
+                      validation={{
+                        required: "Password is required",
+                      }}
+                      inputType="password"
+                      autoComplete="new-password"
+                      value={watch("password") ?? ""}
+                      onChange={(value) =>
+                        setValue("password", value, {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                    <CustomTextField
+                      label="Confirm Password"
+                      controlId="confirm_password"
+                      placeholder="Enter Confirm Password"
+                      register={register}
+                      error={errors.confirm_password}
+                      validation={{
+                        required: "Confirm password is required",
+                        validate: (value: string) =>
+                          value === watch("password") ||
+                          "Passwords do not match",
+                      }}
+                      inputType="password"
+                      autoComplete="new-password"
+                      value={watch("confirm_password") ?? ""}
+                      onChange={(value) =>
+                        setValue("confirm_password", value, {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
+                {!isUserUpdate ? (
+                  <>
+                    <CustomTextFieldSelect
+                      label="State"
+                      controlId="State"
+                      options={states}
+                      register={register}
+                      fieldName="state_id"
+                      error={errors.state_id}
+                      requiredMessage="Please select state"
+                      defaultValue={
+                        isEditable ? (user?.state_id ? user?.state_id : "") : ""
+                      }
+                      setValue={setValue as (name: string, value: any) => void}
+                      onChange={(e) =>
+                        onStateChangeClearLocationChain(e.target.value)
+                      }
+                    />
+                    <CustomTextFieldSelect
+                      label="City"
+                      controlId="City"
+                      options={cities}
+                      register={register}
+                      fieldName="city_id"
+                      error={errors.city_id}
+                      requiredMessage="Please select city"
+                      defaultValue={
+                        isEditable ? (user?.city_id ? user?.city_id : "") : ""
+                      }
+                      setValue={setValue as (name: string, value: any) => void}
+                      onChange={() => onCityChangeClearAreaPin()}
+                    />
+                    <CustomTextFieldSelect
+                      label="Area"
+                      controlId="Area"
+                      options={[
+                        { value: "", label: "Select Area" },
+                        ...areas,
+                      ]}
+                      register={register}
+                      fieldName="area_id"
+                      error={(errors as any).area_id}
+                      requiredMessage="Please select area"
+                      defaultValue={
+                        isEditable ? normalizeIdLike((user as any)?.area_id) : ""
+                      }
+                      setValue={setValue as (name: string, value: any) => void}
+                    />
+                    <CustomTextFieldSelect
+                      label="Pincode"
+                      controlId="Pincode"
+                      options={[
+                        { value: "", label: "Select Pincode" },
+                        ...pincodeOptions,
+                      ]}
+                      register={register}
+                      fieldName="pincode"
+                      error={errors.pincode}
+                      requiredMessage="Please select pincode"
+                      defaultValue={
+                        isEditable ? normalizePincodeValue(user?.pincode) : ""
+                      }
+                      setValue={setValue as (name: string, value: any) => void}
+                    />
+                    <CustomTextField
+                      label="Address"
+                      controlId="address"
+                      placeholder="Enter Address"
+                      register={register}
+                      error={errors.address}
+                      validation={{ required: "Address is required" }}
+                      as="textarea"
+                      rows={3}
+                      value={watch("address") ?? ""}
+                      onChange={(value) =>
+                        setValue("address", normalizeAddressValue(value), {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
                 {isEditable ? (
                   <>
                     <CustomTextFieldRadio
@@ -1516,19 +1727,21 @@ function AddEditUserDialogView({
                       isEditable={true}
                       setValue={setValue}
                     />
-                    <CustomTextFieldRadio
-                      label="Block"
-                      name="is_blocked"
-                      options={[
-                        { value: "true", label: "Yes" },
-                        { value: "false", label: "No" },
-                      ]}
-                      defaultValue={String(
-                        watch("is_blocked") ?? (user as any)?.is_blocked ?? false
-                      )}
-                      isEditable={true}
-                      setValue={setValue}
-                    />
+                    {role !== USER_ROLE ? (
+                      <CustomTextFieldRadio
+                        label="Block"
+                        name="is_blocked"
+                        options={[
+                          { value: "true", label: "Yes" },
+                          { value: "false", label: "No" },
+                        ]}
+                        defaultValue={String(
+                          watch("is_blocked") ?? (user as any)?.is_blocked ?? false
+                        )}
+                        isEditable={true}
+                        setValue={setValue}
+                      />
+                    ) : null}
                   </>
                 ) : null}
                 <div className="mt-2">
@@ -1555,6 +1768,36 @@ function AddEditUserDialogView({
                   style={{ padding: "10px" }}
                 >
                   <h3 className="mb-2">Categories and services</h3>
+                  {isSuperAdminOrStaff ? (
+                    <Row className="g-3 mb-3">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Franchise"
+                          controlId="add_partner_franchise_id"
+                          options={franchiseDropdownOptions}
+                          register={register}
+                          fieldName="add_partner_franchise_id"
+                          error={(errors as any).add_partner_franchise_id}
+                          defaultValue={String(
+                            watchedPartnerFranchiseId ?? ""
+                          )}
+                          setValue={setValue as (name: string, value: unknown) => void}
+                          menuPortal
+                          placeholder="Select franchise"
+                          includeEmptyOption
+                          emptyOptionLabel="Select franchise"
+                          noRowBottomMargin
+                        />
+                      </Col>
+                    </Row>
+                  ) : null}
+                  {/* {addPartnerCatalogLocked ? (
+                    <p className="text-muted small mb-3">
+                      {isSuperAdminOrStaff
+                        ? "Select a franchise above to enable category and service fields."
+                        : "Unable to resolve your franchise for the catalogue. Please contact support."}
+                    </p>
+                  ) : null} */}
                   {partnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}
@@ -1573,7 +1816,7 @@ function AddEditUserDialogView({
                             options={categorySelectOptionsForBlock(block.id)}
                             value={block.categoryId}
                             placeholder="Select category"
-                            onMenuOpen={() => void ensurePartnerAddCategoriesLoaded()}
+                            isDisabled={addPartnerCatalogLocked}
                             onChange={(cid: string) =>
                               updateBlockCategory(block.id, cid)
                             }
@@ -1628,11 +1871,29 @@ function AddEditUserDialogView({
                               )}
                               value={row.serviceId}
                               placeholder="Select service"
-                              onChange={(sid: string) =>
+                              isDisabled={addPartnerCatalogLocked}
+                              onChange={(sid: string) => {
+                                const categoryId = String(
+                                  block.categoryId ?? ""
+                                ).trim();
+                                const list =
+                                  servicesByCategoryId[categoryId] ?? [];
+                                const hit = list.find(
+                                  (s) => String(s._id) === String(sid)
+                                );
+                                const priceNum =
+                                  hit?.price !== undefined &&
+                                  hit?.price !== null
+                                    ? Number(hit.price)
+                                    : NaN;
+                                const priceStr = Number.isFinite(priceNum)
+                                  ? String(priceNum)
+                                  : "";
                                 updateServiceRow(block.id, row.id, {
                                   serviceId: sid,
-                                })
-                              }
+                                  price: priceStr,
+                                });
+                              }}
                             />
                           </Col>
                           <Col xs={12} md={5} lg={6}>
@@ -1702,6 +1963,35 @@ function AddEditUserDialogView({
                                   }
                                 />
                               </InputGroup>
+                              {(() => {
+                                const categoryId = String(
+                                  block.categoryId ?? ""
+                                ).trim();
+                                const list =
+                                  servicesByCategoryId[categoryId] ?? [];
+                                const hit = list.find(
+                                  (s) =>
+                                    String(s._id) ===
+                                    String(row.serviceId ?? "").trim()
+                                );
+                                if (
+                                  !hit ||
+                                  hit.price === undefined ||
+                                  hit.price === null
+                                ) {
+                                  return null;
+                                }
+                                const cadence = formatServicePaymentCadence(
+                                  hit.payment_type ?? ""
+                                );
+                                return (
+                                  <Form.Text className="text-muted small d-block mt-1">
+                                    List price: {AppConstant.currencySymbol}
+                                    {hit.price}
+                                    {cadence ? ` (${cadence})` : ""}
+                                  </Form.Text>
+                                );
+                              })()}
                             </Form.Group>
                           </Col>
                           <Col
@@ -1755,14 +2045,6 @@ function AddEditUserDialogView({
                   }}
                 >
                   <h3 className="mb-2">Verification &amp; Documents</h3>
-                  <DetailsRow
-                    title="Verification Status"
-                    value={ADD_PARTNER_VERIFICATION_PREVIEW_STATUS}
-                  />
-                  <DetailsRow
-                    title="Verified Date"
-                    value={ADD_PARTNER_VERIFICATION_PREVIEW_DATE}
-                  />
                   <DetailsRowLinkDocument
                     title="Vehicle Registration"
                     isEditable={false}

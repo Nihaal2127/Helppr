@@ -85,6 +85,33 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
     return merged.map((pin) => ({ value: pin, label: pin }));
   }, [areas, selectedAreaId]);
 
+  const pincodeOptionsMerged = useMemo(() => {
+    const pin = sanitizeIndianPincodeInput(String(initial?.postal ?? "").trim());
+    const base = pincodeOptions;
+    if (pin && !base.some((o) => o.value === pin)) {
+      return [...base, { value: pin, label: pin }];
+    }
+    return base;
+  }, [pincodeOptions, initial?.postal]);
+
+  /** Area/pin options load after `reset`; re-apply saved ids so selects show current values. */
+  useEffect(() => {
+    if (!show) return;
+    const id = String(initial?.areaId ?? "").trim();
+    if (!id) return;
+    if (!areas.some((a) => String(a.value) === id)) return;
+    setValue("va_area", id, { shouldValidate: false, shouldDirty: false });
+  }, [show, areas, initial?.areaId, setValue]);
+
+  useEffect(() => {
+    if (!show) return;
+    const pin = sanitizeIndianPincodeInput(String(initial?.postal ?? "").trim());
+    if (!pin) return;
+    if (pincodeOptionsMerged.some((o) => o.value === pin)) {
+      setValue("va_pin", pin, { shouldValidate: false, shouldDirty: false });
+    }
+  }, [show, pincodeOptionsMerged, initial?.postal, setValue]);
+
   useEffect(() => {
     if (!show) return;
     reset({
@@ -129,7 +156,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
       onHide={onHide}
       centered
       enforceFocus={false}
-      dialogClassName="modal-vh-90"
+      dialogClassName="modal-vh-90 user-view-address-modal-wider"
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
@@ -139,8 +166,8 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
         <form noValidate onSubmit={submit}>
-          <Row>
-            <Col xs={12}>
+          <Row className="g-2">
+            <Col xs={12} md={6}>
               <CustomTextFieldSelect
                 label="State"
                 controlId="va_state"
@@ -157,10 +184,11 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                   void onFetchCities(v);
                   setValue("va_city", "");
                   setValue("va_area", "");
+                  setValue("va_pin", "");
                 }}
               />
             </Col>
-            <Col xs={12}>
+            <Col xs={12} md={6}>
               <CustomTextFieldSelect
                 label="City"
                 controlId="va_city"
@@ -181,7 +209,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 }}
               />
             </Col>
-            <Col xs={12}>
+            <Col xs={12} md={6}>
               <CustomTextFieldSelect
                 label="Area"
                 controlId="va_area"
@@ -202,11 +230,11 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 }}
               />
             </Col>
-            <Col xs={12}>
+            <Col xs={12} md={6}>
               <CustomTextFieldSelect
                 label="Pin code"
                 controlId="va_pin"
-                options={pincodeOptions}
+                options={pincodeOptionsMerged}
                 register={register}
                 fieldName="va_pin"
                 error={errors.va_pin as any}
@@ -225,7 +253,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 error={errors.va_line}
                 validation={{ required: "Address is required" }}
                 as="textarea"
-                rows={3}
+                rows={2}
               />
             </Col>
             <Col xs={12}>

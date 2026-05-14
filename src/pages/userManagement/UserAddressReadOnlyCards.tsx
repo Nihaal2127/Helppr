@@ -3,52 +3,35 @@ import { Row, Col } from "react-bootstrap";
 import type { UserModel } from "../../models/UserModel";
 import editIcon from "../../assets/icons/edit_red.svg";
 
-/** Matches dashed “saved” card in `ServiceAddressCardsPanel` (customer on file). */
 const savedCardShell: React.CSSProperties = {
-  borderRadius: "10px",
-  padding: "12px 14px",
+  borderRadius: "8px",
+  padding: "8px 10px",
   backgroundColor: "var(--bg-color)",
-  height: "100%",
   border: "1px dashed var(--primary-color)",
   boxShadow: "none",
 };
 
-const emptyCardShell: React.CSSProperties = {
-  borderRadius: "10px",
-  padding: "12px 14px",
-  backgroundColor: "var(--bg-color)",
-  height: "100%",
-  border: "1px dashed var(--txtfld-border, rgba(0, 0, 0, 0.2))",
-  boxShadow: "none",
-};
-
 const labelStyle: React.CSSProperties = {
-  fontSize: "16px",
+  fontSize: "12px",
   fontWeight: 600,
   color: "var(--content-txt-color, #6c757d)",
-  marginBottom: "4px",
+  marginBottom: "2px",
   letterSpacing: "0.02em",
 };
 
 const valueStyle: React.CSSProperties = {
-  fontSize: "15px",
+  fontSize: "13px",
   fontWeight: 500,
   fontFamily: "Inter, sans-serif",
   color: "var(--txt-color)",
   wordBreak: "break-word",
 };
 
-const mutedValueStyle: React.CSSProperties = {
-  ...valueStyle,
-  color: "var(--content-txt-color, #6c757d)",
-  fontStyle: "italic",
-};
-
-type RowProps = { label: string; value: string; muted?: boolean };
-const DetailStack: React.FC<RowProps> = ({ label, value, muted }) => (
-  <div className="mb-2">
+type RowProps = { label: string; value: string };
+const DetailStack: React.FC<RowProps> = ({ label, value }) => (
+  <div className="mb-1">
     <div style={labelStyle}>{label}</div>
-    <div style={muted ? mutedValueStyle : valueStyle}>{value}</div>
+    <div style={valueStyle}>{value}</div>
   </div>
 );
 
@@ -60,9 +43,18 @@ export type UserAddressReadOnlyCardsProps = {
   onEdit: (index: number) => void;
 };
 
-/**
- * Profile address (read-only, edit) plus an empty placeholder card — aligned with create-order service address cards.
- */
+function enforceSingleActiveRowStatus<
+  T extends { status: "true" | "false" }
+>(rows: T[]): T[] {
+  if (rows.length === 0) return rows;
+  const firstActive = rows.findIndex((r) => r.status === "true");
+  const keepIdx = firstActive >= 0 ? firstActive : 0;
+  return rows.map((r, i) => ({
+    ...r,
+    status: (i === keepIdx ? "true" : "false") as "true" | "false",
+  }));
+}
+
 const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
   user,
   stateOptions = [],
@@ -155,28 +147,28 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
             row.line !== "—"
         );
 
-  const hasActive = fallbackRows.some((row) => row.status === "true");
-  const rows = fallbackRows.map((row, index) => ({
-    ...row,
-    status: hasActive ? row.status : index === 0 ? "true" : "false",
-  }));
+  const rows = enforceSingleActiveRowStatus(fallbackRows);
 
   return (
-    <Row className="g-3">
+    <Row className="g-2">
       {rows.map((row, index) => (
-        <Col key={`addr-${index}`} xs={12} md={6} lg={4}>
+        <Col key={`addr-${index}`} xs={12} sm={6} lg={4}>
           <div style={savedCardShell}>
-            <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
               <div className="d-flex flex-wrap align-items-center gap-2">
                 <span
                   className="fw-semibold"
-                  style={{ color: "var(--primary-color)" }}
+                  style={{
+                    color: "var(--primary-color)",
+                    fontSize: "14px",
+                  }}
                 >
                   {`Address ${index + 1}`}
                 </span>
                 <span
                   className="small fw-semibold"
                   style={{
+                    fontSize: "12px",
                     color:
                       row.status === "true"
                         ? "var(--bs-success, #198754)"
@@ -194,38 +186,29 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
                 title="Edit address"
                 aria-label="Edit address"
               >
-                <img src={editIcon} alt="" width={20} height={20} />
+                <img src={editIcon} alt="" width={18} height={18} />
               </span>
             </div>
-            <DetailStack label="State" value={row.state} />
-            <DetailStack label="City" value={row.city} />
-            <DetailStack label="Area" value={row.area} />
-            <DetailStack label="Postal Code" value={row.postal} />
-            <DetailStack label="Address" value={row.line} />
+            <Row className="g-1 gx-2">
+              <Col xs={6}>
+                <DetailStack label="State" value={row.state} />
+              </Col>
+              <Col xs={6}>
+                <DetailStack label="City" value={row.city} />
+              </Col>
+              <Col xs={6}>
+                <DetailStack label="Area" value={row.area} />
+              </Col>
+              <Col xs={6}>
+                <DetailStack label="Postal Code" value={row.postal} />
+              </Col>
+              <Col xs={12}>
+                <DetailStack label="Address" value={row.line} />
+              </Col>
+            </Row>
           </div>
         </Col>
       ))}
-      <Col xs={12} md={6} lg={4}>
-        <div style={emptyCardShell}>
-          <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
-            <span
-              className="fw-semibold"
-              style={{ color: "var(--content-txt-color, #6c757d)" }}
-            >
-              {`Address ${rows.length + 1}`}
-            </span>
-          </div>
-          <DetailStack label="State" value="—" muted />
-          <DetailStack label="City" value="—" muted />
-          <DetailStack label="Area" value="—" muted />
-          <DetailStack label="Postal Code" value="—" muted />
-          <DetailStack
-            label="Address"
-            value="Empty slot — use + Add address to save another."
-            muted
-          />
-        </div>
-      </Col>
     </Row>
   );
 };

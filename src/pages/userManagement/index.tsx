@@ -4,13 +4,17 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
+import { AppConstant } from "../../constant/AppConstant";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import {
   deleteUser,
   fetchUser,
 } from "../../services/userService";
-import { PARTNER_VERIFICATION } from "../../constant/partnerVerification";
+import {
+  PARTNER_VERIFICATION,
+  partnerVerificationLabel,
+} from "../../constant/partnerVerification";
 import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
@@ -59,7 +63,6 @@ const UserManagement = () => {
       Total: userCountModel.total_user,
       Active: userCountModel.active_user,
       Inactive: userCountModel.inactive_user,
-      Blocked: userCountModel.blocked_user,
     });
     setParnterData({
       Total: userCountModel.total_partner,
@@ -144,6 +147,7 @@ const UserManagement = () => {
       if (response) {
         const list = Array.isArray(users) ? users : [];
         const blockedOnly =
+          selectedBox === "box-partner" &&
           String(statusFilter ?? "").trim().toLowerCase() === "blocked";
         const normalized = blockedOnly
           ? list.filter((u: any) => Boolean((u as any)?.is_blocked))
@@ -224,10 +228,30 @@ const UserManagement = () => {
 
   const partnerChangePassword = useCallback((row: { original: UserModel }) => {
     const u = row.original;
-    ChangePartnerPasswordDialog.show(String(u._id), u.name ?? undefined, () => {
-      void refreshData("box-partner");
-    });
+    ChangePartnerPasswordDialog.show(
+      String(u._id),
+      u.name ?? undefined,
+      () => {
+        void refreshData("box-partner");
+      },
+      2
+    );
   }, [refreshData]);
+
+  const userChangePassword = useCallback(
+    (row: { original: UserModel }) => {
+      const u = row.original;
+      ChangePartnerPasswordDialog.show(
+        String(u._id),
+        u.name ?? undefined,
+        () => {
+          void refreshData("box-user");
+        },
+        4
+      );
+    },
+    [refreshData]
+  );
 
   const handleUserDelete = useCallback(
     (id: string, selected: "box-user" | "box-partner") => {
@@ -275,7 +299,18 @@ const UserManagement = () => {
       {
         Header: "Paid Amount",
         accessor: "paid_amount",
-        Cell: priceCell("paid_amount"),
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) => {
+          const v = row.original?.paid_amount;
+          const n =
+            v === undefined || v === null || v === ""
+              ? 0
+              : v;
+          return (
+            <span>
+              {`${AppConstant.currencySymbol}${n}`}
+            </span>
+          );
+        },
       },
       {
         Header: "Balance Amount",
@@ -291,7 +326,7 @@ const UserManagement = () => {
               ...row,
               original: {
                 ...row.original,
-                // Blocked users are always shown as inactive in table status.
+
                 is_active: Boolean((row.original as any)?.is_blocked)
                   ? false
                   : row.original?.is_active,
@@ -299,13 +334,7 @@ const UserManagement = () => {
             },
           } as any),
       },
-      {
-        Header: "Blocked",
-        accessor: "is_blocked",
-        Cell: ({ row }: { row: any }) =>
-          Boolean((row.original as any)?.is_blocked) ? "Yes" : "No",
-      },
-
+     
       {
         Header: "Action",
         accessor: "action",
@@ -313,12 +342,13 @@ const UserManagement = () => {
           <CustomActionColumn
             row={row}
             onView={() => userShow(row.original._id)}
+            onChangePassword={() => userChangePassword(row)}
             onDelete={() => handleUserDelete(row.original._id, "box-user")}
           />
         ),
       },
     ],
-    [currentPage, pageSize, handleUserDelete, userShow]
+    [currentPage, pageSize, handleUserDelete, userShow, userChangePassword]
   );
 
   const partnerColumns = React.useMemo(
@@ -329,18 +359,14 @@ const UserManagement = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      // {
-      //     Header: "Partner ID", accessor: "user_id",
-      //     sort: true,
-      //     Cell: textUnderlineCell("user_id", (row) => partnerShow(row._id)),
-      // },
+     
       {
         Header: "Partner Name",
         accessor: "name",
         sort: true,
       },
       { Header: "No. of services", accessor: "no_of_services", sort: true },
-      // { Header: "Service Provided", accessor: "completed_service" },
+     
       {
         Header: "Total Earnings",
         accessor: "total_earnings",
@@ -400,9 +426,10 @@ const UserManagement = () => {
         Cell: ({ row }) => row.original.phone_number || "-----",
       },
       {
-        Header: "Address",
-        accessor: "address",
-        Cell: ({ row }) => row.original.address || "-----",
+        Header: "Status",
+        accessor: "is_verified",
+        Cell: ({ row }: { row: any }) =>
+          partnerVerificationLabel(row.original?.is_verified),
       },
       {
         Header: "Action",

@@ -242,7 +242,8 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         payload = {
           ...common,
           add_new_address: "false",
-          address_status: values.addressStatus,
+          // Keep root block aligned with `normalized[0]` (same row as address / city / area / pincode).
+          address_status: normalized[0]?.address_status ?? "false",
           address: normalized[0]?.address ?? "",
           state_id: normalized[0]?.state_id ?? "",
           city_id: normalized[0]?.city_id ?? "",

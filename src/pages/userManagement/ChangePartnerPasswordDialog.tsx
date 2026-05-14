@@ -12,15 +12,18 @@ type FormValues = {
 };
 
 type Props = {
-  partnerId: string;
+  userId: string;
   partnerName?: string;
+  /** `UserModel.type`: partner = 2, customer user = 4 */
+  accountType: number;
   onClose: () => void;
   onSaved: () => void;
 };
 
 function ChangePartnerPasswordDialogView({
-  partnerId,
+  userId,
   partnerName,
+  accountType,
   onClose,
   onSaved,
 }: Props) {
@@ -44,8 +47,8 @@ function ChangePartnerPasswordDialogView({
       return;
     }
     const ok = await changePassword({
-      user_id: partnerId,
-      type: 2,
+      user_id: userId,
+      type: accountType,
       new_password: pw,
       confirm_password: cf,
     });
@@ -55,12 +58,15 @@ function ChangePartnerPasswordDialogView({
     }
   };
 
+  const titleLabel =
+    accountType === 4 ? "Change user password" : "Change partner password";
+
   return (
-    <Modal show centered onHide={onClose} dialogClassName="custom-big-modal">
+    <Modal show centered onHide={onClose}>
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
-          Change partner password
-          {partnerName ? ` — ${partnerName}` : ""}
+          {titleLabel}
+          
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
@@ -113,18 +119,29 @@ function ChangePartnerPasswordDialogView({
 }
 
 const ChangePartnerPasswordDialog = Object.assign(ChangePartnerPasswordDialogView, {
-  show(partnerId: string, partnerName: string | undefined, onSaved: () => void) {
+  show(
+    userId: string,
+    displayName: string | undefined,
+    onSaved: () => void,
+    accountType: number = 2
+  ) {
     openDialog("change-partner-password-modal", (close) => (
       <ChangePartnerPasswordDialogView
-        partnerId={partnerId}
-        partnerName={partnerName}
+        userId={userId}
+        partnerName={displayName}
+        accountType={accountType}
         onClose={close}
         onSaved={onSaved}
       />
     ));
   },
 }) as typeof ChangePartnerPasswordDialogView & {
-  show: (partnerId: string, partnerName: string | undefined, onSaved: () => void) => void;
+  show: (
+    userId: string,
+    displayName: string | undefined,
+    onSaved: () => void,
+    accountType?: number
+  ) => void;
 };
 
 export default ChangePartnerPasswordDialog;

@@ -257,8 +257,6 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
   const [fetchedAreaOptions, setFetchedAreaOptions] = useState<
     OptionType[] | null
   >(null);
-  const skipInitialStateResetRef = useRef(true);
-  const skipInitialCityResetRef = useRef(true);
 
   const selectedState = watch("state_id");
   const selectedCity = watch("city_id");
@@ -730,25 +728,6 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     }
   }, [isEditable, franchise, setValue, categoryOptions, allServices]);
 
-  useEffect(() => {
-    if (skipInitialStateResetRef.current) {
-      skipInitialStateResetRef.current = false;
-      return;
-    }
-    setValue("city_id", "");
-    setAreaIds([]);
-    setValue("area_id", []);
-  }, [selectedState, setValue]);
-
-  useEffect(() => {
-    if (skipInitialCityResetRef.current) {
-      skipInitialCityResetRef.current = false;
-      return;
-    }
-    setAreaIds([]);
-    setValue("area_id", []);
-  }, [selectedCity, setValue]);
-
   const handleAreaSelection = (selectedOptions: OptionType[]) => {
     const selectedIds = selectedOptions.map((option) => option.value);
     setAreaIds(selectedIds);
@@ -1156,6 +1135,11 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   requiredMessage="Please select state"
                   defaultValue={isEditable ? franchise?.state_id : ""}
                   setValue={setValue as (name: string, value: any) => void}
+                  onChange={() => {
+                    setValue("city_id", "", { shouldValidate: false });
+                    setAreaIds([]);
+                    setValue("area_id", [], { shouldValidate: false });
+                  }}
                 />
               </Col>
 
@@ -1171,6 +1155,10 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   requiredMessage="Please select city"
                   defaultValue={String(selectedCity ?? "")}
                   setValue={setValue as (name: string, value: any) => void}
+                  onChange={() => {
+                    setAreaIds([]);
+                    setValue("area_id", [], { shouldValidate: false });
+                  }}
                 />
               </Col>
 

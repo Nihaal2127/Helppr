@@ -9,6 +9,9 @@ export type PartnerCatalogServiceLite = {
   _id: string;
   name: string;
   category_id: string;
+  /** From franchise/global catalog when loading options for Add Partner. */
+  price?: number;
+  payment_type?: string;
 };
 
 export type PartnerServiceRow = {
@@ -115,6 +118,7 @@ type PartnerSingleSelectProps = {
   placeholder?: string;
   /** e.g. lazy-load category options when the menu opens (Add Partner). */
   onMenuOpen?: () => void;
+  isDisabled?: boolean;
 };
 
 export function PartnerSingleSelect({
@@ -125,6 +129,7 @@ export function PartnerSingleSelect({
   onChange,
   placeholder,
   onMenuOpen,
+  isDisabled,
 }: PartnerSingleSelectProps) {
   const selected = useMemo(
     () => options.find((o) => String(o.value) === String(value)) ?? null,
@@ -143,6 +148,7 @@ export function PartnerSingleSelect({
         classNamePrefix="react-select"
         isMulti={false}
         isClearable={false}
+        isDisabled={Boolean(isDisabled)}
         hideSelectedOptions={false}
         isSearchable
         options={options}
