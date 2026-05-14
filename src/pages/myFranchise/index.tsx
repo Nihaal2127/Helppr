@@ -40,12 +40,12 @@ import {
   voidRequestedCategory,
   voidRequestedService,
 } from "../../services/myFranchiseService";
+import { fetchCategoryById } from "../../services/categoryService";
+import { fetchServiceById } from "../../services/servicesService";
 import { getCount } from "../../services/getCountService";
 import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
 import RequestedCategoryDialog from "./RequestedCategoryDialog";
 import RequestedServiceDialog from "./RequestedServiceDialog";
-import AddEditServiceDialog from "../serviceManagement/AddEditServiceDialog";
-import { fetchServiceById } from "../../services/servicesService";
 
 type BoxId = "box-employees" | "box-areas" | "box-services" | "box-categories";
 
@@ -119,21 +119,23 @@ function franchiseAreasPinCodesCell({ row }: { row: any }) {
   );
 }
 
-/** Services column: first name + “...+N”, hover card lists all (matches `serviceManagement` category table). */
-function renderCategoryServicesNamesHover(
-  names: (string | undefined)[]
-): React.ReactNode {
+/** Same hover pattern as `serviceManagement` category “Services” column. */
+function serviceNamesHoverFromList(names: (string | undefined)[]): React.ReactNode {
   const list = names.map((n) => String(n ?? "").trim()).filter(Boolean);
   if (list.length === 0) return "-";
-  if (list.length === 1) return list[0];
+  const hasMoreServices = list.length > 1;
   const additionalCount = list.length - 1;
   return (
     <div className="pin-code-hover-wrapper">
       <span className="pin-code-hover-trigger">
-        {`${list[0]}...`}
-        <span
-          style={{ color: "red", fontWeight: 600 }}
-        >{`+${additionalCount}`}</span>
+        {hasMoreServices ? (
+          <>
+            {`${list[0]}...`}
+            <span style={{ color: "red" }}>{`+${additionalCount}`}</span>
+          </>
+        ) : (
+          list[0]
+        )}
       </span>
       <div className="pin-code-hover-card">
         {list.map((n, idx) => (
@@ -145,6 +147,9 @@ function renderCategoryServicesNamesHover(
     </div>
   );
 }
+
+/** Same as `serviceNamesHoverFromList` — kept so stale HMR bundles do not throw. */
+const renderCategoryServicesNamesHover = serviceNamesHoverFromList;
 
 /** Service labels for a franchise catalogue category row (from `GET /category/get/:id`). */
 function categoryCatalogServiceNames(cat: CategoryRow): string[] {
@@ -450,7 +455,7 @@ const MyFranchise = () => {
       case "box-categories":
         return categoriesViewMode === "catalog"
           ? ["categories"]
-          : ["requested_categories", "services"];
+          : ["requested_categories"];
       default:
         return [];
     }
@@ -873,11 +878,11 @@ const MyFranchise = () => {
         return "Areas";
       case "box-services":
         return servicesViewMode === "requested"
-          ? "Requested services"
+          ? "Requested Services"
           : "Services";
       case "box-categories":
         return categoriesViewMode === "requested"
-          ? "Requested categories"
+          ? "Requested Categories"
           : "Categories";
       default:
         return "";
@@ -892,12 +897,12 @@ const MyFranchise = () => {
         return "Search area, city, state, pin code";
       case "box-services":
         return servicesViewMode === "catalog"
-          ? "Search service or category name"
-          : "Search service";
+          ? "Search service name, category"
+          : "Search service name, description etc.";
       case "box-categories":
         return categoriesViewMode === "catalog"
-          ? "Search categories or services"
-          : "Search category";
+          ? "Search category name, services"
+          : "Search category name, description etc.";
       default:
         return "Search";
     }
@@ -1053,8 +1058,8 @@ const MyFranchise = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Category Name", accessor: "category_name" },
       { Header: "Service Name", accessor: "name", sort: true },
+      { Header: "Category Name", accessor: "category_name" },
       {
         Header: "Status",
         accessor: "is_active",
@@ -1109,12 +1114,17 @@ const MyFranchise = () => {
               }
               const { response, service } = await fetchServiceById(sid);
               if (response && service) {
-                AddEditServiceDialog.show(
+                const { default: ServiceDetailsDialog } = await import(
+                  "../serviceManagement/AddEditServiceDialog"
+                );
+                ServiceDetailsDialog.show(
                   false,
                   service,
                   () => {
                     void reloadFranchiseData();
                   },
+                  true,
+                  undefined,
                   true
                 );
               } else {
@@ -1232,7 +1242,7 @@ const MyFranchise = () => {
         accessor: "service_names_display",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
-          return renderCategoryServicesNamesHover(categoryCatalogServiceNames(cat));
+          return serviceNamesHoverFromList(categoryCatalogServiceNames(cat));
         },
       },
       {
@@ -1269,8 +1279,46 @@ const MyFranchise = () => {
           );
         },
       },
+      {
+        Header: "Action",
+        accessor: "action",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={async (r) => {
+              const cat = r.original as CategoryRow;
+              const cid =
+                String(cat._id ?? "").trim() ||
+                String(cat.category_id ?? "").trim();
+              if (!cid) {
+                showErrorAlert("Unable to open category: missing identifier.");
+                return;
+              }
+              const { response, category } = await fetchCategoryById(cid);
+              if (response && category) {
+                const { default: CategoryDetailsDialog } = await import(
+                  "../serviceManagement/AddEditCategoryDialog"
+                );
+                CategoryDetailsDialog.show(
+                  false,
+                  category,
+                  () => {
+                    void reloadFranchiseData();
+                  },
+                  true,
+                  true
+                );
+              } else {
+                showErrorAlert(
+                  "Unable to load category details. You may not have access, or the category was removed."
+                );
+              }
+            }}
+          />
+        ),
+      },
     ],
-    [currentPage, pageSize, setCategoryActive]
+    [currentPage, pageSize, setCategoryActive, reloadFranchiseData]
   );
 
   const tableColumns = useMemo(() => {

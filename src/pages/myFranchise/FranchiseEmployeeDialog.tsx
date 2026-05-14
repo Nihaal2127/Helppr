@@ -5,7 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import { DetailsRow, getStatusOptions } from "../../helper/utility";
+import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import {
@@ -137,7 +137,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     ? "Add Employee"
     : isEditing
     ? "Edit Employee"
-    : "Employee Information";
+    : "Employee Details";
 
   const parseSubmitPayload = (data: EmployeeFormValues & { phone?: string }) => {
     const is_active = String(data.is_active ?? "") === "true";
@@ -243,45 +243,53 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     const chatOn = Boolean(
       employee.is_active && (employee.chat_enabled ?? true)
     );
+    const permissionsValue =
+      screenPermissionLabels.length > 0 ? (
+        <ul className="mb-0 ps-3 small" style={{ listStyleType: "disc" }}>
+          {screenPermissionLabels.map((label, i) => (
+            <li key={`${label}-${i}`} className="text-start">
+              {label}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        "—"
+      );
     return (
-      <section className="custom-other-details" style={{ padding: "10px" }}>
-        <Row className="d-flex justify-content-between align-items-center mb-2">
-          <Col>
-            <h3 className="mb-0">Employee Details</h3>
+      <section
+        className="custom-other-details modal-readonly-details"
+        style={{ padding: "14px 16px", borderRadius: 12 }}
+      >
+        <div className="d-flex justify-content-end align-items-center mb-3">
+          <i
+            className="bi bi-pencil-fill fs-6 text-danger"
+            style={{ cursor: "pointer" }}
+            role="button"
+            aria-label="Edit employee"
+            onClick={() => setIsEditing(true)}
+          />
+        </div>
+
+        <Row className="g-3">
+          <Col xs={12} md={6}>
+            <FullDetailsRow title="Name" value={employee.name ?? "-"} />
           </Col>
-          <Col className="text-end">
-            <i
-              className="bi bi-pencil-fill fs-6 text-danger"
-              style={{ cursor: "pointer" }}
-              onClick={() => setIsEditing(true)}
+          <Col xs={12} md={6}>
+            <FullDetailsRow title="Phone" value={employee.phone ?? "-"} />
+          </Col>
+          <Col xs={12} md={6}>
+            <FullDetailsRow title="Email" value={employee.email ?? "-"} />
+          </Col>
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Chat"
+              value={chatOn ? "Enabled" : "Disabled"}
             />
           </Col>
-        </Row>
-        <div className="row">
-          <div className="col-md-12 custom-helper-column">
-            <DetailsRow title="Name" value={employee.name} />
-            <DetailsRow title="Phone" value={employee.phone} />
-            <DetailsRow title="Email" value={employee.email} />
-            <DetailsRow
-              title="Screen permissions"
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Status"
               value={
-                screenPermissionLabels.length > 0 ? (
-                  <ul className="mb-0 ps-3 small" style={{ listStyleType: "disc" }}>
-                    {screenPermissionLabels.map((label, i) => (
-                      <li key={`${label}-${i}`} className="text-start">
-                        {label}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  "—"
-                )
-              }
-            />
-            <DetailsRow title="Chat" value={chatOn ? "Enabled" : "Disabled"} />
-            <Row className="row custom-personal-row">
-              <label className="col custom-personal-row-title">Status</label>
-              <label className="col custom-personal-row-value text-truncate">
                 <span
                   className={
                     employee.is_active ? "custom-active" : "custom-inactive"
@@ -289,10 +297,54 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
                 >
                   {employee.is_active ? "Active" : "Inactive"}
                 </span>
-              </label>
-            </Row>
-          </div>
-        </div>
+              }
+            />
+          </Col>
+        </Row>
+
+        <Row className="g-3 mt-1">
+          <Col xs={12}>
+            <p
+              className="mb-2 small text-uppercase fw-semibold"
+              style={{
+                color: "var(--primary-color)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Screen permissions
+            </p>
+            <div
+              style={{
+                border: "1px solid var(--txtfld-border)",
+                borderRadius: 8,
+                padding: "10px 12px",
+                background: "var(--bs-body-bg, #fff)",
+                maxHeight: 280,
+                overflowY: "auto",
+              }}
+            >
+              {screenPermissionLabels.length > 0 ? (
+                <ul
+                  className="mb-0 ps-3"
+                  style={{
+                    listStyleType: "disc",
+                    color: "var(--content-txt-color)",
+                    fontSize: "0.95rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {screenPermissionLabels.map((label, i) => (
+                    <li key={`${label}-${i}`} className="text-start mb-1">
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="text-muted small">—</span>
+              )}
+            </div>
+          </Col>
+        </Row>
       </section>
     );
   };
@@ -499,8 +551,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   return (
     <Modal
       show={true}
+      size="lg"
       onHide={onClose}
       centered
+      scrollable
       dialogClassName="custom-big-modal"
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">

@@ -95,6 +95,13 @@ export type ServiceDropDownOption = {
   category_id?: string;
   /** Billing cadence from API (`per_hour`, `per_day`, …) — drives quote schedule UI. */
   payment_type?: string;
+  /** Percent; from global / franchise service row for quote pricing breakdown. */
+  tax?: number;
+  /** Admin commission percent. */
+  commission?: number;
+  minimum_deposit?: number;
+  min_deposit_type?: string;
+  min_deposit_value?: number;
 };
 
 export const fetchServiceDropDown = async (
@@ -117,6 +124,31 @@ export const fetchServiceDropDown = async (
       payment_type: String(
         service.payment_type ?? service.min_deposit_type ?? ""
       ).trim(),
+      tax:
+        service.tax != null && Number.isFinite(Number(service.tax))
+          ? Number(service.tax)
+          : undefined,
+      commission:
+        service.commission != null &&
+        Number.isFinite(Number(service.commission))
+          ? Number(service.commission)
+          : undefined,
+      minimum_deposit:
+        service.minimum_deposit != null &&
+        Number.isFinite(Number(service.minimum_deposit))
+          ? Number(service.minimum_deposit)
+          : undefined,
+      min_deposit_type: String(
+        service.min_deposit_type ?? service.payment_type ?? ""
+      ).trim(),
+      min_deposit_value:
+        service.min_deposit_value != null &&
+        Number.isFinite(Number(service.min_deposit_value))
+          ? Number(service.min_deposit_value)
+          : service.minimum_deposit != null &&
+            Number.isFinite(Number(service.minimum_deposit))
+          ? Number(service.minimum_deposit)
+          : undefined,
     }));
   } else {
     showLog(response.message || "Failed to fetch service");

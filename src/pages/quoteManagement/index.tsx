@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Button, Col, Form, Modal, Row } from "react-bootstrap";
+import { Button, Col, Form, InputGroup, Modal, Row } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -24,13 +24,19 @@ import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import {
   buildCreateQuotePayload,
+  computeAutoQuotePriceFromPartner,
   createQuote,
   deleteQuote,
+  deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
   fetchQuotes,
+  getPartnerActiveServiceProvidingRow,
+  getPartnerAvailableCategoryIdSet,
+  getPartnerCategoryIdsFromProviding,
   getPartnerProvidingServiceIdSet,
   getQuoteScheduleModeFromServiceOption,
   mapRelatedCatalogToQuoteOptions,
+  mergeQuoteServiceFeesForBreakdown,
   normalizeQuoteListSort,
   resolveFranchiseIdForQuoteForm,
   QuoteListSort,
@@ -38,13 +44,19 @@ import {
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
+import { extractMinDepositTypeKey } from "../../helper/serviceMinDepositDisplay";
+import { partnerCatalogControlStyle } from "../userManagement/partnerCatalogBlockUi";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
 import { formatQuoteScheduleForTable } from "./quoteScheduleDisplay";
-import { buildFranchisePincodeSetFromRelatedCatalog, normalizePincodeDigits } from "./quoteFranchisePins";
+import {
+  buildFranchisePincodeSetFromRelatedCatalog,
+  collectFranchiseAreaIds,
+  normalizePincodeDigits,
+} from "./quoteFranchisePins";
 import { setQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
@@ -76,10 +88,46 @@ function formatAddressLineFromRecord(rec: Record<string, unknown>): string {
   return parts.join(", ");
 }
 
+/** Expand very short state tokens when the API sends abbreviations (e.g. AP). */
+function displayStateName(raw: string): string {
+  const t = strTrim(raw);
+  if (!t) return "";
+  if (t.length > 3) return t;
+  const abbr: Record<string, string> = {
+    AP: "Andhra Pradesh",
+    TG: "Telangana",
+    TS: "Telangana",
+    TN: "Tamil Nadu",
+    KA: "Karnataka",
+    KL: "Kerala",
+    MH: "Maharashtra",
+    DL: "Delhi",
+    UP: "Uttar Pradesh",
+    GJ: "Gujarat",
+    WB: "West Bengal",
+    BR: "Bihar",
+    MP: "Madhya Pradesh",
+    RJ: "Rajasthan",
+    OD: "Odisha",
+    OR: "Odisha",
+    PB: "Punjab",
+    HR: "Haryana",
+  };
+  const key = t.toUpperCase();
+  return abbr[key] ?? t;
+}
+
 type AddQuoteAddressRowUi = {
   id: string;
   summary: string;
   selectable: boolean;
+  contactName: string;
+  stateName: string;
+  cityName: string;
+  areaName: string;
+  streetAddress: string;
+  landmark: string;
+  pincode: string;
 };
 
 type AddQuoteAddressUiState = {
@@ -109,6 +157,137 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
   const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function startOfTodayLocal(): Date {
+  return startOfLocalDay(new Date());
+}
+
+function parseIsoDateOnly(iso: string): Date | null {
+  const t = String(iso ?? "").trim();
+  if (!t) return null;
+  const parts = t.split("-");
+  if (parts.length !== 3) return null;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!y || !m || !day) return null;
+  const d = new Date(y, m - 1, day);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isCalendarDateNotBeforeToday(iso: string): boolean {
+  const d = parseIsoDateOnly(iso);
+  if (!d) return false;
+  return startOfLocalDay(d) >= startOfTodayLocal();
+}
+
+function compareIsoDateOnlyAsc(aIso: string, bIso: string): number | null {
+  const a = parseIsoDateOnly(aIso);
+  const b = parseIsoDateOnly(bIso);
+  if (!a || !b) return null;
+  return startOfLocalDay(a).getTime() - startOfLocalDay(b).getTime();
+}
+
+function minutesFromScheduleTimeStorage(st: string): number | null {
+  const t = String(st ?? "").trim();
+  if (!t) return null;
+  const m = t.match(/T(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
+function isScheduleEndTimeAfterStart(start: string, end: string): boolean {
+  const a = minutesFromScheduleTimeStorage(start);
+  const b = minutesFromScheduleTimeStorage(end);
+  if (a == null || b == null) return false;
+  return b > a;
+}
+
+function formatQuoteRupees(amount: number): string {
+  const rounded = Math.round((amount + Number.EPSILON) * 100) / 100;
+  const s = rounded.toFixed(2).replace(/\.00$/, "");
+  return `${AppConstant.currencySymbol}${s}`;
+}
+
+type AddQuotePriceBreakdown = {
+  base: number;
+  taxPct: number;
+  taxAmount: number;
+  /** Service price + tax (basis for commission & min. deposit %). */
+  totalInclTax: number;
+  commissionPct: number;
+  commissionAmount: number;
+  minDepositTitle: string;
+  minDepositAmount: number;
+  minDepositNote: string;
+};
+
+function roundQuoteMoney(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function computeAddQuotePriceBreakdown(
+  servicePriceStr: string,
+  opt: ServiceDropDownOption | undefined
+): AddQuotePriceBreakdown | null {
+  const base = Number.parseFloat(String(servicePriceStr ?? "").trim());
+  if (!Number.isFinite(base) || base < 0) return null;
+  const taxPct = Math.max(0, Number(opt?.tax ?? 0) || 0);
+  const commissionPct = Math.max(0, Number(opt?.commission ?? 0) || 0);
+  const taxAmount = roundQuoteMoney(base * (taxPct / 100));
+  const totalInclTax = roundQuoteMoney(base + taxAmount);
+  /** Admin commission and minimum deposit (when %) use total incl. tax per partner line. */
+  const basisAfterTax = totalInclTax;
+  const commissionAmount = roundQuoteMoney(
+    basisAfterTax * (commissionPct / 100)
+  );
+
+  const typeKey = extractMinDepositTypeKey(
+    String(opt?.min_deposit_type ?? opt?.payment_type ?? "")
+  );
+  let minDepositAmount = 0;
+  let minDepositTitle = "Minimum deposit";
+  let minDepositNote = "";
+
+  if (typeKey === "per_consultancy") {
+    const flat = Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? 0);
+    minDepositAmount = Number.isFinite(flat) ? roundQuoteMoney(flat) : 0;
+    minDepositNote = "(fixed amount for this billing type)";
+  } else {
+    let pct =
+      Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? NaN) || 0;
+    if (!Number.isFinite(pct) || pct <= 0) {
+      const rawType = String(opt?.min_deposit_type ?? opt?.payment_type ?? "");
+      const m = rawType.match(/\(\s*([\d.]+)\s*%?\s*\)/);
+      if (m) pct = Number(m[1]) || 0;
+    }
+    pct = Math.max(0, pct);
+    minDepositAmount = roundQuoteMoney(basisAfterTax * (pct / 100));
+    minDepositNote =
+      pct > 0
+        ? `(${pct}${AppConstant.percentageSymbol} of total incl. tax)`
+        : "(not set on partner line)";
+  }
+
+  return {
+    base,
+    taxPct,
+    taxAmount,
+    totalInclTax,
+    commissionPct,
+    commissionAmount,
+    minDepositTitle,
+    minDepositAmount,
+    minDepositNote,
+  };
+}
 
 /**
  * Maps `getCount` `record` for `type: "quote-management"` into tab totals.
@@ -285,6 +464,10 @@ const QuoteManagement = () => {
   const [franchiseQuotePinSet, setFranchiseQuotePinSet] = useState<
     Set<string>
   >(() => new Set());
+  /** Franchise `area_id` list from `related-catalog` — customer address must match one to be selectable. */
+  const [franchiseQuoteAreaIdSet, setFranchiseQuoteAreaIdSet] = useState<
+    Set<string>
+  >(() => new Set());
   const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(true);
   const [quoteEmployeeOptions, setQuoteEmployeeOptions] = useState<
     OptionType[]
@@ -360,6 +543,7 @@ const QuoteManagement = () => {
         setQuoteUserOptions([]);
         setQuoteCustomerRecords([]);
         setFranchiseQuotePinSet(new Set());
+        setFranchiseQuoteAreaIdSet(new Set());
         setFranchisePinsLoadDone(true);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
@@ -377,6 +561,7 @@ const QuoteManagement = () => {
         setQuoteUserOptions([]);
         setQuoteCustomerRecords([]);
         setFranchiseQuotePinSet(new Set());
+        setFranchiseQuoteAreaIdSet(new Set());
         setFranchisePinsLoadDone(true);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
@@ -393,8 +578,11 @@ const QuoteManagement = () => {
         employeeRows: mapped.quoteEmployeeRecords,
       });
 
+      const fr = record.franchise as Record<string, unknown> | undefined;
+      const areaIds = collectFranchiseAreaIds(fr);
       const pinSet = buildFranchisePincodeSetFromRelatedCatalog(record);
       if (seq !== quoteCatalogLoadSeqRef.current) return;
+      setFranchiseQuoteAreaIdSet(new Set(areaIds));
       setFranchiseQuotePinSet(pinSet);
       setFranchisePinsLoadDone(true);
     },
@@ -444,14 +632,42 @@ const QuoteManagement = () => {
   }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
 
   const quoteCategoryOptionsForPartner = useMemo(() => {
-    const catIds = new Set(
+    const partnerCatIds = getPartnerAvailableCategoryIdSet(
+      selectedPartnerCatalogRecord
+    );
+    const catIdsFromProviding = getPartnerCategoryIdsFromProviding(
+      selectedPartnerCatalogRecord
+    );
+    const catIdsFromServices = new Set(
       quoteCatalogServicesForPartner
         .map((o) => normalizeServiceCategoryRef(o.category_id))
         .filter(Boolean)
     );
-    if (!catIds.size) return quoteCategoryOptions;
-    return quoteCategoryOptions.filter((c) => catIds.has(String(c.value)));
-  }, [quoteCategoryOptions, quoteCatalogServicesForPartner]);
+    catIdsFromProviding.forEach((id) => {
+      catIdsFromServices.add(id);
+    });
+    let base =
+      catIdsFromServices.size === 0
+        ? quoteCategoryOptions
+        : quoteCategoryOptions.filter((c) =>
+            catIdsFromServices.has(String(c.value))
+          );
+    /**
+     * `available_categories` can disagree with `active_services_providing` on staging data.
+     * Only narrow by it when the intersection is non-empty; otherwise keep service-derived categories.
+     */
+    if (partnerCatIds && partnerCatIds.size > 0) {
+      const narrowed = base.filter((c) => partnerCatIds.has(String(c.value)));
+      if (narrowed.length > 0) {
+        base = narrowed;
+      }
+    }
+    return base;
+  }, [
+    quoteCategoryOptions,
+    quoteCatalogServicesForPartner,
+    selectedPartnerCatalogRecord,
+  ]);
 
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(addQuote.category_id ?? "").trim();
@@ -494,6 +710,51 @@ const QuoteManagement = () => {
     addQuote.requested_time_from,
     addQuote.requested_time_to,
   ]);
+
+  const selectedAddQuoteServiceOption = useMemo(() => {
+    const sid = addQuoteServiceId;
+    if (!sid) return undefined;
+    return quoteServiceOptionsForCategory.find((o) => o.value === sid);
+  }, [addQuoteServiceId, quoteServiceOptionsForCategory]);
+
+  const addQuoteFeeOptionForBreakdown = useMemo(
+    () =>
+      mergeQuoteServiceFeesForBreakdown(
+        selectedAddQuoteServiceOption,
+        selectedPartnerCatalogRecord,
+        addQuoteServiceId
+      ),
+    [
+      selectedAddQuoteServiceOption,
+      selectedPartnerCatalogRecord,
+      addQuoteServiceId,
+    ]
+  );
+
+  const addQuotePriceBreakdown = useMemo(
+    () =>
+      computeAddQuotePriceBreakdown(
+        addQuote.service_price,
+        addQuoteFeeOptionForBreakdown
+      ),
+    [addQuote.service_price, addQuoteFeeOptionForBreakdown]
+  );
+
+  const addQuoteScheduleFromDateFilter = useCallback((date: Date) => {
+    return startOfLocalDay(date) >= startOfTodayLocal();
+  }, []);
+
+  const addQuoteScheduleToDateFilter = useCallback(
+    (date: Date) => {
+      if (startOfLocalDay(date) < startOfTodayLocal()) return false;
+      const fromIso = String(addQuote.requested_date ?? "").trim();
+      if (!fromIso) return true;
+      const from = parseIsoDateOnly(fromIso);
+      if (!from) return true;
+      return startOfLocalDay(date) >= startOfLocalDay(from);
+    },
+    [addQuote.requested_date]
+  );
 
   const userSelectOptions = useMemo<OptionType[]>(
     () => quoteUserOptions.map((u) => ({ value: u.value, label: u.label })),
@@ -703,24 +964,56 @@ const QuoteManagement = () => {
     const addrs = (customer.addresses ?? customer.user_addresses) as
       | unknown[]
       | undefined;
-    const parsed: { id: string; summary: string; pinNorm: string }[] =
-      Array.isArray(addrs)
-        ? addrs
-            .filter((a) => a != null && typeof a === "object")
-            .map((a) => {
-              const rec = a as Record<string, unknown>;
-              const id = strTrim(rec._id);
-              const pinNorm = normalizePincodeDigits(
-                rec.pincode ?? rec.postal_code ?? rec.postcode
-              );
-              return {
-                id,
-                summary: formatAddressLineFromRecord(rec),
-                pinNorm,
-              };
-            })
-            .filter((r) => r.id)
-        : [];
+    const parsed: {
+      id: string;
+      summary: string;
+      pinNorm: string;
+      areaId: string;
+      contactName: string;
+      stateName: string;
+      cityName: string;
+      areaName: string;
+      streetAddress: string;
+      landmark: string;
+      pincode: string;
+    }[] = Array.isArray(addrs)
+      ? addrs
+          .filter((a) => a != null && typeof a === "object")
+          .map((a) => {
+            const rec = a as Record<string, unknown>;
+            const id = strTrim(rec._id);
+            const pinNorm = normalizePincodeDigits(
+              rec.pincode ?? rec.postal_code ?? rec.postcode
+            );
+            const areaId = strTrim(rec.area_id);
+            const stateName = displayStateName(
+              strTrim(rec.state_name ?? rec.state)
+            );
+            const cityName = strTrim(rec.city_name ?? rec.city);
+            const areaName = strTrim(rec.area_name ?? rec.area);
+            const landmark = strTrim(rec.landmark);
+            const door = strTrim(rec.door_no);
+            const street = strTrim(rec.street ?? rec.address_line);
+            const freeform = strTrim(rec.address);
+            let streetAddress = [door, street].filter(Boolean).join(", ");
+            if (!streetAddress) streetAddress = freeform;
+            return {
+              id,
+              summary: formatAddressLineFromRecord(rec),
+              pinNorm,
+              areaId,
+              contactName:
+                strTrim(rec.contact_name ?? rec.contactName) || "Address",
+              stateName,
+              cityName,
+              areaName,
+              streetAddress,
+              landmark,
+              pincode: strTrim(rec.pincode ?? rec.postal_code ?? rec.postcode),
+            };
+          })
+          .filter((r) => r.id)
+      : [];
 
     if (!parsed.length) {
       setCreateQuoteAddressId("");
@@ -732,18 +1025,35 @@ const QuoteManagement = () => {
       return;
     }
 
+    const areaRules = franchiseQuoteAreaIdSet;
+    const hasAreaRules = areaRules.size > 0;
     const pinRules = franchiseQuotePinSet;
     const hasPinRules = pinRules.size > 0;
 
-    const rows: AddQuoteAddressRowUi[] = parsed.map((r) => ({
-      id: r.id,
-      summary: r.summary,
-      selectable: hasPinRules
-        ? Boolean(r.pinNorm.length === 6 && pinRules.has(r.pinNorm))
-        : true,
-    }));
+    const rows: AddQuoteAddressRowUi[] = parsed.map((r) => {
+      let selectable = true;
+      if (hasAreaRules) {
+        selectable = Boolean(r.areaId && areaRules.has(r.areaId));
+      } else if (hasPinRules) {
+        selectable = Boolean(
+          r.pinNorm.length === 6 && pinRules.has(r.pinNorm)
+        );
+      }
+      return {
+        id: r.id,
+        summary: r.summary,
+        selectable,
+        contactName: r.contactName,
+        stateName: r.stateName,
+        cityName: r.cityName,
+        areaName: r.areaName,
+        streetAddress: r.streetAddress,
+        landmark: r.landmark,
+        pincode: r.pincode,
+      };
+    });
 
-    if (!hasPinRules) {
+    if (!hasAreaRules && !hasPinRules) {
       setCreateQuoteAddressId(parsed[0].id);
       setAddQuoteAddressUi({
         ready: true,
@@ -759,8 +1069,9 @@ const QuoteManagement = () => {
       setAddQuoteAddressUi({
         ready: true,
         rows,
-        error:
-          "This customer does not have an address in this franchise's service area (no matching postcode).",
+        error: hasAreaRules
+          ? "This customer does not have an address in this franchise's service areas (no matching area)."
+          : "This customer does not have an address in this franchise's service area (no matching postcode).",
       });
       return;
     }
@@ -775,7 +1086,43 @@ const QuoteManagement = () => {
     addQuote.user_id,
     quoteCustomerRecords,
     franchiseQuotePinSet,
+    franchiseQuoteAreaIdSet,
     franchisePinsLoadDone,
+  ]);
+
+  useEffect(() => {
+    if (!isAddQuoteScheduleComplete || !addQuotePartnerSelected) return;
+    const sid = String(addQuote.requested_services ?? "").trim();
+    if (!sid) return;
+    const row = getPartnerActiveServiceProvidingRow(
+      selectedPartnerCatalogRecord,
+      sid
+    );
+    const metrics = deriveQuoteScheduleMetrics({
+      scheduleMode,
+      requested_date: String(addQuote.requested_date ?? ""),
+      requested_date_to: String(addQuote.requested_date_to ?? ""),
+      requested_time: String(addQuote.requested_time ?? ""),
+      requested_time_from: String(addQuote.requested_time_from ?? ""),
+      requested_time_to: String(addQuote.requested_time_to ?? ""),
+    });
+    if (!metrics) return;
+    const n = row
+      ? computeAutoQuotePriceFromPartner(row, metrics)
+      : 0;
+    setAddQuoteValue("service_price", String(n), { shouldValidate: false });
+  }, [
+    isAddQuoteScheduleComplete,
+    addQuotePartnerSelected,
+    addQuote.requested_services,
+    addQuote.requested_date,
+    addQuote.requested_date_to,
+    addQuote.requested_time,
+    addQuote.requested_time_from,
+    addQuote.requested_time_to,
+    scheduleMode,
+    selectedPartnerCatalogRecord,
+    setAddQuoteValue,
   ]);
 
   /** Tab badge totals: only when header franchise filter changes (same payload covers all tabs). */
@@ -1031,6 +1378,38 @@ const QuoteManagement = () => {
         showErrorAlert("Please select end time.");
         return;
       }
+    }
+
+    if (!isCalendarDateNotBeforeToday(String(data.requested_date ?? "").trim())) {
+      showErrorAlert("Schedule date must be today or a future date.");
+      return;
+    }
+    if (scheduleMode === "range") {
+      if (
+        !isCalendarDateNotBeforeToday(
+          String(data.requested_date_to ?? "").trim()
+        )
+      ) {
+        showErrorAlert("End date must be today or a future date.");
+        return;
+      }
+      const cmp = compareIsoDateOnlyAsc(
+        String(data.requested_date ?? "").trim(),
+        String(data.requested_date_to ?? "").trim()
+      );
+      if (cmp != null && cmp > 0) {
+        showErrorAlert("End date must be on or after the start date.");
+        return;
+      }
+    }
+    if (
+      !isScheduleEndTimeAfterStart(
+        String(data.requested_time_from ?? "").trim(),
+        String(data.requested_time_to ?? "").trim()
+      )
+    ) {
+      showErrorAlert("End time must be after start time.");
+      return;
     }
 
     const body = buildCreateQuotePayload({
@@ -1357,10 +1736,10 @@ const QuoteManagement = () => {
                   <Row className="mt-4">
                     <Col xs={12}>
                       <label
-                        className="custom-profile-lable d-block mb-2"
-                        style={{ fontWeight: 600 }}
+                        className="custom-profile-lable d-block"
+                        style={{ fontWeight: 600, marginBottom: "1.125rem" }}
                       >
-                        Customer address
+                        Customer addresses
                       </label>
                       {!addQuoteAddressUi.ready ? (
                         <div className="small text-muted">
@@ -1369,57 +1748,126 @@ const QuoteManagement = () => {
                       ) : addQuoteAddressUi.error ? (
                         <div className="small text-danger">{addQuoteAddressUi.error}</div>
                       ) : addQuoteAddressUi.rows.length ? (
-                        <div
-                          className="small rounded border p-3"
-                          style={{
-                            backgroundColor: "var(--bg-color)",
-                            borderColor: "var(--primary-color)",
-                            color: "var(--content-txt-color)",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {franchiseQuotePinSet.size === 0 ? (
-                            <div className="text-muted mb-2" style={{ fontSize: "0.9em" }}>
-                              No franchise service postcodes were included with this
-                              catalog, so every saved address can be used. The first is
-                              selected by default. When the API adds postcodes to this
-                              response, addresses outside the franchise area will appear
-                              here but cannot be selected.
-                            </div>
-                          ) : null}
-                          {addQuoteAddressUi.rows.map((row) =>
-                            row.selectable ? (
-                              <Form.Check
-                                key={row.id}
-                                type="radio"
-                                name="add-quote-address"
-                                id={`add-quote-addr-${row.id}`}
-                                className="mb-2"
-                                label={row.summary}
-                                checked={createQuoteAddressId === row.id}
-                                onChange={() => setCreateQuoteAddressId(row.id)}
-                              />
-                            ) : (
+                        <div className="add-quote-address-cards-grid mb-5">
+                          {addQuoteAddressUi.rows.map((row) => {
+                            const selected =
+                              createQuoteAddressId === row.id &&
+                              row.selectable;
+                            const areaMode =
+                              franchiseQuoteAreaIdSet.size > 0;
+                            const addressFallback =
+                              !row.stateName &&
+                              !row.cityName &&
+                              !row.areaName &&
+                              !row.streetAddress
+                                ? row.summary
+                                : "";
+                            const pairCandidates: [string, string][] = [
+                              ["State", row.stateName],
+                              ["City", row.cityName],
+                              ["Area", row.areaName],
+                              [
+                                "Address",
+                                row.streetAddress || addressFallback,
+                              ],
+                              ["Landmark", row.landmark],
+                              ["Pin code", row.pincode],
+                            ];
+                            const pairs = pairCandidates.filter(
+                              (p): p is [string, string] =>
+                                Boolean(String(p[1] ?? "").trim())
+                            );
+
+                            return (
                               <div
                                 key={row.id}
-                                className="mb-2 rounded border p-2 text-muted"
+                                className={`add-quote-address-card-wrap p-2 ${
+                                  !row.selectable
+                                    ? "add-quote-address-card-wrap--muted"
+                                    : ""
+                                }`}
                                 style={{
-                                  opacity: 0.85,
-                                  pointerEvents: "none",
-                                  userSelect: "none",
+                                  border: selected
+                                    ? "2px solid var(--primary-color)"
+                                    : `1px solid ${
+                                        row.selectable
+                                          ? "rgba(0, 0, 0, 0.1)"
+                                          : "rgba(0, 0, 0, 0.08)"
+                                      }`,
+                                  backgroundColor: row.selectable
+                                    ? "var(--bg-color)"
+                                    : "rgba(0, 0, 0, 0.02)",
+                                  boxShadow: selected
+                                    ? "0 10px 28px rgba(0, 0, 0, 0.09)"
+                                    : "0 2px 12px rgba(0, 0, 0, 0.05)",
+                                  transform: selected
+                                    ? "translateY(-2px)"
+                                    : undefined,
                                 }}
                               >
-                                <div>{row.summary}</div>
-                                <div
-                                  className="fst-italic mt-1"
-                                  style={{ fontSize: "0.85em" }}
-                                >
-                                  Postcode is not in this franchise&apos;s service
-                                  area — cannot be selected.
-                                </div>
+                                <Form.Check
+                                  type="radio"
+                                  name="add-quote-address"
+                                  id={`add-quote-addr-${row.id}`}
+                                  disabled={!row.selectable}
+                                  checked={
+                                    createQuoteAddressId === row.id &&
+                                    row.selectable
+                                  }
+                                  onChange={() => {
+                                    if (row.selectable) {
+                                      setCreateQuoteAddressId(row.id);
+                                    }
+                                  }}
+                                  className="add-quote-address-card-check"
+                                  style={{
+                                    cursor: row.selectable
+                                      ? "pointer"
+                                      : "not-allowed",
+                                  }}
+                                  label={
+                                    <div className="add-quote-address-card-inner">
+                                      <div className="add-quote-address-card-header">
+                                        <span className="add-quote-address-card-name">
+                                          {row.contactName}
+                                        </span>
+                                        <span
+                                          className={`add-quote-address-card-badge ${
+                                            row.selectable
+                                              ? "add-quote-address-card-badge--ok"
+                                              : "add-quote-address-card-badge--no"
+                                          }`}
+                                        >
+                                          {row.selectable
+                                            ? "Available"
+                                            : "Unavailable"}
+                                        </span>
+                                      </div>
+                                      <div className="add-quote-address-card-grid">
+                                        {pairs.map(([label, value]) => (
+                                          <React.Fragment key={`${row.id}-${label}`}>
+                                            <span className="add-quote-address-card-grid-label">
+                                              {label}
+                                            </span>
+                                            <span className="add-quote-address-card-grid-value">
+                                              {value}
+                                            </span>
+                                          </React.Fragment>
+                                        ))}
+                                      </div>
+                                      {!row.selectable ? (
+                                        <div className="add-quote-address-card-footnote">
+                                          {areaMode
+                                            ? "Outside this franchise’s service areas."
+                                            : "Postcode not in this franchise’s service list."}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  }
+                                />
                               </div>
-                            )
-                          )}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="small text-warning">
@@ -1832,20 +2280,10 @@ const QuoteManagement = () => {
                           fontWeight: "600",
                           color: "var(--primary-color)",
                         }}
-                        className="d-block mb-1"
+                        className="d-block mb-0"
                       >
-                        Schedule (from selected service)
+                        Schedule Date and Time
                       </label>
-                      <div className="small text-muted">
-                        {scheduleMode === "range"
-                          ? "Per day / per month: from date, to date, start time, end time."
-                          : "Per hour / per consultancy: one date, start time, end time."}
-                      </div>
-                      {!isAddQuoteScheduleComplete ? (
-                        <div className="small text-muted mt-1">
-                          Fill all schedule fields to enter service price.
-                        </div>
-                      ) : null}
                     </Col>
                   </Row>
 
@@ -1872,7 +2310,7 @@ const QuoteManagement = () => {
                         asCol={false}
                         labelSize={12}
                         placeholderText="From date"
-                        filterDate={() => true}
+                        filterDate={addQuoteScheduleFromDateFilter}
                       />
                     </Col>
                     <Col xs={12} md={3}>
@@ -1895,7 +2333,7 @@ const QuoteManagement = () => {
                         asCol={false}
                         labelSize={12}
                         placeholderText="To date"
-                        filterDate={() => true}
+                        filterDate={addQuoteScheduleToDateFilter}
                       />
                     </Col>
                     <Col xs={12} md={3}>
@@ -1979,7 +2417,7 @@ const QuoteManagement = () => {
                         asCol={false}
                         labelSize={12}
                         placeholderText="Select date"
-                        filterDate={() => true}
+                        filterDate={addQuoteScheduleFromDateFilter}
                       />
                     </Col>
                     <Col xs={12} md={4}>
@@ -2060,39 +2498,167 @@ const QuoteManagement = () => {
                         Service price
                       </label>
                       <div className="small text-muted mb-2">
-                        Enter the quote amount after the schedule is complete.
+                        Estimated from the partner&apos;s rate for this service, your
+                        schedule (days / hours), and optional tax on the partner line.
+                        You can still edit the amount before saving.
                       </div>
                     </Col>
                   </Row>
-                  <Row className="mt-3">
+                  <Row className="mt-3 align-items-start">
                     <Col xs={12} md={6}>
-                      <CustomTextField
-                        label="Service Price"
-                        controlId="service_price"
-                        placeholder="Enter price"
-                        register={addQuoteRegister}
-                        error={addQuoteErrors.service_price}
-                        asCol={false}
-                        inputType="text"
-                        isEditable={!addQuoteFieldsLocked}
-                      />
+                      <Form.Group controlId="service_price">
+                        <Form.Label className="fw-medium mb-1">
+                          Service Price
+                        </Form.Label>
+                        <InputGroup>
+                          <InputGroup.Text
+                            className="custom-form-input text-muted"
+                            style={{
+                              ...partnerCatalogControlStyle,
+                              borderTopRightRadius: 0,
+                              borderBottomRightRadius: 0,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {AppConstant.currencySymbol}
+                          </InputGroup.Text>
+                          <Form.Control
+                            type="text"
+                            inputMode="decimal"
+                            disabled={addQuoteFieldsLocked}
+                            className={`custom-form-input border-start-0${
+                              addQuoteErrors.service_price ? " is-invalid" : ""
+                            }`}
+                            style={{
+                              ...partnerCatalogControlStyle,
+                              borderLeft: 0,
+                              borderTopLeftRadius: 0,
+                              borderBottomLeftRadius: 0,
+                            }}
+                            placeholder="e.g. 499"
+                            {...addQuoteRegister("service_price")}
+                          />
+                        </InputGroup>
+                        {addQuoteErrors.service_price ? (
+                          <div className="text-danger small mt-1">
+                            {String(
+                              (addQuoteErrors.service_price as { message?: string })
+                                ?.message ?? ""
+                            )}
+                          </div>
+                        ) : null}
+                      </Form.Group>
                     </Col>
                   </Row>
+                  {addQuotePriceBreakdown ? (
+                    <Row className="mt-3">
+                      <Col xs={12} md={8}>
+                        <div
+                          className="rounded-3 p-3"
+                          style={{
+                            border: "1px solid var(--primary-color)",
+                            backgroundColor: "var(--bg-color)",
+                          }}
+                        >
+                          <div
+                            className="fw-semibold mb-2"
+                            style={{ color: "var(--primary-color)" }}
+                          >
+                            Amount breakdown
+                          </div>
+                          <dl className="row mb-0 small gx-2">
+                            <dt className="col-7 col-sm-6 mb-1">Service price</dt>
+                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
+                              {formatQuoteRupees(addQuotePriceBreakdown.base)}
+                            </dd>
+                            <dt className="col-7 col-sm-6 mb-1">
+                              Tax ({addQuotePriceBreakdown.taxPct}
+                              {AppConstant.percentageSymbol})
+                            </dt>
+                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
+                              {formatQuoteRupees(addQuotePriceBreakdown.taxAmount)}
+                            </dd>
+                            <dt className="col-7 col-sm-6 mb-1">
+                              Admin commission (
+                              {addQuotePriceBreakdown.commissionPct}
+                              {AppConstant.percentageSymbol} of total incl. tax)
+                            </dt>
+                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
+                              {formatQuoteRupees(
+                                addQuotePriceBreakdown.commissionAmount
+                              )}
+                            </dd>
+                            <dt className="col-7 col-sm-6 mb-1">
+                              {addQuotePriceBreakdown.minDepositTitle}
+                              <span className="text-muted fw-normal d-block d-sm-inline ms-sm-1">
+                                {addQuotePriceBreakdown.minDepositNote}
+                              </span>
+                            </dt>
+                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
+                              {formatQuoteRupees(
+                                addQuotePriceBreakdown.minDepositAmount
+                              )}
+                            </dd>
+                            <dt
+                              className="col-7 col-sm-6 mb-0 pt-2 border-top fw-semibold"
+                              style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                            >
+                              Total (incl. tax)
+                            </dt>
+                            <dd
+                              className="col-5 col-sm-6 text-sm-end mb-0 pt-2 border-top fw-semibold"
+                              style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                            >
+                              {formatQuoteRupees(
+                                addQuotePriceBreakdown.totalInclTax
+                              )}
+                            </dd>
+                          </dl>
+                          <p className="small text-muted mt-3 mb-0">
+                            Tax is applied to the service price. Admin commission
+                            and minimum deposit percentages follow the partner&apos;s
+                            active service line (or the catalogue when absent).
+                            For percentage modes, both are calculated on{' '}
+                            <strong>total including tax</strong>. The partner&apos;s
+                            active line sets tax, commission, and minimum deposit
+                            (percent of that total, unless the billing type uses a
+                            fixed minimum deposit).
+                          </p>
+                        </div>
+                      </Col>
+                    </Row>
+                  ) : null}
                   <Row className="mt-3">
                     <Col xs={12}>
-                      <CustomTextField
-                        label="Quote Description"
-                        controlId="description"
-                        placeholder="Optional notes for this quote"
-                        register={addQuoteRegister}
-                        error={addQuoteErrors.description}
-                        asCol={false}
-                        inputType="text"
-                        as="textarea"
-                        rows={4}
-                        maxLength={2000}
-                        isEditable={!addQuoteFieldsLocked}
-                      />
+                      <Form.Group controlId="description">
+                        <Form.Label className="fw-medium mb-1">
+                          Quote description
+                        </Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={4}
+                          maxLength={2000}
+                          disabled={addQuoteFieldsLocked}
+                          className={`custom-form-input${
+                            addQuoteErrors.description ? " is-invalid" : ""
+                          }`}
+                          style={{
+                            ...partnerCatalogControlStyle,
+                            minHeight: "120px",
+                            resize: "vertical",
+                          }}
+                          placeholder="Optional notes for this quote"
+                          {...addQuoteRegister("description")}
+                        />
+                        {addQuoteErrors.description ? (
+                          <div className="text-danger small mt-1">
+                            {String(
+                              (addQuoteErrors.description as { message?: string })
+                                ?.message ?? ""
+                            )}
+                          </div>
+                        ) : null}
+                      </Form.Group>
                     </Col>
                   </Row>
                 </>

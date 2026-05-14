@@ -5,7 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader from "../../components/CustomImageUploader";
-import { DetailsRow } from "../../helper/utility";
+import { FullDetailsRow } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
@@ -195,84 +195,98 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
     ? "Add service request"
     : isEditing
     ? "Edit service request"
-    : "Service request details";
+    : "Service Request Details";
 
   const renderViewBody = () => {
     if (!request) return null;
     const img = resolveImageSrc(request.image_url);
     const displayImg = img ?? sampleServiceViewImage;
     return (
-      <section className="custom-other-details" style={{ padding: "10px" }}>
-        <Row className="d-flex justify-content-between align-items-center mb-2">
-          <Col>
-            <h3 className="mb-0">Request information</h3>
+      <section
+        className="custom-other-details modal-readonly-details"
+        style={{ padding: "14px 16px", borderRadius: 12 }}
+      >
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h3 className="mb-0">Service Information</h3>
+          <i
+            className="bi bi-pencil-fill fs-6 text-danger"
+            style={{ cursor: "pointer" }}
+            role="button"
+            aria-label="Edit request"
+            onClick={() => setIsEditing(true)}
+          />
+        </div>
+
+        <Row className="g-3">
+          <Col xs={12} md={6}>
+            <FullDetailsRow title="Service name" value={request.name ?? "-"} />
           </Col>
-          <Col className="text-end">
-            <i
-              className="bi bi-pencil-fill fs-6 text-danger"
-              style={{ cursor: "pointer" }}
-              onClick={() => setIsEditing(true)}
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Category"
+              value={request.category_name ?? "-"}
+            />
+          </Col>
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Status"
+              value={
+                <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
+              }
             />
           </Col>
         </Row>
-        <div className="row">
-          <div className="col-md-12 custom-helper-column">
-            <DetailsRow title="Service name" value={request.name} />
-            <DetailsRow title="Category" value={request.category_name} />
-            <div className="mb-2">
-              <p
-                className="mb-1 small text-uppercase fw-semibold"
-                style={{
-                  color: "var(--primary-color)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                Description
-              </p>
-              <div
-                className="mb-0 w-100"
-                title={String(request.description ?? "").trim() || undefined}
-                style={{
-                  color: "var(--content-txt-color)",
-                  fontSize: "0.95rem",
-                  lineHeight: 1.45,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  minWidth: 0,
-                }}
-              >
-                {request.description?.trim() ? request.description : "-"}
-              </div>
+
+        <Row className="g-3 mt-1">
+          <Col xs={12}>
+            <p
+              className="mb-1 small text-uppercase fw-semibold"
+              style={{
+                color: "var(--primary-color)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Description
+            </p>
+            <div
+              className="mb-0 w-100"
+              title={String(request.description ?? "").trim() || undefined}
+              style={{
+                color: "var(--content-txt-color)",
+                fontSize: "0.95rem",
+                lineHeight: 1.45,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                minWidth: 0,
+              }}
+            >
+              {request.description?.trim() ? request.description : "-"}
             </div>
-            <Row className="row custom-personal-row">
-              <label className="col custom-personal-row-title">Status</label>
-              <label className="col custom-personal-row-value text-truncate">
-                <span style={{ color: "orange", fontWeight: 600 }}>
-                  Pending
-                </span>
-              </label>
-            </Row>
-            <div className="mt-2">
-              <p
-                className="mb-1"
-                style={{ color: "var(--primary-color)", fontWeight: 600 }}
-              >
-                Service image
-              </p>
-              <img
-                alt=""
-                src={displayImg}
-                style={{
-                  maxWidth: 160,
-                  maxHeight: 160,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                }}
-              />
-            </div>
-          </div>
-        </div>
+          </Col>
+        </Row>
+
+        <Row className="g-3 mt-3">
+          <Col xs={12}>
+            <p
+              className="mb-2"
+              style={{ color: "var(--primary-color)", fontWeight: 600 }}
+            >
+              Service image
+            </p>
+            <img
+              alt=""
+              src={displayImg}
+              style={{
+                maxWidth: "min(100%, 280px)",
+                maxHeight: 200,
+                borderRadius: 8,
+                objectFit: "cover",
+                border: "1px solid var(--txtfld-border)",
+              }}
+            />
+          </Col>
+        </Row>
       </section>
     );
   };
@@ -379,8 +393,10 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   return (
     <Modal
       show={true}
+      size="lg"
       onHide={onClose}
       centered
+      scrollable
       dialogClassName="custom-big-modal"
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">

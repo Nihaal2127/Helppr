@@ -17,8 +17,11 @@ export interface CategoryModel {
   /** Present on `GET /category/getAll/:franchise_id` → `all_*`: assigned on/off for this franchise (vs global `is_active`). */
   franchise_active?: boolean;
   is_request?: boolean;
+  /** `pending` | `approved` | `rejected` (API may also send `approve` / `reject`). */
+  approval_status?: string;
   is_rejected?: boolean | null;
   rejection_reason?: string;
+  requested_by?: { id?: string; name?: string } | string;
   deleted_at: string | null;
   created_at: string | null;
   updated_at: string | null;

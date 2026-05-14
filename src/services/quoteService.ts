@@ -264,6 +264,50 @@ function collectFranchiseActiveServiceIds(
   return ids;
 }
 
+function readFiniteNumber(
+  row: Record<string, unknown>,
+  key: string
+): number | undefined {
+  const n = Number(row[key]);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Tax / commission / min-deposit fields from hydrated `service` or mapping row (for Add Quote breakdown). */
+function quoteServiceFeeFieldsFromRow(
+  inner: Record<string, unknown> | undefined,
+  row: Record<string, unknown>
+): Partial<ServiceDropDownOption> {
+  const src =
+    inner && typeof inner === "object" && Object.keys(inner).length > 0
+      ? inner
+      : row;
+  const tax = readFiniteNumber(src, "tax") ?? readFiniteNumber(row, "tax");
+  const commission =
+    readFiniteNumber(src, "commission") ??
+    readFiniteNumber(row, "commission");
+  const minimum_deposit =
+    readFiniteNumber(src, "minimum_deposit") ??
+    readFiniteNumber(row, "minimum_deposit");
+  const min_deposit_value =
+    readFiniteNumber(src, "min_deposit_value") ??
+    readFiniteNumber(row, "min_deposit_value") ??
+    minimum_deposit;
+  const min_deposit_type = str(
+    (src.min_deposit_type as unknown) ??
+      (src.payment_type as unknown) ??
+      (row.min_deposit_type as unknown) ??
+      (row.payment_type as unknown) ??
+      ""
+  );
+  const out: Partial<ServiceDropDownOption> = {};
+  if (tax !== undefined) out.tax = tax;
+  if (commission !== undefined) out.commission = commission;
+  if (minimum_deposit !== undefined) out.minimum_deposit = minimum_deposit;
+  if (min_deposit_value !== undefined) out.min_deposit_value = min_deposit_value;
+  if (min_deposit_type) out.min_deposit_type = min_deposit_type;
+  return out;
+}
+
 function mergeServicesFromFranchiseServiceDocs(
   record: FranchiseRelatedCatalogRecord,
   catById: Map<string, string>,
@@ -308,6 +352,7 @@ function mergeServicesFromFranchiseServiceDocs(
         payment_type: str(
           inner?.payment_type ?? inner?.min_deposit_type ?? ""
         ),
+        ...quoteServiceFeeFieldsFromRow(inner, doc as Record<string, unknown>),
       });
       continue;
     }
@@ -343,6 +388,10 @@ function mergeServicesFromFranchiseServiceDocs(
         category_id: catRef || undefined,
         payment_type: str(
           inner?.payment_type ?? inner?.min_deposit_type ?? ""
+        ),
+        ...quoteServiceFeeFieldsFromRow(
+          inner ?? detailByServiceId.get(sid),
+          row as Record<string, unknown>
         ),
       });
     }
@@ -434,6 +483,10 @@ export function mapRelatedCatalogToQuoteOptions(
           s.min_deposit_type ??
           ""
       ),
+      ...quoteServiceFeeFieldsFromRow(
+        inner,
+        s as Record<string, unknown>
+      ),
     });
   }
 
@@ -510,6 +563,296 @@ export function getPartnerProvidingServiceIdSet(
     }
   }
   return out.size ? out : null;
+}
+
+/**
+ * Category ids the partner can work in (`available_categories` on `related-catalog` partners).
+ * Returns `null` when missing or empty ⇒ do not restrict categories beyond franchise + services.
+ */
+export function getPartnerAvailableCategoryIdSet(
+  partner: Record<string, unknown> | null | undefined
+): Set<string> | null {
+  if (!partner) return null;
+  const raw =
+    partner.available_categories ?? partner.availableCategories;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out = new Set<string>();
+  for (const x of raw as unknown[]) {
+    if (x == null) continue;
+    if (typeof x === "string" || typeof x === "number") {
+      const id = str(x);
+      if (id) out.add(id);
+      continue;
+    }
+    if (typeof x === "object") {
+      const o = x as Record<string, unknown>;
+      const id = str(o._id ?? o.category_id ?? o.id);
+      if (id) out.add(id);
+    }
+  }
+  return out.size ? out : null;
+}
+
+/**
+ * Category ids from `active_services_providing[].category_id` (and nested `service.category_id`).
+ * Use with franchise catalog so quote UI matches what the partner actually offers.
+ */
+export function getPartnerCategoryIdsFromProviding(
+  partner: Record<string, unknown> | null | undefined
+): Set<string> {
+  const out = new Set<string>();
+  if (!partner) return out;
+  const raw =
+    partner.active_services_providing ??
+    partner.activeServicesProviding ??
+    partner.services_providing;
+  if (!Array.isArray(raw)) return out;
+  for (const x of raw as unknown[]) {
+    if (x == null || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const direct = normalizeServiceCategoryRef(o.category_id);
+    if (direct) out.add(direct);
+    const svc = o.service as Record<string, unknown> | undefined;
+    if (svc) {
+      const ref = normalizeServiceCategoryRef(
+        svc.category_id ?? svc.category ?? svc.categoryId
+      );
+      if (ref) out.add(ref);
+    }
+  }
+  return out;
+}
+
+/** Resolves a Mongo-style id whether the API sends a string or a populated `{ _id }`. */
+function normalizeMongoRef(v: unknown): string {
+  if (v == null || v === undefined) return "";
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean")
+    return str(v);
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return str(o._id ?? o.id ?? (o as { $oid?: unknown }).$oid);
+  }
+  return "";
+}
+
+function providingRowMatchesServiceId(
+  o: Record<string, unknown>,
+  sid: string
+): boolean {
+  if (!sid) return false;
+  const ids = new Set<string>();
+  const add = (v: unknown) => {
+    const s = normalizeMongoRef(v);
+    if (s) ids.add(s);
+  };
+  add(o.service_id);
+  add(o.serviceId);
+  add(o.id);
+  add(o._id);
+  const nested = o.service as Record<string, unknown> | undefined;
+  if (nested && typeof nested === "object") {
+    add(nested._id);
+    add(nested.id);
+    add(nested.service_id);
+  }
+  return ids.has(sid);
+}
+
+/** One row from `active_services_providing` for `serviceId`, if any. */
+export function getPartnerActiveServiceProvidingRow(
+  partner: Record<string, unknown> | null | undefined,
+  serviceId: string | undefined | null
+): Record<string, unknown> | null {
+  const sid = str(serviceId);
+  if (!partner || !sid) return null;
+  const raw =
+    partner.active_services_providing ??
+    partner.activeServicesProviding ??
+    partner.services_providing;
+  if (!Array.isArray(raw)) return null;
+  for (const x of raw as unknown[]) {
+    if (x == null || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    if (providingRowMatchesServiceId(o, sid)) return o;
+  }
+  return null;
+}
+
+/**
+ * Prefer partner `active_services_providing` for tax / minimum_deposit / commission
+ * (see related-catalog partner rows); nested `service` is a fallback when the
+ * global catalogue row omits those fields.
+ */
+export function mergeQuoteServiceFeesForBreakdown(
+  catalogOpt: ServiceDropDownOption | undefined,
+  partner: Record<string, unknown> | null | undefined,
+  serviceId: string | undefined | null
+): ServiceDropDownOption | undefined {
+  const pr = getPartnerActiveServiceProvidingRow(partner, serviceId);
+  if (!catalogOpt && !pr) return undefined;
+  const base: ServiceDropDownOption =
+    catalogOpt ?? { value: str(serviceId), label: "" };
+  if (!pr) return catalogOpt;
+
+  const nested = pr.service as Record<string, unknown> | undefined;
+
+  const tax =
+    readFiniteNumber(pr, "tax") ??
+    (nested ? readFiniteNumber(nested, "tax") : undefined) ??
+    base.tax;
+  const commission =
+    readFiniteNumber(pr, "commission") ??
+    readFiniteNumber(pr, "admin_commission") ??
+    (nested ? readFiniteNumber(nested, "commission") : undefined) ??
+    (nested ? readFiniteNumber(nested, "admin_commission") : undefined) ??
+    base.commission;
+  const minimum_deposit =
+    readFiniteNumber(pr, "minimum_deposit") ??
+    (nested ? readFiniteNumber(nested, "minimum_deposit") : undefined) ??
+    base.minimum_deposit;
+  const min_deposit_value =
+    readFiniteNumber(pr, "min_deposit_value") ??
+    (nested ? readFiniteNumber(nested, "min_deposit_value") : undefined) ??
+    minimum_deposit ??
+    base.min_deposit_value;
+
+  const pay = str(
+    (pr.payment_type as unknown) ??
+      (nested?.payment_type as unknown) ??
+      ""
+  );
+  const mdType = str(
+    (pr.min_deposit_type as unknown) ??
+      (nested?.min_deposit_type as unknown) ??
+      ""
+  );
+
+  const out: ServiceDropDownOption = { ...base };
+  if (tax !== undefined) out.tax = tax;
+  if (commission !== undefined) out.commission = commission;
+  if (minimum_deposit !== undefined) out.minimum_deposit = minimum_deposit;
+  if (min_deposit_value !== undefined) out.min_deposit_value = min_deposit_value;
+  if (mdType) {
+    out.min_deposit_type = mdType;
+  } else if (pay) {
+    out.min_deposit_type = pay;
+  }
+  if (pay) {
+    out.payment_type = pay;
+  }
+  return out;
+}
+
+export type QuoteScheduleMetrics = {
+  from_date: string;
+  to_date: string;
+  work_start_time: string;
+  work_end_time: string;
+  work_hours_per_day: number;
+  days: number;
+  total_work_hours: number;
+};
+
+/**
+ * Same schedule math as create-quote (`from_date` / `to_date` / work hours).
+ * Used for automatic price = partner unit rate × duration.
+ */
+export function deriveQuoteScheduleMetrics(input: {
+  scheduleMode: QuoteServiceScheduleMode;
+  requested_date: string;
+  requested_date_to: string;
+  requested_time: string;
+  requested_time_from: string;
+  requested_time_to: string;
+}): QuoteScheduleMetrics | null {
+  const from_date = str(input.requested_date);
+  if (!from_date) return null;
+
+  let to_date = str(input.requested_date_to) || from_date;
+  if (input.scheduleMode === "range") {
+    to_date = str(input.requested_date_to) || from_date;
+  } else {
+    to_date = from_date;
+  }
+
+  let work_start_time = "09:00";
+  let work_end_time = "17:00";
+  if (input.scheduleMode === "hourly") {
+    work_start_time = timeStorageToHHmm(input.requested_time_from);
+    work_end_time = timeStorageToHHmm(input.requested_time_to);
+  } else if (input.scheduleMode === "range") {
+    const wf = str(input.requested_time_from);
+    const wt = str(input.requested_time_to);
+    if (wf && wt) {
+      work_start_time = timeStorageToHHmm(wf);
+      work_end_time = timeStorageToHHmm(wt);
+    } else {
+      work_start_time = timeStorageToHHmm(input.requested_time);
+      const [h, m] = work_start_time.split(":").map((x) => parseInt(x, 10));
+      const endH = Math.min(23, (h || 9) + 2);
+      work_end_time = `${pad2(endH)}:${pad2(m || 0)}`;
+    }
+  } else if (input.scheduleMode === "single") {
+    const wf = str(input.requested_time_from);
+    const wt = str(input.requested_time_to);
+    if (wf && wt) {
+      work_start_time = timeStorageToHHmm(wf);
+      work_end_time = timeStorageToHHmm(wt);
+    } else {
+      work_start_time = timeStorageToHHmm(input.requested_time);
+      const [h, m] = work_start_time.split(":").map((x) => parseInt(x, 10));
+      const endH = Math.min(23, (h || 9) + 2);
+      work_end_time = `${pad2(endH)}:${pad2(m || 0)}`;
+    }
+  } else {
+    work_start_time = timeStorageToHHmm(input.requested_time_from);
+    work_end_time = timeStorageToHHmm(input.requested_time_to);
+  }
+
+  const work_hours_per_day = hoursBetweenHHmm(work_start_time, work_end_time);
+  const days = daysInclusive(from_date, to_date);
+  const total_work_hours = Math.round(work_hours_per_day * days * 10) / 10;
+  return {
+    from_date,
+    to_date,
+    work_start_time,
+    work_end_time,
+    work_hours_per_day,
+    days,
+    total_work_hours,
+  };
+}
+
+/**
+ * Suggested quote amount from partner line-item (`price`, `payment_type`, optional `tax` %).
+ */
+export function computeAutoQuotePriceFromPartner(
+  partnerServiceRow: Record<string, unknown> | null | undefined,
+  metrics: QuoteScheduleMetrics
+): number {
+  if (!partnerServiceRow) return 0;
+  const unit = Number(partnerServiceRow.price ?? 0);
+  if (!Number.isFinite(unit)) return 0;
+  const key = extractMinDepositTypeKey(str(partnerServiceRow.payment_type));
+  let sub = 0;
+  if (key === "per_hour") {
+    sub = unit * metrics.total_work_hours;
+  } else if (key === "per_day") {
+    sub = unit * metrics.days;
+  } else if (key === "per_month") {
+    const months = Math.max(1, Math.ceil(metrics.days / 30));
+    sub = unit * months;
+  } else if (key === "per_consultancy") {
+    sub = unit;
+  } else {
+    sub = unit * metrics.days;
+  }
+  const taxPct = Number(partnerServiceRow.tax ?? 0);
+  if (!Number.isFinite(taxPct) || taxPct <= 0) {
+    return Math.max(0, Math.round(sub * 100) / 100);
+  }
+  const withTax = sub * (1 + taxPct / 100);
+  return Math.max(0, Math.round(withTax * 100) / 100);
 }
 
 /** Prefer partners linked to `serviceId` when the API exposes linkage; otherwise full list. */
@@ -1410,41 +1753,15 @@ export function buildCreateQuotePayload(input: {
   if (!user_id || !category_id || !service_id || !franchise_id || !created_by_id)
     return null;
 
-  let from_date = str(input.requested_date);
-  let to_date = str(input.requested_date_to) || from_date;
-  if (input.scheduleMode === "range") {
-    to_date = str(input.requested_date_to) || from_date;
-  } else {
-    to_date = from_date;
-  }
-
-  let work_start_time = "09:00";
-  let work_end_time = "17:00";
-  if (input.scheduleMode === "hourly") {
-    work_start_time = timeStorageToHHmm(input.requested_time_from);
-    work_end_time = timeStorageToHHmm(input.requested_time_to);
-  } else if (input.scheduleMode === "range") {
-    const wf = str(input.requested_time_from);
-    const wt = str(input.requested_time_to);
-    if (wf && wt) {
-      work_start_time = timeStorageToHHmm(wf);
-      work_end_time = timeStorageToHHmm(wt);
-    } else {
-      work_start_time = timeStorageToHHmm(input.requested_time);
-      const [h, m] = work_start_time.split(":").map((x) => parseInt(x, 10));
-      const endH = Math.min(23, (h || 9) + 2);
-      work_end_time = `${pad2(endH)}:${pad2(m || 0)}`;
-    }
-  } else if (input.scheduleMode === "single") {
-    work_start_time = timeStorageToHHmm(input.requested_time);
-    const [h, m] = work_start_time.split(":").map((x) => parseInt(x, 10));
-    const endH = Math.min(23, (h || 9) + 2);
-    work_end_time = `${pad2(endH)}:${pad2(m || 0)}`;
-  }
-
-  const perDay = hoursBetweenHHmm(work_start_time, work_end_time);
-  const days = daysInclusive(from_date, to_date);
-  const total_work_hours = Math.round(perDay * days * 10) / 10;
+  const metrics = deriveQuoteScheduleMetrics({
+    scheduleMode: input.scheduleMode,
+    requested_date: input.requested_date,
+    requested_date_to: input.requested_date_to,
+    requested_time: input.requested_time,
+    requested_time_from: input.requested_time_from,
+    requested_time_to: input.requested_time_to,
+  });
+  if (!metrics) return null;
 
   const desc = str(input.description);
   return {
@@ -1457,12 +1774,12 @@ export function buildCreateQuotePayload(input: {
     franchise_id,
     address_id: str(input.address_id),
     created_by_id,
-    from_date,
-    to_date,
-    work_hours_per_day: perDay,
-    total_work_hours,
-    work_start_time,
-    work_end_time,
+    from_date: metrics.from_date,
+    to_date: metrics.to_date,
+    work_hours_per_day: metrics.work_hours_per_day,
+    total_work_hours: metrics.total_work_hours,
+    work_start_time: metrics.work_start_time,
+    work_end_time: metrics.work_end_time,
     ...(desc ? { description: desc } : {}),
   };
 }

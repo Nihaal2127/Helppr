@@ -53,8 +53,9 @@ function mapApprovalStatusFromService(
   if (raw === "approved" || raw === "approve") return "approved";
   if (raw === "rejected" || raw === "reject") return "rejected";
   if (any.is_rejected === true) return "rejected";
-  if (any.is_rejected === false) return "approved";
+  // Pending rows often send `is_rejected: false` (meaning "not rejected yet"); do not treat as approved before `is_request`.
   if (any.is_request === true) return "pending";
+  if (any.is_rejected === false) return "approved";
   return any.is_active === false ? "rejected" : "approved";
 }
 
@@ -78,6 +79,8 @@ type AddEditServiceDialogProps = {
   onRefreshData: () => void;
   isViewMode?: boolean;
   lockCategory?: { id?: string; label?: string };
+  /** When true (e.g. My Franchise catalog view), hide Active/Inactive and request-status rows. */
+  hideStatusInView?: boolean;
 };
 
 const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
@@ -86,7 +89,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     service: ServiceModel | null,
     onRefreshData: () => void,
     isViewMode?: boolean,
-    lockCategory?: { id?: string; label?: string }
+    lockCategory?: { id?: string; label?: string },
+    hideStatusInView?: boolean
   ) => void;
 } = ({
   isEditable,
@@ -95,6 +99,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   onRefreshData,
   isViewMode = false,
   lockCategory,
+  hideStatusInView = false,
 }) => {
   const [localViewMode, setLocalViewMode] = useState(isViewMode);
 
@@ -108,6 +113,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     reset,
     setValue,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<
     ServiceModel & {
@@ -288,9 +294,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const isRequestService = Boolean((service as any)?.is_request);
   const approvalStatus = watch("approval_status");
   const approvalStatusDefaultForEdit =
-    mapApprovalStatusFromService(service) === "pending"
-      ? "approved"
-      : mapApprovalStatusFromService(service);
+    mapApprovalStatusFromService(service);
   const categoryIdWatch = watch("category_id");
 
   const serviceImagePath = useMemo(() => {
@@ -348,6 +352,14 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         ? 0
         : Number(mdRaw);
 
+    /** RHF submit `data` can omit fields only touched via `setValue` (e.g. CustomRadioSelection). */
+    const moderationStatus =
+      isEditable && isRequestService
+        ? ((data as any).approval_status ??
+            getValues("approval_status" as any) ??
+            mapApprovalStatusFromService(service))
+        : undefined;
+
     const payload = {
       name: data.name,
       desc: data.desc,
@@ -360,18 +372,23 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       minimum_deposit: mdParsed,
       is_active:
         isEditable && isRequestService
-          ? data.approval_status !== "rejected"
+          ? moderationStatus !== "rejected"
           : isTruthyFormBool(data.is_active),
       ...(isEditable &&
         isRequestService &&
-        data.approval_status &&
-        data.approval_status !== "pending" && {
-          is_rejected: data.approval_status === "rejected",
+        moderationStatus &&
+        moderationStatus !== "pending" && {
+          is_rejected: moderationStatus === "rejected",
+        }),
+      ...(isEditable &&
+        isRequestService &&
+        moderationStatus && {
+          approval_status: moderationStatus,
         }),
       ...(isEditable &&
         isRequestService && {
           rejection_reason:
-            data.approval_status === "rejected"
+            moderationStatus === "rejected"
               ? (data.rejection_reason ?? "").trim()
               : "",
         }),
@@ -436,7 +453,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               )}
             </div>
 
-            <Row className="g-3">
+            <Row className="g-3 align-items-start">
               <Col xs={12} md={6}>
                 <FullDetailsRow title="Service Name" value={service.name ?? "-"} />
               </Col>
@@ -478,54 +495,61 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               <Col xs={12} md={6}>
                 <FullDetailsRow title="Min deposit" value={minDepositForView} />
               </Col>
-              <Col xs={12} md={6}>
-                <FullDetailsRow
-                  title="Status"
-                  value={service.is_active ? "Active" : "Inactive"}
-                />
-              </Col>
-              {(service as any).is_request ? (
-                <>
+              {!hideStatusInView ? (
+                (service as any).is_request ? (
+                  <>
+                    <Col xs={12} md={6}>
+                      <FullDetailsRow
+                        title="Approval status"
+                        value={requestStatusLabel(
+                          mapApprovalStatusFromService(service)
+                        )}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <FullDetailsRow
+                        title="Requested by"
+                        value={
+                          (service as any).requested_by
+                            ? typeof (service as any).requested_by ===
+                                "object" &&
+                              (service as any).requested_by !== null
+                              ? String(
+                                  (service as any).requested_by.name ??
+                                    (service as any).requested_by.id ??
+                                    "-"
+                                )
+                              : String((service as any).requested_by)
+                            : "-"
+                        }
+                      />
+                    </Col>
+                    {mapApprovalStatusFromService(service) === "rejected" &&
+                    String((service as any)?.rejection_reason ?? "").trim() ? (
+                      <Col xs={12} md={12}>
+                        <FullDetailsRow
+                          title="Rejection note"
+                          value={String(
+                            (service as any).rejection_reason ?? ""
+                          ).trim()}
+                        />
+                      </Col>
+                    ) : null}
+                  </>
+                ) : (
                   <Col xs={12} md={6}>
                     <FullDetailsRow
-                      title="Request status"
-                      value={requestStatusLabel(
-                        mapApprovalStatusFromService(service)
-                      )}
+                      title="Status"
+                      value={service.is_active ? "Active" : "Inactive"}
                     />
                   </Col>
-                  <Col xs={12} md={6}>
-                    <FullDetailsRow
-                      title="Requested by"
-                      value={
-                        (service as any).requested_by
-                          ? typeof (service as any).requested_by === "object" &&
-                            (service as any).requested_by !== null
-                            ? String(
-                                (service as any).requested_by.name ??
-                                  (service as any).requested_by.id ??
-                                  "-"
-                              )
-                            : String((service as any).requested_by)
-                          : "-"
-                      }
-                    />
-                  </Col>
-                </>
+                )
               ) : null}
             </Row>
 
             <Row className="g-3 mt-1">
               <Col xs={12}>
-                <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Description
-                </p>
+                <h3>Description</h3>
                 <div
                   className="mb-0 w-100"
                   title={String(service.desc ?? "").trim() || undefined}
@@ -795,6 +819,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     label="Approval status"
                     name="approval_status"
                     options={[
+                      { label: "Pending", value: "pending" },
                       { label: "Approved", value: "approved" },
                       { label: "Rejected", value: "rejected" },
                     ]}
@@ -878,7 +903,8 @@ AddEditServiceDialog.show = (
   service: ServiceModel | null,
   onRefreshData: () => void,
   isViewMode: boolean = false,
-  lockCategory?: { id?: string; label?: string }
+  lockCategory?: { id?: string; label?: string },
+  hideStatusInView: boolean = false
 ) => {
   openDialog("service-details-modal", (close) => (
     <AddEditServiceDialog
@@ -886,6 +912,7 @@ AddEditServiceDialog.show = (
       isViewMode={isViewMode}
       service={service}
       lockCategory={lockCategory}
+      hideStatusInView={hideStatusInView}
       onClose={close}
       onRefreshData={onRefreshData}
     />

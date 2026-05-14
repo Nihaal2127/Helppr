@@ -11,9 +11,10 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CategoryModel } from "../../models/CategoryModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { getStatusOptions } from "../../helper/utility";
-import { AppConstant } from "../../constant/AppConstant";
-import CustomImageUploader from "../../components/CustomImageUploader";
+import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
+import CustomImageUploader, {
+  resolveExistingImageSrc,
+} from "../../components/CustomImageUploader";
 import { showErrorAlert } from "../../helper/alertHelper";
 import {
   createOrUpdateCategory,
@@ -31,12 +32,36 @@ type AddEditCategoryDialogProps = {
   category: CategoryModel | null;
   onClose: () => void;
   onRefreshData: () => void;
+  /** When true (e.g. My Franchise catalog view), hide Active/Inactive in read-only details. */
+  hideStatusInView?: boolean;
 };
 
 type CategoryFormValues = Omit<CategoryModel, "is_active"> & {
   /** Radio group uses string "true" | "false" from `getStatusOptions`. */
   is_active?: boolean | string;
+  approval_status?: "pending" | "approved" | "rejected";
+  rejection_reason?: string;
 };
+
+/** Maps API `approval_status` and legacy `is_rejected` (requested rows). */
+function mapApprovalStatusFromCategory(
+  c: CategoryModel | null
+): "pending" | "approved" | "rejected" {
+  if (!c) return "approved";
+  const any = c as CategoryModel & { is_request?: boolean };
+  const raw = String(any.approval_status ?? "").trim().toLowerCase();
+  if (raw === "pending") return "pending";
+  if (raw === "approved" || raw === "approve") return "approved";
+  if (raw === "rejected" || raw === "reject") return "rejected";
+  if (any.is_rejected === true) return "rejected";
+  if (any.is_request === true) return "pending";
+  if (any.is_rejected === false) return "approved";
+  return any.is_active === false ? "rejected" : "approved";
+}
+
+function requestStatusLabel(status: "pending" | "approved" | "rejected") {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 const SELECT_ALL_OPTION = "select-all";
 
@@ -45,9 +70,17 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     isEditable: boolean,
     category: CategoryModel | null,
     onRefreshData: () => void,
-    isViewMode?: boolean
+    isViewMode?: boolean,
+    hideStatusInView?: boolean
   ) => void;
-} = ({ isEditable, isViewMode = false, category, onClose, onRefreshData }) => {
+} = ({
+  isEditable,
+  isViewMode = false,
+  category,
+  onClose,
+  onRefreshData,
+  hideStatusInView = false,
+}) => {
   const [localViewMode, setLocalViewMode] = useState(isViewMode);
 
   useEffect(() => {
@@ -69,6 +102,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       desc: category?.desc || "",
       is_active: category?.is_active ?? true,
       franchise_id: category?.franchise_id || "",
+      approval_status: mapApprovalStatusFromCategory(category),
+      rejection_reason: String((category as any)?.rejection_reason ?? ""),
     },
   });
 
@@ -112,29 +147,36 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       desc: category.desc || "",
       is_active: category.is_active ?? true,
       franchise_id: category.franchise_id || "",
+      approval_status: mapApprovalStatusFromCategory(category),
+      rejection_reason: String((category as any)?.rejection_reason ?? ""),
     });
   }, [category, localViewMode, reset]);
 
   /** Load / reload services when category, draft id, or mode changes so add vs edit lists stay correct. */
   useEffect(() => {
+    if (category?.is_request) return;
     void loadServiceOptions();
-  }, [loadServiceOptions, draftCategoryId]);
+  }, [loadServiceOptions, draftCategoryId, category?.is_request]);
 
   useEffect(() => {
     const hydrateIds = isEditable || localViewMode;
     if (hydrateIds && category) {
-      // Supports both old shape (`service_ids`) and API detail shape (`services: [{ _id, name }]`).
-      const idsFromServiceIds = Array.isArray((category as any).service_ids)
-        ? (category as any).service_ids.map(String)
-        : [];
-      const idsFromServicesArray = Array.isArray((category as any).services)
-        ? (category as any).services
-            .map((s: any) => String(s?._id ?? ""))
-            .filter(Boolean)
-        : [];
-      setServiceIds(
-        idsFromServiceIds.length > 0 ? idsFromServiceIds : idsFromServicesArray
-      );
+      if ((category as CategoryModel).is_request) {
+        setServiceIds([]);
+      } else {
+        // Supports both old shape (`service_ids`) and API detail shape (`services: [{ _id, name }]`).
+        const idsFromServiceIds = Array.isArray((category as any).service_ids)
+          ? (category as any).service_ids.map(String)
+          : [];
+        const idsFromServicesArray = Array.isArray((category as any).services)
+          ? (category as any).services
+              .map((s: any) => String(s?._id ?? ""))
+              .filter(Boolean)
+          : [];
+        setServiceIds(
+          idsFromServiceIds.length > 0 ? idsFromServiceIds : idsFromServicesArray
+        );
+      }
       setValue("franchise_id", category.franchise_id || "", {
         shouldValidate: false,
       });
@@ -364,8 +406,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     return [];
   }, [category, serviceOptions, serviceIds]);
 
+  const isRequestCategory = Boolean(category?.is_request);
+  const approvalStatusWatch = watch("approval_status");
+  const approvalStatusDefaultForEdit =
+    mapApprovalStatusFromCategory(category);
+
   const onSubmitEvent = async (data: CategoryFormValues) => {
-    if (serviceIds.length === 0) {
+    const isRequestCategorySubmit = Boolean(category?.is_request);
+    if (!isRequestCategorySubmit && serviceIds.length === 0) {
       showErrorAlert("Please select at least one service");
       return;
     }
@@ -396,17 +444,47 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       showErrorAlert("Please select image");
       return;
     }
-    const isActive =
+    const isActiveNormal =
       data.is_active === true ||
       data.is_active === "true" ||
       String(data.is_active).toLowerCase() === "true";
+
+    const moderationStatus =
+      isEditable && isRequestCategorySubmit
+        ? (data.approval_status ??
+            getValues("approval_status") ??
+            mapApprovalStatusFromCategory(category))
+        : undefined;
+
+    const isActive =
+      isEditable && isRequestCategorySubmit
+        ? moderationStatus !== "rejected"
+        : isActiveNormal;
 
     const payload = {
       name: data.name,
       desc: data.desc,
       is_active: isActive,
-      service_ids: serviceIds,
+      service_ids: isRequestCategorySubmit ? [] : serviceIds,
       franchise_id: data.franchise_id,
+      ...(isEditable &&
+        isRequestCategorySubmit &&
+        moderationStatus &&
+        moderationStatus !== "pending" && {
+          is_rejected: moderationStatus === "rejected",
+        }),
+      ...(isEditable &&
+        isRequestCategorySubmit &&
+        moderationStatus && {
+          approval_status: moderationStatus,
+        }),
+      ...(isEditable &&
+        isRequestCategorySubmit && {
+          rejection_reason:
+            moderationStatus === "rejected"
+              ? String(data.rejection_reason ?? "").trim()
+              : "",
+        }),
       ...((image_url !== "" || draftImageUrl !== "") && {
         image_url: image_url || draftImageUrl,
       }),
@@ -462,12 +540,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             style={{ padding: "14px 16px", borderRadius: 12 }}
           >
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h3
-                className="mb-0"
-                style={{ color: "var(--primary-color)", fontWeight: 600 }}
-              >
-                Category Information
-              </h3>
+              <h3 className="mb-0">Category Information</h3>
               {isEditable && (
                 <i
                   className="bi bi-pencil-fill fs-6 text-danger"
@@ -479,95 +552,129 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
               )}
             </div>
 
-            <Row className="g-4 align-items-start">
-              <Col md={6}>
-                <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Category name
-                </p>
-                <p
-                  className="mb-0 fw-medium"
-                  style={{ color: "var(--content-txt-color)", fontSize: "1rem" }}
-                >
-                  {category.name ?? "-"}
-                </p>
+            <Row className="g-3 align-items-start">
+              <Col xs={12} md={6}>
+                <FullDetailsRow
+                  title="Category Name"
+                  value={category.name ?? "-"}
+                />
               </Col>
-              <Col md={6}>
-                <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Status
-                </p>
-                <p className="mb-0">
-                  <span
-                    style={{
-                      color: category.is_active ? "#198754" : "#dc3545",
-                      fontWeight: 600,
-                      fontSize: "1rem",
-                    }}
-                  >
-                    {category.is_active ? "Active" : "Inactive"}
-                  </span>
-                </p>
-              </Col>
+              {isRequestCategory ? (
+                <Col xs={12} md={6}>
+                  <FullDetailsRow
+                    title="Approval status"
+                    value={
+                      <span
+                        style={{
+                          color:
+                            mapApprovalStatusFromCategory(category) ===
+                            "approved"
+                              ? "#198754"
+                              : mapApprovalStatusFromCategory(category) ===
+                                "rejected"
+                              ? "#dc3545"
+                              : "#fd7e14",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {requestStatusLabel(
+                          mapApprovalStatusFromCategory(category)
+                        )}
+                      </span>
+                    }
+                  />
+                </Col>
+              ) : !hideStatusInView ? (
+                <Col xs={12} md={6}>
+                  <FullDetailsRow
+                    title="Status"
+                    value={
+                      <span
+                        style={{
+                          color: category.is_active ? "#198754" : "#dc3545",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {category.is_active ? "Active" : "Inactive"}
+                      </span>
+                    }
+                  />
+                </Col>
+              ) : null}
+            </Row>
 
+            {isRequestCategory ? (
+              <Row className="g-3 align-items-start mt-1">
+                <Col xs={12} md={6}>
+                  <FullDetailsRow
+                    title="Requested by"
+                    value={(() => {
+                      const rb = (category as CategoryModel).requested_by;
+                      if (!rb) return "-";
+                      if (typeof rb === "object" && rb !== null) {
+                        return String(rb.name ?? rb.id ?? "-");
+                      }
+                      return String(rb);
+                    })()}
+                  />
+                </Col>
+              </Row>
+            ) : null}
+
+            {isRequestCategory &&
+            mapApprovalStatusFromCategory(category) === "rejected" &&
+            String((category as any)?.rejection_reason ?? "").trim() ? (
+              <Row className="g-3 mt-1">
+                <Col xs={12}>
+                  <FullDetailsRow
+                    title="Rejection note"
+                    value={String(
+                      (category as any)?.rejection_reason ?? ""
+                    ).trim()}
+                  />
+                </Col>
+              </Row>
+            ) : null}
+
+            <Row className="g-3 mt-1">
               <Col xs={12}>
-                <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Description
-                </p>
+                <h3>Description</h3>
                 <div
                   className="mb-0 w-100"
-                  title={String(category.desc ?? "").trim() || undefined}
+                  title={
+                    String(category.desc ?? "").trim() || undefined
+                  }
                   style={{
                     color: "var(--content-txt-color)",
                     fontSize: "0.95rem",
                     lineHeight: 1.45,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
                     minWidth: 0,
                   }}
                 >
-                  {category.desc?.trim() ? category.desc : "-"}
+                  {category.desc?.trim() ? category.desc.trim() : "-"}
                 </div>
               </Col>
+            </Row>
 
-              <Col md={6}>
+            <Row className="g-3 mt-3 align-items-start">
+              <Col xs={12} md={isRequestCategory ? 12 : 6}>
                 <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
+                  className="mb-2"
+                  style={{ color: "var(--primary-color)", fontWeight: 600 }}
                 >
                   Category image
                 </p>
                 {category.image_url ? (
                   <img
-                    src={`${AppConstant.IMAGE_BASE_URL}${
-                      category.image_url
-                    }?t=${Date.now()}`}
+                    src={resolveExistingImageSrc(category.image_url)}
                     alt="Category"
                     className="d-block"
                     style={{
-                      width: "100%",
-                      maxHeight: 220,
-                      borderRadius: 10,
+                      maxWidth: "min(100%, 280px)",
+                      maxHeight: 200,
+                      borderRadius: 8,
                       objectFit: "contain",
                       background: "#fff",
                       border: "1px solid var(--txtfld-border)",
@@ -577,60 +684,64 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   <span className="text-muted small">No image</span>
                 )}
               </Col>
-              <Col md={6}>
-                <p
-                  className="mb-1 small text-uppercase fw-semibold"
-                  style={{
-                    color: "var(--primary-color)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Services
-                </p>
-                {linkedServiceNamesForView.length > 0 ? (
-                  <div
-                    style={{
-                      maxHeight: 220,
-                      overflowY:
-                        linkedServiceNamesForView.length > 8
-                          ? "auto"
-                          : "visible",
-                      border: "1px solid var(--txtfld-border)",
-                      borderRadius: 8,
-                      padding: "10px 12px",
-                      background: "var(--bs-body-bg, #fff)",
-                    }}
+              {!isRequestCategory ? (
+                <Col xs={12} md={6}>
+                  <p
+                    className="mb-2"
+                    style={{ color: "var(--primary-color)", fontWeight: 600 }}
                   >
-                    {linkedServiceNamesForView.map((svc: string, idx: number) => (
-                      <div
-                        key={`${svc}-${idx}`}
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          alignItems: "start",
-                          padding: "6px 0",
-                          borderBottom:
-                            idx !== linkedServiceNamesForView.length - 1
-                              ? "1px dashed var(--txtfld-border)"
-                              : "none",
-                        }}
-                      >
-                        <span
-                          className="flex-shrink-0"
-                          style={{ color: "var(--primary-color)", fontWeight: 600 }}
-                        >
-                          {idx + 1}.
-                        </span>
-                        <span style={{ color: "var(--content-txt-color)" }}>
-                          {svc}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-muted small">No services linked</span>
-                )}
-              </Col>
+                    Services
+                  </p>
+                  {linkedServiceNamesForView.length > 0 ? (
+                    <div
+                      style={{
+                        maxHeight: 220,
+                        overflowY:
+                          linkedServiceNamesForView.length > 8
+                            ? "auto"
+                            : "visible",
+                        border: "1px solid var(--txtfld-border)",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        background: "var(--bs-body-bg, #fff)",
+                      }}
+                    >
+                      {linkedServiceNamesForView.map(
+                        (svc: string, idx: number) => (
+                          <div
+                            key={`${svc}-${idx}`}
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "start",
+                              padding: "6px 0",
+                              borderBottom:
+                                idx !== linkedServiceNamesForView.length - 1
+                                  ? "1px dashed var(--txtfld-border)"
+                                  : "none",
+                            }}
+                          >
+                            <span
+                              className="flex-shrink-0"
+                              style={{
+                                color: "var(--primary-color)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {idx + 1}.
+                            </span>
+                            <span style={{ color: "var(--content-txt-color)" }}>
+                              {svc}
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted small">No services linked</span>
+                  )}
+                </Col>
+              ) : null}
             </Row>
           </section>
         ) : (
@@ -661,18 +772,33 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               </Col>
               <Col md={6}>
-                <CustomRadioSelection
-                  label="Status"
-                  name="is_active"
-                  options={getStatusOptions()}
-                  defaultValue={
-                    category?.is_active !== undefined
-                      ? category.is_active.toString()
-                      : "true"
-                  }
-                  isEditable
-                  setValue={setValue}
-                />
+                {isEditable && isRequestCategory ? (
+                  <CustomRadioSelection
+                    label="Approval status"
+                    name="approval_status"
+                    options={[
+                      { label: "Pending", value: "pending" },
+                      { label: "Approved", value: "approved" },
+                      { label: "Rejected", value: "rejected" },
+                    ]}
+                    defaultValue={approvalStatusDefaultForEdit}
+                    isEditable={isEditable}
+                    setValue={setValue}
+                  />
+                ) : (
+                  <CustomRadioSelection
+                    label="Status"
+                    name="is_active"
+                    options={getStatusOptions()}
+                    defaultValue={
+                      category?.is_active !== undefined
+                        ? category.is_active.toString()
+                        : "true"
+                    }
+                    isEditable
+                    setValue={setValue}
+                  />
+                )}
               </Col>
 
               <Col md={12}>
@@ -697,7 +823,34 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               </Col>
 
-              <Col md={6}>
+              {isEditable && isRequestCategory && approvalStatusWatch === "rejected" ? (
+                <Col md={12}>
+                  <CustomFormInput
+                    label="Rejection note"
+                    controlId="rejection_reason"
+                    placeholder="Enter rejection note"
+                    register={register}
+                    value={watch("rejection_reason") || ""}
+                    onChange={(value) =>
+                      setValue("rejection_reason", value as any, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      })
+                    }
+                    error={(errors as any).rejection_reason}
+                    asCol={false}
+                    validation={{
+                      validate: (value: string) =>
+                        value?.trim() ? true : "Rejection note is required",
+                    }}
+                    as="textarea"
+                    rows={3}
+                  />
+                </Col>
+              ) : null}
+
+              <Col md={isRequestCategory ? 12 : 6}>
                 <CustomImageUploader
                   label="Category image"
                   maxFiles={1}
@@ -711,20 +864,22 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   }}
                 />
               </Col>
-              <Col md={6}>
-                <CustomMultiSelect
-                  label="Services"
-                  controlId="Service"
-                  options={serviceOptions}
-                  value={selectedServiceOptions}
-                  onChange={(selectedOptions) => {
-                    void handleServiceSelection(selectedOptions);
-                  }}
-                  asCol={false}
-                  menuPortal
-                  menuFooter={addServiceMenuFooter}
-                />
-              </Col>
+              {!isRequestCategory ? (
+                <Col md={6}>
+                  <CustomMultiSelect
+                    label="Services"
+                    controlId="Service"
+                    options={serviceOptions}
+                    value={selectedServiceOptions}
+                    onChange={(selectedOptions) => {
+                      void handleServiceSelection(selectedOptions);
+                    }}
+                    asCol={false}
+                    menuPortal
+                    menuFooter={addServiceMenuFooter}
+                  />
+                </Col>
+              ) : null}
             </Row>
             <Row className="mt-4">
               <Col
@@ -751,13 +906,15 @@ AddEditCategoryDialog.show = (
   isEditable: boolean,
   category: CategoryModel | null,
   onRefreshData: () => void,
-  isViewMode: boolean = false
+  isViewMode: boolean = false,
+  hideStatusInView: boolean = false
 ) => {
   openDialog("category-details-modal", (close) => (
     <AddEditCategoryDialog
       isEditable={isEditable}
       isViewMode={isViewMode}
       category={category}
+      hideStatusInView={hideStatusInView}
       onClose={close}
       onRefreshData={onRefreshData}
     />

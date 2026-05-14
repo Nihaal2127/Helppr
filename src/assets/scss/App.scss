@@ -1569,40 +1569,6 @@ body:has(.modal.show ~ .modal.show) {
   // }
 }
 
-/* My Franchise — Add / edit category request modal: comfortable width, form-friendly */
-.modal-dialog.franchise-requested-category-modal-dialog {
-  max-width: min(720px, calc(100vw - 1.5rem));
-  width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-@media (min-width: 768px) {
-  .modal-dialog.franchise-requested-category-modal-dialog {
-    max-width: min(780px, calc(100vw - 2rem));
-  }
-}
-
-.franchise-requested-category-modal-content.modal-content {
-  overflow: hidden;
-}
-
-.modal-dialog.franchise-requested-category-modal-dialog .modal-body.franchise-requested-category-modal-body {
-  max-height: min(70vh, 560px);
-}
-
-.modal-dialog.franchise-requested-category-modal-dialog.modal-dialog-scrollable .modal-body {
-  overflow-y: auto;
-}
-
-.modal-dialog.franchise-requested-category-modal-dialog .modal-footer.franchise-requested-category-modal-footer {
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: flex-end;
-  padding-top: 8px !important;
-}
-
-/* Quote Management — Add Quote: width, content padding, form inset */
 .modal-dialog.add-quote-modal-dialog {
   max-width: min(1180px, 98vw);
   width: 100%;
@@ -3253,5 +3219,148 @@ table.table td.subscription-plans-desc-cell {
 
 .bs-tooltip-bottom.subscription-plan-desc-tooltip .tooltip-arrow::before {
   border-bottom-color: #fff !important;
+}
+
+/* Add Quote — customer address cards (wider min column → less wrap / less vertical growth) */
+.add-quote-address-cards-grid {
+  display: grid;
+  gap: 1.25rem 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr));
+}
+
+@media (min-width: 1400px) {
+  .add-quote-address-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr));
+  }
+}
+
+.add-quote-address-card-wrap {
+  min-width: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.add-quote-address-card-check.form-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1rem;
+  align-items: start;
+  padding: 0;
+  padding-left: 0;
+  margin: 0;
+  min-height: 0;
+
+  .form-check-input {
+    float: none;
+    margin: 0.5rem 0 0 0.125rem;
+    position: relative;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
+  .form-check-label {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 1.125rem 1.5rem 1.25rem 0.5rem;
+    cursor: inherit;
+  }
+
+  input:disabled ~ .form-check-label {
+    cursor: not-allowed;
+  }
+}
+
+.add-quote-address-card-inner {
+  min-width: 0;
+}
+
+.add-quote-address-card-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.875rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.add-quote-address-card-name {
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: var(--content-txt-color);
+}
+
+.add-quote-address-card-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.add-quote-address-card-badge--ok {
+  background-color: rgba(34, 197, 94, 0.16);
+  color: #166534;
+}
+
+.add-quote-address-card-badge--no {
+  background-color: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.add-quote-address-card-grid {
+  display: grid;
+  grid-template-columns: 7.75rem minmax(0, 1fr);
+  row-gap: 0.500rem;
+  align-items: start;
+}
+
+.add-quote-address-card-grid-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--placeholder-txt);
+  line-height: 1.45;
+  padding-top: 0.22rem;
+}
+
+.add-quote-address-card-grid-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--content-txt-color);
+  word-break: break-word;
+}
+
+.add-quote-address-card-wrap--muted {
+  .add-quote-address-card-name,
+  .add-quote-address-card-grid-value {
+    color: rgba(26, 26, 26, 0.52);
+  }
+
+  .add-quote-address-card-grid-label {
+    color: rgba(118, 118, 118, 0.95);
+  }
+}
+
+.add-quote-address-card-footnote {
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--placeholder-txt);
 }
 

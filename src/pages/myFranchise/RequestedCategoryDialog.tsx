@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomImageUploader from "../../components/CustomImageUploader";
-import { DetailsRow, FullDetailsRow } from "../../helper/utility";
+import { FullDetailsRow } from "../../helper/utility";
 import { openDialog } from "../../helper/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
 import { AppConstant } from "../../constant/AppConstant";
@@ -150,63 +150,92 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
     ? "Add category"
     : isEditing
     ? "Edit category"
-    : "Category request details";
+    : "Category Request Details";
 
   const renderViewBody = () => {
     if (!request) return null;
     const img = resolveImageSrc(request.image_url);
     const displayImg = img ?? sampleCategoryViewImage;
     return (
-      <section className="custom-other-details" style={{ padding: "10px" }}>
-        <Row className="d-flex justify-content-between align-items-center mb-2">
-          <Col>
-            <h3 className="mb-0">Request information</h3>
+      <section
+        className="custom-other-details modal-readonly-details"
+        style={{ padding: "14px 16px", borderRadius: 12 }}
+      >
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h3 className="mb-0">Category Information</h3>
+          <i
+            className="bi bi-pencil-fill fs-6 text-danger"
+            style={{ cursor: "pointer" }}
+            role="button"
+            aria-label="Edit request"
+            onClick={() => setIsEditing(true)}
+          />
+        </div>
+
+        <Row className="g-3">
+          <Col xs={12} md={6}>
+            <FullDetailsRow title="Category name" value={request.name ?? "-"} />
           </Col>
-          <Col className="text-end">
-            <i
-              className="bi bi-pencil-fill fs-6 text-danger"
-              style={{ cursor: "pointer" }}
-              role="button"
-              aria-label="Edit request"
-              onClick={() => setIsEditing(true)}
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Status"
+              value={
+                <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
+              }
             />
           </Col>
         </Row>
-        <div className="row">
-          <div className="col-md-12 custom-helper-column">
-            <DetailsRow title="Category name" value={request.name} />
-            <FullDetailsRow
-              title="Description"
-              value={request.description || "-"}
-            />
-            <Row className="row custom-personal-row">
-              <label className="col custom-personal-row-title">Status</label>
-              <label className="col custom-personal-row-value text-truncate">
-                <span style={{ color: "orange", fontWeight: 600 }}>
-                  Pending
-                </span>
-              </label>
-            </Row>
-            <div className="mt-2">
-              <p
-                className="mb-1"
-                style={{ color: "var(--primary-color)", fontWeight: 600 }}
-              >
-                Category image
-              </p>
-              <img
-                alt=""
-                src={displayImg}
-                style={{
-                  maxWidth: 160,
-                  maxHeight: 160,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                }}
-              />
+
+        <Row className="g-3 mt-1">
+          <Col xs={12}>
+            <p
+              className="mb-1 small text-uppercase fw-semibold"
+              style={{
+                color: "var(--primary-color)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Description
+            </p>
+            <div
+              className="mb-0 w-100"
+              title={String(request.description ?? "").trim() || undefined}
+              style={{
+                color: "var(--content-txt-color)",
+                fontSize: "0.95rem",
+                lineHeight: 1.45,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                minWidth: 0,
+              }}
+            >
+              {request.description?.trim() ? request.description : "-"}
             </div>
-          </div>
-        </div>
+          </Col>
+        </Row>
+
+        <Row className="g-3 mt-3">
+          <Col xs={12}>
+            <p
+              className="mb-2"
+              style={{ color: "var(--primary-color)", fontWeight: 600 }}
+            >
+              Category image
+            </p>
+            <img
+              alt=""
+              src={displayImg}
+              style={{
+                maxWidth: "min(100%, 280px)",
+                maxHeight: 200,
+                borderRadius: 8,
+                objectFit: "cover",
+                border: "1px solid var(--txtfld-border)",
+              }}
+            />
+          </Col>
+        </Row>
       </section>
     );
   };
@@ -269,11 +298,11 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
   return (
     <Modal
       show
+      size="lg"
       onHide={onClose}
       centered
       scrollable
-      dialogClassName="franchise-requested-category-modal-dialog custom-big-modal"
-      contentClassName="franchise-requested-category-modal-content"
+      dialogClassName="custom-big-modal"
       enforceFocus={false}
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -282,12 +311,12 @@ const RequestedCategoryDialog: React.FC<RequestedCategoryDialogProps> & {
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
-      <Modal.Body className="franchise-requested-category-modal-body px-4 pb-3 pt-0">
+      <Modal.Body className="px-4 pb-4 pt-0">
         {!isAdd && !isEditing && renderViewBody()}
         {(isAdd || isEditing) && renderFormBody()}
       </Modal.Body>
       {(isAdd || isEditing) && (
-        <Modal.Footer className="franchise-requested-category-modal-footer border-0 px-4 pb-4 pt-0">
+        <Modal.Footer className="border-0 px-4 pb-4 pt-0">
           <Button
             type="submit"
             form="franchise-requested-category-form"

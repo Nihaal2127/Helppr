@@ -34,6 +34,29 @@ function recordIdFromRow(
   return "";
 }
 
+/** Prefer GET-by-id fields; keep list-row moderation fields if the API omits them. */
+function mergeServiceDetailForDialog(
+  row: Record<string, unknown>,
+  api: ServiceModel
+): ServiceModel {
+  const out: Record<string, unknown> = { ...row, ...api };
+  for (const key of [
+    "approval_status",
+    "is_request",
+    "is_rejected",
+    "requested_by",
+    "rejection_reason",
+  ]) {
+    if (
+      (out[key] === undefined || out[key] === null) &&
+      row[key] !== undefined
+    ) {
+      out[key] = row[key];
+    }
+  }
+  return out as unknown as ServiceModel;
+}
+
 const requestStatusCell = () => ({ row }: { row: any }) => {
   const o = row?.original;
   const raw = String(o?.approval_status ?? "")
@@ -64,6 +87,61 @@ const requestStatusCell = () => ({ row }: { row: any }) => {
   }
   return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
 };
+
+/** Shared category list + requested-category “Services” column (hover list). */
+function categoryRowServicesNamesDisplay(cat: Record<string, unknown>) {
+  let names: string[] = [];
+
+  if (Array.isArray(cat.services) && cat.services.length > 0) {
+    names = cat.services
+      .map((s: unknown) =>
+        typeof s === "object" && s !== null
+          ? String((s as { name?: string; label?: string }).name ?? (s as { label?: string }).label ?? "")
+          : String(s)
+      )
+      .filter(Boolean);
+  }
+
+  if (
+    names.length === 0 &&
+    Array.isArray(cat.service_names) &&
+    cat.service_names.length > 0
+  ) {
+    names = cat.service_names
+      .map((n: unknown) =>
+        typeof n === "object" && n !== null
+          ? String((n as { name?: string; label?: string }).name ?? (n as { label?: string }).label ?? "")
+          : String(n)
+      )
+      .filter(Boolean);
+  }
+
+  if (!names || names.length === 0) return "-";
+  const hasMoreServices = names.length > 1;
+  const additionalCount = names.length - 1;
+
+  return (
+    <div className="pin-code-hover-wrapper">
+      <span className="pin-code-hover-trigger">
+        {hasMoreServices ? (
+          <>
+            {`${names[0]}...`}
+            <span style={{ color: "red" }}>{`+${additionalCount}`}</span>
+          </>
+        ) : (
+          names[0]
+        )}
+      </span>
+      <div className="pin-code-hover-card">
+        {names.map((n, idx) => (
+          <div key={`${n}-${idx}`} className="pin-code-hover-item">
+            {`• ${n}`}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const ServiceManagement = () => {
   const { register, setValue, franchiseId: headerFranchiseId } =
@@ -281,64 +359,8 @@ const ServiceManagement = () => {
       {
         Header: "Services",
         accessor: "services",
-        Cell: ({ row }: { row: any }) => {
-          const cat = row.original;
-
-          // Prefer real service names if API provides them; otherwise show a static fallback.
-          let names: string[] = [];
-
-          if (Array.isArray(cat.services) && cat.services.length > 0) {
-            names = cat.services
-              .map((s: any) =>
-                typeof s === "object" && s !== null
-                  ? String(s.name ?? s.label ?? "")
-                  : String(s)
-              )
-              .filter(Boolean);
-          }
-
-          if (
-            names.length === 0 &&
-            Array.isArray(cat.service_names) &&
-            cat.service_names.length > 0
-          ) {
-            names = cat.service_names
-              .map((n: any) =>
-                typeof n === "object" && n !== null
-                  ? String(n.name ?? n.label ?? "")
-                  : String(n)
-              )
-              .filter(Boolean);
-          }
-
-          if (!names || names.length === 0) return "-";
-          const hasMoreServices = names.length > 1;
-          const additionalCount = names.length - 1;
-
-          return (
-            <div className="pin-code-hover-wrapper">
-              <span className="pin-code-hover-trigger">
-                {hasMoreServices ? (
-                  <>
-                    {`${names[0]}...`}
-                    <span
-                      style={{ color: "red" }}
-                    >{`+${additionalCount}`}</span>
-                  </>
-                ) : (
-                  names[0]
-                )}
-              </span>
-              <div className="pin-code-hover-card">
-                {names.map((n, idx) => (
-                  <div key={`${n}-${idx}`} className="pin-code-hover-item">
-                    {`• ${n}`}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        },
+        Cell: ({ row }: { row: any }) =>
+          categoryRowServicesNamesDisplay(row.original as Record<string, unknown>),
       },
       {
         Header: franchiseCatalogScope ? "Franchise status" : "Status",
@@ -407,9 +429,13 @@ const ServiceManagement = () => {
                 return;
               }
               const { response, service } = await fetchServiceById(sid);
+              const record =
+                response && service
+                  ? mergeServiceDetailForDialog(row.original, service)
+                  : (row.original as ServiceModel);
               AddEditServiceDialog.show(
                 true,
-                response && service ? service : row.original,
+                record,
                 () => void refreshTableAfterMutation("box-service"),
                 true
               );
@@ -431,12 +457,19 @@ const ServiceManagement = () => {
   const requestedCategoryColumns = React.useMemo(
     () => [
       {
-        Header: "S.No",
+        Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
 
       { Header: "Category Name", accessor: "name" },
+      {
+        Header: "Services",
+        accessor: "services",
+        Cell: ({ row }: { row: any }) =>
+          categoryRowServicesNamesDisplay(row.original as Record<string, unknown>),
+      },
       {
         Header: "Date",
         accessor: "createdAt",
@@ -472,16 +505,17 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedCategory]
+    [openRequestedCategory, currentPage, pageSize]
   );
 
   /* ADDED: requested service columns */
   const requestedServiceColumns = React.useMemo(
     () => [
       {
-        Header: "S.No",
+        Header: "SR No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) => row.index + 1,
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
       },
 
       { Header: "Service Name", accessor: "name" },
@@ -510,9 +544,13 @@ const ServiceManagement = () => {
                 return;
               }
               const { response, service } = await fetchServiceById(sid);
+              const record =
+                response && service
+                  ? mergeServiceDetailForDialog(row.original, service)
+                  : (row.original as ServiceModel);
               AddEditServiceDialog.show(
                 true,
-                response && service ? service : row.original,
+                record,
                 openRequestedService,
                 true
               );
@@ -521,7 +559,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedService]
+    [openRequestedService, currentPage, pageSize]
   );
 
   return (
