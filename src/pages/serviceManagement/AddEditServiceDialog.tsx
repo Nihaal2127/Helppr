@@ -24,7 +24,7 @@ import { FullDetailsRow } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 import {
   extractMinDepositTypeKey,
-  formatMinDepositDisplay,
+  getMinDepositViewParts,
 } from "../../helper/serviceMinDepositDisplay";
 
 function mapPaymentTypeToMinDepositType(s: ServiceModel | null): string {
@@ -167,9 +167,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     serviceCategoryId &&
     categories.find((c) => c.value === serviceCategoryId)?.label;
 
-  const minDepositLabelForView = formatMinDepositDisplay(
-    service as unknown as Record<string, unknown>
-  );
+  const { paymentTypeLabel: paymentTypeForView, minDepositValue: minDepositForView } =
+    getMinDepositViewParts(service as unknown as Record<string, unknown>);
 
   /** Percentage 0–100; allows decimals (e.g. 4.5). Max 2 fraction digits; caps at 100 while typing. */
   const sanitizePercentageText = (raw: string) => {
@@ -474,7 +473,10 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 />
               </Col>
               <Col xs={12} md={6}>
-                <FullDetailsRow title="Min deposit" value={minDepositLabelForView} />
+                <FullDetailsRow title="Payment type" value={paymentTypeForView} />
+              </Col>
+              <Col xs={12} md={6}>
+                <FullDetailsRow title="Min deposit" value={minDepositForView} />
               </Col>
               <Col xs={12} md={6}>
                 <FullDetailsRow

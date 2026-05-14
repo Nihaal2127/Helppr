@@ -12,6 +12,7 @@ import { PARTNER_VERIFICATION } from "../constant/partnerVerification";
 import { mapAccessibleScreenSlugsToMenuKeys } from "../layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../layout/menuItems";
 import { UserRole } from "../constant/AppConstant";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 
 /**
  * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /
@@ -392,7 +393,9 @@ export const fetchUserDropDown = async (
   serviceId?: string,
   extra?: UserDropDownExtraQuery
 ): Promise<{ users: UserModel[] }> => {
-  const fid = String(extra?.franchise_id ?? "").trim();
+  const fidRaw = String(extra?.franchise_id ?? "").trim();
+  const fid =
+    fidRaw && sessionMayUseFranchiseIdApiFilter() ? fidRaw : "";
   const params = new URLSearchParams({
     type: String(type),
     ...(serviceId && { service_id: serviceId }),
@@ -505,7 +508,10 @@ export const fetchUser = async (
       statusRaw !== "blocked" && { is_active: filters.status.toLowerCase() }),
     ...(blockedFilter && { is_blocked: blockedFilter }),
     ...(filters.sort && { sort: filters.sort }),
-    ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
+    ...(filters.franchise_id &&
+      sessionMayUseFranchiseIdApiFilter() && {
+        franchise_id: filters.franchise_id,
+      }),
     ...(filters.wallet_status &&
       filters.wallet_status !== "all" && {
         wallet_status: filters.wallet_status,

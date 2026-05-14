@@ -38,13 +38,13 @@ import {
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import { fetchUserById } from "../../services/userService";
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
 import { formatQuoteScheduleForTable } from "./quoteScheduleDisplay";
+import { buildFranchisePincodeSetFromRelatedCatalog, normalizePincodeDigits } from "./quoteFranchisePins";
 import { setQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
@@ -76,31 +76,23 @@ function formatAddressLineFromRecord(rec: Record<string, unknown>): string {
   return parts.join(", ");
 }
 
-/** Pick saved address id + readable line for Add Quote (matches create payload `address_id`). */
-function resolveAddressIdAndSummaryFromUser(u: Record<string, unknown>): {
-  addressId: string;
+type AddQuoteAddressRowUi = {
+  id: string;
   summary: string;
-} {
-  const addrs = (u.addresses ?? u.user_addresses) as unknown[] | undefined;
-  if (Array.isArray(addrs) && addrs.length) {
-    const first = addrs[0] as Record<string, unknown>;
-    const aid = strTrim(first._id);
-    const summary = formatAddressLineFromRecord(first);
-    return { addressId: aid, summary };
-  }
-  const aid = strTrim(
-    u.primary_address_id ?? u.default_address_id ?? u.address_id
-  );
-  const summary = [
-    strTrim(u.address),
-    strTrim(u.area_name),
-    strTrim(u.city_name),
-    strTrim(u.pincode),
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return { addressId: aid, summary };
-}
+  selectable: boolean;
+};
+
+type AddQuoteAddressUiState = {
+  ready: boolean;
+  rows: AddQuoteAddressRowUi[];
+  error: string;
+};
+
+const emptyAddQuoteAddressUi = (): AddQuoteAddressUiState => ({
+  ready: false,
+  rows: [],
+  error: "",
+});
 
 const quoteTabs: { key: QuoteTabKey; label: string }[] = [
   { key: "new", label: "New" },
@@ -287,6 +279,13 @@ const QuoteManagement = () => {
   const [quoteUserOptions, setQuoteUserOptions] = useState<QuoteUserOption[]>(
     []
   );
+  const [quoteCustomerRecords, setQuoteCustomerRecords] = useState<
+    Record<string, unknown>[]
+  >([]);
+  const [franchiseQuotePinSet, setFranchiseQuotePinSet] = useState<
+    Set<string>
+  >(() => new Set());
+  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(true);
   const [quoteEmployeeOptions, setQuoteEmployeeOptions] = useState<
     OptionType[]
   >([]);
@@ -342,6 +341,7 @@ const QuoteManagement = () => {
     setAddQuoteValue("service_price", "", { shouldValidate: false });
     setAddQuoteValue("description", "", { shouldValidate: false });
     setCreateQuoteAddressId("");
+    setAddQuoteAddressUi(emptyAddQuoteAddressUi());
   }, [setAddQuoteValue]);
 
   /** Avoid applying stale `related-catalog` if the user switches franchise quickly. */
@@ -358,10 +358,14 @@ const QuoteManagement = () => {
         setCatalogPartnerRecords([]);
         setQuotePartnerOptions([]);
         setQuoteUserOptions([]);
+        setQuoteCustomerRecords([]);
+        setFranchiseQuotePinSet(new Set());
+        setFranchisePinsLoadDone(true);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
       }
       const seq = (quoteCatalogLoadSeqRef.current += 1);
+      setFranchisePinsLoadDone(false);
       const { success, record } = await fetchFranchiseRelatedCatalog(id);
       if (seq !== quoteCatalogLoadSeqRef.current) return;
       if (!success || !record) {
@@ -371,6 +375,9 @@ const QuoteManagement = () => {
         setCatalogPartnerRecords([]);
         setQuotePartnerOptions([]);
         setQuoteUserOptions([]);
+        setQuoteCustomerRecords([]);
+        setFranchiseQuotePinSet(new Set());
+        setFranchisePinsLoadDone(true);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
       }
@@ -379,11 +386,17 @@ const QuoteManagement = () => {
       setQuoteCatalogServices(mapped.quoteCatalogServices);
       setQuoteEmployeeOptions(mapped.quoteEmployeeOptions);
       setQuoteUserOptions(mapped.quoteUserOptions);
+      setQuoteCustomerRecords(mapped.quoteCustomerRecords);
       setCatalogPartnerRecords(mapped.quotePartnerRecords);
       setQuoteFranchiseCatalogSnapshot({
         partnerRecords: mapped.quotePartnerRecords,
         employeeRows: mapped.quoteEmployeeRecords,
       });
+
+      const pinSet = buildFranchisePincodeSetFromRelatedCatalog(record);
+      if (seq !== quoteCatalogLoadSeqRef.current) return;
+      setFranchiseQuotePinSet(pinSet);
+      setFranchisePinsLoadDone(true);
     },
     []
   );
@@ -405,10 +418,8 @@ const QuoteManagement = () => {
     ]
   );
   const [createQuoteAddressId, setCreateQuoteAddressId] = useState("");
-  const [addQuoteCustomerAddress, setAddQuoteCustomerAddress] = useState<{
-    ready: boolean;
-    summary: string;
-  }>({ ready: false, summary: "" });
+  const [addQuoteAddressUi, setAddQuoteAddressUi] =
+    useState<AddQuoteAddressUiState>(emptyAddQuoteAddressUi);
 
   const addQuotePartnerSelected = Boolean(
     String(addQuote.requested_partner ?? "").trim()
@@ -661,28 +672,111 @@ const QuoteManagement = () => {
     const uid = String(addQuote.user_id ?? "").trim();
     if (!uid) {
       setCreateQuoteAddressId("");
-      setAddQuoteCustomerAddress({ ready: false, summary: "" });
+      setAddQuoteAddressUi(emptyAddQuoteAddressUi());
       return;
     }
-    setAddQuoteCustomerAddress({ ready: false, summary: "" });
-    let cancelled = false;
-    (async () => {
-      const res = await fetchUserById(uid);
-      if (cancelled) return;
-      if (!res.response || !res.user) {
-        setCreateQuoteAddressId("");
-        setAddQuoteCustomerAddress({ ready: true, summary: "" });
-        return;
-      }
-      const u = res.user as unknown as Record<string, unknown>;
-      const { addressId, summary } = resolveAddressIdAndSummaryFromUser(u);
-      setCreateQuoteAddressId(addressId);
-      setAddQuoteCustomerAddress({ ready: true, summary });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [addQuote.user_id]);
+    if (!franchisePinsLoadDone) {
+      setCreateQuoteAddressId("");
+      setAddQuoteAddressUi({
+        ready: false,
+        rows: [],
+        error: "",
+      });
+      return;
+    }
+
+    const customer =
+      quoteCustomerRecords.find(
+        (c) => String(c._id ?? c.id ?? "").trim() === uid
+      ) ?? null;
+    if (!customer) {
+      setCreateQuoteAddressId("");
+      setAddQuoteAddressUi({
+        ready: true,
+        rows: [],
+        error:
+          "This customer is not in the franchise list from the catalog. Pick another user or refresh.",
+      });
+      return;
+    }
+
+    const addrs = (customer.addresses ?? customer.user_addresses) as
+      | unknown[]
+      | undefined;
+    const parsed: { id: string; summary: string; pinNorm: string }[] =
+      Array.isArray(addrs)
+        ? addrs
+            .filter((a) => a != null && typeof a === "object")
+            .map((a) => {
+              const rec = a as Record<string, unknown>;
+              const id = strTrim(rec._id);
+              const pinNorm = normalizePincodeDigits(
+                rec.pincode ?? rec.postal_code ?? rec.postcode
+              );
+              return {
+                id,
+                summary: formatAddressLineFromRecord(rec),
+                pinNorm,
+              };
+            })
+            .filter((r) => r.id)
+        : [];
+
+    if (!parsed.length) {
+      setCreateQuoteAddressId("");
+      setAddQuoteAddressUi({
+        ready: true,
+        rows: [],
+        error: "",
+      });
+      return;
+    }
+
+    const pinRules = franchiseQuotePinSet;
+    const hasPinRules = pinRules.size > 0;
+
+    const rows: AddQuoteAddressRowUi[] = parsed.map((r) => ({
+      id: r.id,
+      summary: r.summary,
+      selectable: hasPinRules
+        ? Boolean(r.pinNorm.length === 6 && pinRules.has(r.pinNorm))
+        : true,
+    }));
+
+    if (!hasPinRules) {
+      setCreateQuoteAddressId(parsed[0].id);
+      setAddQuoteAddressUi({
+        ready: true,
+        rows,
+        error: "",
+      });
+      return;
+    }
+
+    const firstSelectable = rows.find((r) => r.selectable);
+    if (!firstSelectable) {
+      setCreateQuoteAddressId("");
+      setAddQuoteAddressUi({
+        ready: true,
+        rows,
+        error:
+          "This customer does not have an address in this franchise's service area (no matching postcode).",
+      });
+      return;
+    }
+
+    setCreateQuoteAddressId(firstSelectable.id);
+    setAddQuoteAddressUi({
+      ready: true,
+      rows,
+      error: "",
+    });
+  }, [
+    addQuote.user_id,
+    quoteCustomerRecords,
+    franchiseQuotePinSet,
+    franchisePinsLoadDone,
+  ]);
 
   /** Tab badge totals: only when header franchise filter changes (same payload covers all tabs). */
   useEffect(() => {
@@ -872,10 +966,28 @@ const QuoteManagement = () => {
       return;
     }
 
-    if (!createQuoteAddressId.trim()) {
+    if (String(data.user_id ?? "").trim() && !addQuoteAddressUi.ready) {
       showErrorAlert(
-        "No saved address id found for this user. Ensure the customer has an address on file."
+        "Still loading address options for this franchise. Please wait a moment."
       );
+      return;
+    }
+
+    if (addQuoteAddressUi.error) {
+      showErrorAlert(addQuoteAddressUi.error);
+      return;
+    }
+
+    if (!createQuoteAddressId.trim()) {
+      if (!addQuoteAddressUi.rows.length) {
+        showErrorAlert(
+          "No saved address on file for this customer. Add an address to the user profile before creating a quote."
+        );
+      } else {
+        showErrorAlert(
+          "Select a customer address for this quote. Addresses outside this franchise's service area cannot be used."
+        );
+      }
       return;
     }
 
@@ -948,7 +1060,7 @@ const QuoteManagement = () => {
     if (ok) {
       setShowAddQuote(false);
       setCreateQuoteAddressId("");
-      setAddQuoteCustomerAddress({ ready: false, summary: "" });
+      setAddQuoteAddressUi(emptyAddQuoteAddressUi());
       showSuccessAlert("Quote created.");
       void refreshCountsThenFetchQuotes();
     }
@@ -1250,11 +1362,13 @@ const QuoteManagement = () => {
                       >
                         Customer address
                       </label>
-                      {!addQuoteCustomerAddress.ready ? (
+                      {!addQuoteAddressUi.ready ? (
                         <div className="small text-muted">
-                          Loading customer address…
+                          Loading address options…
                         </div>
-                      ) : addQuoteCustomerAddress.summary ? (
+                      ) : addQuoteAddressUi.error ? (
+                        <div className="small text-danger">{addQuoteAddressUi.error}</div>
+                      ) : addQuoteAddressUi.rows.length ? (
                         <div
                           className="small rounded border p-3"
                           style={{
@@ -1264,17 +1378,53 @@ const QuoteManagement = () => {
                             lineHeight: 1.5,
                           }}
                         >
-                          {addQuoteCustomerAddress.summary}
-                        </div>
-                      ) : !createQuoteAddressId.trim() ? (
-                        <div className="small text-warning">
-                          No saved address on file for this customer. Add an
-                          address to the user profile before creating a quote.
+                          {franchiseQuotePinSet.size === 0 ? (
+                            <div className="text-muted mb-2" style={{ fontSize: "0.9em" }}>
+                              No franchise service postcodes were included with this
+                              catalog, so every saved address can be used. The first is
+                              selected by default. When the API adds postcodes to this
+                              response, addresses outside the franchise area will appear
+                              here but cannot be selected.
+                            </div>
+                          ) : null}
+                          {addQuoteAddressUi.rows.map((row) =>
+                            row.selectable ? (
+                              <Form.Check
+                                key={row.id}
+                                type="radio"
+                                name="add-quote-address"
+                                id={`add-quote-addr-${row.id}`}
+                                className="mb-2"
+                                label={row.summary}
+                                checked={createQuoteAddressId === row.id}
+                                onChange={() => setCreateQuoteAddressId(row.id)}
+                              />
+                            ) : (
+                              <div
+                                key={row.id}
+                                className="mb-2 rounded border p-2 text-muted"
+                                style={{
+                                  opacity: 0.85,
+                                  pointerEvents: "none",
+                                  userSelect: "none",
+                                }}
+                              >
+                                <div>{row.summary}</div>
+                                <div
+                                  className="fst-italic mt-1"
+                                  style={{ fontSize: "0.85em" }}
+                                >
+                                  Postcode is not in this franchise&apos;s service
+                                  area — cannot be selected.
+                                </div>
+                              </div>
+                            )
+                          )}
                         </div>
                       ) : (
-                        <div className="small text-muted">
-                          Address is linked for this quote; details were not
-                          returned by the server.
+                        <div className="small text-warning">
+                          No saved address on file for this customer. Add an address
+                          to the user profile before creating a quote.
                         </div>
                       )}
                     </Col>

@@ -45,3 +45,12 @@ export function franchiseHeaderFormDefaults(): { franchise_id: string } {
   }
   return { franchise_id: readHeaderFranchisePreference() };
 }
+
+/**
+ * Super admin (`UserRole.ADMIN`) and staff may send `franchise_id` on list/count APIs to filter by franchise.
+ * Franchise admin / employee JWTs are already scoped — the backend returns **403** if they pass this filter.
+ */
+export function sessionMayUseFranchiseIdApiFilter(): boolean {
+  const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  return role === UserRole.ADMIN || role === UserRole.STAFF;
+}

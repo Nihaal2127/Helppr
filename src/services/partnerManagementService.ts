@@ -12,6 +12,7 @@ import { partnerSubscriptionPlansSeed } from "../mockData/partnerSubscriptionPla
 import type { SubscriptionPlanModel } from "../models/SubscriptionPlanModel";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import { capitalizeString } from "../helper/utility";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 
 export type PortfolioRow = {
   _id: string;
@@ -700,7 +701,11 @@ export async function fetchPartnerSubscriptions(
     params.set("city_id", cityId);
   }
   const franchiseId = (filters.franchiseId ?? "").trim();
-  if (franchiseId && /^[a-f\d]{24}$/i.test(franchiseId)) {
+  if (
+    sessionMayUseFranchiseIdApiFilter() &&
+    franchiseId &&
+    /^[a-f\d]{24}$/i.test(franchiseId)
+  ) {
     params.set("franchise_id", franchiseId);
   }
   if (filters.sort) params.set("sort", filters.sort);

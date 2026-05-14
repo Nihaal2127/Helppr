@@ -23,6 +23,7 @@ import {
 } from "./userService";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 import { fetchFranchiseById } from "./franchiseService";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -305,7 +306,11 @@ export const fetchSettingsSectionPageByType = async (
     ...(filters?.status && filters.status !== "all"
       ? { is_active: filters.status === "active" ? "true" : "false" }
       : {}),
-    ...(filters?.franchiseId ? { franchise_id: filters.franchiseId } : {}),
+    ...(sessionMayUseFranchiseIdApiFilter() &&
+    filters?.franchiseId &&
+    String(filters.franchiseId).trim()
+      ? { franchise_id: filters.franchiseId }
+      : {}),
     ...(mappedSortField ? { sort_by: mappedSortField } : {}),
     ...(mappedSortField ? { sortBy: mappedSortField } : {}),
     ...(primarySort ? { sort_order: primarySort.desc ? "desc" : "asc" } : {}),

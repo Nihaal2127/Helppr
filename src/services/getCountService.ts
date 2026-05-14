@@ -2,6 +2,7 @@ import { CountModel } from "../models/CountModel";
 import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { showLog } from "../helper/utility";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 
 /** Optional fields merged into `POST /getCount` after `type` (when super admin / staff scope dashboards by franchise). */
 export type GetCountExtra = {
@@ -22,7 +23,11 @@ export const getCount = async (
   try {
     const payload: Record<string, unknown> = { type };
     const fid = String(extra?.franchise_id ?? "").trim();
-    if (fid && fid !== "all") {
+    if (
+      sessionMayUseFranchiseIdApiFilter() &&
+      fid &&
+      fid.toLowerCase() !== "all"
+    ) {
       payload.franchise_id = fid;
     }
     const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);

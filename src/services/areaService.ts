@@ -3,6 +3,7 @@ import { ApiPaths } from "../remote/apiPaths";
 import { AreaModel } from "../models/AreaModel";
 import { showLog } from "../helper/utility";
 import { fetchMockAreas } from "./areaMockService";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 const USE_MOCK_AREA_API = false;
@@ -74,6 +75,12 @@ export const fetchArea = async (
     return fetchMockAreas(page, pageSize, filters);
   }
 
+  const franchiseIdQuery =
+    String(filters.franchise_id ?? "").trim() &&
+    sessionMayUseFranchiseIdApiFilter()
+      ? String(filters.franchise_id).trim()
+      : "";
+
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
@@ -88,8 +95,8 @@ export const fetchArea = async (
     ...(filters.state_id && { stateId: filters.state_id }),
     ...(filters.city_id && { city_id: filters.city_id }),
     ...(filters.city_id && { cityId: filters.city_id }),
-    ...(filters.franchise_id && { franchise_id: filters.franchise_id }),
-    ...(filters.franchise_id && { franchiseId: filters.franchise_id }),
+    ...(franchiseIdQuery && { franchise_id: franchiseIdQuery }),
+    ...(franchiseIdQuery && { franchiseId: franchiseIdQuery }),
     ...(String(filters.type ?? "").trim() === "my-franchise"
       ? { type: "my-franchise" }
       : {}),
@@ -130,6 +137,37 @@ export const deleteArea = async (id: string): Promise<boolean> => {
   showLog(response.message || "Failed to delete area");
   return false;
 };
+
+/** `GET /area/get/:id` — used to resolve franchise service postcodes from linked `area_id`(s). */
+export async function fetchAreaById(
+  id: string
+): Promise<{ response: boolean; area: Record<string, unknown> | null }> {
+  const aid = String(id ?? "").trim();
+  if (!aid) return { response: false, area: null };
+  const response = await apiRequest(ApiPaths.GET_AREA_BY_ID(aid), "GET");
+  if (!response.success) {
+    showLog((response as any).message || "Failed to fetch area");
+    return { response: false, area: null };
+  }
+  const payload = (response as any).data ?? {};
+  const record =
+    payload.record ??
+    payload.area ??
+    payload.data?.record ??
+    (payload.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data) &&
+    (payload.data as any)._id
+      ? payload.data
+      : null);
+  return {
+    response: true,
+    area:
+      record && typeof record === "object"
+        ? (record as Record<string, unknown>)
+        : null,
+  };
+}
 
 export const createOrUpdateArea = async (
   payload: any,

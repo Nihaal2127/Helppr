@@ -65,3 +65,43 @@ export function formatMinDepositDisplay(
   if (pct !== "") return `${label} (${pct}${AppConstant.percentageSymbol})`;
   return label;
 }
+
+/** Read-only view: payment cadence vs deposit amount/percent (matches add/edit form labels). */
+export function getMinDepositViewParts(
+  record: Record<string, unknown> | null | undefined
+): { paymentTypeLabel: string; minDepositValue: string } {
+  if (!record) {
+    return { paymentTypeLabel: "-", minDepositValue: "-" };
+  }
+  const any = record as Record<string, unknown>;
+  const rawType = String(
+    any.min_deposit_type ?? any.payment_type ?? ""
+  ).trim();
+  if (!rawType) {
+    return { paymentTypeLabel: "-", minDepositValue: "-" };
+  }
+  const key = extractMinDepositTypeKey(rawType);
+  const paymentTypeLabel = labelForMinDepositType(rawType) || "-";
+
+  if (key === "per_consultancy") {
+    const v = any.min_deposit_value ?? any.minimum_deposit;
+    if (v === undefined || v === null || String(v).trim() === "") {
+      return { paymentTypeLabel, minDepositValue: "-" };
+    }
+    const n = Number(v);
+    const minDepositValue = Number.isFinite(n)
+      ? `${AppConstant.currencySymbol}${n}`
+      : String(v).trim();
+    return { paymentTypeLabel, minDepositValue };
+  }
+
+  let pct = explicitPercentFromRecord(record);
+  if (pct === "") pct = percentFromCombinedTypeField(rawType);
+  if (pct === "") {
+    return { paymentTypeLabel, minDepositValue: "-" };
+  }
+  return {
+    paymentTypeLabel,
+    minDepositValue: `${pct}${AppConstant.percentageSymbol}`,
+  };
+}

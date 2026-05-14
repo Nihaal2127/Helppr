@@ -2,6 +2,7 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { FranchiseModel } from "../models/FranchiseModels";
 import { showLog } from "../helper/utility";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
 
 export type FranchiseDropDownOption = {
@@ -571,6 +572,9 @@ export const fetchFranchise = async (
 }> => {
   const primarySort = sortBy[0];
   const searchValue = String(filters.search ?? filters.name ?? "").trim();
+  const franchiseIdForQuery = sessionMayUseFranchiseIdApiFilter()
+    ? String(filters.franchise_id ?? "").trim()
+    : "";
   const primarySortId = primarySort?.id ? String(primarySort.id).trim() : "";
   /** Column id from the table (matches API sort_by per franchise/getAll docs). */
   const sortByParam =
@@ -591,9 +595,7 @@ export const fetchFranchise = async (
     ...(filters.state_id && { state_id: filters.state_id }),
     ...(filters.city_id && { city_id: filters.city_id }),
     ...(filters.admin_id && { admin_id: filters.admin_id }),
-    ...(String(filters.franchise_id ?? "").trim() && {
-      franchise_id: String(filters.franchise_id).trim(),
-    }),
+    ...(franchiseIdForQuery && { franchise_id: franchiseIdForQuery }),
     ...(sortByParam && { sort_by: sortByParam }),
     ...(primarySort
       ? { sort_order: primarySort.desc ? "desc" : "asc" }
@@ -635,7 +637,7 @@ export const fetchFranchise = async (
         ? undefined
         : Number(totalItemsRaw);
     const adminContacts = await getFranchiseAdminContactsCached();
-    const fidFilter = String(filters.franchise_id ?? "").trim();
+    const fidFilter = franchiseIdForQuery;
     let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
     if (fidFilter) {
       franchises = franchises.filter(

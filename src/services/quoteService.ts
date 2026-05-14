@@ -18,6 +18,7 @@ import { normalizeServiceCategoryRef } from "./servicesService";
 import { extractMinDepositTypeKey } from "../helper/serviceMinDepositDisplay";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
+import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
 
 export type OptionType = { value: string; label: string };
 
@@ -83,7 +84,13 @@ export type QuoteListFilters = {
 
 /** Raw `record` from `GET /franchise/related-catalog/:id`. */
 export type FranchiseRelatedCatalogRecord = {
-  franchise?: { _id?: string; name?: string };
+  franchise?: {
+    _id?: string;
+    name?: string;
+    area_id?: unknown;
+    pincode?: string;
+    pincodes?: unknown[];
+  };
   franchise_categories?: unknown[];
   franchise_services?: unknown[];
   categories?: unknown[];
@@ -92,6 +99,9 @@ export type FranchiseRelatedCatalogRecord = {
   employees?: unknown[];
   /** End users scoped to this catalog response (staging shape). */
   customers?: unknown[];
+  /** Optional hydrated areas on the same response (pincodes — avoids GET /area/get). */
+  areas?: unknown[];
+  franchise_areas?: unknown[];
 };
 
 function asObjectRecords(v: unknown): Record<string, unknown>[] {
@@ -167,6 +177,8 @@ export type MappedFranchiseQuoteCatalog = {
   quoteEmployeeOptions: OptionType[];
   quoteEmployeeRecords: Record<string, unknown>[];
   quoteUserOptions: QuoteUserOption[];
+  /** Same customers as `quoteUserOptions` — full rows for addresses without `GET /user/get/:id`. */
+  quoteCustomerRecords: Record<string, unknown>[];
 };
 
 function categoryIdFromFranchiseCategoryRow(
@@ -351,6 +363,7 @@ export function mapRelatedCatalogToQuoteOptions(
     quoteEmployeeOptions: [],
     quoteEmployeeRecords: [],
     quoteUserOptions: [],
+    quoteCustomerRecords: [],
   };
   if (!record) return out;
 
@@ -452,12 +465,14 @@ export function mapRelatedCatalogToQuoteOptions(
   }
   out.quoteEmployeeOptions.sort((a, b) => a.label.localeCompare(b.label));
 
-  for (const u of asObjectRecords(record.customers)) {
+  out.quoteCustomerRecords = asObjectRecords(record.customers);
+
+  for (const u of out.quoteCustomerRecords) {
     const id = str(u._id ?? u.id);
     if (!id) continue;
     const name = str(u.name) || id;
-    const phone = str(u.phone_number);
-    const label = phone ? `${name} (${phone})` : name;
+    const email = str(u.email);
+    const label = email ? `${name} (${email})` : name;
     out.quoteUserOptions.push({ value: id, label, user_name: name });
   }
   out.quoteUserOptions.sort((a, b) =>
@@ -922,7 +937,9 @@ export async function fetchQuotes(
     return { response: true, quotes: records, totalPages, totalCount };
   }
 
-  const fid = str(filters.franchise_id);
+  const fidRaw = str(filters.franchise_id);
+  const fid =
+    sessionMayUseFranchiseIdApiFilter() && fidRaw ? fidRaw : "";
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
