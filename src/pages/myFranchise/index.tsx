@@ -44,6 +44,8 @@ import { getCount } from "../../services/getCountService";
 import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
 import RequestedCategoryDialog from "./RequestedCategoryDialog";
 import RequestedServiceDialog from "./RequestedServiceDialog";
+import AddEditServiceDialog from "../serviceManagement/AddEditServiceDialog";
+import { fetchServiceById } from "../../services/servicesService";
 
 type BoxId = "box-employees" | "box-areas" | "box-services" | "box-categories";
 
@@ -1090,8 +1092,42 @@ const MyFranchise = () => {
           );
         },
       },
+      {
+        Header: "Action",
+        accessor: "action",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={async (r) => {
+              const svc = r.original as ServiceRow;
+              const sid =
+                String(svc._id ?? "").trim() ||
+                String(svc.service_id ?? "").trim();
+              if (!sid) {
+                showErrorAlert("Unable to open service: missing identifier.");
+                return;
+              }
+              const { response, service } = await fetchServiceById(sid);
+              if (response && service) {
+                AddEditServiceDialog.show(
+                  false,
+                  service,
+                  () => {
+                    void reloadFranchiseData();
+                  },
+                  true
+                );
+              } else {
+                showErrorAlert(
+                  "Unable to load service details. You may not have access, or the service was removed."
+                );
+              }
+            }}
+          />
+        ),
+      },
     ],
-    [currentPage, pageSize, setServiceActive]
+    [currentPage, pageSize, setServiceActive, reloadFranchiseData]
   );
 
   const requestedServiceColumns = useMemo(
