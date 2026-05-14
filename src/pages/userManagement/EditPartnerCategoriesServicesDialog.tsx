@@ -151,6 +151,7 @@ function PartnerSingleSelect({
         classNamePrefix="react-select"
         isMulti={false}
         isClearable={false}
+        hideSelectedOptions={false}
         isSearchable
         options={options}
         value={selected}
@@ -291,15 +292,51 @@ function EditPartnerCategoriesServicesDialogView({
     return [{ value: "", label: "Select category" }, ...rest];
   }, [categoryOptions]);
 
-  const serviceOptionsForCategory = useCallback(
-    (categoryId: string): OptionType[] => {
+  /** Per row: hide services already chosen on sibling rows; keep this row’s selection visible. */
+  const serviceOptionsForPartnerBlockRow = useCallback(
+    (block: PartnerCategoryBlock, rowId: string): OptionType[] => {
+      const categoryId = String(block.categoryId ?? "").trim();
       if (!categoryId) {
         return [{ value: "", label: "Select category first" }];
       }
-      const list = allServices
+
+      const currentRow = block.serviceRows.find((r) => r.id === rowId);
+      const currentSid = String(currentRow?.serviceId ?? "").trim();
+
+      const selectedElsewhere = new Set(
+        block.serviceRows
+          .filter((r) => r.id !== rowId)
+          .map((r) => String(r.serviceId ?? "").trim())
+          .filter(Boolean)
+      );
+
+      const baseList = allServices
         .filter((svc) => String(svc.category_id) === String(categoryId))
-        .map((s) => ({ value: s._id, label: s.name }));
-      return [{ value: "", label: "Select service" }, ...list];
+        .map((s) => ({ _id: s._id, name: s.name }));
+
+      const ordered: OptionType[] = [];
+      const seen = new Set<string>();
+
+      for (const s of baseList) {
+        const id = String(s._id).trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        ordered.push({ value: id, label: String(s.name) });
+      }
+
+      const resolveLabel = (sid: string): string =>
+        allServices.find((x) => String(x._id) === sid)?.name ?? sid;
+
+      if (currentSid && !seen.has(currentSid)) {
+        ordered.push({ value: currentSid, label: resolveLabel(currentSid) });
+      }
+
+      const filtered = ordered.filter((o) => {
+        if (o.value === currentSid) return true;
+        return !selectedElsewhere.has(o.value);
+      });
+
+      return [{ value: "", label: "Select service" }, ...filtered];
     },
     [allServices]
   );
@@ -630,7 +667,7 @@ function EditPartnerCategoriesServicesDialogView({
                     <PartnerSingleSelect
                       instanceId={`${block.id}-${row.id}-service`}
                       label="Service"
-                      options={serviceOptionsForCategory(block.categoryId)}
+                      options={serviceOptionsForPartnerBlockRow(block, row.id)}
                       value={row.serviceId}
                       placeholder="Select service"
                       onChange={(sid) =>

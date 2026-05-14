@@ -80,6 +80,11 @@ export interface UserModel {
   service_descriptions?: string[] | null;
   service_prices?: (string | number)[] | null;
 
+  /** Partner verification: `"pending"` | `"Approved"` | `"Rejected"` (API contract). */
+  is_verified?: boolean | string | null;
+  /** Set when super admin rejects partner verification (optional UI / API). */
+  verification_rejection_reason?: string | null;
+
   /** Partner verification list (`/user/getVerificationAll`) when API returns these fields. */
   verification_id?: string | null;
   verification_status?: number;

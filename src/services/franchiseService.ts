@@ -577,13 +577,15 @@ export const fetchFranchise = async (
     primarySortId || (filters.sort_by ? String(filters.sort_by).trim() : "");
 
   /**
-   * Postman (`Help-PR-All-Routes`): `search` OR-matches name, admin_name, state_name, city_name.
+   * Postman (`Help-PR-All-Routes`): `search` OR-matches name, admin_name, state_name, city_name (and area when supported).
+   * Some deployments listen on `keyword` for the same multi-field match (`fetchUser` sends both).
    * Do not send `name` with the same value — that filter is franchise-name-specific and breaks the broad search.
    */
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(searchValue && { search: searchValue }),
+    ...(searchValue && { keyword: searchValue }),
     ...(filters.status &&
       filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
     ...(filters.state_id && { state_id: filters.state_id }),

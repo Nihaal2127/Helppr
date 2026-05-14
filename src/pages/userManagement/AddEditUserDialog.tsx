@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
@@ -24,6 +24,7 @@ import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import {
   fetchService,
+  fetchServiceDropDown,
   normalizeServiceCategoryRef,
 } from "../../services/servicesService";
 import CustomTextField from "../../components/CustomTextField";
@@ -32,9 +33,13 @@ import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
+import CustomFormSelect from "../../components/CustomFormSelect";
+import CustomDatePicker from "../../components/CustomDatePicker";
+import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
 
 import { getLocalStorage } from "../../helper/localStorageHelper";
 import { AppConstant } from "../../constant/AppConstant";
+import { PARTNER_VERIFICATION } from "../../constant/partnerVerification";
 import { openDialog } from "../../helper/DialogManager";
 import {
   sanitizeIndianPincodeInput,
@@ -58,7 +63,7 @@ import type {
 } from "./partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
 
-/** Same copy as Partner details verification preview (`verificationStaticPreview`). */
+/** Placeholder labels in add-partner UI when verification dates are not yet set. */
 const ADD_PARTNER_VERIFICATION_PREVIEW_STATUS = "-";
 const ADD_PARTNER_VERIFICATION_PREVIEW_DATE = "-";
 
@@ -83,6 +88,11 @@ type AddPartnerFormFields = {
   partner_bank_legal_name?: string;
   partner_bank_branch?: string;
   bank_account_is_active?: string | boolean;
+  /** Add partner — plan tier slug (set when selecting subscription plan). */
+  subscription_plan?: string;
+  subscription_plan_id?: string;
+  subscription_start_date?: string;
+  subscription_end_date?: string;
 };
 
 type AddEditUserFormValues = Partial<UserModel> & AddPartnerFormFields;
@@ -150,6 +160,13 @@ const normalizePincodeValue = (value: unknown): string => {
   return "";
 };
 
+type PartnerVerificationDocKey =
+  | "vehicle_registration"
+  | "police_verification"
+  | "pan_card"
+  | "driving_license"
+  | "aadhar_card";
+
 function AddEditUserDialogView({
   role,
   isEditable,
@@ -185,6 +202,12 @@ function AddEditUserDialogView({
       partner_bank_legal_name: "",
       partner_bank_branch: "",
       bank_account_is_active: "true",
+      password: "",
+      confirm_password: "",
+      subscription_plan: "",
+      subscription_plan_id: "",
+      subscription_start_date: "",
+      subscription_end_date: "",
     },
   });
 
@@ -193,7 +216,13 @@ function AddEditUserDialogView({
   const watchedAreaId = watch("area_id");
 
   const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
+  /** Partner edit: bulk-loaded services for legacy category/service sync. Add Partner: filled lazily per category. */
   const [allServices, setAllServices] = useState<ServiceLite[]>([]);
+  /** Add Partner only: services loaded via `fetchServiceDropDown(categoryId)` when a category is chosen. */
+  const [servicesByCategoryId, setServicesByCategoryId] = useState<
+    Record<string, PartnerCatalogServiceLite[]>
+  >({});
+  const partnerAddCategoriesLoadedRef = useRef(false);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [partnerCatalogBlocks, setPartnerCatalogBlocks] = useState<
@@ -202,6 +231,8 @@ function AddEditUserDialogView({
 
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
+  const [partnerVerificationDocFilenames, setPartnerVerificationDocFilenames] =
+    useState<Partial<Record<PartnerVerificationDocKey, string>>>({});
   const [states, setState] = useState<{ value: string; label: string }[]>([]);
   const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
   const [areas, setAreas] = useState<{ value: string; label: string }[]>([]);
@@ -209,6 +240,9 @@ function AddEditUserDialogView({
     new Map()
   );
   const [pincodeOptions, setPincodeOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [partnerPlanSelectOptions, setPartnerPlanSelectOptions] = useState<
     { value: string; label: string }[]
   >([]);
   const fetchRef = useRef(false);
@@ -252,12 +286,15 @@ function AddEditUserDialogView({
     ).trim();
 
     if (!cityId) {
-      setCategoryOptions([{ value: "select-all", label: "Select All" }]);
       setAllServices([]);
+      if (isPartnerEdit) {
+        setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+      }
       if (isAddPartner) {
         setCategoryIds([]);
         setServiceIds([]);
         setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+        setServicesByCategoryId({});
       }
       return;
     }
@@ -266,7 +303,11 @@ function AddEditUserDialogView({
       setCategoryIds([]);
       setServiceIds([]);
       setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
-    } else if (
+      setServicesByCategoryId({});
+      return;
+    }
+
+    if (
       isPartnerEdit &&
       user?.city_id &&
       watchedCityId &&
@@ -336,6 +377,25 @@ function AddEditUserDialogView({
     user?.city_id,
     user?.state_id,
   ]);
+
+  /** Full category catalog (no `city_id`) — only when Add Partner category dropdown opens. */
+  const ensurePartnerAddCategoriesLoaded = useCallback(async () => {
+    if (!isAddPartner) return;
+    if (partnerAddCategoriesLoadedRef.current) return;
+    partnerAddCategoriesLoadedRef.current = true;
+    try {
+      const cats = await fetchCategoryDropDown();
+      const catList = Array.isArray(cats)
+        ? cats.filter((c: OptionType) => c?.value)
+        : [];
+      setCategoryOptions([
+        { value: "select-all", label: "Select All" },
+        ...catList,
+      ]);
+    } catch {
+      setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+    }
+  }, [isAddPartner]);
 
   useEffect(() => {
     let cancelled = false;
@@ -432,36 +492,122 @@ function AddEditUserDialogView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate partner selections when user record identity changes
   }, [isPartnerEdit, user?._id]);
 
-  const categorySelectOptions = useMemo((): OptionType[] => {
-    if (isAddPartner) {
-      const cid = String(watchedCityId ?? "").trim();
-      if (!cid) {
-        return [{ value: "", label: "Select city first" }];
-      }
-    }
-    const rest = categoryOptions.filter((c) => c.value !== "select-all");
-    return [{ value: "", label: "Select category" }, ...rest];
-  }, [categoryOptions, isAddPartner, watchedCityId]);
+  const categorySelectOptionsForBlock = useCallback(
+    (blockId: string): OptionType[] => {
+      const rest = categoryOptions.filter((c) => c.value !== "select-all");
+      const taken = new Set(
+        partnerCatalogBlocks
+          .filter(
+            (b) =>
+              b.id !== blockId && String(b.categoryId ?? "").trim() !== ""
+          )
+          .map((b) => String(b.categoryId))
+      );
+      const filtered = rest.filter((c) => !taken.has(String(c.value)));
+      return [{ value: "", label: "Select category" }, ...filtered];
+    },
+    [categoryOptions, partnerCatalogBlocks]
+  );
 
   const catalogServicesForBlocks = useMemo((): PartnerCatalogServiceLite[] => {
-    return allServices.map((s) => ({
-      _id: s._id,
-      name: s.name,
-      category_id: s.category_id,
-    }));
-  }, [allServices]);
+    if (!isAddPartner) {
+      return allServices.map((s) => ({
+        _id: s._id,
+        name: s.name,
+        category_id: s.category_id,
+      }));
+    }
+    const out: PartnerCatalogServiceLite[] = [];
+    for (const list of Object.values(servicesByCategoryId)) {
+      out.push(...list);
+    }
+    return out;
+  }, [isAddPartner, allServices, servicesByCategoryId]);
 
-  const serviceOptionsForCategory = useCallback(
-    (categoryId: string): OptionType[] => {
+  /** Per row: hide services already chosen on sibling rows in this block; keep this row’s selection visible. */
+  const serviceOptionsForPartnerBlockRow = useCallback(
+    (block: PartnerCategoryBlock, rowId: string): OptionType[] => {
+      const categoryId = String(block.categoryId ?? "").trim();
       if (!categoryId) {
         return [{ value: "", label: "Select category first" }];
       }
-      const list = allServices
-        .filter((svc) => String(svc.category_id) === String(categoryId))
-        .map((s) => ({ value: s._id, label: s.name }));
-      return [{ value: "", label: "Select service" }, ...list];
+
+      const currentRow = block.serviceRows.find((r) => r.id === rowId);
+      const currentSid = String(currentRow?.serviceId ?? "").trim();
+
+      const selectedElsewhere = new Set(
+        block.serviceRows
+          .filter((r) => r.id !== rowId)
+          .map((r) => String(r.serviceId ?? "").trim())
+          .filter(Boolean)
+      );
+
+      type Lite = { _id: string; name: string };
+      let baseList: Lite[] = [];
+      if (!isAddPartner) {
+        baseList = allServices
+          .filter((svc) => String(svc.category_id) === String(categoryId))
+          .map((s) => ({ _id: s._id, name: s.name }));
+      } else {
+        baseList = (servicesByCategoryId[categoryId] ?? []).map((s) => ({
+          _id: String(s._id),
+          name: String(s.name),
+        }));
+      }
+
+      const ordered: OptionType[] = [];
+      const seen = new Set<string>();
+
+      for (const s of baseList) {
+        const id = String(s._id).trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        ordered.push({ value: id, label: String(s.name) });
+      }
+
+      const resolveLabel = (sid: string): string => {
+        const hit = catalogServicesForBlocks.find(
+          (x) => String(x._id) === sid
+        );
+        return hit?.name ? String(hit.name) : sid;
+      };
+
+      if (currentSid && !seen.has(currentSid)) {
+        ordered.push({ value: currentSid, label: resolveLabel(currentSid) });
+      }
+
+      const filtered = ordered.filter((o) => {
+        if (o.value === currentSid) return true;
+        return !selectedElsewhere.has(o.value);
+      });
+
+      return [{ value: "", label: "Select service" }, ...filtered];
     },
-    [allServices]
+    [isAddPartner, allServices, servicesByCategoryId, catalogServicesForBlocks]
+  );
+
+  const partnerServiceRowComplete = (row: PartnerServiceRow) =>
+    Boolean(
+      String(row.serviceId ?? "").trim() &&
+        row.description.trim() &&
+        String(row.price ?? "").trim()
+    );
+
+  const canAddPartnerCategoryBlock = useMemo(() => {
+    if (!isAddPartner) return true;
+    return partnerCatalogBlocks.every((b) => {
+      if (!String(b.categoryId ?? "").trim()) return false;
+      return b.serviceRows.every(partnerServiceRowComplete);
+    });
+  }, [isAddPartner, partnerCatalogBlocks]);
+
+  const canAddPartnerServiceRow = useCallback(
+    (block: PartnerCategoryBlock, row: PartnerServiceRow) =>
+      Boolean(
+        String(block.categoryId ?? "").trim() &&
+          partnerServiceRowComplete(row)
+      ),
+    []
   );
 
   const addCategoryBlock = useCallback(() => {
@@ -490,8 +636,27 @@ function AddEditUserDialogView({
             : b
         )
       );
+      const cid = String(categoryId ?? "").trim();
+      if (!cid || !isAddPartner) return;
+      void (async () => {
+        try {
+          const opts = await fetchServiceDropDown(cid);
+          const mapped: PartnerCatalogServiceLite[] = opts.map((o) => ({
+            _id: String(o.value),
+            name: String(o.label),
+            category_id: cid,
+          }));
+          setServicesByCategoryId((prev) =>
+            prev[cid]?.length ? prev : { ...prev, [cid]: mapped }
+          );
+        } catch {
+          setServicesByCategoryId((prev) =>
+            prev[cid]?.length ? prev : { ...prev, [cid]: [] }
+          );
+        }
+      })();
     },
-    []
+    [isAddPartner]
   );
 
   const addServiceRow = useCallback((blockId: string) => {
@@ -551,24 +716,35 @@ function AddEditUserDialogView({
   };
 
   /** Opens upload dialog like `PartnerDetailsDialog` `addDocument`; no partner doc id until partner is saved. */
-  const openAddPartnerVerificationDocumentUpload = useCallback(() => {
-    CustomUploadDialog.show(async (files, replaceUrls) => {
-      const formData = new FormData();
-      formData.append("type", "1");
-      files.forEach((file) => formData.append("files", file));
+  const openAddPartnerVerificationDocumentUpload = useCallback(
+    (docKey: PartnerVerificationDocKey) => {
+      CustomUploadDialog.show(async (files, replaceUrls) => {
+        const formData = new FormData();
+        formData.append("type", "1");
+        files.forEach((file) => formData.append("files", file));
 
-      const { response, fileList } = await createOrUpdateDocument(
-        formData,
-        false
-      );
-
-      if (response && fileList.length > 0) {
-        showInfoAlert(
-          "Document uploaded. After you save this partner, open Partner details to attach or replace verification documents for each type."
+        const { response, fileList } = await createOrUpdateDocument(
+          formData,
+          false
         );
-      }
-    });
-  }, []);
+
+        const localName = String(files[0]?.name ?? "").trim();
+        if (response && localName) {
+          setPartnerVerificationDocFilenames((prev) => ({
+            ...prev,
+            [docKey]: localName,
+          }));
+        }
+
+        if (response && fileList.length > 0) {
+          showInfoAlert(
+            "Document uploaded. After you save this partner, open Partner details to attach or replace verification documents for each type."
+          );
+        }
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     if (!(isAddPartner || isPartnerEdit) || allServices.length === 0) return;
@@ -646,9 +822,33 @@ function AddEditUserDialogView({
       const acct = (data.partner_bank_account_number ?? "").trim();
       const ifsc = (data.partner_bank_ifsc ?? "").trim();
       const bankNm = (data.partner_bank_legal_name ?? "").trim();
-      if (!holder || !acct || !ifsc || !bankNm) {
+      const branchNm = (data.partner_bank_branch ?? "").trim();
+      if (!holder || !acct || !ifsc || !bankNm || !branchNm) {
         showErrorAlert(
-          "Please complete all required bank fields (account name, number, IFSC, bank name)."
+          "Please complete all required bank fields (account name, number, IFSC, bank name, branch name)."
+        );
+        return;
+      }
+      const pw = String(data.password ?? "").trim();
+      const cpw = String(data.confirm_password ?? "").trim();
+      if (!pw) {
+        showErrorAlert("Please enter a password.");
+        return;
+      }
+      if (pw !== cpw) {
+        showErrorAlert("Password and confirm password do not match.");
+        return;
+      }
+      const planId = String(data.subscription_plan_id ?? "").trim();
+      if (!planId) {
+        showErrorAlert("Please select a subscription plan.");
+        return;
+      }
+      const subStart = String(data.subscription_start_date ?? "").trim();
+      const subEnd = String(data.subscription_end_date ?? "").trim();
+      if (!subStart || !subEnd) {
+        showErrorAlert(
+          "Please select subscription start date and subscription end date."
         );
         return;
       }
@@ -703,7 +903,7 @@ function AddEditUserDialogView({
               service_names: partnerCatalogFlat.service_names,
               service_descriptions: partnerCatalogFlat.service_descriptions,
               service_prices: partnerCatalogFlat.service_prices,
-              partner_services: partnerCatalogFlat.partner_services,
+              "partner-services": partnerCatalogFlat.partner_services,
             }
           : isPartnerEdit
           ? {
@@ -721,6 +921,13 @@ function AddEditUserDialogView({
           is_primary: true,
           is_active: bankIsActive,
         },
+        subscription_plan_id: String(data.subscription_plan_id ?? "").trim(),
+        subscription_plan: String(data.subscription_plan ?? "").trim(),
+        subscription_start_date: String(
+          data.subscription_start_date ?? ""
+        ).trim(),
+        subscription_end_date: String(data.subscription_end_date ?? "").trim(),
+        is_verified: PARTNER_VERIFICATION.PENDING,
       }),
     };
 
@@ -754,6 +961,22 @@ function AddEditUserDialogView({
   };
 
   useEffect(() => {
+    if (!isAddPartner) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const opts = await fetchSubscriptionPlanDropDown();
+        if (!cancelled) setPartnerPlanSelectOptions(opts);
+      } catch {
+        if (!cancelled) setPartnerPlanSelectOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAddPartner]);
+
+  useEffect(() => {
     void fetchStateFromApi();
   }, [fetchStateFromApi]);
 
@@ -765,6 +988,9 @@ function AddEditUserDialogView({
 
   // Ensure Add opens blank and Update always hydrates selected user.
   useEffect(() => {
+    if (isAddPartner) {
+      setPartnerVerificationDocFilenames({});
+    }
     reset({
       name: isEditable ? user?.name || "" : "",
       email: isEditable ? user?.email || "" : "",
@@ -790,8 +1016,22 @@ function AddEditUserDialogView({
       partner_bank_legal_name: "",
       partner_bank_branch: "",
       bank_account_is_active: "true",
+      subscription_plan: "",
+      subscription_plan_id: "",
+      subscription_start_date: "",
+      subscription_end_date: "",
     });
-  }, [isEditable, user?._id, reset]);
+  }, [isEditable, user?._id, isAddPartner, reset]);
+
+  const subscriptionStartStr = watch("subscription_start_date");
+  const subscriptionEndStr = watch("subscription_end_date");
+  const toYmdString = (v: unknown): string | null => {
+    if (v == null || v === "") return null;
+    if (typeof v === "string") return v.length >= 10 ? v.slice(0, 10) : v;
+    if (v instanceof Date && !Number.isNaN(v.getTime()))
+      return v.toISOString().slice(0, 10);
+    return null;
+  };
 
   return (
     <>
@@ -963,6 +1203,139 @@ function AddEditUserDialogView({
                         setFileInputs(files);
                         setReplaceUrl(replaceUrls);
                       }}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
+                    <CustomTextField
+                      label="Password"
+                      controlId="password"
+                      placeholder="Enter password"
+                      register={register}
+                      error={errors.password}
+                      validation={{ required: "Password is required" }}
+                      inputType="password"
+                      autoComplete="new-password"
+                      value={watch("password") ?? ""}
+                      onChange={(value) =>
+                        setValue("password", value, {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <CustomTextField
+                      label="Confirm Password"
+                      controlId="confirm_password"
+                      placeholder="Confirm password"
+                      register={register}
+                      error={errors.confirm_password}
+                      validation={{
+                        required: "Confirm password is required",
+                        validate: (value: string) =>
+                          value === watch("password") ||
+                          "Passwords do not match",
+                      }}
+                      inputType="password"
+                      autoComplete="new-password"
+                      value={watch("confirm_password") ?? ""}
+                      onChange={(value) =>
+                        setValue("confirm_password", value, {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
+                    <CustomFormSelect
+                      label="Subscription Plan"
+                      controlId="subscription_plan_id"
+                      options={partnerPlanSelectOptions}
+                      register={register as unknown as UseFormRegister<any>}
+                      fieldName="subscription_plan_id"
+                      error={errors.subscription_plan_id as any}
+                      asCol={false}
+                      defaultValue={String(
+                        watch("subscription_plan_id") ?? ""
+                      )}
+                      setValue={setValue as (name: string, value: any) => void}
+                      placeholder="Select subscription plan"
+                      menuPortal
+                      onChange={(e) => {
+                        const v = String(
+                          (e.target as HTMLSelectElement).value ?? ""
+                        );
+                        const opt = partnerPlanSelectOptions.find(
+                          (o) => o.value === v
+                        );
+                        const slug = (opt?.label ?? "")
+                          .trim()
+                          .toLowerCase()
+                          .replace(/\s+/g, "");
+                        setValue("subscription_plan", slug, {
+                          shouldValidate: false,
+                        });
+                      }}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
+                    <CustomDatePicker
+                      label="Subscription Start Date"
+                      controlId="subscription_start_date"
+                      selectedDate={toYmdString(subscriptionStartStr)}
+                      onChange={(date) => {
+                        const value = date
+                          ? date.toISOString().slice(0, 10)
+                          : "";
+                        setValue("subscription_start_date", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      register={register as unknown as UseFormRegister<any>}
+                      setValue={setValue as any}
+                      asCol={false}
+                      groupClassName="mb-0 w-100 fw-medium"
+                      placeholderText="Start date"
+                      filterDate={() => true}
+                      validation={{
+                        required: "Subscription start date is required",
+                      }}
+                      error={errors.subscription_start_date}
+                    />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <CustomDatePicker
+                      label="Subscription End Date"
+                      controlId="subscription_end_date"
+                      selectedDate={toYmdString(subscriptionEndStr)}
+                      onChange={(date) => {
+                        const value = date
+                          ? date.toISOString().slice(0, 10)
+                          : "";
+                        setValue("subscription_end_date", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      register={register as unknown as UseFormRegister<any>}
+                      setValue={setValue as any}
+                      asCol={false}
+                      groupClassName="mb-0 w-100 fw-medium"
+                      placeholderText="End date"
+                      filterDate={() => true}
+                      validation={{
+                        required: "Subscription end date is required",
+                      }}
+                      error={errors.subscription_end_date}
                     />
                   </Col>
                 </Row>
@@ -1182,11 +1555,6 @@ function AddEditUserDialogView({
                   style={{ padding: "10px" }}
                 >
                   <h3 className="mb-2">Categories and services</h3>
-                  {isAddPartner && !String(watchedCityId ?? "").trim() ? (
-                    <p className="text-muted small mb-3">
-                      Select state and city above to load categories and services.
-                    </p>
-                  ) : null}
                   {partnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}
@@ -1202,9 +1570,10 @@ function AddEditUserDialogView({
                           <PartnerSingleSelect
                             instanceId={`${block.id}-category`}
                             label="Category"
-                            options={categorySelectOptions}
+                            options={categorySelectOptionsForBlock(block.id)}
                             value={block.categoryId}
                             placeholder="Select category"
+                            onMenuOpen={() => void ensurePartnerAddCategoriesLoaded()}
                             onChange={(cid: string) =>
                               updateBlockCategory(block.id, cid)
                             }
@@ -1219,6 +1588,7 @@ function AddEditUserDialogView({
                             title="Add another category block"
                             aria-label="Add another category block"
                             style={partnerCatalogOutlineAddBtn}
+                            disabled={!canAddPartnerCategoryBlock}
                             onClick={addCategoryBlock}
                             onMouseDown={(e) => e.preventDefault()}
                             onMouseEnter={(e) => hoverIconBtn(e, true)}
@@ -1252,8 +1622,9 @@ function AddEditUserDialogView({
                             <PartnerSingleSelect
                               instanceId={`${block.id}-${row.id}-service`}
                               label="Service"
-                              options={serviceOptionsForCategory(
-                                block.categoryId
+                              options={serviceOptionsForPartnerBlockRow(
+                                block,
+                                row.id
                               )}
                               value={row.serviceId}
                               placeholder="Select service"
@@ -1344,6 +1715,7 @@ function AddEditUserDialogView({
                               title="Add another service in this category"
                               aria-label="Add another service in this category"
                               style={partnerCatalogOutlineAddBtn}
+                              disabled={!canAddPartnerServiceRow(block, row)}
                               onClick={() => addServiceRow(block.id)}
                               onMouseDown={(e) => e.preventDefault()}
                               onMouseEnter={(e) => hoverIconBtn(e, true)}
@@ -1394,8 +1766,13 @@ function AddEditUserDialogView({
                   <DetailsRowLinkDocument
                     title="Vehicle Registration"
                     isEditable={false}
+                    uploadedFileName={
+                      partnerVerificationDocFilenames.vehicle_registration
+                    }
                     onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload()
+                      void openAddPartnerVerificationDocumentUpload(
+                        "vehicle_registration"
+                      )
                     }
                     onViewClick={() => {}}
                     onDeleteClick={() => {}}
@@ -1403,8 +1780,13 @@ function AddEditUserDialogView({
                   <DetailsRowLinkDocument
                     title="Police Verification Certificate"
                     isEditable={false}
+                    uploadedFileName={
+                      partnerVerificationDocFilenames.police_verification
+                    }
                     onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload()
+                      void openAddPartnerVerificationDocumentUpload(
+                        "police_verification"
+                      )
                     }
                     onViewClick={() => {}}
                     onDeleteClick={() => {}}
@@ -1412,8 +1794,9 @@ function AddEditUserDialogView({
                   <DetailsRowLinkDocument
                     title="PAN Card"
                     isEditable={false}
+                    uploadedFileName={partnerVerificationDocFilenames.pan_card}
                     onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload()
+                      void openAddPartnerVerificationDocumentUpload("pan_card")
                     }
                     onViewClick={() => {}}
                     onDeleteClick={() => {}}
@@ -1421,8 +1804,13 @@ function AddEditUserDialogView({
                   <DetailsRowLinkDocument
                     title="Driving License"
                     isEditable={false}
+                    uploadedFileName={
+                      partnerVerificationDocFilenames.driving_license
+                    }
                     onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload()
+                      void openAddPartnerVerificationDocumentUpload(
+                        "driving_license"
+                      )
                     }
                     onViewClick={() => {}}
                     onDeleteClick={() => {}}
@@ -1430,8 +1818,13 @@ function AddEditUserDialogView({
                   <DetailsRowLinkDocument
                     title="Aadhar Card"
                     isEditable={false}
+                    uploadedFileName={
+                      partnerVerificationDocFilenames.aadhar_card
+                    }
                     onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload()
+                      void openAddPartnerVerificationDocumentUpload(
+                        "aadhar_card"
+                      )
                     }
                     onViewClick={() => {}}
                     onDeleteClick={() => {}}
@@ -1444,6 +1837,36 @@ function AddEditUserDialogView({
                 >
                   <h3 className="mb-3">Bank information</h3>
                   <Row className="g-3 mb-2">
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Bank Name"
+                        controlId="partner_bank_legal_name"
+                        placeholder="Enter bank name"
+                        register={register}
+                        error={errors.partner_bank_legal_name}
+                        validation={{ required: "Bank name is required" }}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Branch Name"
+                        controlId="partner_bank_branch"
+                        placeholder="Enter branch name"
+                        register={register}
+                        error={errors.partner_bank_branch}
+                        validation={{ required: "Branch name is required" }}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="IFSC Code"
+                        controlId="partner_bank_ifsc"
+                        placeholder="Enter IFSC code"
+                        register={register}
+                        error={errors.partner_bank_ifsc}
+                        validation={{ required: "IFSC code is required" }}
+                      />
+                    </Col>
                     <Col xs={12} md={6}>
                       <CustomTextField
                         label="Account Name"
@@ -1465,40 +1888,6 @@ function AddEditUserDialogView({
                       />
                     </Col>
                   </Row>
-                  <Row className="g-3 mb-2">
-                    <Col xs={12} md={6}>
-                      <CustomTextField
-                        label="IFSC Code"
-                        controlId="partner_bank_ifsc"
-                        placeholder="Enter IFSC code"
-                        register={register}
-                        error={errors.partner_bank_ifsc}
-                        validation={{ required: "IFSC code is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <CustomTextField
-                        label="Bank Name"
-                        controlId="partner_bank_legal_name"
-                        placeholder="Enter bank name"
-                        register={register}
-                        error={errors.partner_bank_legal_name}
-                        validation={{ required: "Bank name is required" }}
-                      />
-                    </Col>
-                  </Row>
-                  {/* <Row className="g-3 mb-2">
-                                        <Col xs={12} md={6}>
-                                            <CustomTextField
-                                                label="Branch Name er"
-                                                controlId="partner_bank_branch"
-                                                placeholder="Enter branch name"
-                                                register={register}
-                                                error={errors.partner_bank_branch}
-                                            />
-                                        </Col>
-                                       
-                                    </Row> */}
                 </section>
               </>
             ) : null}

@@ -284,23 +284,30 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
       }
     : undefined;
 
+  /** Avoid `Form.Group` `controlId` + explicit `id` on the control (RHF / react-select) — RB warns and ignores `controlId`. */
+  const selectInputId = String(controlId ?? "").trim() || fieldName;
+  const rawRegister = register(
+    fieldName,
+    requiredMessage ? { required: requiredMessage } : {}
+  ) as Record<string, unknown>;
+  const { id: _registerIdOmit, ...selectRegisterProps } = rawRegister;
+
   return (
     <Form.Group
       as={asCol ? Col : "div"}
       {...(asCol ? { xs: 12, md: 4 } : {})}
-      controlId={controlId}
       style={formGroupStyle}
     >
       {label?.trim() && (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label htmlFor={selectInputId} className="fw-medium mb-1">
+          {label}
+        </Form.Label>
       )}
       <Select
         className="react-select react-select-container"
         classNamePrefix="react-select"
-        {...register(
-          fieldName,
-          requiredMessage ? { required: requiredMessage } : {}
-        )}
+        {...selectRegisterProps}
+        inputId={selectInputId}
         options={normalizedOptions}
         value={selectedOption}
         onChange={handleChange}

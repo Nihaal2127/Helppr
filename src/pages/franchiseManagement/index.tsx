@@ -391,13 +391,21 @@ const FranchiseManagement = () => {
         .trim()
         .toLowerCase();
       if (rows.length && kw) {
+        const orig = rows[0] ?? {};
+        const areaText = [
+          ...normalizeLabelList(orig.area_name),
+          ...normalizeLabelList(orig.areas),
+        ]
+          .map((x) => String(x ?? "").toLowerCase())
+          .join(" ");
         const blob = [
-          rows[0]?.name,
-          rows[0]?.admin_name,
-          rows[0]?.state_name,
-          rows[0]?.city_name,
-          rows[0]?.email,
-          rows[0]?.phone_number,
+          orig.name,
+          orig.admin_name,
+          orig.state_name,
+          orig.city_name,
+          areaText,
+          orig.email,
+          orig.phone_number,
         ]
           .map((x) => String(x ?? "").toLowerCase())
           .join(" ");
@@ -554,6 +562,7 @@ const FranchiseManagement = () => {
       {
         Header: "Area",
         accessor: "area_name",
+        sort: true,
 
         Cell: multiNamesHoverCell("area_name", "areas"),
       },
@@ -648,7 +657,7 @@ const FranchiseManagement = () => {
         <CustomUtilityBox
           key={`franchise-utility-${utilitySearchKey}`}
           title="Franchises"
-          searchHint="Search franchise, admin, state, city"
+          searchHint="Search franchise, admin, state, city, area"
           toolsInlineRow
           hideMoreIcon
           controlSlot={

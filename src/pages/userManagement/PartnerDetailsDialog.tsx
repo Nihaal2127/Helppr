@@ -10,7 +10,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../models/UserModel";
 import { BankAccountModel } from "../../models/BankAccountModel";
 import { fetchUserById } from "../../services/userService";
-import { getMockVerificationUserById } from "../../mockData/verificationTableMock";
+import { partnerVerificationLabel } from "../../constant/partnerVerification";
 import editIcon from "../../assets/icons/edit_red.svg";
 import addIcon from "../../assets/icons/add.svg";
 import deleteIcon from "../../assets/icons/delete_red.svg";
@@ -45,11 +45,6 @@ type PartnerDetailsDialogProps = {
   userId: string;
   onClose: () => void;
   onRefreshData: () => void;
-  /**
-   * Verification tab: mock user (no `fetchUserById`); same partner layout and edit controls.
-   * Verification & Documents uses fixed rows with no Add (PAN shows View/Delete; delete is preview-only).
-   */
-  verificationStaticPreview?: boolean;
 };
 
 type StaticPartnerBankAccount = {
@@ -198,31 +193,10 @@ function bankAccountFromCarouselRow(
   };
 }
 
-/** Demo labels in Verification & Documents when `verificationStaticPreview` (no live payment/service fields). */
-const STATIC_VERIFICATION_PREVIEW_STATUS = "Under review (sample)";
-const STATIC_VERIFICATION_PREVIEW_DATE = "—";
-
-/** Sample PAN row for verification preview — image uses bundled asset (see `documentPreviewImageSrc`). */
-const STATIC_VERIFICATION_PAN_DOCUMENT: DocumentModel = {
-  _id: "ver-preview-pan",
-  partner_id: null,
-  document_id: "pan-card",
-  name: "PAN Card",
-  rejected_reasone: "",
-  document_image: profileIcon,
-  verification_status: 2,
-  is_optional: true,
-  is_active: true,
-  deleted_at: null,
-  created_at: null,
-  updated_at: null,
-};
-
 function PartnerDetailsDialogView({
   userId,
   onClose,
   onRefreshData,
-  verificationStaticPreview = false,
 }: PartnerDetailsDialogProps) {
   const [userDetails, setUserDetails] = useState<UserModel>();
   const activeStaticBankAccountId = STATIC_PARTNER_BANK_ACCOUNTS[0].id;
@@ -254,10 +228,6 @@ function PartnerDetailsDialogView({
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
-      if (verificationStaticPreview) {
-        setUserDetails(getMockVerificationUserById(userId));
-        return;
-      }
       const { response, user } = await fetchUserById(userId);
       if (response) {
         setUserDetails(user!!);
@@ -265,7 +235,7 @@ function PartnerDetailsDialogView({
     } finally {
       fetchRef.current = false;
     }
-  }, [userId, verificationStaticPreview]);
+  }, [userId]);
 
   const onRefreshuser = useCallback(async () => {
     await fetchDataFromApi();
@@ -349,23 +319,11 @@ function PartnerDetailsDialogView({
   }, [userDetails, catalogServices, catalogCategoryOptions]);
 
   const openServices = (status: number | null) => {
-    if (verificationStaticPreview) {
-      showErrorAlert(
-        "Service details are not available in verification preview."
-      );
-      return;
-    }
     // `order_service/getAll?partner_id=` expects the partner document `_id` (ObjectId). Passing display id (e.g. P1029) can trigger a 500 from the API.
     ServiceDetailsDialog.show(userId, true, status, onRefreshuser);
   };
 
   const addDocument = (document: DocumentModel) => {
-    if (verificationStaticPreview) {
-      showErrorAlert(
-        "Adding documents is not available in verification preview."
-      );
-      return;
-    }
     CustomUploadDialog.show(async (files, replaceUrls) => {
       const formData = new FormData();
       formData.append("type", "1");
@@ -394,12 +352,6 @@ function PartnerDetailsDialogView({
   };
 
   const deleteDocument = async (document: DocumentModel) => {
-    if (verificationStaticPreview) {
-      showErrorAlert(
-        "Deleting documents is not available in verification preview."
-      );
-      return;
-    }
     openConfirmDialog(
       "Are you sure you want to delete document?",
       "Delete",
@@ -866,90 +818,35 @@ function PartnerDetailsDialogView({
                 <h3>Verification & Documents</h3>
                 <DetailsRow
                   title="Verification Status"
-                  value={
-                    verificationStaticPreview
-                      ? STATIC_VERIFICATION_PREVIEW_STATUS
-                      : userDetails?.total_payment
-                  }
+                  value={partnerVerificationLabel(userDetails?.is_verified)}
                 />
                 <DetailsRow
                   title="Verified Date"
                   value={
-                    verificationStaticPreview
-                      ? STATIC_VERIFICATION_PREVIEW_DATE
-                      : formatDate(
-                          userDetails?.last_paid_date
-                            ? userDetails?.last_paid_date
-                            : ""
-                        )
+                    userDetails?.verified_at
+                      ? formatDate(String(userDetails.verified_at))
+                      : userDetails?.last_paid_date
+                      ? formatDate(String(userDetails.last_paid_date))
+                      : "—"
                   }
                 />
-                {verificationStaticPreview ? (
-                  <>
-                    <DetailsRowLinkDocument
-                      title="Vehicle Registration"
-                      isEditable={false}
-                      hideAdd
-                      onAddClick={() => {}}
-                      onViewClick={() => {}}
-                      onDeleteClick={() => {}}
-                    />
-                    <DetailsRowLinkDocument
-                      title="Police Verification Certificate"
-                      isEditable={false}
-                      hideAdd
-                      onAddClick={() => {}}
-                      onViewClick={() => {}}
-                      onDeleteClick={() => {}}
-                    />
-                    <DetailsRowLinkDocument
-                      title="PAN Card"
-                      isEditable
-                      hideAdd
-                      onViewClick={() =>
-                        CustomImagePreviewDialog(
-                          STATIC_VERIFICATION_PAN_DOCUMENT
-                        )
-                      }
-                      onAddClick={() => {}}
-                      onDeleteClick={() =>
-                        void deleteDocument(STATIC_VERIFICATION_PAN_DOCUMENT)
-                      }
-                    />
-                    <DetailsRowLinkDocument
-                      title="Driving License"
-                      isEditable={false}
-                      hideAdd
-                      onAddClick={() => {}}
-                      onViewClick={() => {}}
-                      onDeleteClick={() => {}}
-                    />
-                    <DetailsRowLinkDocument
-                      title="Aadhar Card"
-                      isEditable={false}
-                      hideAdd
-                      onAddClick={() => {}}
-                      onViewClick={() => {}}
-                      onDeleteClick={() => {}}
-                    />
-                  </>
-                ) : (
-                  userDetails?.documents?.map((document) => (
-                    <DetailsRowLinkDocument
-                      key={
-                        document._id ??
-                        document.document_id ??
-                        document.name ??
-                        ""
-                      }
-                      title={document.name || ""}
-                      isEditable={document.document_image === "" ? false : true}
-                      onViewClick={() => CustomImagePreviewDialog(document)}
-                      onAddClick={() => addDocument(document)}
-                      onDeleteClick={() => deleteDocument(document)}
-                    />
-                  ))
-                )}
+                {userDetails?.documents?.map((document) => (
+                  <DetailsRowLinkDocument
+                    key={
+                      document._id ??
+                      document.document_id ??
+                      document.name ??
+                      ""
+                    }
+                    title={document.name || ""}
+                    isEditable={
+                      document.document_image === "" ? false : true
+                    }
+                    onViewClick={() => CustomImagePreviewDialog(document)}
+                    onAddClick={() => addDocument(document)}
+                    onDeleteClick={() => deleteDocument(document)}
+                  />
+                ))}
               </section>
             </Col>
 
@@ -1182,19 +1079,8 @@ const PartnerDetailsDialog = Object.assign(PartnerDetailsDialogView, {
       />
     ));
   },
-  showVerificationPreview(userId: string, onRefreshData: () => void) {
-    openDialog("partner-details-verification-preview", (close) => (
-      <PartnerDetailsDialogView
-        userId={userId}
-        onClose={close}
-        onRefreshData={onRefreshData}
-        verificationStaticPreview
-      />
-    ));
-  },
 }) as typeof PartnerDetailsDialogView & {
   show: (userId: string, onRefreshData: () => void) => void;
-  showVerificationPreview: (userId: string, onRefreshData: () => void) => void;
 };
 
 export default PartnerDetailsDialog;

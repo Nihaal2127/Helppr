@@ -8,10 +8,7 @@ import {
   setLocalStorage,
 } from "../helper/localStorageHelper";
 import { AppConstant } from "../constant/AppConstant";
-import {
-  shouldUseRealVerificationApi,
-  getMockVerificationListPage,
-} from "../mockData/verificationTableMock";
+import { PARTNER_VERIFICATION } from "../constant/partnerVerification";
 import { mapAccessibleScreenSlugsToMenuKeys } from "../layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../layout/menuItems";
 import { UserRole } from "../constant/AppConstant";
@@ -360,9 +357,6 @@ export async function refreshSessionAccessibleMenuKeys(options?: {
   return changed;
 }
 
-/** Re-export: `true` uses `/user/getVerificationAll`; `false` uses mock table data (see `AppConstant.USE_REAL_VERIFICATION_API`). */
-export { shouldUseRealVerificationApi } from "../mockData/verificationTableMock";
-
 /** Staging/API may return `records` on `data`, `data.data`, or a bare array — keep dropdowns from going empty. */
 function extractUserDropDownRecords(data: unknown): UserModel[] {
   if (Array.isArray(data)) return data as UserModel[];
@@ -445,6 +439,8 @@ export type UserListFilters = {
   keyword?: string;
   status?: string;
   is_blocked?: "true" | "false";
+  /** Partner list: `Approved` — verified partners; verification queue uses `GET_VERIFICATION` or filters. */
+  is_verified?: string;
   sort?: string;
   franchise_id?: string;
   /** e.g. pending | cleared — sent when backend supports partner wallet filtering */
@@ -464,10 +460,6 @@ export const fetchUser = async (
   sortBy: ServerTableSortBy = [],
   signal?: AbortSignal
 ): Promise<{ response: boolean; users: UserModel[]; totalPages: number }> => {
-  if (isVerification && !shouldUseRealVerificationApi()) {
-    return getMockVerificationListPage(page, pageSize, filters);
-  }
-
   const primarySort = sortBy[0];
   const mappedSortField = (() => {
     if (!primarySort?.id) return undefined;
@@ -500,8 +492,11 @@ export const fetchUser = async (
     ...(filters.keyword && { search: filters.keyword }),
     ...(filters.keyword && { user_name: filters.keyword }),
     ...(filters.keyword && { partner_name: filters.keyword }),
-    ...(isVerification &&
-      filters.verification_status !== undefined &&
+    ...(filters.is_verified !== undefined &&
+      filters.is_verified !== "" && {
+        is_verified: String(filters.is_verified),
+      }),
+    ...(filters.verification_status !== undefined &&
       filters.verification_status !== "" && {
         verification_status: String(filters.verification_status),
       }),
@@ -574,6 +569,31 @@ export const fetchUserById = async (
     };
   }
 };
+
+/** Super admin approve/reject partner verification (`PUT /user/update/:id`). */
+export async function updatePartnerVerificationDecision(
+  partnerUserId: string,
+  decision: {
+    approved: boolean;
+    verification_rejection_reason?: string;
+  }
+): Promise<boolean> {
+  const id = String(partnerUserId ?? "").trim();
+  if (!id) return false;
+  const body: Record<string, unknown> = {
+    is_verified: decision.approved
+      ? PARTNER_VERIFICATION.APPROVED
+      : PARTNER_VERIFICATION.REJECTED,
+    ...(decision.approved
+      ? { verification_rejection_reason: "" }
+      : {
+          verification_rejection_reason: String(
+            decision.verification_rejection_reason ?? ""
+          ).trim(),
+        }),
+  };
+  return createOrUpdateUser(body, true, id, null);
+}
 
 export const deleteUser = async (id: string): Promise<boolean> => {
   const response = await apiRequest(ApiPaths.DELETE_USER(id), "DELETE");

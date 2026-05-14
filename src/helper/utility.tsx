@@ -430,6 +430,7 @@ export const DetailsRowLinkDocument = ({
   onViewClick,
   onDeleteClick,
   hideAdd,
+  uploadedFileName,
 }: {
   title: string;
   isEditable: boolean;
@@ -438,7 +439,11 @@ export const DetailsRowLinkDocument = ({
   onDeleteClick: () => void;
   /** When false and not editable, hide the Add action (e.g. static verification preview rows). */
   hideAdd?: boolean;
+  /** When set (e.g. add-partner flow), show image uploaded plus filename instead of Add; click opens replace upload. */
+  uploadedFileName?: string | null;
 }) => {
+  const trimmedUploaded = String(uploadedFileName ?? "").trim();
+
   return (
     <Row className="row custom-personal-row">
       <Col className="custom-document-title">{title}</Col>
@@ -467,6 +472,19 @@ export const DetailsRowLinkDocument = ({
           </>
         ) : hideAdd ? (
           <span className="text-muted small">—</span>
+        ) : trimmedUploaded ? (
+          <label
+            onClick={(e) => {
+              e.preventDefault();
+              onAddClick();
+            }}
+            className="custom-document-add mb-0 d-inline-block"
+            style={{ fontWeight: 400, cursor: "pointer" }}
+            title="Tap to replace this image"
+          >
+            image uploaded{" "}
+            <span className="text-break">{trimmedUploaded}</span>
+          </label>
         ) : (
           <label
             onClick={(e) => {

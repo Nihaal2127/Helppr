@@ -31,6 +31,7 @@ const CustomActionColumn = ({
         <img
           src={eyeIcon}
           alt="view"
+          title="View details"
           width={24}
           height={24}
           className="custom-table-action-view me-2"

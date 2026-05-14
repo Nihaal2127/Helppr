@@ -113,6 +113,8 @@ type PartnerSingleSelectProps = {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
+  /** e.g. lazy-load category options when the menu opens (Add Partner). */
+  onMenuOpen?: () => void;
 };
 
 export function PartnerSingleSelect({
@@ -122,6 +124,7 @@ export function PartnerSingleSelect({
   value,
   onChange,
   placeholder,
+  onMenuOpen,
 }: PartnerSingleSelectProps) {
   const selected = useMemo(
     () => options.find((o) => String(o.value) === String(value)) ?? null,
@@ -140,6 +143,7 @@ export function PartnerSingleSelect({
         classNamePrefix="react-select"
         isMulti={false}
         isClearable={false}
+        hideSelectedOptions={false}
         isSearchable
         options={options}
         value={selected}
@@ -148,6 +152,7 @@ export function PartnerSingleSelect({
           const v = opt?.value;
           onChange(v !== undefined && v !== null ? String(v) : "");
         }}
+        onMenuOpen={onMenuOpen}
         menuPortalTarget={
           typeof document !== "undefined" ? document.body : null
         }
@@ -165,11 +170,27 @@ type FlatRow = {
   price: string;
 };
 
-export type PartnerServiceCreateRow = {
-  category_id: string;
-  service_id: string;
+/** Coerce ids for API JSON: plain integer strings → number; ObjectIds / non-numeric stay strings. */
+export function partnerApiJsonId(id: string): string | number {
+  const t = String(id ?? "").trim();
+  if (!t) return "";
+  if (/^\d+$/.test(t)) {
+    const n = Number(t);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return t;
+}
+
+export type PartnerServiceNestedItem = {
+  service_id: string | number;
   description: string;
   price: number;
+};
+
+/** One category block in `partner_services` (multipart JSON string). */
+export type PartnerServicesCategoryPayload = {
+  category_id: string | number;
+  services: PartnerServiceNestedItem[];
 };
 
 export type PartnerCatalogFlattenOk = {
@@ -179,8 +200,8 @@ export type PartnerCatalogFlattenOk = {
   service_names: string[];
   service_descriptions: string[];
   service_prices: string[];
-  /** `POST /user/create` (multipart) — Postman-style `partner_services` JSON array. */
-  partner_services: PartnerServiceCreateRow[];
+  /** Grouped by `category_id`; sent as JSON in multipart `partner_services`. */
+  partner_services: PartnerServicesCategoryPayload[];
 };
 
 export type PartnerCatalogFlattenErr = { ok: false; message: string };
@@ -241,14 +262,31 @@ export function flattenPartnerBlocksForSave(
     (x) => allServices.find((s) => String(s._id) === x.serviceId)?.name ?? ""
   );
 
-  const partner_services: PartnerServiceCreateRow[] = meaningful.map((x) => ({
-    category_id: x.categoryId,
-    service_id: x.serviceId,
-    description: x.description.trim(),
-    price:
-      Number(String(x.price ?? "").replace(/[^\d.]/g, "")) ||
-      0,
-  }));
+  const categoryOrder: string[] = [];
+  const servicesByCategory = new Map<string, PartnerServiceNestedItem[]>();
+
+  for (const x of meaningful) {
+    const cid = String(x.categoryId);
+    const priceNum =
+      Number(String(x.price ?? "").replace(/[^\d.]/g, "")) || 0;
+    const item: PartnerServiceNestedItem = {
+      service_id: partnerApiJsonId(x.serviceId),
+      description: x.description.trim(),
+      price: priceNum,
+    };
+    if (!servicesByCategory.has(cid)) {
+      servicesByCategory.set(cid, []);
+      categoryOrder.push(cid);
+    }
+    servicesByCategory.get(cid)!.push(item);
+  }
+
+  const partner_services: PartnerServicesCategoryPayload[] = categoryOrder.map(
+    (cid) => ({
+      category_id: partnerApiJsonId(cid),
+      services: servicesByCategory.get(cid) ?? [],
+    })
+  );
 
   return {
     ok: true,

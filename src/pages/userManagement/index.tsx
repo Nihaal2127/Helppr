@@ -6,11 +6,11 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
-import { deleteUser, fetchUser } from "../../services/userService";
 import {
-  shouldUseRealVerificationApi,
-  MOCK_VERIFICATION_SUMMARY,
-} from "../../mockData/verificationTableMock";
+  deleteUser,
+  fetchUser,
+} from "../../services/userService";
+import { PARTNER_VERIFICATION } from "../../constant/partnerVerification";
 import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
@@ -19,6 +19,7 @@ import {
 import { UserModel } from "../../models/UserModel";
 import UserDetailsDialog from "./UserDetailsDialog";
 import PartnerDetailsDialog from "./PartnerDetailsDialog";
+import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
@@ -46,15 +47,13 @@ const UserManagement = () => {
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const { register, setValue, franchiseId: headerFranchiseId } =
     useFranchiseHeaderForm();
-  const { countModel: userCountModel } = useFranchiseScopedGetCount({
-    type: "user-management",
-    franchiseId: headerFranchiseId,
-  });
+  const { countModel: userCountModel, refresh: refreshUserManagementCounts } =
+    useFranchiseScopedGetCount({
+      type: "user-management",
+      franchiseId: headerFranchiseId,
+    });
 
   useEffect(() => {
-    if (!shouldUseRealVerificationApi()) {
-      setVerificationData({ ...MOCK_VERIFICATION_SUMMARY });
-    }
     if (!userCountModel) return;
     setUserData({
       Total: userCountModel.total_user,
@@ -68,12 +67,11 @@ const UserManagement = () => {
       Inactive: userCountModel.inactive_partner,
       Blocked: userCountModel.blocked_partner,
     });
-    if (shouldUseRealVerificationApi()) {
-      setVerificationData({
-        Total: userCountModel.total_document,
-        Pending: userCountModel.pending_document,
-      });
-    }
+    setVerificationData({
+      Total: userCountModel.total_document,
+      Pending: userCountModel.pending_document,
+      Rejected: userCountModel.reject_document ?? 0,
+    });
   }, [userCountModel]);
 
   useEffect(() => {
@@ -90,7 +88,11 @@ const UserManagement = () => {
 
   /** Summary boxes: `POST /getCount` `{ type: "user-management", franchise_id? }` — refetches when header franchise changes. */
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(
+    async (listPage?: number) => {
+      const page =
+        typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
+
     const franchiseScope =
       headerFranchiseId &&
       String(headerFranchiseId).trim() !== "" &&
@@ -113,7 +115,7 @@ const UserManagement = () => {
       const { response, users, totalPages } = await fetchUser(
         true,
         2,
-        currentPage,
+        page,
         pageSize,
         filters,
         sortBy
@@ -126,12 +128,17 @@ const UserManagement = () => {
         setTotalPages(0);
       }
     } else {
+      const type = selectedBox === "box-user" ? 4 : 2;
+      const partnerFilters =
+        selectedBox === "box-partner"
+          ? { ...filters, is_verified: PARTNER_VERIFICATION.APPROVED }
+          : filters;
       const { response, users, totalPages } = await fetchUser(
         false,
-        selectedBox === "box-user" ? 4 : 2,
-        currentPage,
+        type,
+        page,
         pageSize,
-        filters,
+        partnerFilters,
         sortBy
       );
       if (response) {
@@ -148,7 +155,8 @@ const UserManagement = () => {
         setTotalPages(0);
       }
     }
-  }, [
+  },
+  [
     currentPage,
     pageSize,
     searchKeyword,
@@ -157,7 +165,8 @@ const UserManagement = () => {
     statusFilter,
     verificationStatusFilter,
     headerFranchiseId,
-  ]);
+  ]
+);
 
   useEffect(() => {
     void fetchData();
@@ -169,6 +178,13 @@ const UserManagement = () => {
     },
     [fetchData]
   );
+
+  /** After creating a user/partner: page 1 + explicit fetch (avoids stale `currentPage` closure) + summary counts. */
+  const refreshListAfterCreate = useCallback(async () => {
+    setCurrentPage(1);
+    await fetchData(1);
+    await refreshUserManagementCounts();
+  }, [fetchData, refreshUserManagementCounts]);
 
   const handleSortChange = useCallback(
     (next: { id: string; desc: boolean }[]) => {
@@ -196,13 +212,14 @@ const UserManagement = () => {
     [refreshData]
   );
 
-  const verificationPartnerPreviewShow = useCallback(
+  const openPartnerVerification = useCallback(
     (userId: string) => {
-      PartnerDetailsDialog.showVerificationPreview(userId, () => {
+      PartnerVerificationReviewModal.show(userId, () => {
         void refreshData("box-verification");
+        void refreshUserManagementCounts();
       });
     },
-    [refreshData]
+    [refreshData, refreshUserManagementCounts]
   );
 
   const partnerChangePassword = useCallback((row: { original: UserModel }) => {
@@ -353,7 +370,13 @@ const UserManagement = () => {
         ),
       },
     ],
-    [currentPage, pageSize, handleUserDelete, partnerShow, partnerChangePassword]
+    [
+      currentPage,
+      pageSize,
+      handleUserDelete,
+      partnerShow,
+      partnerChangePassword,
+    ]
   );
 
   const verificationColumns = React.useMemo(
@@ -387,12 +410,12 @@ const UserManagement = () => {
         Cell: ({ row }: { row: any }) => (
           <CustomActionColumn
             row={row}
-            onView={() => verificationPartnerPreviewShow(row.original._id)}
+            onView={() => openPartnerVerification(row.original._id)}
           />
         ),
       },
     ],
-    [currentPage, pageSize, verificationPartnerPreviewShow]
+    [currentPage, pageSize, openPartnerVerification]
   );
 
   return (
@@ -432,10 +455,12 @@ const UserManagement = () => {
                 setCurrentPage(1);
               }}
               onItemClick={
-                id === "box-verification" && shouldUseRealVerificationApi()
+                id === "box-verification"
                   ? (key) => {
                       if (key === "Pending") {
                         setVerificationStatusFilter("1");
+                      } else if (key === "Rejected") {
+                        setVerificationStatusFilter("3");
                       } else if (key === "Total") {
                         setVerificationStatusFilter(undefined);
                       }
@@ -450,10 +475,10 @@ const UserManagement = () => {
               onAddClick={() => {
                 id === "box-user"
                   ? AddEditUserDialog.show(4, false, null, () =>
-                      refreshData(selectedBox)
+                      void refreshListAfterCreate()
                     )
                   : AddEditUserDialog.show(2, false, null, () =>
-                      refreshData(selectedBox)
+                      void refreshListAfterCreate()
                     );
               }}
             />
@@ -500,8 +525,7 @@ const UserManagement = () => {
           manualSortBy={
             selectedBox === "box-user" ||
             selectedBox === "box-partner" ||
-            (selectedBox === "box-verification" &&
-              shouldUseRealVerificationApi())
+            selectedBox === "box-verification"
           }
           sortBy={sortBy}
           onSortChange={handleSortChange}

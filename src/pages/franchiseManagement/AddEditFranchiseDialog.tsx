@@ -946,7 +946,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
               <div className="col-md-6 custom-helper-column">
                 <div className="row custom-personal-row">
                   <label className="col-md-3 custom-personal-row-title">
-                    Admin1
+                    Admin
                   </label>
                   <label className="col-md-9 custom-personal-row-value">
                     {franchise.admin_name ?? franchise.admin_id ?? "-"}
@@ -1169,7 +1169,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   error={errors.city_id}
                   asCol={false}
                   requiredMessage="Please select city"
-                  defaultValue={isEditable ? franchise?.city_id : ""}
+                  defaultValue={String(selectedCity ?? "")}
                   setValue={setValue as (name: string, value: any) => void}
                 />
               </Col>
