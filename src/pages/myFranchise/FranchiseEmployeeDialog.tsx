@@ -401,7 +401,9 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
             <Form.Check
               type="switch"
               id="franchise-employee-form-chat"
-              className="franchise-chat-switch franchise-status-switch"
+              className={`franchise-chat-switch franchise-status-switch${
+                isActiveBool && chatEnabled ? " franchise-status-switch--on" : ""
+              }`}
               checked={isActiveBool ? Boolean(chatEnabled) : false}
               disabled={!isActiveBool}
               aria-label={

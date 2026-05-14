@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import { ROUTES } from "../../routes/Routes";
+import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
 
 const Financials = () => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ const Financials = () => {
   ]);
 
   const { register, setValue } = useForm({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
 
   return (

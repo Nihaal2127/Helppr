@@ -27,6 +27,7 @@ export const apiRequest = async (
       Authorization: `Bearer ${localStorage.getItem("authToken")}`,
       ...(isMultipart ? {} : { "Content-Type": "application/json" }),
     };
+    /** Query string is part of `endpoint` for GET (e.g. `/category/getAll/:id?page=1`). */
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
     showLog("API Request URL:", requestUrl);

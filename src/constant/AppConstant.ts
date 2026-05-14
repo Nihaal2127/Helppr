@@ -15,6 +15,8 @@ export const AppConstant = {
   userAccessibleMenuKeys: "userAccessibleMenuKeys",
   adminId: "adminId",
   partnerId: "partnerId",
+  /** Super admin / staff: last chosen header franchise filter (`"all"` or franchise `_id`). Cleared with `clearLocalStorage` on logout. */
+  headerFranchiseFilter: "headerFranchiseFilter",
   createdById: "createdById",
   isAuthenticated: "isAuthenticated",
   canAccessExpenseSheet: "canAccessExpenseSheet",

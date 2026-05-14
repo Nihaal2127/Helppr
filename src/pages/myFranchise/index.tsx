@@ -258,6 +258,16 @@ function coerceCatalogRowActive(value: unknown): boolean {
   return false;
 }
 
+function serviceRowMatchesCatalogueId(row: ServiceRow, catalogueId: string) {
+  const id = String(catalogueId ?? "").trim();
+  if (!id) return false;
+  const a = String(row._id ?? "").trim();
+  const b = String(row.service_id ?? "").trim();
+  if (a === id || b === id) return true;
+  const il = id.toLowerCase();
+  return a.toLowerCase() === il || b.toLowerCase() === il;
+}
+
 const MyFranchise = () => {
   const { register, setValue } = useForm();
   /** Employees section is selected on first paint so the list loads with the page. */
@@ -271,6 +281,10 @@ const MyFranchise = () => {
   );
   const [searchKeyword, setSearchKeyword] = useState("");
   const [areaSortBy, setAreaSortBy] = useState<ServerTableSortBy>([]);
+  /** Server sort on franchise-service `all_services` — **service name** column only (`sort_by=name`). */
+  const [serviceSortBy, setServiceSortBy] = useState<ServerTableSortBy>([]);
+  /** Server sort on franchise-category `all_categories` — **category name** column only (`sort_by=name`). */
+  const [categorySortBy, setCategorySortBy] = useState<ServerTableSortBy>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -309,6 +323,13 @@ const MyFranchise = () => {
           : statusFilter === "false"
           ? "inactive"
           : "all";
+      const catQ = searchKeyword.trim();
+      if (catQ) o.categoryCatalogSearch = catQ;
+      const catPrimary = categorySortBy[0];
+      if (catPrimary?.id === "name") {
+        o.categoryCatalogSortBy = "name";
+        o.categoryCatalogSortOrder = catPrimary.desc ? "desc" : "asc";
+      }
     } else if (
       selectedBox === "box-services" &&
       servicesViewMode === "catalog"
@@ -319,6 +340,13 @@ const MyFranchise = () => {
           : statusFilter === "false"
           ? "inactive"
           : "all";
+      const q = searchKeyword.trim();
+      if (q) o.serviceCatalogSearch = q;
+      const primary = serviceSortBy[0];
+      if (primary?.id === "name") {
+        o.serviceCatalogSortBy = "name";
+        o.serviceCatalogSortOrder = primary.desc ? "desc" : "asc";
+      }
     }
     if (
       (selectedBox === "box-categories" &&
@@ -328,7 +356,15 @@ const MyFranchise = () => {
       o.requestedApprovalStatus = "pending";
     }
     return o;
-  }, [selectedBox, categoriesViewMode, servicesViewMode, statusFilter]);
+  }, [
+    selectedBox,
+    categoriesViewMode,
+    servicesViewMode,
+    statusFilter,
+    searchKeyword,
+    serviceSortBy,
+    categorySortBy,
+  ]);
 
   const mapEmployeesWithChat = useCallback((rows: EmployeeRow[]) => {
     return rows.map((e) => ({
@@ -421,14 +457,15 @@ const MyFranchise = () => {
   const reloadFranchiseData = useCallback(async () => {
     await refreshMyFranchiseCountSummaries();
     for (const s of slicesForCurrentSelection) {
-      loadedKeysRef.current.delete(
-        myFranchiseDataCacheKey(s, myFranchiseFetchOptions)
-      );
+      for (const k of Array.from(loadedKeysRef.current)) {
+        if (k === s || k.startsWith(`${s}|`)) {
+          loadedKeysRef.current.delete(k);
+        }
+      }
     }
     await hydrateFranchiseSlices(slicesForCurrentSelection);
   }, [
     hydrateFranchiseSlices,
-    myFranchiseFetchOptions,
     refreshMyFranchiseCountSummaries,
     slicesForCurrentSelection,
   ]);
@@ -436,9 +473,26 @@ const MyFranchise = () => {
   /** Load table data only for the active section (and catalog vs requested sub-mode). */
   useEffect(() => {
     if (slicesForCurrentSelection.length === 0) return;
+    /**
+     * `loadedKeysRef` keys include search/sort params. After a search, clearing search
+     * can reproduce an earlier key (e.g. empty search) that is still marked loaded, so
+     * hydrate would skip — drop all keys for catalog slices that use server search/sort.
+     */
+    if (selectedBox === "box-services" && servicesViewMode === "catalog") {
+      for (const k of Array.from(loadedKeysRef.current)) {
+        if (k.startsWith("services|")) loadedKeysRef.current.delete(k);
+      }
+    }
+    if (selectedBox === "box-categories" && categoriesViewMode === "catalog") {
+      for (const k of Array.from(loadedKeysRef.current)) {
+        if (k.startsWith("categories|")) loadedKeysRef.current.delete(k);
+      }
+    }
     void hydrateFranchiseSlices(slicesForCurrentSelection);
   }, [
     selectedBox,
+    servicesViewMode,
+    categoriesViewMode,
     slicesForCurrentSelection,
     hydrateFranchiseSlices,
     myFranchiseFetchOptions,
@@ -524,6 +578,8 @@ const MyFranchise = () => {
       setStatusFilter(undefined);
       setSearchKeyword("");
       setAreaSortBy([]);
+      setServiceSortBy([]);
+      setCategorySortBy([]);
       setCurrentPage(1);
 
     },
@@ -617,11 +673,9 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const hay = [row.name, row.category_name].join(" ").toLowerCase();
-      const matchesKw = !keyword || hay.includes(keyword);
-      return matchesStatus && matchesKw;
+      return matchesStatus;
     });
-  }, [services, statusFilter, keyword]);
+  }, [services, statusFilter]);
 
   const filteredRequestedServices = useMemo(() => {
     return requestedServices.filter((row) => {
@@ -636,12 +690,9 @@ const MyFranchise = () => {
         statusFilter == null ||
         (statusFilter === "true" && row.is_active) ||
         (statusFilter === "false" && !row.is_active);
-      const svcHay = categoryCatalogServiceNames(row).join(" ").toLowerCase();
-      const hay = [row.name, svcHay].join(" ").toLowerCase();
-      const matchesKw = !keyword || hay.includes(keyword);
-      return matchesStatus && matchesKw;
+      return matchesStatus;
     });
-  }, [categories, statusFilter, keyword]);
+  }, [categories, statusFilter]);
 
   const filteredRequestedCategories = useMemo(() => {
     return requestedCategories.filter((row: RequestedCategoryRow) => {
@@ -720,16 +771,9 @@ const MyFranchise = () => {
       const sid = String(id ?? "").trim();
       let prev: boolean | undefined;
       setServices((p) => {
-        prev = p.find(
-          (s) =>
-            String(s._id ?? "").trim() === sid ||
-            String(s.service_id ?? "").trim() === sid
-        )?.is_active;
+        prev = p.find((s) => serviceRowMatchesCatalogueId(s, sid))?.is_active;
         return p.map((s) =>
-          String(s._id ?? "").trim() === sid ||
-          String(s.service_id ?? "").trim() === sid
-            ? { ...s, is_active }
-            : s
+          serviceRowMatchesCatalogueId(s, sid) ? { ...s, is_active } : s
         );
       });
       const ok = await apiSetServiceActive(sid, is_active);
@@ -740,8 +784,7 @@ const MyFranchise = () => {
         if (prev !== undefined) {
           setServices((p) =>
             p.map((s) =>
-              String(s._id ?? "").trim() === sid ||
-              String(s.service_id ?? "").trim() === sid
+              serviceRowMatchesCatalogueId(s, sid)
                 ? { ...s, is_active: prev! }
                 : s
             )
@@ -846,13 +889,17 @@ const MyFranchise = () => {
       case "box-areas":
         return "Search area, city, state, pin code";
       case "box-services":
-        return "Search service";
+        return servicesViewMode === "catalog"
+          ? "Search service or category name"
+          : "Search service";
       case "box-categories":
-        return "Search category";
+        return categoriesViewMode === "catalog"
+          ? "Search categories or services"
+          : "Search category";
       default:
         return "Search";
     }
-  }, [selectedBox]);
+  }, [selectedBox, servicesViewMode, categoriesViewMode]);
 
   const employeeColumns = useMemo(
     () => [
@@ -885,7 +932,9 @@ const MyFranchise = () => {
             <Form.Check
               type="switch"
               id={`franchise-chat-${emp._id}`}
-              className="franchise-chat-switch franchise-status-switch"
+              className={`franchise-chat-switch franchise-status-switch${
+                chatOn ? " franchise-status-switch--on" : ""
+              }`}
               checked={chatOn}
               disabled={!emp.is_active}
               aria-label={
@@ -1002,35 +1051,38 @@ const MyFranchise = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Service Name", accessor: "name" },
-      { Header: "Category", accessor: "category_name" },
+      { Header: "Category Name", accessor: "category_name" },
+      { Header: "Service Name", accessor: "name", sort: true },
       {
         Header: "Status",
         accessor: "is_active",
         className: "my-franchise-col-active-toggle",
         Cell: ({ row }: { row: any }) => {
           const svc = row.original as ServiceRow;
+          const active = coerceCatalogRowActive(svc.is_active);
           return (
             <Form.Check
               type="switch"
               id={`franchise-service-active-${svc._id}`}
-              className="franchise-chat-switch franchise-status-switch"
-              checked={coerceCatalogRowActive(svc.is_active)}
+              className={`franchise-chat-switch franchise-status-switch${
+                active ? " franchise-status-switch--on" : ""
+              }`}
+              checked={active}
               aria-label={
-                coerceCatalogRowActive(svc.is_active)
+                active
                   ? "Active, switch to deactivate"
                   : "Inactive, switch to activate"
               }
               title={
-                coerceCatalogRowActive(svc.is_active)
+                active
                   ? "Active — turn off to deactivate"
                   : "Inactive — turn on to activate"
               }
               onChange={(e) => {
                 e.stopPropagation();
                 const toggleId =
-                  String(svc.service_id ?? "").trim() ||
-                  String(svc._id ?? "").trim();
+                  String(svc._id ?? "").trim() ||
+                  String(svc.service_id ?? "").trim();
                 void setServiceActive(toggleId, e.target.checked);
               }}
               onClick={(e) => e.stopPropagation()}
@@ -1138,7 +1190,7 @@ const MyFranchise = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      { Header: "Category Name", accessor: "name" },
+      { Header: "Category Name", accessor: "name", sort: true },
       {
         Header: "Services",
         accessor: "service_names_display",
@@ -1153,19 +1205,22 @@ const MyFranchise = () => {
         className: "my-franchise-col-active-toggle",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original as CategoryRow;
+          const active = coerceCatalogRowActive(cat.is_active);
           return (
             <Form.Check
               type="switch"
               id={`franchise-category-active-${cat._id}`}
-              className="franchise-chat-switch franchise-status-switch"
-              checked={coerceCatalogRowActive(cat.is_active)}
+              className={`franchise-chat-switch franchise-status-switch${
+                active ? " franchise-status-switch--on" : ""
+              }`}
+              checked={active}
               aria-label={
-                coerceCatalogRowActive(cat.is_active)
+                active
                   ? "Active, switch to deactivate"
                   : "Inactive, switch to activate"
               }
               title={
-                coerceCatalogRowActive(cat.is_active)
+                active
                   ? "Active — turn off to deactivate"
                   : "Inactive — turn on to activate"
               }
@@ -1292,6 +1347,7 @@ const MyFranchise = () => {
                       setSelectedBox("box-services");
                       setServicesViewMode("requested");
                       setStatusFilter(undefined);
+                      setServiceSortBy([]);
                       setCurrentPage(1);
                     }
                   }
@@ -1301,6 +1357,7 @@ const MyFranchise = () => {
                       setSelectedBox("box-categories");
                       setCategoriesViewMode("requested");
                       setStatusFilter(undefined);
+                      setCategorySortBy([]);
                       setCurrentPage(1);
                     }
                   }
@@ -1314,7 +1371,6 @@ const MyFranchise = () => {
         title={utilityTitle}
         searchHint={utilitySearchHint}
         hideUtilityActions
-        toolsInlineRow
         onSearch={(value) => {
           setSearchKeyword(value);
           setCurrentPage(1);
@@ -1345,12 +1401,41 @@ const MyFranchise = () => {
             setPageSize(limit);
             setCurrentPage(1);
           }}
-          manualSortBy={selectedBox === "box-areas"}
-          sortBy={selectedBox === "box-areas" ? areaSortBy : []}
+          manualSortBy={
+            selectedBox === "box-areas" ||
+            (selectedBox === "box-services" && servicesViewMode === "catalog") ||
+            (selectedBox === "box-categories" && categoriesViewMode === "catalog")
+          }
+          sortBy={
+            selectedBox === "box-areas"
+              ? areaSortBy
+              : selectedBox === "box-services" && servicesViewMode === "catalog"
+              ? serviceSortBy
+              : selectedBox === "box-categories" && categoriesViewMode === "catalog"
+              ? categorySortBy
+              : []
+          }
           onSortChange={(next) => {
-            if (selectedBox !== "box-areas") return;
-            setAreaSortBy(next);
-            setCurrentPage(1);
+            if (selectedBox === "box-areas") {
+              setAreaSortBy(next);
+              setCurrentPage(1);
+              return;
+            }
+            if (
+              selectedBox === "box-services" &&
+              servicesViewMode === "catalog"
+            ) {
+              setServiceSortBy(next);
+              setCurrentPage(1);
+              return;
+            }
+            if (
+              selectedBox === "box-categories" &&
+              categoriesViewMode === "catalog"
+            ) {
+              setCategorySortBy(next);
+              setCurrentPage(1);
+            }
           }}
           theadClass="table-light"
         />

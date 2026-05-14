@@ -32,6 +32,7 @@ import { ExpenseModel } from "../../models/ExpenseModel";
 import { ExpenseCategoryModel } from "../../models/SettingsModel";
 import { buildExpensesCsv, downloadExpensesCsv } from "../../helper/expensesExport";
 import { getLocalStorage } from "../../helper/localStorageHelper";
+import { readHeaderFranchisePreference } from "../../helper/headerFranchisePreference";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import type { ServerTableSortBy } from "../../helper/serverTableSort";
 import { fetchUserById } from "../../services/userService";
@@ -100,7 +101,9 @@ const ExpensesPage = () => {
   // Forces `CustomUtilityBox` remount so its internal search input clears too.
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
-  const [franchiseId, setFranchiseId] = useState("");
+  const [franchiseId, setFranchiseId] = useState(() =>
+    readHeaderFranchisePreference()
+  );
   /** Same franchise as login `partnerId` (API `franchise_id`); used to scope list + detail/delete calls for franchise admin & employee. */
   const [sessionFranchiseId, setSessionFranchiseId] = useState(() => {
     const role = getLocalStorage(AppConstant.userRole);

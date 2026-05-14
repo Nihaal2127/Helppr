@@ -37,6 +37,11 @@ interface CustomFormSelectProps {
   includeEmptyOption?: boolean;
   /** Label for the empty-value row when `includeEmptyOption` is true (default: `Select`). */
   emptyOptionLabel?: string;
+  /**
+   * When the user clears the react-select (×), set this value instead of `""`.
+   * Use `"all"` for the global franchise header so “clear” means all franchises.
+   */
+  clearResetsTo?: string;
 }
 
 const DEFAULT_SELECT_LABEL = "Select";
@@ -62,6 +67,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   isClearable = true,
   includeEmptyOption = false,
   emptyOptionLabel,
+  clearResetsTo,
 }) => {
   const [selectedOption, setSelectedOption] = useState<{
     value: string;
@@ -123,9 +129,18 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   }, [defaultValue, optionsSyncKey, fieldName, isValue]);
 
   const handleChange = (option: { value: string; label: string } | null) => {
-    setSelectedOption(option);
-    const value = option?.value || "";
-    const label = option?.label || "";
+    let next = option;
+    if (!option && clearResetsTo !== undefined) {
+      const v = String(clearResetsTo);
+      next =
+        normalizedOptions.find((o) => String(o.value) === v) ?? {
+          value: v,
+          label: v,
+        };
+    }
+    setSelectedOption(next);
+    const value = next?.value ?? "";
+    const label = next?.label ?? "";
     if (setValue) {
       if (isValue) {
         setValue(`${fieldName}_label`, label);
@@ -300,7 +315,9 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
         placeholder={placeholder ?? DEFAULT_SELECT_LABEL}
         onBlur={() => {
           if (!selectedOption && setValue) {
-            setValue(fieldName, "", { shouldValidate: false });
+            const fallback =
+              clearResetsTo !== undefined ? String(clearResetsTo) : "";
+            setValue(fieldName, fallback, { shouldValidate: false });
           }
         }}
         styles={customStyles}

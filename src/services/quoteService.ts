@@ -90,6 +90,8 @@ export type FranchiseRelatedCatalogRecord = {
   services?: unknown[];
   partners?: unknown[];
   employees?: unknown[];
+  /** End users scoped to this catalog response (staging shape). */
+  customers?: unknown[];
 };
 
 function asObjectRecords(v: unknown): Record<string, unknown>[] {
@@ -164,6 +166,7 @@ export type MappedFranchiseQuoteCatalog = {
   quotePartnerRecords: Record<string, unknown>[];
   quoteEmployeeOptions: OptionType[];
   quoteEmployeeRecords: Record<string, unknown>[];
+  quoteUserOptions: QuoteUserOption[];
 };
 
 function categoryIdFromFranchiseCategoryRow(
@@ -185,8 +188,158 @@ function categoryNameFromFranchiseCategoryRow(
   return str(fc.name ?? nested?.name ?? nested?.category_name);
 }
 
+/** Staging `record.categories[]`: `{ category_id, is_active, category?: { _id, name } }`. */
+function categoryIdFromHydratedRow(c: Record<string, unknown>): string {
+  const nested = c.category as Record<string, unknown> | undefined;
+  return str(
+    c.category_id ?? nested?._id ?? nested?.id ?? c._id ?? c.id
+  );
+}
+
+function categoryNameFromHydratedRow(c: Record<string, unknown>): string {
+  const nested = c.category as Record<string, unknown> | undefined;
+  return str(
+    nested?.name ?? nested?.category_name ?? c.name ?? c.category_name
+  );
+}
+
+function mergeCategoriesFromFranchiseCategoryDocs(
+  record: FranchiseRelatedCatalogRecord,
+  catById: Map<string, string>
+): void {
+  for (const doc of asObjectRecords(record.franchise_categories)) {
+    const list = doc.categories_list;
+    if (!Array.isArray(list)) {
+      const id = categoryIdFromFranchiseCategoryRow(doc);
+      if (!id) continue;
+      const active = doc.is_active !== false && doc.is_active !== 0;
+      if ("is_active" in doc && !active) continue;
+      const name = categoryNameFromFranchiseCategoryRow(doc) || id;
+      if (!catById.has(id)) catById.set(id, name);
+      continue;
+    }
+    const activeSet = new Set(
+      Array.isArray(doc.active_categories)
+        ? (doc.active_categories as unknown[]).map((x) => str(x)).filter(Boolean)
+        : []
+    );
+    for (const row of asObjectRecords(list as unknown[])) {
+      const cid = str(row.category_id ?? row._id ?? row.id);
+      if (!cid) continue;
+      if (activeSet.size > 0 && !activeSet.has(cid)) continue;
+      if (row.is_active === false || row.is_active === 0) continue;
+      const nested = row.category as Record<string, unknown> | undefined;
+      const name =
+        str(nested?.name ?? nested?.category_name) ||
+        categoryNameFromFranchiseCategoryRow(row) ||
+        cid;
+      if (!catById.has(cid)) catById.set(cid, name);
+    }
+  }
+}
+
+function collectFranchiseActiveServiceIds(
+  record: FranchiseRelatedCatalogRecord
+): Set<string> {
+  const ids = new Set<string>();
+  for (const doc of asObjectRecords(record.franchise_services)) {
+    if (!Array.isArray(doc.active_services)) continue;
+    for (const x of doc.active_services as unknown[]) {
+      const id = str(x);
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function mergeServicesFromFranchiseServiceDocs(
+  record: FranchiseRelatedCatalogRecord,
+  catById: Map<string, string>,
+  franchiseActiveSvcIds: Set<string>,
+  seenSvc: Set<string>,
+  out: ServiceDropDownOption[]
+): void {
+  const detailByServiceId = new Map<string, Record<string, unknown>>();
+  for (const s of asObjectRecords(record.services)) {
+    const inner = s.service as Record<string, unknown> | undefined;
+    const sid = str(s.service_id ?? inner?._id ?? s._id ?? s.id);
+    if (!sid) continue;
+    detailByServiceId.set(sid, inner ?? s);
+  }
+
+  for (const doc of asObjectRecords(record.franchise_services)) {
+    const list = doc.services_list;
+    if (!Array.isArray(list)) {
+      const inner = doc.service as Record<string, unknown> | undefined;
+      const id = str(doc.service_id ?? inner?._id ?? doc._id);
+      if (!id || seenSvc.has(id)) continue;
+      if (doc.is_active === false || doc.is_active === 0) continue;
+      const catRef = inner
+        ? normalizeServiceCategoryRef(
+            inner.category_id ?? inner.category ?? inner.categoryId
+          )
+        : normalizeServiceCategoryRef(
+            doc.category_id ?? doc.category ?? doc.categoryId
+          );
+      const allow =
+        !catRef ||
+        catById.size === 0 ||
+        catById.has(catRef) ||
+        franchiseActiveSvcIds.has(id);
+      if (!allow) continue;
+      seenSvc.add(id);
+      out.push({
+        value: id,
+        label: str(inner?.name ?? doc.name) || id,
+        price: inner?.price != null ? Number(inner.price) : undefined,
+        category_id: catRef || undefined,
+        payment_type: str(
+          inner?.payment_type ?? inner?.min_deposit_type ?? ""
+        ),
+      });
+      continue;
+    }
+    const activeSet = new Set(
+      Array.isArray(doc.active_services)
+        ? (doc.active_services as unknown[]).map((x) => str(x)).filter(Boolean)
+        : []
+    );
+    for (const row of asObjectRecords(list as unknown[])) {
+      const sid = str(row.service_id ?? row._id ?? row.id);
+      if (!sid || seenSvc.has(sid)) continue;
+      if (activeSet.size > 0 && !activeSet.has(sid)) continue;
+      if (row.is_active === false || row.is_active === 0) continue;
+      const inner =
+        (row.service as Record<string, unknown> | undefined) ??
+        detailByServiceId.get(sid);
+      const catRef = inner
+        ? normalizeServiceCategoryRef(
+            inner.category_id ?? inner.category ?? inner.categoryId
+          )
+        : "";
+      const allow =
+        !catRef ||
+        catById.size === 0 ||
+        catById.has(catRef) ||
+        franchiseActiveSvcIds.has(sid);
+      if (!allow) continue;
+      seenSvc.add(sid);
+      out.push({
+        value: sid,
+        label: str(inner?.name ?? row.name) || sid,
+        price: inner?.price != null ? Number(inner.price) : undefined,
+        category_id: catRef || undefined,
+        payment_type: str(
+          inner?.payment_type ?? inner?.min_deposit_type ?? ""
+        ),
+      });
+    }
+  }
+}
+
 /**
- * Maps `related-catalog` payload into quote form dropdowns (categories, services, partners, employees).
+ * Maps `related-catalog` payload into quote form dropdowns (categories, services, partners, employees, customers).
+ * Supports hydrated `categories` / `services` / `customers` rows (staging) and mapping-doc shapes as fallback.
  */
 export function mapRelatedCatalogToQuoteOptions(
   record: FranchiseRelatedCatalogRecord | null | undefined
@@ -197,71 +350,88 @@ export function mapRelatedCatalogToQuoteOptions(
     quotePartnerRecords: [],
     quoteEmployeeOptions: [],
     quoteEmployeeRecords: [],
+    quoteUserOptions: [],
   };
   if (!record) return out;
 
   const catById = new Map<string, string>();
 
   for (const c of asObjectRecords(record.categories)) {
-    const id = str(c._id ?? c.id);
+    const id = categoryIdFromHydratedRow(c);
     if (!id) continue;
-    const name = str(c.name ?? c.category_name) || id;
+    const rowActive = c.is_active !== false && c.is_active !== 0;
+    if ("is_active" in c && !rowActive) continue;
+    const nested = c.category as Record<string, unknown> | undefined;
+    if (nested && "is_active" in nested) {
+      const na = nested.is_active !== false && nested.is_active !== 0;
+      if (!na) continue;
+    }
+    const name = categoryNameFromHydratedRow(c) || id;
     catById.set(id, name);
   }
 
-  for (const fc of asObjectRecords(record.franchise_categories)) {
-    const id = categoryIdFromFranchiseCategoryRow(fc);
-    if (!id) continue;
-    const active = fc.is_active !== false && fc.is_active !== 0;
-    if ("is_active" in fc && !active) continue;
-    const name = categoryNameFromFranchiseCategoryRow(fc) || id;
-    if (!catById.has(id)) catById.set(id, name);
-  }
+  mergeCategoriesFromFranchiseCategoryDocs(record, catById);
+
+  const franchiseActiveSvcIds = collectFranchiseActiveServiceIds(record);
 
   out.quoteCategoryOptions = Array.from(catById.entries())
     .map(([value, label]) => ({ value, label }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const serviceRows = asObjectRecords(record.services);
   const seenSvc = new Set<string>();
-  for (const s of serviceRows) {
-    const id = str(s._id ?? s.id ?? s.service_id);
-    if (!id || seenSvc.has(id)) continue;
-    seenSvc.add(id);
-    const catRef = normalizeServiceCategoryRef(
-      s.category_id ?? s.category ?? s.categoryId
-    );
-    out.quoteCatalogServices.push({
-      value: id,
-      label: str(s.name ?? s.service_name) || id,
-      price: s.price != null ? Number(s.price) : undefined,
-      category_id: catRef || undefined,
-      payment_type: str(s.payment_type ?? s.min_deposit_type ?? ""),
-    });
-  }
 
-  for (const fs of asObjectRecords(record.franchise_services)) {
-    const inner = fs.service as Record<string, unknown> | undefined;
+  for (const s of asObjectRecords(record.services)) {
+    const inner = s.service as Record<string, unknown> | undefined;
     const id = str(
-      fs.service_id ?? inner?._id ?? fs._id
+      s.service_id ?? s._id ?? s.id ?? inner?._id ?? inner?.id
     );
     if (!id || seenSvc.has(id)) continue;
-    if (fs.is_active === false || fs.is_active === 0) continue;
-    seenSvc.add(id);
+    const rowActive = s.is_active !== false && s.is_active !== 0;
+    if ("is_active" in s && !rowActive) continue;
     const catRef = inner
       ? normalizeServiceCategoryRef(
           inner.category_id ?? inner.category ?? inner.categoryId
         )
-      : "";
+      : normalizeServiceCategoryRef(
+          s.category_id ?? s.category ?? s.categoryId
+        );
+    const allowSvc =
+      !catRef ||
+      catById.size === 0 ||
+      catById.has(catRef) ||
+      franchiseActiveSvcIds.has(id);
+    if (!allowSvc) continue;
+    seenSvc.add(id);
     out.quoteCatalogServices.push({
       value: id,
-      label: str(inner?.name ?? fs.name) || id,
-      price: inner?.price != null ? Number(inner.price) : undefined,
+      label:
+        str(inner?.name ?? inner?.service_name ?? s.name ?? s.service_name) ||
+        id,
+      price:
+        inner?.price != null
+          ? Number(inner.price)
+          : s.price != null
+          ? Number(s.price)
+          : undefined,
       category_id: catRef || undefined,
       payment_type: str(
-        inner?.payment_type ?? inner?.min_deposit_type ?? ""
+        inner?.payment_type ??
+          inner?.min_deposit_type ??
+          s.payment_type ??
+          s.min_deposit_type ??
+          ""
       ),
     });
+  }
+
+  if (!seenSvc.size) {
+    mergeServicesFromFranchiseServiceDocs(
+      record,
+      catById,
+      franchiseActiveSvcIds,
+      seenSvc,
+      out.quoteCatalogServices
+    );
   }
 
   out.quoteCatalogServices.sort((a, b) => a.label.localeCompare(b.label));
@@ -282,7 +452,49 @@ export function mapRelatedCatalogToQuoteOptions(
   }
   out.quoteEmployeeOptions.sort((a, b) => a.label.localeCompare(b.label));
 
+  for (const u of asObjectRecords(record.customers)) {
+    const id = str(u._id ?? u.id);
+    if (!id) continue;
+    const name = str(u.name) || id;
+    const phone = str(u.phone_number);
+    const label = phone ? `${name} (${phone})` : name;
+    out.quoteUserOptions.push({ value: id, label, user_name: name });
+  }
+  out.quoteUserOptions.sort((a, b) =>
+    a.user_name.localeCompare(b.user_name)
+  );
+
   return out;
+}
+
+/**
+ * Service ids a partner is configured to provide (`active_services_providing`, etc.).
+ * Returns `null` when missing or empty ⇒ **no restriction** (use full franchise catalog).
+ */
+export function getPartnerProvidingServiceIdSet(
+  partner: Record<string, unknown> | null | undefined
+): Set<string> | null {
+  if (!partner) return null;
+  const raw =
+    partner.active_services_providing ??
+    partner.activeServicesProviding ??
+    partner.services_providing;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out = new Set<string>();
+  for (const x of raw as unknown[]) {
+    if (x == null) continue;
+    if (typeof x === "string" || typeof x === "number") {
+      const id = str(x);
+      if (id) out.add(id);
+      continue;
+    }
+    if (typeof x === "object") {
+      const o = x as Record<string, unknown>;
+      const id = str(o.service_id ?? o._id ?? o.id);
+      if (id) out.add(id);
+    }
+  }
+  return out.size ? out : null;
 }
 
 /** Prefer partners linked to `serviceId` when the API exposes linkage; otherwise full list. */

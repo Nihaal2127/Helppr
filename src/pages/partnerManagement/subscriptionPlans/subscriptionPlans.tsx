@@ -33,6 +33,7 @@ import { fetchAreaDropDown } from "../../../services/areaService";
 import type { ServerTableSortBy } from "../../../helper/serverTableSort";
 import { AppConstant, UserRole } from "../../../constant/AppConstant";
 import { getLocalStorage } from "../../../helper/localStorageHelper";
+import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
 import { fetchUserById } from "../../../services/userService";
 
 /** Days from today until `endDateStr` (date-only); negative if already past. */
@@ -114,7 +115,7 @@ const PARTNER_PLAN_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
 
 const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const { register, setValue, watch } = useForm<any>({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
   const headerFranchiseId = watch("franchise_id") as string | undefined;
   const currentUserRole = getLocalStorage(AppConstant.userRole);

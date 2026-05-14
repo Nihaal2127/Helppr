@@ -28,7 +28,7 @@ import {
   deleteQuote,
   fetchFranchiseRelatedCatalog,
   fetchQuotes,
-  filterCatalogPartnerRecordsByService,
+  getPartnerProvidingServiceIdSet,
   getQuoteScheduleModeFromServiceOption,
   mapRelatedCatalogToQuoteOptions,
   normalizeQuoteListSort,
@@ -40,6 +40,7 @@ import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import { fetchUserById } from "../../services/userService";
 import { getLocalStorage } from "../../helper/localStorageHelper";
+import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
 import { AppConstant, UserRole } from "../../constant/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
@@ -245,7 +246,7 @@ const QuoteManagement = () => {
       defaultValues: { from_date: "", to_date: "" },
     });
   const { register, setValue, watch } = useForm<any>({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
   const headerFranchiseScope = watch("franchise_id") as string | undefined;
   const {
@@ -254,7 +255,7 @@ const QuoteManagement = () => {
     setValue: setAddQuoteValue,
     watch: watchAddQuote,
     reset: resetAddQuote,
-    formState: { errors: addQuoteErrors },
+    formState: { errors: addQuoteErrors, isSubmitted: addQuoteFormSubmitted },
   } = useForm<AddQuoteFormValues>({
     defaultValues: {
       franchise_id: "",
@@ -280,45 +281,6 @@ const QuoteManagement = () => {
   const [catalogPartnerRecords, setCatalogPartnerRecords] = useState<
     Record<string, unknown>[]
   >([]);
-  const addQuoteServiceId = String(addQuote.requested_services ?? "").trim();
-  const hasAddQuoteServiceSelected = Boolean(addQuoteServiceId);
-  /** Single memo avoids TDZ / ordering issues between filtered services and derived schedule mode. */
-  const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
-    const cid = String(addQuote.category_id ?? "").trim();
-    const quoteServiceOptionsForCategory = !cid
-      ? []
-      : quoteCatalogServices.filter((o) => {
-          const ref = normalizeServiceCategoryRef(o.category_id);
-          return ref === cid;
-        });
-    const sid = String(addQuote.requested_services ?? "").trim();
-    const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
-    return {
-      quoteServiceOptionsForCategory,
-      scheduleMode: getQuoteScheduleModeFromServiceOption({
-        payment_type: opt?.payment_type,
-        label: opt?.label ?? "",
-      }),
-    };
-  }, [addQuote.category_id, addQuote.requested_services, quoteCatalogServices]);
-  const isAddQuoteScheduleComplete = useMemo(() => {
-    if (!hasAddQuoteServiceSelected) return false;
-    const d = String(addQuote.requested_date ?? "").trim();
-    const dTo = String(addQuote.requested_date_to ?? "").trim();
-    const tFrom = String(addQuote.requested_time_from ?? "").trim();
-    const tTo = String(addQuote.requested_time_to ?? "").trim();
-    if (scheduleMode === "range") {
-      return Boolean(d && dTo && tFrom && tTo);
-    }
-    return Boolean(d && tFrom && tTo);
-  }, [
-    hasAddQuoteServiceSelected,
-    scheduleMode,
-    addQuote.requested_date,
-    addQuote.requested_date_to,
-    addQuote.requested_time_from,
-    addQuote.requested_time_to,
-  ]);
   const [quotePartnerOptions, setQuotePartnerOptions] = useState<OptionType[]>(
     []
   );
@@ -331,6 +293,8 @@ const QuoteManagement = () => {
   const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
     OptionType[]
   >([]);
+  const addQuoteServiceId = String(addQuote.requested_services ?? "").trim();
+  const hasAddQuoteServiceSelected = Boolean(addQuoteServiceId);
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isSuperAdminOrStaff =
     currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
@@ -393,6 +357,7 @@ const QuoteManagement = () => {
         setQuoteEmployeeOptions([]);
         setCatalogPartnerRecords([]);
         setQuotePartnerOptions([]);
+        setQuoteUserOptions([]);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
       }
@@ -405,6 +370,7 @@ const QuoteManagement = () => {
         setQuoteEmployeeOptions([]);
         setCatalogPartnerRecords([]);
         setQuotePartnerOptions([]);
+        setQuoteUserOptions([]);
         setQuoteFranchiseCatalogSnapshot(null);
         return;
       }
@@ -412,6 +378,7 @@ const QuoteManagement = () => {
       setQuoteCategoryOptions(mapped.quoteCategoryOptions);
       setQuoteCatalogServices(mapped.quoteCatalogServices);
       setQuoteEmployeeOptions(mapped.quoteEmployeeOptions);
+      setQuoteUserOptions(mapped.quoteUserOptions);
       setCatalogPartnerRecords(mapped.quotePartnerRecords);
       setQuoteFranchiseCatalogSnapshot({
         partnerRecords: mapped.quotePartnerRecords,
@@ -443,6 +410,80 @@ const QuoteManagement = () => {
     summary: string;
   }>({ ready: false, summary: "" });
 
+  const addQuotePartnerSelected = Boolean(
+    String(addQuote.requested_partner ?? "").trim()
+  );
+
+  const selectedPartnerCatalogRecord = useMemo(() => {
+    const pid = String(addQuote.requested_partner ?? "").trim();
+    if (!pid) return null;
+    return (
+      catalogPartnerRecords.find(
+        (p) =>
+          String(p.partner_id ?? p._id ?? p.user_id ?? p.id ?? "").trim() ===
+          pid
+      ) ?? null
+    );
+  }, [addQuote.requested_partner, catalogPartnerRecords]);
+
+  const quoteCatalogServicesForPartner = useMemo(() => {
+    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
+    if (!allow) return quoteCatalogServices;
+    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
+  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+
+  const quoteCategoryOptionsForPartner = useMemo(() => {
+    const catIds = new Set(
+      quoteCatalogServicesForPartner
+        .map((o) => normalizeServiceCategoryRef(o.category_id))
+        .filter(Boolean)
+    );
+    if (!catIds.size) return quoteCategoryOptions;
+    return quoteCategoryOptions.filter((c) => catIds.has(String(c.value)));
+  }, [quoteCategoryOptions, quoteCatalogServicesForPartner]);
+
+  const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
+    const cid = String(addQuote.category_id ?? "").trim();
+    const quoteServiceOptionsForCategory = !cid
+      ? []
+      : quoteCatalogServicesForPartner.filter((o) => {
+          const ref = normalizeServiceCategoryRef(o.category_id);
+          return ref === cid;
+        });
+    const sid = String(addQuote.requested_services ?? "").trim();
+    const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
+    return {
+      quoteServiceOptionsForCategory,
+      scheduleMode: getQuoteScheduleModeFromServiceOption({
+        payment_type: opt?.payment_type,
+        label: opt?.label ?? "",
+      }),
+    };
+  }, [
+    addQuote.category_id,
+    addQuote.requested_services,
+    quoteCatalogServicesForPartner,
+  ]);
+
+  const isAddQuoteScheduleComplete = useMemo(() => {
+    if (!hasAddQuoteServiceSelected) return false;
+    const d = String(addQuote.requested_date ?? "").trim();
+    const dTo = String(addQuote.requested_date_to ?? "").trim();
+    const tFrom = String(addQuote.requested_time_from ?? "").trim();
+    const tTo = String(addQuote.requested_time_to ?? "").trim();
+    if (scheduleMode === "range") {
+      return Boolean(d && dTo && tFrom && tTo);
+    }
+    return Boolean(d && tFrom && tTo);
+  }, [
+    hasAddQuoteServiceSelected,
+    scheduleMode,
+    addQuote.requested_date,
+    addQuote.requested_date_to,
+    addQuote.requested_time_from,
+    addQuote.requested_time_to,
+  ]);
+
   const userSelectOptions = useMemo<OptionType[]>(
     () => quoteUserOptions.map((u) => ({ value: u.value, label: u.label })),
     [quoteUserOptions]
@@ -455,7 +496,8 @@ const QuoteManagement = () => {
   >({});
   const [sortBy, setSortBy] = useState<QuoteListSort>([]);
 
-  const fetchRef = useRef(false);
+  /** Ignore stale `fetchQuotes` responses when inputs change quickly (avoids `fetchRef` skipping in-flight work). */
+  const quoteListFetchSeqRef = useRef(0);
 
   const quoteListFilters = useMemo(
     () => ({
@@ -480,32 +522,28 @@ const QuoteManagement = () => {
     ]
   );
 
-  /** First list load runs after tab totals (`getCount`); later filter/tab/page changes only refetch the active tab list. */
+  /** Refetch the paginated list for the active tab (not tab totals — those use `refreshQuoteSummaryFromGetCount`). */
   const fetchData = useCallback(async () => {
     if (!isSuperAdminOrStaff && !effectiveFranchiseId) {
       setQuoteRows([]);
       setTotalPages(0);
       return;
     }
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    try {
-      const res = await fetchQuotes(
-        selectedTab,
-        currentPage,
-        pageSize,
-        quoteListFilters,
-        sortBy
-      );
-      if (res.response) {
-        setQuoteRows(res.quotes);
-        setTotalPages(res.totalPages);
-      } else {
-        setQuoteRows([]);
-        setTotalPages(0);
-      }
-    } finally {
-      fetchRef.current = false;
+    const seq = (quoteListFetchSeqRef.current += 1);
+    const res = await fetchQuotes(
+      selectedTab,
+      currentPage,
+      pageSize,
+      quoteListFilters,
+      sortBy
+    );
+    if (seq !== quoteListFetchSeqRef.current) return;
+    if (res.response) {
+      setQuoteRows(res.quotes);
+      setTotalPages(res.totalPages);
+    } else {
+      setQuoteRows([]);
+      setTotalPages(0);
     }
   }, [
     currentPage,
@@ -517,8 +555,12 @@ const QuoteManagement = () => {
     sortBy,
   ]);
 
+  /** Ignore stale `getCount` responses when the header franchise filter changes quickly. */
+  const quoteCountsReqSeqRef = useRef(0);
+
   /** Tab badges: `POST /getCount` with `{ type: "quote-management", franchise_id? }`. */
   const refreshQuoteSummaryFromGetCount = useCallback(async () => {
+    const seq = (quoteCountsReqSeqRef.current += 1);
     const fid = String(headerFranchiseScope ?? "").trim();
     const scope =
       fid && fid !== "all" ? { franchise_id: fid } : undefined;
@@ -526,6 +568,7 @@ const QuoteManagement = () => {
       "quote-management",
       scope
     );
+    if (seq !== quoteCountsReqSeqRef.current) return;
     const rec =
       countModel != null
         ? (countModel as unknown as Record<string, unknown>)
@@ -551,9 +594,12 @@ const QuoteManagement = () => {
     []
   );
 
-  /** Franchise dropdown for super admin/staff (page scope). */
+  /**
+   * Franchise options for Create Quote only (super admin / staff).
+   * Loads when the modal opens so we do not duplicate the header’s same `fetchFranchiseDropDown` on every page visit.
+   */
   useEffect(() => {
-    if (!isSuperAdminOrStaff) return;
+    if (!isSuperAdminOrStaff || !showAddQuote) return;
     let cancelled = false;
     (async () => {
       const rows = await fetchFranchiseDropDown();
@@ -563,7 +609,7 @@ const QuoteManagement = () => {
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdminOrStaff]);
+  }, [isSuperAdminOrStaff, showAddQuote]);
 
   useEffect(() => {
     if (!showAddQuote) return;
@@ -575,12 +621,7 @@ const QuoteManagement = () => {
   ]);
 
   useEffect(() => {
-    const sid = String(addQuote.requested_services ?? "").trim();
-    const src = filterCatalogPartnerRecordsByService(
-      catalogPartnerRecords,
-      sid || undefined
-    );
-    const opts = src.map((p) => {
+    const opts = catalogPartnerRecords.map((p) => {
       const value = String(
         p.partner_id ?? p._id ?? p.user_id ?? p.id ?? ""
       ).trim();
@@ -590,7 +631,31 @@ const QuoteManagement = () => {
       return { value, label: label || value };
     });
     setQuotePartnerOptions(opts.filter((o) => o.value));
-  }, [addQuote.requested_services, catalogPartnerRecords]);
+  }, [catalogPartnerRecords]);
+
+  /** Clear category/service if partner-scoped options no longer include the current category. */
+  useEffect(() => {
+    if (!addQuotePartnerSelected) return;
+    const cid = String(addQuote.category_id ?? "").trim();
+    if (!cid) return;
+    const ok = quoteCategoryOptionsForPartner.some(
+      (c) => String(c.value) === cid
+    );
+    if (ok) return;
+    setAddQuoteValue("category_id", "", { shouldValidate: false });
+    setAddQuoteValue("requested_services", "", { shouldValidate: false });
+    setAddQuoteValue("requested_date", "", { shouldValidate: false });
+    setAddQuoteValue("requested_date_to", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time_from", "", { shouldValidate: false });
+    setAddQuoteValue("requested_time_to", "", { shouldValidate: false });
+    setAddQuoteValue("service_price", "", { shouldValidate: false });
+  }, [
+    addQuotePartnerSelected,
+    addQuote.category_id,
+    quoteCategoryOptionsForPartner,
+    setAddQuoteValue,
+  ]);
 
   useEffect(() => {
     const uid = String(addQuote.user_id ?? "").trim();
@@ -619,17 +684,15 @@ const QuoteManagement = () => {
     };
   }, [addQuote.user_id]);
 
+  /** Tab badge totals: only when header franchise filter changes (same payload covers all tabs). */
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await refreshQuoteSummaryFromGetCount();
-      if (cancelled) return;
-      await fetchData();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchData, refreshQuoteSummaryFromGetCount, headerFranchiseScope]);
+    void refreshQuoteSummaryFromGetCount();
+  }, [refreshQuoteSummaryFromGetCount]);
+
+  /** Quote table: tab, page, sort, filters, franchise scope — without re-posting `getCount` each time. */
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   useEffect(
     () => () => {
@@ -813,6 +876,11 @@ const QuoteManagement = () => {
       showErrorAlert(
         "No saved address id found for this user. Ensure the customer has an address on file."
       );
+      return;
+    }
+
+    if (!String(data.requested_partner ?? "").trim()) {
+      showErrorAlert("Please select a partner before category and service.");
       return;
     }
 
@@ -1055,7 +1123,9 @@ const QuoteManagement = () => {
         show={showAddQuote}
         onHide={() => setShowAddQuote(false)}
         centered
-        size="lg"
+        size="xl"
+        dialogClassName="add-quote-modal-dialog"
+        contentClassName="add-quote-modal-content"
         enforceFocus={false}
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -1064,275 +1134,115 @@ const QuoteManagement = () => {
           </Modal.Title>
           <CustomCloseButton onClose={() => setShowAddQuote(false)} />
         </Modal.Header>
-        <Modal.Body className="px-4 pb-4 pt-0">
+        <Modal.Body className="add-quote-modal-body pt-0">
           <form
             id="quote-add-form"
             noValidate
             onSubmit={handleAddQuoteSubmit(onSubmitAddQuote)}
           >
-            <section
-              className="custom-other-details"
-              style={{ padding: "10px" }}
-            >
-              {isSuperAdminOrStaff ? (
-                <Row>
-                  <Col xs={12} md={6} className="mt-2">
-                    <Row className="align-items-start">
-                      <Col sm={4} className="d-flex align-items-start">
-                        <label
-                          htmlFor="add-quote-franchise"
-                          className="custom-profile-lable"
-                        >
-                          Franchise
-                        </label>
-                      </Col>
-                      <Col>
-                        <Form.Select
-                          id="add-quote-franchise"
-                          className="form-select custom-form-input"
-                          value={String(addQuote.franchise_id ?? "")}
-                          onChange={handleAddQuoteFranchiseChange}
-                          style={{
-                            boxShadow: "none",
-                            borderRadius: "8px",
-                            borderColor: "var(--primary-color)",
-                            fontSize: "14px",
-                            fontWeight: "normal",
-                            width: "100%",
-                            height: "35px",
-                            lineHeight: "18px",
-                            backgroundColor: "var(--bg-color)",
-                            fontFamily: "'Inter'",
-                            color: "var(--content-txt-color)",
-                            marginBottom: "10px",
-                          }}
-                        >
-                          <option value="">Select franchise…</option>
-                          {franchiseOptionsForQuote.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      </Col>
-                    </Row>
+            <section className="custom-other-details add-quote-form-section">
+              <div>
+                <Row className="gy-4 gx-md-5 align-items-start">
+                  {isSuperAdminOrStaff ? (
+                    <Col xs={12} md={6}>
+                      <Row className="align-items-start">
+                        <Col sm={4} className="d-flex align-items-start">
+                          <label
+                            htmlFor="add-quote-franchise"
+                            className="custom-profile-lable"
+                          >
+                            Franchise
+                          </label>
+                        </Col>
+                        <Col>
+                          <Form.Select
+                            id="add-quote-franchise"
+                            className="form-select custom-form-input"
+                            value={String(addQuote.franchise_id ?? "")}
+                            onChange={handleAddQuoteFranchiseChange}
+                            style={{
+                              boxShadow: "none",
+                              borderRadius: "8px",
+                              borderColor: "var(--primary-color)",
+                              fontSize: "14px",
+                              fontWeight: "normal",
+                              width: "100%",
+                              height: "35px",
+                              lineHeight: "18px",
+                              backgroundColor: "var(--bg-color)",
+                              fontFamily: "'Inter'",
+                              color: "var(--content-txt-color)",
+                            }}
+                          >
+                            <option value="">Select franchise…</option>
+                            {franchiseOptionsForQuote.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </Form.Select>
+                        </Col>
+                      </Row>
+                    </Col>
+                  ) : null}
+                  <Col xs={12} md={6}>
+                    <CustomTextFieldSelect
+                      label="User Name"
+                      controlId="add-quote-user"
+                      asCol={false}
+                      options={userSelectOptions}
+                      register={
+                        addQuoteRegister as unknown as UseFormRegister<any>
+                      }
+                      fieldName="user_id"
+                      error={addQuoteErrors.user_id}
+                      requiredMessage="Please select a user"
+                      defaultValue={addQuote.user_id}
+                      setValue={
+                        setAddQuoteValue as (name: string, value: any) => void
+                      }
+                      placeholder="Search user"
+                      menuPortal
+                      isClearable
+                      onChange={(e) => {
+                        const uid = String(e.target.value || "");
+                        const row = quoteUserOptions.find(
+                          (u) => u.value === uid
+                        );
+                        setAddQuoteValue("user_name", row?.user_name ?? "", {
+                          shouldValidate: addQuoteFormSubmitted,
+                        });
+                      }}
+                      isDisabled={addQuoteFieldsLocked}
+                    />
                   </Col>
-                </Row>
-              ) : null}
-              <div
-                style={
-                  addQuoteFieldsLocked
-                    ? {
-                        pointerEvents: "none",
-                        opacity: 0.55,
-                        userSelect: "none",
-                      }
-                    : undefined
-                }
-              >
-                <Row>
-                <Col xs={12} md={6} className="mt-2">
-                  <CustomTextFieldSelect
-                    label="User Name"
-                    controlId="add-quote-user"
-                    asCol={false}
-                    options={userSelectOptions}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    fieldName="user_id"
-                    error={addQuoteErrors.user_id}
-                    requiredMessage="Please select a user"
-                    defaultValue={addQuote.user_id}
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    placeholder="Search user"
-                    menuPortal
-                    isClearable
-                    onChange={(e) => {
-                      const uid = String(e.target.value || "");
-                      const row = quoteUserOptions.find((u) => u.value === uid);
-                      setAddQuoteValue("user_name", row?.user_name ?? "", {
-                        shouldValidate: true,
-                      });
-                    }}
-                    isDisabled={addQuoteFieldsLocked}
-                  />
-                </Col>
-                <Col xs={12} md={6} className="mt-2">
-                  <CustomTextFieldSelect
-                    label="Requested Partner"
-                    controlId="add-quote-partner"
-                    asCol={false}
-                    options={quotePartnerOptions}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    fieldName="requested_partner"
-                    error={addQuoteErrors.requested_partner}
-                    defaultValue={addQuote.requested_partner}
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    placeholder="Select partner"
-                    menuPortal
-                    isClearable
-                    isDisabled={addQuoteFieldsLocked}
-                  />
-                </Col>
-                </Row>
-                <Row>
-                <Col xs={12} md={6} className="mt-2">
-                  <CustomTextFieldSelect
-                    label="Category"
-                    controlId="add-quote-category"
-                    asCol={false}
-                    options={quoteCategoryOptions}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    fieldName="category_id"
-                    error={addQuoteErrors.category_id}
-                    requiredMessage="Please select a category"
-                    defaultValue={addQuote.category_id}
-                    isClearable
-                    setValue={(name: string, value: any) => {
-                      setAddQuoteValue(
-                        name as keyof AddQuoteFormValues,
-                        value,
-                        { shouldValidate: true }
-                      );
-                      if (name === "category_id") {
-                        setAddQuoteValue("requested_services", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_date", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_date_to", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time_from", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time_to", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("service_price", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("description", "", {
-                          shouldValidate: false,
-                        });
-                        if (!String(value ?? "").trim()) {
-                          setAddQuoteValue("requested_partner", "", {
-                            shouldValidate: false,
-                          });
-                          setAddQuoteValue("employee_id", "", {
-                            shouldValidate: false,
-                          });
+                  {!isSuperAdminOrStaff ? (
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="Employee"
+                        controlId="add-quote-employee"
+                        asCol={false}
+                        options={quoteEmployeeOptions}
+                        register={
+                          addQuoteRegister as unknown as UseFormRegister<any>
                         }
-                      }
-                    }}
-                    placeholder="Select category"
-                    menuPortal
-                    isDisabled={addQuoteFieldsLocked}
-                  />
-                </Col>
-                <Col xs={12} md={6} className="mt-2">
-                  <CustomTextFieldSelect
-                    key={`add-quote-svc-${addQuote.category_id || "none"}`}
-                    label="Requested Services"
-                    controlId="add-quote-service"
-                    asCol={false}
-                    options={quoteServiceOptionsForCategory}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    fieldName="requested_services"
-                    error={addQuoteErrors.requested_services}
-                    requiredMessage={
-                      addQuote.category_id
-                        ? "Please select a service"
-                        : undefined
-                    }
-                    defaultValue={addQuote.requested_services}
-                    setValue={(name: string, value: any) => {
-                      setAddQuoteValue(
-                        name as keyof AddQuoteFormValues,
-                        value,
-                        { shouldValidate: true }
-                      );
-                      if (name === "requested_services") {
-                        setAddQuoteValue("requested_date", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_date_to", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time_from", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("requested_time_to", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("service_price", "", {
-                          shouldValidate: false,
-                        });
-                        setAddQuoteValue("description", "", {
-                          shouldValidate: false,
-                        });
-                        if (!String(value ?? "").trim()) {
-                          setAddQuoteValue("requested_partner", "", {
-                            shouldValidate: false,
-                          });
+                        fieldName="employee_id"
+                        error={addQuoteErrors.employee_id}
+                        defaultValue={addQuote.employee_id}
+                        setValue={
+                          setAddQuoteValue as (name: string, value: any) => void
                         }
-                      }
-                    }}
-                    placeholder={
-                      addQuote.category_id
-                        ? "Select service"
-                        : "Select category first"
-                    }
-                    menuPortal
-                    isClearable
-                    isDisabled={addQuoteFieldsLocked}
-                  />
-                </Col>
-                </Row>
-                <Row>
-                <Col xs={12} md={6} className="mt-2">
-                  <CustomTextFieldSelect
-                    label="Employee"
-                    controlId="add-quote-employee"
-                    asCol={false}
-                    options={quoteEmployeeOptions}
-                    register={
-                      addQuoteRegister as unknown as UseFormRegister<any>
-                    }
-                    fieldName="employee_id"
-                    error={addQuoteErrors.employee_id}
-                    defaultValue={addQuote.employee_id}
-                    setValue={
-                      setAddQuoteValue as (name: string, value: any) => void
-                    }
-                    placeholder="Select employee"
-                    menuPortal
-                    isClearable
-                    isDisabled={addQuoteFieldsLocked}
-                  />
-                </Col>
+                        placeholder="Select employee"
+                        menuPortal
+                        isClearable
+                        isDisabled={addQuoteFieldsLocked}
+                      />
+                    </Col>
+                  ) : null}
                 </Row>
 
                 {String(addQuote.user_id ?? "").trim() ? (
-                  <Row className="mt-3">
+                  <Row className="mt-4">
                     <Col xs={12}>
                       <label
                         className="custom-profile-lable d-block mb-2"
@@ -1371,9 +1281,400 @@ const QuoteManagement = () => {
                   </Row>
                 ) : null}
 
+                {isSuperAdminOrStaff ? (
+                  <>
+                    <Row className="gy-4 gx-md-5 align-items-start">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Employee"
+                          controlId="add-quote-employee"
+                          asCol={false}
+                          options={quoteEmployeeOptions}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="employee_id"
+                          error={addQuoteErrors.employee_id}
+                          defaultValue={addQuote.employee_id}
+                          setValue={
+                            setAddQuoteValue as (name: string, value: any) => void
+                          }
+                          placeholder="Select employee"
+                          menuPortal
+                          isClearable
+                          isDisabled={addQuoteFieldsLocked}
+                        />
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Requested Partner"
+                          controlId="add-quote-partner"
+                          asCol={false}
+                          options={quotePartnerOptions}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="requested_partner"
+                          error={addQuoteErrors.requested_partner}
+                          requiredMessage="Please select a partner"
+                          defaultValue={addQuote.requested_partner}
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "requested_partner") {
+                              setAddQuoteValue("category_id", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder="Select partner"
+                          menuPortal
+                          isClearable
+                          isDisabled={addQuoteFieldsLocked}
+                        />
+                      </Col>
+                    </Row>
+                    <Row className="gy-4 gx-md-5 align-items-start">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Category"
+                          controlId="add-quote-category"
+                          asCol={false}
+                          options={quoteCategoryOptionsForPartner}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="category_id"
+                          error={addQuoteErrors.category_id}
+                          requiredMessage="Please select a category"
+                          defaultValue={addQuote.category_id}
+                          isClearable
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "category_id") {
+                              setAddQuoteValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder={
+                            addQuotePartnerSelected
+                              ? "Select category"
+                              : "Select partner first"
+                          }
+                          menuPortal
+                          isDisabled={
+                            addQuoteFieldsLocked || !addQuotePartnerSelected
+                          }
+                        />
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          key={`add-quote-svc-${addQuote.category_id || "none"}`}
+                          label="Requested Services"
+                          controlId="add-quote-service"
+                          asCol={false}
+                          options={quoteServiceOptionsForCategory}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="requested_services"
+                          error={addQuoteErrors.requested_services}
+                          requiredMessage={
+                            addQuote.category_id && addQuotePartnerSelected
+                              ? "Please select a service"
+                              : undefined
+                          }
+                          defaultValue={addQuote.requested_services}
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "requested_services") {
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder={
+                            !addQuotePartnerSelected
+                              ? "Select partner first"
+                              : !addQuote.category_id
+                              ? "Select category first"
+                              : "Select service"
+                          }
+                          menuPortal
+                          isClearable
+                          isDisabled={
+                            addQuoteFieldsLocked ||
+                            !addQuotePartnerSelected ||
+                            !String(addQuote.category_id ?? "").trim()
+                          }
+                        />
+                      </Col>
+                    </Row>
+                  </>
+                ) : (
+                  <>
+                    <Row className="gy-4 gx-md-5 align-items-start">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Requested Partner"
+                          controlId="add-quote-partner"
+                          asCol={false}
+                          options={quotePartnerOptions}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="requested_partner"
+                          error={addQuoteErrors.requested_partner}
+                          requiredMessage="Please select a partner"
+                          defaultValue={addQuote.requested_partner}
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "requested_partner") {
+                              setAddQuoteValue("category_id", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder="Select partner"
+                          menuPortal
+                          isClearable
+                          isDisabled={addQuoteFieldsLocked}
+                        />
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Category"
+                          controlId="add-quote-category"
+                          asCol={false}
+                          options={quoteCategoryOptionsForPartner}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="category_id"
+                          error={addQuoteErrors.category_id}
+                          requiredMessage="Please select a category"
+                          defaultValue={addQuote.category_id}
+                          isClearable
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "category_id") {
+                              setAddQuoteValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder={
+                            addQuotePartnerSelected
+                              ? "Select category"
+                              : "Select partner first"
+                          }
+                          menuPortal
+                          isDisabled={
+                            addQuoteFieldsLocked || !addQuotePartnerSelected
+                          }
+                        />
+                      </Col>
+                    </Row>
+                    <Row className="gy-4 gx-md-5 align-items-start">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          key={`add-quote-svc-${addQuote.category_id || "none"}`}
+                          label="Requested Services"
+                          controlId="add-quote-service"
+                          asCol={false}
+                          options={quoteServiceOptionsForCategory}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="requested_services"
+                          error={addQuoteErrors.requested_services}
+                          requiredMessage={
+                            addQuote.category_id && addQuotePartnerSelected
+                              ? "Please select a service"
+                              : undefined
+                          }
+                          defaultValue={addQuote.requested_services}
+                          setValue={(name: string, value: any) => {
+                            setAddQuoteValue(
+                              name as keyof AddQuoteFormValues,
+                              value,
+                              { shouldValidate: addQuoteFormSubmitted }
+                            );
+                            if (name === "requested_services") {
+                              setAddQuoteValue("requested_date", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_date_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_from", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("requested_time_to", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("service_price", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("description", "", {
+                                shouldValidate: false,
+                              });
+                            }
+                          }}
+                          placeholder={
+                            !addQuotePartnerSelected
+                              ? "Select partner first"
+                              : !addQuote.category_id
+                              ? "Select category first"
+                              : "Select service"
+                          }
+                          menuPortal
+                          isClearable
+                          isDisabled={
+                            addQuoteFieldsLocked ||
+                            !addQuotePartnerSelected ||
+                            !String(addQuote.category_id ?? "").trim()
+                          }
+                        />
+                      </Col>
+                    </Row>
+                  </>
+                )}
+
               {hasAddQuoteServiceSelected ? (
                 <>
-                  <Row className="mt-3 mb-2">
+                  <Row className="mt-4 mb-3">
                     <Col xs={12}>
                       <label
                         style={{
@@ -1383,7 +1684,7 @@ const QuoteManagement = () => {
                         }}
                         className="d-block mb-1"
                       >
-                        Schedule date and time
+                        Schedule (from selected service)
                       </label>
                       <div className="small text-muted">
                         {scheduleMode === "range"
@@ -1398,10 +1699,10 @@ const QuoteManagement = () => {
                     </Col>
                   </Row>
 
-                  <Row className="g-2">
+                  <Row className="gy-4 gx-md-5">
                     {scheduleMode === "range" ? (
                   <>
-                    <Col xs={12} md={3} className="mt-2">
+                    <Col xs={12} md={3}>
                       <CustomTextFieldDatePicket
                         label="From date"
                         controlId="requested_date"
@@ -1424,7 +1725,7 @@ const QuoteManagement = () => {
                         filterDate={() => true}
                       />
                     </Col>
-                    <Col xs={12} md={3} className="mt-2">
+                    <Col xs={12} md={3}>
                       <CustomTextFieldDatePicket
                         label="To date"
                         controlId="requested_date_to"
@@ -1447,7 +1748,7 @@ const QuoteManagement = () => {
                         filterDate={() => true}
                       />
                     </Col>
-                    <Col xs={12} md={3} className="mt-2">
+                    <Col xs={12} md={3}>
                       <CustomTextFieldTimePicket
                         label="Start time"
                         controlId="requested_time_from"
@@ -1476,7 +1777,7 @@ const QuoteManagement = () => {
                         }}
                       />
                     </Col>
-                    <Col xs={12} md={3} className="mt-2">
+                    <Col xs={12} md={3}>
                       <CustomTextFieldTimePicket
                         label="End time"
                         controlId="requested_time_to"
@@ -1508,7 +1809,7 @@ const QuoteManagement = () => {
                   </>
                 ) : (
                   <>
-                    <Col xs={12} md={4} className="mt-2">
+                    <Col xs={12} md={4}>
                       <CustomTextFieldDatePicket
                         label="Date"
                         controlId="requested_date"
@@ -1531,7 +1832,7 @@ const QuoteManagement = () => {
                         filterDate={() => true}
                       />
                     </Col>
-                    <Col xs={12} md={4} className="mt-2">
+                    <Col xs={12} md={4}>
                       <CustomTextFieldTimePicket
                         label="Start time"
                         controlId="requested_time_from"
@@ -1560,7 +1861,7 @@ const QuoteManagement = () => {
                         }}
                       />
                     </Col>
-                    <Col xs={12} md={4} className="mt-2">
+                    <Col xs={12} md={4}>
                       <CustomTextFieldTimePicket
                         label="End time"
                         controlId="requested_time_to"
@@ -1596,8 +1897,25 @@ const QuoteManagement = () => {
               ) : null}
               {hasAddQuoteServiceSelected && isAddQuoteScheduleComplete ? (
                 <>
-                  <Row className="mt-2">
-                    <Col xs={12} md={6} className="mt-2">
+                  <Row className="mt-4 mb-2">
+                    <Col xs={12}>
+                      <label
+                        style={{
+                          fontSize: "17px",
+                          fontWeight: "600",
+                          color: "var(--primary-color)",
+                        }}
+                        className="d-block mb-1"
+                      >
+                        Service price
+                      </label>
+                      <div className="small text-muted mb-2">
+                        Enter the quote amount after the schedule is complete.
+                      </div>
+                    </Col>
+                  </Row>
+                  <Row className="mt-3">
+                    <Col xs={12} md={6}>
                       <CustomTextField
                         label="Service Price"
                         controlId="service_price"
@@ -1610,8 +1928,8 @@ const QuoteManagement = () => {
                       />
                     </Col>
                   </Row>
-                  <Row className="mt-2">
-                    <Col xs={12} className="mt-2">
+                  <Row className="mt-3">
+                    <Col xs={12}>
                       <CustomTextField
                         label="Quote Description"
                         controlId="description"
@@ -1633,7 +1951,7 @@ const QuoteManagement = () => {
             </section>
           </form>
         </Modal.Body>
-        <Modal.Footer className="px-4 pb-4 pt-4 border-top-0">
+        <Modal.Footer className="add-quote-modal-footer border-top-0">
           <Button
             type="submit"
             form="quote-add-form"

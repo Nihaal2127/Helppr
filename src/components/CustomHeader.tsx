@@ -11,6 +11,11 @@ import {
 } from "../services/notificationService";
 import { formatDate } from "../helper/utility";
 import { getLocalStorage } from "../helper/localStorageHelper";
+import {
+  HEADER_FRANCHISE_CHANGED_EVENT,
+  readHeaderFranchisePreference,
+  writeHeaderFranchisePreference,
+} from "../helper/headerFranchisePreference";
 import { AppConstant, UserRole } from "../constant/AppConstant";
 import {
   fetchFranchiseById,
@@ -52,7 +57,10 @@ const CustomHeader = ({
     Boolean(register) &&
     Boolean(setValue) &&
     !hideFranchiseDropdown;
-  const [selectedFranchise, setSelectedFranchise] = useState<string>("all");
+  const [selectedFranchise, setSelectedFranchise] = useState<string>(() =>
+    readHeaderFranchisePreference()
+  );
+  const appliedFranchiseRef = useRef(readHeaderFranchisePreference());
   const [franchiseList, setFranchiseList] = useState<
     { value: string; label: string }[]
   >([{ value: "all", label: "All Franchises" }]);
@@ -62,11 +70,17 @@ const CustomHeader = ({
   const notificationRef = useRef<HTMLDivElement | null>(null);
 
   const handleChange = (e: any) => {
-    const value = e.target.value as string;
+    const raw = e.target.value as string;
+    const value =
+      !raw || String(raw).trim() === "" ? "all" : String(raw).trim();
+    appliedFranchiseRef.current = value;
     setSelectedFranchise(value);
-    if (onLocationChange) {
-      onLocationChange(value);
-    }
+    setValue?.("franchise_id", value, {
+      shouldValidate: false,
+      shouldDirty: true,
+    });
+    writeHeaderFranchisePreference(value);
+    onLocationChange?.(value);
   };
 
   const refreshNotifications = () => {
@@ -108,6 +122,36 @@ const CustomHeader = ({
       cancelled = true;
     };
   }, [shouldShowFranchiseDropdown]);
+
+  /** When preference changes elsewhere (another tab, page “clear filters”), align UI + notify parent once. */
+  useEffect(() => {
+    if (!shouldShowFranchiseDropdown || !setValue) return;
+    const syncFromStorage = () => {
+      const v = readHeaderFranchisePreference();
+      if (v === appliedFranchiseRef.current) return;
+      appliedFranchiseRef.current = v;
+      setSelectedFranchise(v);
+      setValue("franchise_id", v, { shouldValidate: false });
+      onLocationChange?.(v);
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === AppConstant.headerFranchiseFilter || e.key === null) {
+        syncFromStorage();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(
+      HEADER_FRANCHISE_CHANGED_EVENT,
+      syncFromStorage as EventListener
+    );
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(
+        HEADER_FRANCHISE_CHANGED_EVENT,
+        syncFromStorage as EventListener
+      );
+    };
+  }, [shouldShowFranchiseDropdown, setValue, onLocationChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,6 +211,7 @@ const CustomHeader = ({
               defaultValue={selectedFranchise}
               setValue={setValue}
               onChange={handleChange}
+              clearResetsTo="all"
               asCol={false}
               noBottomMargin
             />

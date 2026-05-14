@@ -20,6 +20,7 @@ import {
   textUnderlineCell,
 } from "../../../helper/utility";
 import { AppConstant } from "../../../constant/AppConstant";
+import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
 import CustomTable from "../../../components/CustomTable";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
@@ -283,7 +284,7 @@ const OrderPayments = () => {
   const { register: headerRegister, setValue: setHeaderValue } = useForm<{
     franchise_id: string;
   }>({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
 
   const [summary, setSummary] = useState<{

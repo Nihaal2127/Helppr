@@ -1,5 +1,4 @@
 import React from "react";
-import LocationManagementPage from "../pages/locationManagement";
 
 const lazyPage = (importer: () => Promise<any>) =>
   React.lazy(() =>
@@ -97,6 +96,7 @@ const PartnerManagement = React.lazy(
   () => import("../pages/partnerManagement")
 );
 const MyFranchise = lazyPage(() => import("../pages/myFranchise"));
+const LocationManagement = lazyPage(() => import("../pages/locationManagement"));
 const ContentManagement = React.lazy(
   () => import("../pages/contentManagement")
 );
@@ -130,7 +130,7 @@ export const ROUTES = {
   },
   LOCATION_MANAGEMENT: {
     path: "/location-management",
-    element: <LocationManagementPage />,
+    element: <LocationManagement />,
     isProtected: true,
   },
   FRANCHISE_MANAGEMENT: {

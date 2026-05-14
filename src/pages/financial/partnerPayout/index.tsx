@@ -13,6 +13,7 @@ import { UserModel } from "../../../models/UserModel";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
 import { AppConstant } from "../../../constant/AppConstant";
+import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
 import {
   formatDate,
   priceCell,
@@ -35,7 +36,7 @@ const PartnerPayout = () => {
   const { register: headerRegister, setValue: setHeaderValue } = useForm<{
     franchise_id: string;
   }>({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
 
   const [partnerList, setPartnerList] = useState<UserModel[]>([]);

@@ -3,6 +3,113 @@ import { ApiPaths } from "../remote/apiPaths";
 import { CategoryModel } from "../models/CategoryModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { showErrorAlert } from "../helper/alertHelper";
+import {
+  buildCatalogGetAllQueryParams,
+  buildCategoryGetAllPath,
+  catalogGetAllDebugLog,
+  messageForCatalogGetAllFailure,
+  parseFranchiseIdForCatalogGetAll,
+} from "../helper/franchiseCatalog";
+
+const FRANCHISE_SCOPE_ALL = "all";
+
+function unwrapCatalogPayload(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object") return {};
+  const root = data as Record<string, unknown>;
+  if ("all_categories" in root || "all_services" in root) return root;
+  const inner = root.data;
+  if (inner && typeof inner === "object")
+    return inner as Record<string, unknown>;
+  return root;
+}
+
+function rowMatchesCatalogStatus(
+  row: Record<string, unknown>,
+  status?: string
+): boolean {
+  if (!status || status === "All") return true;
+  const s = String(status).toLowerCase();
+  if (s === "true") return row.is_active === true;
+  if (s === "false") return row.is_active === false;
+  if (s === "blocked") return Boolean(row.is_blocked ?? row.blocked);
+  return true;
+}
+
+/** Franchise-scoped `all_categories`: prefer `franchise_active` for Active/Inactive filter (see global catalog franchise doc). */
+function rowMatchesFranchiseScopedCatalogRow(
+  row: Record<string, unknown>,
+  status?: string
+): boolean {
+  if (!status || status === "All") return true;
+  const s = String(status).toLowerCase();
+  if (s === "blocked") return Boolean(row.is_blocked ?? row.blocked);
+  if (s === "true" || s === "false") {
+    const fa = row.franchise_active;
+    if (fa !== undefined && fa !== null) {
+      return s === "true" ? fa === true : fa === false;
+    }
+  }
+  return rowMatchesCatalogStatus(row, status);
+}
+
+/** `all_categories[].services` is often id strings; hydrate from `related_services` for table display. */
+function hydrateCategoryServicesListFromRelated(
+  servicesField: unknown,
+  related: unknown
+): unknown[] {
+  const relatedArr = Array.isArray(related)
+    ? (related as Record<string, unknown>[])
+    : [];
+  const idToDoc = new Map<string, Record<string, unknown>>();
+  for (const item of relatedArr) {
+    if (!item || typeof item !== "object") continue;
+    const id = String(item._id ?? item.service_id ?? "").trim().toLowerCase();
+    if (id) idToDoc.set(id, item);
+  }
+
+  if (Array.isArray(servicesField) && servicesField.length > 0) {
+    const allPrimitiveRefs = servicesField.every(
+      (x) =>
+        x !== null &&
+        (typeof x === "string" || typeof x === "number" || typeof x === "boolean")
+    );
+    if (allPrimitiveRefs && idToDoc.size > 0) {
+      return servicesField.map((ref) => {
+        const key = String(ref).trim().toLowerCase();
+        return idToDoc.get(key) ?? { _id: ref, name: String(ref) };
+      });
+    }
+    return servicesField as unknown[];
+  }
+
+  return relatedArr;
+}
+
+function normalizeFranchiseScopedCategoryRow(
+  raw: Record<string, unknown>
+): CategoryModel {
+  const related = raw.related_services;
+  const svcList = hydrateCategoryServicesListFromRelated(raw.services, related);
+  const _id = String(raw._id ?? raw.id ?? raw.category_id ?? "").trim();
+  const franchiseActive = raw.franchise_active;
+  return {
+    ...(raw as unknown as CategoryModel),
+    _id,
+    category_id: String(raw.category_id ?? _id).trim(),
+    services: svcList as unknown as number,
+    franchise_active:
+      franchiseActive === true ||
+      franchiseActive === "true" ||
+      franchiseActive === 1
+        ? true
+        : franchiseActive === false ||
+            franchiseActive === "false" ||
+            franchiseActive === 0
+          ? false
+          : (franchiseActive as boolean | undefined),
+  };
+}
 
 function extractCategoryDropDownRecords(data: unknown): any[] {
   if (!data || typeof data !== "object") return [];
@@ -44,40 +151,136 @@ export async function fetchCategoryDropDown(
 export const fetchCategory = async (
   page: number,
   pageSize: number,
-  filters: {
-    keyword?: string;
-    status?: string;
-    sort?: string;
-    is_request?: string;
-    is_rejected?: string;
-  },
-  sortBy: ServerTableSortBy = []
+  filters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters,
+  sortBy: ServerTableSortBy = [],
+  franchiseId?: string | null
 ): Promise<{
   response: boolean;
   categories: CategoryModel[];
   totalPages: number;
   totalRecords: number;
+  /** When franchise-scoped list clamps `page` to a valid range, sync table state to this value. */
+  resolvedPage?: number;
+  /** Franchise-scoped `GET /franchise-category/getAll?franchise_id=` — mapping `records` + `all_categories`. */
+  franchiseMappingRecords?: unknown[];
+  franchiseMappingTotalPages?: number;
+  franchiseMappingTotalItems?: number;
+  franchiseMappingCurrentPage?: number;
 }> => {
   const primarySort = sortBy[0];
-  const params = new URLSearchParams({
-    page: String(page),
-    limit: String(pageSize),
-    ...(filters.keyword && { search: filters.keyword }),
-    ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
-    ...(filters.sort && { sort: filters.sort }),
-    ...(filters.is_request !== undefined &&
-      filters.is_request !== "" && { is_request: filters.is_request }),
-    ...(filters.is_rejected !== undefined &&
-      filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
-    ...(primarySort?.id && { sort_by: primarySort.id }),
-    ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+  const rawFid = String(franchiseId ?? "").trim();
+  const wantsScope =
+    Boolean(rawFid) && rawFid.toLowerCase() !== FRANCHISE_SCOPE_ALL;
+  const scopedPathId = wantsScope
+    ? parseFranchiseIdForCatalogGetAll(rawFid)
+    : null;
+
+  if (wantsScope && !scopedPathId) {
+    showErrorAlert(
+      "Franchise filter must be a valid 24-character id, or choose All Franchises."
+    );
+    return {
+      response: false,
+      categories: [],
+      totalPages: 0,
+      totalRecords: 0,
+    };
+  }
+
+  const queryParams = buildCatalogGetAllQueryParams({
+    page,
+    limit: pageSize,
+    filters,
+    sortByField: primarySort?.id ? String(primarySort.id) : undefined,
+    sortDesc: primarySort?.desc,
   });
+  if (scopedPathId) {
+    queryParams.set("franchise_id", scopedPathId);
+    queryParams.set("page", "1");
+    queryParams.set("limit", "1");
+  }
+  const path = buildCategoryGetAllPath(scopedPathId ?? rawFid);
+  const url = `${path}?${queryParams.toString()}`;
+  catalogGetAllDebugLog("category", scopedPathId, url);
 
   const response = await apiRequest(
-    `${ApiPaths.GET_CATEGORY()}?${params.toString()}`,
-    "GET"
+    url,
+    "GET",
+    undefined,
+    false,
+    false,
+    Boolean(scopedPathId)
   );
+
+  if (scopedPathId) {
+    if (!response.success) {
+      const st = (response as { status?: number }).status;
+      const msg = (response as { message?: string }).message;
+      showErrorAlert(messageForCatalogGetAllFailure(st, msg));
+      showLog(response.message || "Failed to fetch category");
+      return {
+        response: false,
+        categories: [],
+        totalPages: 0,
+        totalRecords: 0,
+      };
+    }
+
+    const payload = unwrapCatalogPayload(response.data);
+    const mappingRecords = Array.isArray(payload.records)
+      ? (payload.records as unknown[])
+      : [];
+    const franchiseMappingTotalPages = Number(payload.totalPages ?? 0);
+    const franchiseMappingTotalItems = Number(payload.totalItems ?? 0);
+    const franchiseMappingCurrentPage = Number(
+      payload.currentPage ?? page ?? 1
+    );
+
+    const rawList = payload.all_categories;
+    let rows: CategoryModel[] = Array.isArray(rawList)
+      ? (rawList as Record<string, unknown>[]).map(
+          normalizeFranchiseScopedCategoryRow
+        )
+      : [];
+
+    rows = rows.filter((r) =>
+      rowMatchesFranchiseScopedCatalogRow(
+        r as unknown as Record<string, unknown>,
+        filters.status
+      )
+    );
+    if (filters.is_request === "true") {
+      rows = rows.filter((r) => r.is_request === true);
+    }
+    if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
+      const want = filters.is_rejected === "true";
+      rows = rows.filter((r) =>
+        want ? r.is_rejected === true : r.is_rejected !== true
+      );
+    }
+
+    const totalRecords = rows.length;
+    const maxPage =
+      totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
+    let effectivePage = page;
+    if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
+    if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
+    const start = (effectivePage - 1) * pageSize;
+    const pageRows = rows.slice(start, start + pageSize);
+    const totalPages = maxPage;
+
+    return {
+      response: true,
+      categories: pageRows,
+      totalPages,
+      totalRecords,
+      franchiseMappingRecords: mappingRecords,
+      franchiseMappingTotalPages,
+      franchiseMappingTotalItems,
+      franchiseMappingCurrentPage,
+      ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+    };
+  }
 
   if (response.success) {
     return {

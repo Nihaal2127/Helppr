@@ -42,25 +42,6 @@ function mapMinimumDepositValue(s: ServiceModel | null): string {
   return String(v);
 }
 
-const MIN_DEPOSIT_TYPE_LABELS: Record<string, string> = {
-  per_hour: "Per Hour",
-  per_day: "Per Day",
-  per_month: "Per Month",
-  per_consultancy: "Per Consultancy",
-};
-
-/** Human-readable payment / min-deposit type (matches `CustomFormSelect` options). */
-function labelForMinDepositType(raw: string): string {
-  const key = String(raw ?? "").trim().toLowerCase();
-  if (!key) return "";
-  if (MIN_DEPOSIT_TYPE_LABELS[key]) return MIN_DEPOSIT_TYPE_LABELS[key];
-  return key
-    .split(/[_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
 /** Maps API `approval_status` and legacy `is_rejected` to form values. */
 function mapApprovalStatusFromService(
   s: ServiceModel | null
@@ -185,8 +166,6 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const categoryLabelForView =
     serviceCategoryId &&
     categories.find((c) => c.value === serviceCategoryId)?.label;
-
-  const resolvedPaymentType = mapPaymentTypeToMinDepositType(service);
 
   const minDepositLabelForView = formatMinDepositDisplay(
     service as unknown as Record<string, unknown>

@@ -26,11 +26,6 @@ import {
   fetchUser,
   WEB_MANAGEMENT_USER_TYPE,
 } from "../../services/userService";
-import {
-  MOCK_FRANCHISE_CATEGORY_DROPDOWN,
-  MOCK_FRANCHISE_SERVICES_LIST,
-  USE_MOCK_FRANCHISE_CATALOG,
-} from "../../mockData/franchiseCatalogMock";
 import { openDialog } from "../../helper/DialogManager";
 import { openAddFranchiseAdminModal } from "../../components/AddFranchiseAdminModal";
 
@@ -538,49 +533,53 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
   useEffect(() => {
     let cancelled = false;
+    const catalogFranchiseId =
+      isEditable && franchise?._id
+        ? String(franchise._id).trim()
+        : undefined;
     void (async () => {
       try {
-        if (USE_MOCK_FRANCHISE_CATALOG) {
-          const cats = MOCK_FRANCHISE_CATEGORY_DROPDOWN.map((c) => ({ ...c }));
-          if (cancelled) return;
-          const catList = Array.isArray(cats)
-            ? cats.filter((c: any) => c?.value)
-            : [];
-          setCategoryOptions([
-            { value: "select-all", label: "Select All" },
-            ...catList,
-          ]);
-          setAllServices(
-            MOCK_FRANCHISE_SERVICES_LIST.map((s: any) => ({
-              _id: String(s._id),
-              name: String(s.name ?? ""),
-              category_id: String(s.category_id ?? ""),
-              category_name: s.category_name
-                ? String(s.category_name)
-                : undefined,
-            }))
-          );
-          return;
-        }
-
         const catById = new Map<string, OptionType>();
-        let cpage = 1;
-        const climit = 200;
-        for (;;) {
-          const cres = await fetchCategory(cpage, climit, {}, []);
+        if (catalogFranchiseId) {
+          const cres = await fetchCategory(
+            1,
+            100_000,
+            {},
+            [],
+            catalogFranchiseId
+          );
           if (cancelled) return;
-          if (!cres.response) break;
-          for (const c of cres.categories) {
-            const id = String((c as { _id?: string })._id ?? "").trim();
-            if (id)
-              catById.set(id, {
-                value: id,
-                label: String((c as { name?: string }).name ?? "").trim() || id,
-              });
+          if (cres.response) {
+            for (const c of cres.categories) {
+              const id = String((c as { _id?: string })._id ?? "").trim();
+              if (id)
+                catById.set(id, {
+                  value: id,
+                  label:
+                    String((c as { name?: string }).name ?? "").trim() || id,
+                });
+            }
           }
-          if (!cres.totalPages || cpage >= cres.totalPages) break;
-          cpage += 1;
-          if (cpage > 50) break;
+        } else {
+          let cpage = 1;
+          const climit = 200;
+          for (;;) {
+            const cres = await fetchCategory(cpage, climit, {}, []);
+            if (cancelled) return;
+            if (!cres.response) break;
+            for (const c of cres.categories) {
+              const id = String((c as { _id?: string })._id ?? "").trim();
+              if (id)
+                catById.set(id, {
+                  value: id,
+                  label:
+                    String((c as { name?: string }).name ?? "").trim() || id,
+                });
+            }
+            if (!cres.totalPages || cpage >= cres.totalPages) break;
+            cpage += 1;
+            if (cpage > 50) break;
+          }
         }
         const dropCats = await fetchCategoryDropDown();
         if (cancelled) return;
@@ -598,16 +597,30 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
         ]);
 
         const mergedServices: unknown[] = [];
-        let spage = 1;
-        const slimit = 500;
-        for (;;) {
-          const svcRes = await fetchService(spage, slimit, {});
+        if (catalogFranchiseId) {
+          const svcRes = await fetchService(
+            1,
+            100_000,
+            {},
+            [],
+            catalogFranchiseId
+          );
           if (cancelled) return;
-          if (!svcRes.response || !Array.isArray(svcRes.services)) break;
-          mergedServices.push(...svcRes.services);
-          if (!svcRes.totalPages || spage >= svcRes.totalPages) break;
-          spage += 1;
-          if (spage > 50) break;
+          if (svcRes.response && Array.isArray(svcRes.services)) {
+            mergedServices.push(...svcRes.services);
+          }
+        } else {
+          let spage = 1;
+          const slimit = 500;
+          for (;;) {
+            const svcRes = await fetchService(spage, slimit, {});
+            if (cancelled) return;
+            if (!svcRes.response || !Array.isArray(svcRes.services)) break;
+            mergedServices.push(...svcRes.services);
+            if (!svcRes.totalPages || spage >= svcRes.totalPages) break;
+            spage += 1;
+            if (spage > 50) break;
+          }
         }
         setAllServices(
           mergedServices.map((s: any) => ({
@@ -629,7 +642,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEditable, franchise?._id]);
 
   useEffect(() => {
     if (!franchise && !isEditable) {

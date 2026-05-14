@@ -3,6 +3,89 @@ import { ApiPaths } from "../remote/apiPaths";
 import { ServiceModel } from "../models/ServiceModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { showErrorAlert } from "../helper/alertHelper";
+import {
+  buildCatalogGetAllQueryParams,
+  buildServiceGetAllPath,
+  catalogGetAllDebugLog,
+  messageForCatalogGetAllFailure,
+  parseFranchiseIdForCatalogGetAll,
+} from "../helper/franchiseCatalog";
+
+const FRANCHISE_SCOPE_ALL = "all";
+
+function unwrapServiceFranchisePayload(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object") return {};
+  const root = data as Record<string, unknown>;
+  if ("all_services" in root) return root;
+  const inner = root.data;
+  if (inner && typeof inner === "object")
+    return inner as Record<string, unknown>;
+  return root;
+}
+
+function rowMatchesCatalogStatus(
+  row: Record<string, unknown>,
+  status?: string
+): boolean {
+  if (!status || status === "All") return true;
+  const s = String(status).toLowerCase();
+  if (s === "true") return row.is_active === true;
+  if (s === "false") return row.is_active === false;
+  if (s === "blocked") return Boolean(row.is_blocked ?? row.blocked);
+  return true;
+}
+
+/** Franchise-scoped `all_services`: prefer `franchise_active` for Active/Inactive filter (see global catalog franchise doc). */
+function rowMatchesFranchiseScopedCatalogRow(
+  row: Record<string, unknown>,
+  status?: string
+): boolean {
+  if (!status || status === "All") return true;
+  const s = String(status).toLowerCase();
+  if (s === "blocked") return Boolean(row.is_blocked ?? row.blocked);
+  if (s === "true" || s === "false") {
+    const fa = row.franchise_active;
+    if (fa !== undefined && fa !== null) {
+      return s === "true" ? fa === true : fa === false;
+    }
+  }
+  return rowMatchesCatalogStatus(row, status);
+}
+
+function normalizeFranchiseScopedServiceRow(
+  raw: Record<string, unknown>
+): ServiceModel {
+  const cat = raw.category_id;
+  let category_name = String(raw.category_name ?? "").trim();
+  let category_id_str = "";
+  if (cat && typeof cat === "object") {
+    const o = cat as Record<string, unknown>;
+    category_name = String(o.name ?? category_name).trim();
+    category_id_str = String(o._id ?? o.id ?? "").trim();
+  } else {
+    category_id_str = normalizeServiceCategoryRef(raw.category_id);
+  }
+  const _id = String(raw._id ?? raw.id ?? raw.service_id ?? "").trim();
+  const franchiseActive = raw.franchise_active;
+  return {
+    ...(raw as unknown as ServiceModel),
+    _id,
+    service_id: String(raw.service_id ?? _id).trim(),
+    category_id: category_id_str,
+    category_name,
+    franchise_active:
+      franchiseActive === true ||
+      franchiseActive === "true" ||
+      franchiseActive === 1
+        ? true
+        : franchiseActive === false ||
+            franchiseActive === "false" ||
+            franchiseActive === 0
+          ? false
+          : (franchiseActive as boolean | undefined),
+  };
+}
 
 export type ServiceDropDownOption = {
   value: string;
@@ -134,47 +217,151 @@ export const fetchServicesForCategoryDialog = async (opts: {
 export const fetchService = async (
   page: number,
   pageSize: number,
-  filters: {
-    keyword?: string;
-    status?: string;
-    sort?: string;
-    is_request?: string;
-    is_rejected?: string;
-    /** `GET /service/getAll` — scope catalogue rows when API supports it (see `apiPaths`). */
+  filters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters & {
     city_id?: string;
     state_id?: string;
   },
-  sortBy: ServerTableSortBy = []
+  sortBy: ServerTableSortBy = [],
+  franchiseId?: string | null
 ): Promise<{
   response: boolean;
   services: ServiceModel[];
   totalPages: number;
   totalRecords: number;
+  resolvedPage?: number;
+  franchiseMappingRecords?: unknown[];
+  franchiseMappingTotalPages?: number;
+  franchiseMappingTotalItems?: number;
+  franchiseMappingCurrentPage?: number;
 }> => {
   const primarySort = sortBy[0];
   const cityId = String(filters.city_id ?? "").trim();
   const stateId = String(filters.state_id ?? "").trim();
-  const params = new URLSearchParams({
-    page: String(page),
-    limit: String(pageSize),
-    ...(filters.keyword && { search: filters.keyword }),
-    ...(filters.status &&
-      filters.status !== "All" && { is_active: filters.status.toLowerCase() }),
-    ...(filters.sort && { sort: filters.sort }),
-    ...(filters.is_request !== undefined &&
-      filters.is_request !== "" && { is_request: filters.is_request }),
-    ...(filters.is_rejected !== undefined &&
-      filters.is_rejected !== "" && { is_rejected: filters.is_rejected }),
-    ...(primarySort?.id && { sort_by: primarySort.id }),
-    ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
-    ...(cityId && { city_id: cityId }),
-    ...(stateId && { state_id: stateId }),
+  const rawFid = String(franchiseId ?? "").trim();
+  const wantsScope =
+    Boolean(rawFid) && rawFid.toLowerCase() !== FRANCHISE_SCOPE_ALL;
+  const scopedPathId = wantsScope
+    ? parseFranchiseIdForCatalogGetAll(rawFid)
+    : null;
+
+  if (wantsScope && !scopedPathId) {
+    showErrorAlert(
+      "Franchise filter must be a valid 24-character id, or choose All Franchises."
+    );
+    return {
+      response: false,
+      services: [],
+      totalPages: 0,
+      totalRecords: 0,
+    };
+  }
+
+  const listFilters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters = {
+    keyword: filters.keyword,
+    status: filters.status,
+    sort: filters.sort,
+    is_request: filters.is_request,
+    is_rejected: filters.is_rejected,
+    q: filters.q,
+    order: filters.order,
+  };
+
+  const queryParams = buildCatalogGetAllQueryParams({
+    page,
+    limit: pageSize,
+    filters: listFilters,
+    sortByField: primarySort?.id ? String(primarySort.id) : undefined,
+    sortDesc: primarySort?.desc,
+    city_id: cityId,
+    state_id: stateId,
   });
+  if (scopedPathId) {
+    queryParams.set("franchise_id", scopedPathId);
+    queryParams.set("page", "1");
+    queryParams.set("limit", "1");
+  }
+  const path = buildServiceGetAllPath(scopedPathId ?? rawFid);
+  const url = `${path}?${queryParams.toString()}`;
+  catalogGetAllDebugLog("service", scopedPathId, url);
 
   const response = await apiRequest(
-    `${ApiPaths.GET_SERVICE()}?${params.toString()}`,
-    "GET"
+    url,
+    "GET",
+    undefined,
+    false,
+    false,
+    Boolean(scopedPathId)
   );
+
+  if (scopedPathId) {
+    if (!response.success) {
+      const st = (response as { status?: number }).status;
+      const msg = (response as { message?: string }).message;
+      showErrorAlert(messageForCatalogGetAllFailure(st, msg));
+      showLog(response.message || "Failed to fetch service");
+      return {
+        response: false,
+        services: [],
+        totalPages: 0,
+        totalRecords: 0,
+      };
+    }
+
+    const payload = unwrapServiceFranchisePayload(response.data);
+    const mappingRecords = Array.isArray(payload.records)
+      ? (payload.records as unknown[])
+      : [];
+    const franchiseMappingTotalPages = Number(payload.totalPages ?? 0);
+    const franchiseMappingTotalItems = Number(payload.totalItems ?? 0);
+    const franchiseMappingCurrentPage = Number(
+      payload.currentPage ?? page ?? 1
+    );
+
+    const rawList = payload.all_services;
+    let rows: ServiceModel[] = Array.isArray(rawList)
+      ? (rawList as Record<string, unknown>[]).map(
+          normalizeFranchiseScopedServiceRow
+        )
+      : [];
+
+    rows = rows.filter((r) =>
+      rowMatchesFranchiseScopedCatalogRow(
+        r as unknown as Record<string, unknown>,
+        filters.status
+      )
+    );
+    if (filters.is_request === "true") {
+      rows = rows.filter((r) => r.is_request === true);
+    }
+    if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
+      const want = filters.is_rejected === "true";
+      rows = rows.filter((r) =>
+        want ? r.is_rejected === true : r.is_rejected !== true
+      );
+    }
+
+    const totalRecords = rows.length;
+    const maxPage =
+      totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
+    let effectivePage = page;
+    if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
+    if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
+    const start = (effectivePage - 1) * pageSize;
+    const pageRows = rows.slice(start, start + pageSize);
+    const totalPages = maxPage;
+
+    return {
+      response: true,
+      services: pageRows,
+      totalPages,
+      totalRecords,
+      franchiseMappingRecords: mappingRecords,
+      franchiseMappingTotalPages,
+      franchiseMappingTotalItems,
+      franchiseMappingCurrentPage,
+      ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+    };
+  }
 
   if (response.success) {
     const payload = (response as { data?: unknown }).data;

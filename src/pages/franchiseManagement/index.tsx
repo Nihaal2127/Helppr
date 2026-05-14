@@ -17,6 +17,10 @@ import { PinCodeHoverPortal } from "../../components/PinCodeHoverPortal";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm, UseFormRegister } from "react-hook-form";
 import {
+  franchiseHeaderFormDefaults,
+  writeHeaderFranchisePreference,
+} from "../../helper/headerFranchisePreference";
+import {
   deleteFranchise,
   fetchFranchise,
   fetchFranchiseById,
@@ -193,18 +197,19 @@ function multiNamesHoverCell(primaryKey: string, fallbackKey?: string) {
 }
 
 const FranchiseManagement = () => {
-  const TableComponent: any = CustomTable;
   const { register, setValue } = useForm<
     { franchise_id: string } & Record<string, unknown>
   >({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
   const { register: utilityFilterRegister, setValue: setUtilityFilterValue } =
     useForm<{ franchise_list_status: string }>({
       defaultValues: { franchise_list_status: "All" },
     });
   /** Header dropdown must drive fetches via state — `watch(franchise_id)` does not reliably update when CustomFormSelect overrides `register` onChange. */
-  const [headerFranchiseId, setHeaderFranchiseId] = useState("all");
+  const [headerFranchiseId, setHeaderFranchiseId] = useState(() =>
+    franchiseHeaderFormDefaults().franchise_id
+  );
   const [franchiseData, setFranchiseData] = useState({
     Total: 0,
     Active: 0,
@@ -523,6 +528,7 @@ const FranchiseManagement = () => {
     setCurrentPage(1);
     setHeaderFranchiseId("all");
     setValue("franchise_id", "all", { shouldValidate: false });
+    writeHeaderFranchisePreference("all");
     setUtilityFilterValue("franchise_list_status", "All", {
       shouldValidate: false,
     });
@@ -563,7 +569,6 @@ const FranchiseManagement = () => {
 
         Cell: servicesTableCell(serviceById),
       },
-      // { Header: "Description", accessor: "description" },
       {
         Header: "Status",
         accessor: "is_active",
@@ -695,27 +700,25 @@ const FranchiseManagement = () => {
           }
         />
 
-        {TableComponent ? (
-          <TableComponent
-            columns={franchiseColumns}
-            data={franchiseList}
-            pageSize={pageSize}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={(page: number) => setCurrentPage(page)}
-            onLimitChange={(pageSize: number) => {
-              setPageSize(pageSize);
-              setCurrentPage(1);
-            }}
-            manualSortBy
-            sortBy={sortBy}
-            onSortChange={(next: { id: string; desc: boolean }[]) => {
-              setSortBy(next);
-              setCurrentPage(1);
-            }}
-            theadClass="table-light"
-          />
-        ) : null}
+        <CustomTable
+          columns={franchiseColumns}
+          data={franchiseList}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page: number) => setCurrentPage(page)}
+          onLimitChange={(pageSize: number) => {
+            setPageSize(pageSize);
+            setCurrentPage(1);
+          }}
+          manualSortBy
+          sortBy={sortBy}
+          onSortChange={(next: { id: string; desc: boolean }[]) => {
+            setSortBy(next);
+            setCurrentPage(1);
+          }}
+          theadClass="table-light"
+        />
       </div>
     </>
   );

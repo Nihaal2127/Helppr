@@ -10,12 +10,12 @@ import { requestPermission } from "./NotificationService";
 import { setNavigate } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
 import "./assets/scss/App.scss";
 import "./assets/scss/loader.scss";
 import "./assets/scss/Sidebar.scss";
-import "bootstrap/dist/css/bootstrap.min.css";
 import { routes } from "./routes/Routes";
-import "bootstrap-icons/font/bootstrap-icons.css";
 import { refreshSessionAccessibleMenuKeys } from "./services/userService";
 
 function App() {

@@ -8,6 +8,7 @@ import CustomTable from "../../../components/CustomTable";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { AppConstant } from "../../../constant/AppConstant";
+import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
 import { deleteOrder, fetchOrder } from "../../../services/orderService";
 import { OrderModel } from "../../../models/OrderModel";
 import { showSuccessAlert } from "../../../helper/alertHelper";
@@ -36,7 +37,7 @@ const RefundsPage = () => {
   const { register: headerRegister, setValue: setHeaderValue } = useForm<{
     franchise_id: string;
   }>({
-    defaultValues: { franchise_id: "all" },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
 
   const { register: quoteFilterRegister, setValue: setQuoteFilterValue } =

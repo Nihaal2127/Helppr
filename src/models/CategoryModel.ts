@@ -14,6 +14,8 @@ export interface CategoryModel {
   franchise_name?: string;
   image_url: string;
   is_active: boolean;
+  /** Present on `GET /category/getAll/:franchise_id` → `all_*`: assigned on/off for this franchise (vs global `is_active`). */
+  franchise_active?: boolean;
   is_request?: boolean;
   is_rejected?: boolean | null;
   rejection_reason?: string;

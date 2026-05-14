@@ -64,6 +64,9 @@ export const ApiPaths = {
   /** POST — same pattern as `EXPORT_STATE` / `EXPORT_CITY` */
   EXPORT_AREA: `/export/area`,
   GET_CATEGORY: () => `/category/getAll`,
+  /** Legacy path-style scoped list; prefer `GET_FRANCHISE_CATEGORY_ALL` + `?franchise_id=`. */
+  GET_CATEGORY_FOR_FRANCHISE: (franchiseId: string) =>
+    `/category/getAll/${franchiseId}`,
   GET_CATEGORY_BY_ID: (id: string) => `/category/get/${id}`,
   GET_CATEGORY_DROP_DOWN: () => `/category/getDropDown`,
   CREATE_CATEGORY: "/category/create",
@@ -73,6 +76,9 @@ export const ApiPaths = {
   DELETE_CATEGORY: (id: string) => `/category/delete/${id}`,
   EXPORT_CATEGORY: `/export/category`,
   GET_SERVICE: () => `/service/getAll`,
+  /** Legacy path-style scoped list; prefer `GET_FRANCHISE_SERVICE_ALL` + `?franchise_id=`. */
+  GET_SERVICE_FOR_FRANCHISE: (franchiseId: string) =>
+    `/service/getAll/${franchiseId}`,
   GET_SERVICE_BY_ID: (id: string) => `/service/get/${id}`,
   GET_SERVICE_DROP_DOWN: () => `/service/getDropDown`,
   CREATE_SERVICE: "/service/create",

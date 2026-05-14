@@ -18,7 +18,7 @@ import {
 } from "./userService";
 import type { AvailablePageEntry } from "./userService";
 
-// Keep shapes local to this service so UI doesn't import mock datasets.
+// Keep shapes local to this service so the UI imports a single typed surface.
 export type EmployeeRow = {
   _id: string;
   employee_id: string;
@@ -111,25 +111,6 @@ function normalizeBooleanLike(value: unknown): boolean {
   return String(value ?? "").toLowerCase() === "true";
 }
 
-function mapApiServiceRow(raw: any): ServiceRow {
-  return {
-    _id: String(raw?._id ?? ""),
-    service_id: String(raw?.service_id ?? raw?._id ?? ""),
-    name: String(raw?.name ?? "").trim() || "-",
-    category_name: String(raw?.category_name ?? "").trim() || "-",
-    is_active: normalizeBooleanLike(raw?.is_active),
-  };
-}
-
-function mapApiCategoryRow(raw: any): CategoryRow {
-  return {
-    _id: String(raw?._id ?? ""),
-    category_id: String(raw?.category_id ?? raw?._id ?? ""),
-    name: String(raw?.name ?? "").trim() || "-",
-    is_active: normalizeBooleanLike(raw?.is_active),
-  };
-}
-
 function mapApiRequestedServiceRow(raw: any): RequestedServiceRow {
   return {
     _id: String(raw?._id ?? ""),
@@ -159,7 +140,7 @@ function mapApiRequestedCategoryRow(raw: any): RequestedCategoryRow {
 }
 
 /**
- * Map `/area/getAll` (or mock) record into the my-franchise table shape. API uses `name`;
+ * Map `/area/getAll` records into the my-franchise table shape. API uses `name`;
  * the grid expects `area_name` (and optional city/state/pincodes).
  */
 function mapApiAreaToFranchiseAreaRow(raw: any): AreaRow {
@@ -273,6 +254,14 @@ type CategoryCatalogHint = {
 export type FranchiseMappingFetchOpts = {
   /** When set, `GET …/franchise-*-category|service/getAll?is_active=…` (franchise on/off). Omit = all. */
   mappingIsActive?: boolean;
+  /**
+   * `GET …/franchise-service/getAll` → **`all_services`**.
+   * `GET …/franchise-category/getAll` → **`all_categories`**.
+   * Query: `search`, `sort_by`, `sort_order` (see API parity docs).
+   */
+  catalogSearch?: string;
+  catalogSortBy?: string;
+  catalogSortOrder?: "asc" | "desc";
 };
 
 /** Options passed from My Franchise UI (summary Total / Active / Inactive + requested sub-mode). */
@@ -280,6 +269,16 @@ export type MyFranchiseDataFetchOptions = {
   franchiseMappingFilter?: "all" | "active" | "inactive";
   /** Global `category` / `service` getAll when `is_request=true`; default pending queue. */
   requestedApprovalStatus?: "pending" | "all";
+  /** Franchise-service catalogue (`all_services`): server search (name, then category name). */
+  serviceCatalogSearch?: string;
+  /** `sort_by` for **service** catalogue only — use `name` (service name), not category. */
+  serviceCatalogSortBy?: string;
+  serviceCatalogSortOrder?: "asc" | "desc";
+  /** Franchise-category catalogue (`all_categories`): server search on global category list. */
+  categoryCatalogSearch?: string;
+  /** `sort_by` for **category** catalogue only — use `name` (category name). */
+  categoryCatalogSortBy?: string;
+  categoryCatalogSortOrder?: "asc" | "desc";
 };
 
 export function myFranchiseDataCacheKey(
@@ -288,10 +287,17 @@ export function myFranchiseDataCacheKey(
 ): string {
   const m = opts?.franchiseMappingFilter ?? "all";
   const r = opts?.requestedApprovalStatus ?? "pending";
+  const svcQ = String(opts?.serviceCatalogSearch ?? "").trim();
+  const svcSb = String(opts?.serviceCatalogSortBy ?? "").trim();
+  const svcSo = opts?.serviceCatalogSortOrder ?? "";
+  const catQ = String(opts?.categoryCatalogSearch ?? "").trim();
+  const catSb = String(opts?.categoryCatalogSortBy ?? "").trim();
+  const catSo = opts?.categoryCatalogSortOrder ?? "";
   switch (slice) {
     case "categories":
+      return `${slice}|m:${m}|q:${catQ}|sb:${catSb}|so:${catSo}`;
     case "services":
-      return `${slice}|m:${m}`;
+      return `${slice}|m:${m}|q:${svcQ}|sb:${svcSb}|so:${svcSo}`;
     case "requested_categories":
     case "requested_services":
       return `${slice}|r:${r}`;
@@ -319,8 +325,9 @@ type FranchiseServiceMapCache = {
   all_services?: unknown[];
   /** Labels from embedded `service_id` on mapping GET (merged after PUT when API returns embeds). */
   serviceCatalogHints?: Record<string, ServiceCatalogHint>;
-  active_services?: boolean;
-  inactive_services?: boolean;
+  /** API may send legacy booleans or string[] of catalogue service ids (staging uses arrays). */
+  active_services?: boolean | string[];
+  inactive_services?: boolean | string[];
   order_number?: number;
 };
 
@@ -781,7 +788,10 @@ async function fetchFranchiseServiceMapForFranchiseDeduped(
       : mapOpts?.mappingIsActive === false
       ? "0"
       : "all";
-  const dedupeKey = `${baseKey}|svc|map:${mapTag}`;
+  const q = String(mapOpts?.catalogSearch ?? "").trim();
+  const sb = String(mapOpts?.catalogSortBy ?? "").trim();
+  const so = mapOpts?.catalogSortOrder ?? "";
+  const dedupeKey = `${baseKey}|svc|map:${mapTag}|q:${q}|sb:${sb}|so:${so}`;
   const existing = franchiseServiceMapInflight.get(dedupeKey);
   if (existing) return existing;
   const p = fetchFranchiseServiceMapForFranchise(fid, mapOpts).finally(() => {
@@ -806,7 +816,10 @@ async function fetchFranchiseCategoryMapForFranchiseDeduped(
       : mapOpts?.mappingIsActive === false
       ? "0"
       : "all";
-  const dedupeKey = `${baseKey}|cat|map:${mapTag}`;
+  const q = String(mapOpts?.catalogSearch ?? "").trim();
+  const sb = String(mapOpts?.catalogSortBy ?? "").trim();
+  const so = mapOpts?.catalogSortOrder ?? "";
+  const dedupeKey = `${baseKey}|cat|map:${mapTag}|q:${q}|sb:${sb}|so:${so}`;
   const existing = franchiseCategoryMapInflight.get(dedupeKey);
   if (existing) return existing;
   const p = fetchFranchiseCategoryMapForFranchise(fid, mapOpts).finally(() => {
@@ -858,6 +871,76 @@ function normalizeFranchiseServiceList(
   return out;
 }
 
+function extractFranchiseServiceIdStringsFromArray(arr: unknown[]): string[] {
+  const out: string[] = [];
+  for (const x of arr) {
+    if (x == null) continue;
+    if (typeof x === "string" || typeof x === "number") {
+      const s = String(x).trim();
+      if (s) out.push(s);
+      continue;
+    }
+    if (typeof x === "object") {
+      const o = x as Record<string, unknown>;
+      const id =
+        apiDocumentId(o._id) ||
+        apiDocumentId(o) ||
+        String(o.id ?? "").trim();
+      if (id) out.push(id.trim());
+    }
+  }
+  return out;
+}
+
+function idSetFromFranchiseServiceIdArray(arr: unknown[]): Set<string> {
+  return new Set(
+    extractFranchiseServiceIdStringsFromArray(arr).map((s) => s.toLowerCase())
+  );
+}
+
+/**
+ * Staging franchise-service records use `active_services` / `inactive_services` as id arrays.
+ * `services_list[].is_active` alone can disagree with catalogue `franchise_active` after merge — hydrate from arrays first.
+ */
+function hydrateFranchiseServiceListFromActiveInactiveArrays(
+  rows: { service_id: string; is_active: boolean }[],
+  activeRaw: unknown,
+  inactiveRaw: unknown
+): { service_id: string; is_active: boolean }[] {
+  const useActive = Array.isArray(activeRaw);
+  const useInactive = Array.isArray(inactiveRaw);
+  if (!useActive && !useInactive) return rows.map((r) => ({ ...r }));
+  const activeSet = useActive ? idSetFromFranchiseServiceIdArray(activeRaw) : null;
+  const inactiveSet = useInactive
+    ? idSetFromFranchiseServiceIdArray(inactiveRaw)
+    : null;
+  return rows.map((r) => {
+    const k = r.service_id.trim().toLowerCase();
+    let is_active = r.is_active;
+    if (activeSet?.has(k)) is_active = true;
+    else if (inactiveSet?.has(k)) is_active = false;
+    return { service_id: r.service_id, is_active };
+  });
+}
+
+function franchiseServiceActiveInactiveSnapshotFromRecord(
+  rec: Record<string, unknown> | null | undefined
+): Pick<FranchiseServiceMapCache, "active_services" | "inactive_services"> {
+  const snap: Pick<
+    FranchiseServiceMapCache,
+    "active_services" | "inactive_services"
+  > = {};
+  if (!rec) return snap;
+  const a = rec.active_services;
+  const b = rec.inactive_services;
+  if (typeof a === "boolean") snap.active_services = a;
+  else if (Array.isArray(a)) snap.active_services = extractFranchiseServiceIdStringsFromArray(a);
+  if (typeof b === "boolean") snap.inactive_services = b;
+  else if (Array.isArray(b))
+    snap.inactive_services = extractFranchiseServiceIdStringsFromArray(b);
+  return snap;
+}
+
 function normalizeFranchiseCategoryList(
   raw: unknown
 ): { category_id: string; is_active: boolean }[] {
@@ -907,6 +990,16 @@ async function fetchFranchiseServiceMapForFranchise(
     if (mapOpts?.mappingIsActive === true) params.set("is_active", "true");
     else if (mapOpts?.mappingIsActive === false)
       params.set("is_active", "false");
+    const searchQ = String(mapOpts?.catalogSearch ?? "").trim();
+    if (searchQ) params.set("search", searchQ);
+    const sortByApi = String(mapOpts?.catalogSortBy ?? "").trim();
+    if (sortByApi) {
+      params.set("sort_by", sortByApi);
+      params.set(
+        "sort_order",
+        mapOpts?.catalogSortOrder === "desc" ? "desc" : "asc"
+      );
+    }
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
       `${ApiPaths.GET_FRANCHISE_SERVICE_ALL()}?${params.toString()}`,
@@ -922,12 +1015,25 @@ async function fetchFranchiseServiceMapForFranchise(
     const raw = pickFranchiseScopedRecord(records, fid);
     if (raw) {
       const rowFid = apiDocumentId(raw?.franchise_id) || fid;
-      const normalized = normalizeFranchiseServiceList(raw?.services_list);
+      const rawRec = raw as Record<string, unknown>;
+      const normalized = hydrateFranchiseServiceListFromActiveInactiveArrays(
+        normalizeFranchiseServiceList(raw?.services_list),
+        rawRec.active_services,
+        rawRec.inactive_services
+      );
       const allSvcs = listPayloadRootArray(response.data, "all_services");
-      const services_list = mergeFranchiseServiceListFromAllServices(
+      const preserveApiCatalogOrder =
+        Boolean(String(mapOpts?.catalogSearch ?? "").trim()) ||
+        Boolean(String(mapOpts?.catalogSortBy ?? "").trim());
+      const merged = mergeFranchiseServiceListFromAllServices(
         normalized,
         allSvcs,
-        raw?.services_order
+        preserveApiCatalogOrder ? undefined : raw?.services_order
+      );
+      const services_list = hydrateFranchiseServiceListFromActiveInactiveArrays(
+        merged,
+        rawRec.active_services,
+        rawRec.inactive_services
       );
       if (services_list.length) {
         const mapId = String(raw?._id ?? "").trim();
@@ -943,14 +1049,7 @@ async function fetchFranchiseServiceMapForFranchise(
             services_list,
             ...(allSvcs.length ? { all_services: allSvcs } : {}),
             serviceCatalogHints: { ...hintsFromAll, ...hintsFromList },
-            active_services:
-              typeof raw?.active_services === "boolean"
-                ? raw.active_services
-                : undefined,
-            inactive_services:
-              typeof raw?.inactive_services === "boolean"
-                ? raw.inactive_services
-                : undefined,
+            ...franchiseServiceActiveInactiveSnapshotFromRecord(rawRec),
             order_number:
               typeof raw?.order_number === "number"
                 ? raw.order_number
@@ -983,6 +1082,16 @@ async function fetchFranchiseCategoryMapForFranchise(
     if (mapOpts?.mappingIsActive === true) params.set("is_active", "true");
     else if (mapOpts?.mappingIsActive === false)
       params.set("is_active", "false");
+    const searchQ = String(mapOpts?.catalogSearch ?? "").trim();
+    if (searchQ) params.set("search", searchQ);
+    const sortByApi = String(mapOpts?.catalogSortBy ?? "").trim();
+    if (sortByApi) {
+      params.set("sort_by", sortByApi);
+      params.set(
+        "sort_order",
+        mapOpts?.catalogSortOrder === "desc" ? "desc" : "asc"
+      );
+    }
     // eslint-disable-next-line no-await-in-loop
     const response = await apiRequest(
       `${ApiPaths.GET_FRANCHISE_CATEGORY_ALL()}?${params.toString()}`,
@@ -1000,10 +1109,13 @@ async function fetchFranchiseCategoryMapForFranchise(
       const rowFid = apiDocumentId(raw?.franchise_id) || fid;
       const normalized = normalizeFranchiseCategoryList(raw?.categories_list);
       const allCats = listPayloadRootArray(response.data, "all_categories");
+      const preserveApiCatalogOrder =
+        Boolean(String(mapOpts?.catalogSearch ?? "").trim()) ||
+        Boolean(String(mapOpts?.catalogSortBy ?? "").trim());
       const categories_list = mergeFranchiseCategoryListFromAllCategories(
         normalized,
         allCats,
-        raw?.categories_order
+        preserveApiCatalogOrder ? undefined : raw?.categories_order
       );
       if (categories_list.length) {
         const mapId = String(raw?._id ?? "").trim();
@@ -1218,12 +1330,14 @@ function serviceRowsFromFranchiseServiceMap(
         }
       }
       if (!category_name) category_name = "-";
+      /** Match category rows: one canonical catalogue id for toggle + PUT (merge uses Mongo `_id` when `all_services` is present). */
+      const canonicalServiceId = doc ? mongoId : sid;
       return {
         _id: mongoId,
-        service_id: sid,
+        service_id: canonicalServiceId,
         name,
         category_name,
-        is_active: normalizeBooleanLike(entry.is_active),
+        is_active: entry.is_active,
       };
     })
     .filter((r): r is ServiceRow => r != null);
@@ -1240,13 +1354,18 @@ async function fetchCategoryRowsForMyFranchise(
     fid,
     mapOpts
   );
+  const canonicalMapCache =
+    mapOpts?.mappingIsActive === undefined &&
+    !String(mapOpts?.catalogSearch ?? "").trim() &&
+    !String(mapOpts?.catalogSortBy ?? "").trim();
+
   if (!catMap?.categories_list?.length) {
-    if (mapOpts?.mappingIsActive === undefined) {
+    if (canonicalMapCache) {
       cachedFranchiseCategoryMap = null;
     }
     return [];
   }
-  if (mapOpts?.mappingIsActive === undefined) {
+  if (canonicalMapCache) {
     cachedFranchiseCategoryMap = catMap;
   }
 
@@ -1260,15 +1379,20 @@ async function fetchServiceRowsForMyFranchise(
   if (!isFranchiseCatalogTokenScoped() && !fid) return [];
   syncFranchiseMapCacheScope(fid);
 
+  const canonicalMapCache =
+    mapOpts?.mappingIsActive === undefined &&
+    !String(mapOpts?.catalogSearch ?? "").trim() &&
+    !String(mapOpts?.catalogSortBy ?? "").trim();
+
   const svcMap = await fetchFranchiseServiceMapForFranchiseDeduped(fid, mapOpts);
   if (!svcMap?.services_list?.length) {
-    if (mapOpts?.mappingIsActive === undefined) {
-    cachedFranchiseServiceMap = null;
+    if (canonicalMapCache) {
+      cachedFranchiseServiceMap = null;
     }
     return [];
   }
-  if (mapOpts?.mappingIsActive === undefined) {
-  cachedFranchiseServiceMap = svcMap;
+  if (canonicalMapCache) {
+    cachedFranchiseServiceMap = svcMap;
   }
 
   return serviceRowsFromFranchiseServiceMap(svcMap);
@@ -1441,9 +1565,29 @@ export async function fetchMyFranchiseDataSlices(
 
   const svcMapOpts: FranchiseMappingFetchOpts = {
     mappingIsActive: franchiseMappingIsActiveFromFetchOptions("services", opts),
+    ...(String(opts?.serviceCatalogSearch ?? "").trim()
+      ? { catalogSearch: String(opts!.serviceCatalogSearch).trim() }
+      : {}),
+    ...(String(opts?.serviceCatalogSortBy ?? "").trim()
+      ? {
+          catalogSortBy: String(opts!.serviceCatalogSortBy).trim(),
+          catalogSortOrder:
+            opts?.serviceCatalogSortOrder === "desc" ? "desc" : "asc",
+        }
+      : {}),
   };
   const catMapOpts: FranchiseMappingFetchOpts = {
     mappingIsActive: franchiseMappingIsActiveFromFetchOptions("categories", opts),
+    ...(String(opts?.categoryCatalogSearch ?? "").trim()
+      ? { catalogSearch: String(opts!.categoryCatalogSearch).trim() }
+      : {}),
+    ...(String(opts?.categoryCatalogSortBy ?? "").trim()
+      ? {
+          catalogSortBy: String(opts!.categoryCatalogSortBy).trim(),
+          catalogSortOrder:
+            opts?.categoryCatalogSortOrder === "desc" ? "desc" : "asc",
+        }
+      : {}),
   };
 
   if (need.has("employees")) {
@@ -1619,10 +1763,13 @@ export async function setServiceActive(
         services_list,
         franchise_id: map.franchise_id,
       };
-      if (map.active_services !== undefined) {
+      if (map.active_services !== undefined && typeof map.active_services === "boolean") {
         body.active_services = map.active_services;
       }
-      if (map.inactive_services !== undefined) {
+      if (
+        map.inactive_services !== undefined &&
+        typeof map.inactive_services === "boolean"
+      ) {
         body.inactive_services = map.inactive_services;
       }
       if (map.order_number !== undefined) {
@@ -1646,34 +1793,39 @@ export async function setServiceActive(
           : {}),
       };
       if (rec) {
-        const fromRec = normalizeFranchiseServiceList(rec.services_list);
+        const recObj = rec as Record<string, unknown>;
+        const fromNorm = normalizeFranchiseServiceList(rec.services_list);
+        const fromRec = hydrateFranchiseServiceListFromActiveInactiveArrays(
+          fromNorm,
+          recObj.active_services,
+          recObj.inactive_services
+        );
         const baseList = fromRec.length ? fromRec : services_list;
-        const next = mergeFranchiseServiceListFromAllServices(
+        const nextRaw = mergeFranchiseServiceListFromAllServices(
           baseList,
           map.all_services,
           rec.services_order
         );
-          cachedFranchiseServiceMap = {
-            ...map,
+        const next = hydrateFranchiseServiceListFromActiveInactiveArrays(
+          nextRaw,
+          recObj.active_services,
+          recObj.inactive_services
+        );
+        const snap = franchiseServiceActiveInactiveSnapshotFromRecord(recObj);
+        cachedFranchiseServiceMap = {
+          ...map,
           services_list: next.length ? next : baseList,
           ...(map.all_services?.length ? { all_services: map.all_services } : {}),
           serviceCatalogHints: {
             ...(map.serviceCatalogHints ?? {}),
             ...hintPatch,
           },
-            active_services:
-              typeof rec.active_services === "boolean"
-                ? rec.active_services
-                : map.active_services,
-            inactive_services:
-              typeof rec.inactive_services === "boolean"
-                ? rec.inactive_services
-                : map.inactive_services,
-            order_number:
-              typeof rec.order_number === "number"
-                ? rec.order_number
-                : map.order_number,
-          };
+          ...snap,
+          order_number:
+            typeof rec.order_number === "number"
+              ? rec.order_number
+              : map.order_number,
+        };
       } else {
         cachedFranchiseServiceMap = { ...map, services_list };
       }

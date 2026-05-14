@@ -73,6 +73,13 @@ const ServiceManagement = () => {
       type: "service-management",
       franchiseId: headerFranchiseId,
     });
+  /** Header franchise ≠ "all" → lists from `GET …/franchise-category|franchise-service/getAll?franchise_id=…` (`all_*` rows use `franchise_active`). */
+  const franchiseCatalogScope =
+    Boolean(String(headerFranchiseId ?? "").trim()) &&
+    String(headerFranchiseId).toLowerCase() !== "all";
+  const catalogListStatusField = franchiseCatalogScope
+    ? "franchise_active"
+    : "is_active";
   const [selectedBox, setSelectedBox] = useState<string>("box-category");
   const [categoryData, setCategoryData] = useState<Record<string, number>>({});
   const [serviceData, setServiceData] = useState<Record<string, number>>({});
@@ -133,7 +140,7 @@ const ServiceManagement = () => {
 
       try {
         if (selected === "box-category") {
-          const { response, categories, totalPages } =
+          const { response, categories, totalPages, resolvedPage } =
             await fetchCategory(
             currentPage,
             pageSize,
@@ -141,10 +148,14 @@ const ServiceManagement = () => {
               ...filters,
               ...(showRequestedCategory ? { is_request: "true" } : {}),
             },
-            sortBy
+            sortBy,
+            headerFranchiseId
           );
           if (response) {
             if (generation !== fetchGenerationRef.current) return;
+            if (typeof resolvedPage === "number") {
+              setCurrentPage(resolvedPage);
+            }
             if (showRequestedCategory) {
               setRequestedCategoryList(categories || []);
             } else {
@@ -153,7 +164,7 @@ const ServiceManagement = () => {
             setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-service") {
-          const { response, services, totalPages } =
+          const { response, services, totalPages, resolvedPage } =
             await fetchService(
             currentPage,
             pageSize,
@@ -161,10 +172,14 @@ const ServiceManagement = () => {
               ...filters,
               ...(showRequestedService ? { is_request: "true" } : {}),
             },
-            sortBy
+            sortBy,
+            headerFranchiseId
           );
           if (response) {
             if (generation !== fetchGenerationRef.current) return;
+            if (typeof resolvedPage === "number") {
+              setCurrentPage(resolvedPage);
+            }
             if (showRequestedService) {
               setRequestedServiceList(services || []);
             } else {
@@ -185,6 +200,7 @@ const ServiceManagement = () => {
       showRequestedCategory,
       showRequestedService,
       sortBy,
+      headerFranchiseId,
     ]
   );
 
@@ -212,7 +228,9 @@ const ServiceManagement = () => {
     showRequestedCategory,
     showRequestedService,
     refreshData,
+    headerFranchiseId,
   ]);
+
 
   const handleFilterChange = async (
     filters: {
@@ -222,7 +240,6 @@ const ServiceManagement = () => {
     },
     targetBox?: string
   ) => {
-    const selectedTarget = targetBox ?? selectedBox;
     setCurrentPage(1);
     setTotalPages(0);
     setSortBy([]);
@@ -266,7 +283,6 @@ const ServiceManagement = () => {
         accessor: "services",
         Cell: ({ row }: { row: any }) => {
           const cat = row.original;
-          const countDisplay = "-";
 
           // Prefer real service names if API provides them; otherwise show a static fallback.
           let names: string[] = [];
@@ -295,7 +311,7 @@ const ServiceManagement = () => {
               .filter(Boolean);
           }
 
-          if (!names || names.length === 0) return countDisplay;
+          if (!names || names.length === 0) return "-";
           const hasMoreServices = names.length > 1;
           const additionalCount = names.length - 1;
 
@@ -324,11 +340,10 @@ const ServiceManagement = () => {
           );
         },
       },
-      // { Header: "Partners", accessor: "helpers", Cell: partnerCountCell },
       {
-        Header: "Status",
-        accessor: "is_active",
-        Cell: statusCell("is_active"),
+        Header: franchiseCatalogScope ? "Franchise status" : "Status",
+        accessor: catalogListStatusField,
+        Cell: statusCell(catalogListStatusField),
       },
       {
         Header: "Action",
@@ -350,14 +365,17 @@ const ServiceManagement = () => {
                 true
               );
             }}
-            // onEdit={() => {
-            //     AddEditCategoryDialog.show(true, row.original, () => refreshData("box-category"), false);
-            // }}
           />
         ),
       },
     ],
-    [currentPage, pageSize, refreshTableAfterMutation]
+    [
+      currentPage,
+      pageSize,
+      refreshTableAfterMutation,
+      franchiseCatalogScope,
+      catalogListStatusField,
+    ]
   );
 
   const serviceColumns = React.useMemo(
@@ -372,9 +390,9 @@ const ServiceManagement = () => {
       { Header: "Service Name", accessor: "name", sort: true },
       { Header: "Category", accessor: "category_name" },
       {
-        Header: "Status",
-        accessor: "is_active",
-        Cell: statusCell("is_active"),
+        Header: franchiseCatalogScope ? "Franchise status" : "Status",
+        accessor: catalogListStatusField,
+        Cell: statusCell(catalogListStatusField),
       },
       {
         Header: "Action",
@@ -396,14 +414,17 @@ const ServiceManagement = () => {
                 true
               );
             }}
-            // onEdit={() => {
-            //     AddEditServiceDialog.show(true, row.original, () => refreshData("box-service"));
-            // }}
           />
         ),
       },
     ],
-    [currentPage, pageSize, refreshTableAfterMutation]
+    [
+      currentPage,
+      pageSize,
+      refreshTableAfterMutation,
+      franchiseCatalogScope,
+      catalogListStatusField,
+    ]
   );
 
   /* ADDED: requested category columns */
@@ -416,7 +437,6 @@ const ServiceManagement = () => {
       },
 
       { Header: "Category Name", accessor: "name" },
-      // { Header: "Description", accessor: "desc" },
       {
         Header: "Date",
         accessor: "createdAt",
@@ -448,14 +468,11 @@ const ServiceManagement = () => {
                 true
               );
             }}
-            // onEdit={() => {
-            //     AddEditCategoryDialog.show(true, row.original, openRequestedCategory);
-            // }}
           />
         ),
       },
     ],
-    [openRequestedCategory, refreshTableAfterMutation]
+    [openRequestedCategory]
   );
 
   /* ADDED: requested service columns */
@@ -468,7 +485,6 @@ const ServiceManagement = () => {
       },
 
       { Header: "Service Name", accessor: "name" },
-      // { Header: "Description", accessor: "desc" },
       { Header: "Category", accessor: "category_name" },
       {
         Header: "Date",
@@ -505,7 +521,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedService, refreshTableAfterMutation]
+    [openRequestedService]
   );
 
   return (

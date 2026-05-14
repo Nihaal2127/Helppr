@@ -19,6 +19,7 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import { CustomFormIndiaMobile } from "../../../components/CustomFormIndiaMobile";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
+import { readHeaderFranchisePreference } from "../../../helper/headerFranchisePreference";
 import {
   RoleSettingsModel,
   StaffSettingsModel,
@@ -182,7 +183,9 @@ const RoleManagement = () => {
     "all" | "franchise_admin" | "employee"
   >(() => (isFranchiseAdminSession ? "employee" : "franchise_admin"));
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
-  const [franchiseFilter, setFranchiseFilter] = useState("all");
+  const [franchiseFilter, setFranchiseFilter] = useState(() =>
+    readHeaderFranchisePreference()
+  );
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
 
   const [showForm, setShowForm] = useState(false);

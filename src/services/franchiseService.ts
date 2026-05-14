@@ -2,10 +2,7 @@ import { apiRequest } from "../remote/apiHelper";
 import { ApiPaths } from "../remote/apiPaths";
 import { FranchiseModel } from "../models/FranchiseModels";
 import { showLog } from "../helper/utility";
-import { franchiseMockSeed } from "../mockData/franchiseMockData";
 import type { ServerTableSortBy } from "../helper/serverTableSort";
-
-const USE_MOCK_FRANCHISE_API = false;
 
 export type FranchiseDropDownOption = {
   value: string;
@@ -472,15 +469,6 @@ export const fetchFranchiseDropDown = async (
     assignedAdminDropdown?: boolean;
   }
 ): Promise<FranchiseDropDownOption[]> => {
-  if (USE_MOCK_FRANCHISE_API) {
-    return mockFranchises.map((f: any) => ({
-      value: f._id,
-      label: f.name,
-      state_id: f.state_id ? String(f.state_id) : undefined,
-      city_id: f.city_id ? String(f.city_id) : undefined,
-    }));
-  }
-
   const key = franchiseDropdownCacheKey(options);
   const now = Date.now();
   let bucket = franchiseDropdownCache.get(key);
@@ -531,14 +519,6 @@ export const fetchFranchiseById = async (
   const targetId = String(id ?? "").trim();
   if (!targetId) return null;
   const skipAdmin = options?.skipAdminContactEnrichment === true;
-  if (USE_MOCK_FRANCHISE_API) {
-    const raw = mockFranchises.find((f: any) => String(f._id) === targetId);
-    if (!raw) return null;
-    const adminContacts = skipAdmin
-      ? undefined
-      : await getFranchiseAdminContactsCached();
-    return mapFranchiseRow(raw, adminContacts);
-  }
   const response = await apiRequest(
     ApiPaths.GET_FRANCHISE_BY_ID(targetId),
     "GET",
@@ -590,91 +570,6 @@ export const fetchFranchise = async (
   totalItems?: number;
 }> => {
   const primarySort = sortBy[0];
-  if (USE_MOCK_FRANCHISE_API) {
-    const keyword = (filters.search ?? filters.name ?? "").trim().toLowerCase();
-    const statusRaw = filters.status ?? "";
-    const sortRaw = filters.sort ?? "";
-
-    let data = [...mockFranchises];
-
-    const fid = String(filters.franchise_id ?? "").trim();
-    if (fid) {
-      data = data.filter((item: any) => String(item._id ?? "") === fid);
-    }
-
-    if (statusRaw && statusRaw !== "All") {
-      const wantActive = statusRaw.toLowerCase() === "true";
-      data = data.filter((item: any) => Boolean(item.is_active) === wantActive);
-    }
-
-    if (keyword) {
-      data = data.filter((item: any) => {
-        const areas = Array.isArray(item.area_name)
-          ? item.area_name.join(" ")
-          : String(item.area_name ?? "");
-        const catSvc = [
-          ...(Array.isArray(item.category_names) ? item.category_names : []),
-          ...(Array.isArray(item.service_names) ? item.service_names : []),
-        ]
-          .join(" ")
-          .toLowerCase();
-        return (
-          String(item.name ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.state_name ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.city_name ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(areas ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.admin_name ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.description ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          String(item.contact ?? "")
-            .toLowerCase()
-            .includes(keyword) ||
-          catSvc.includes(keyword)
-        );
-      });
-    }
-
-    const sort = primarySort
-      ? primarySort.desc
-        ? "desc"
-        : "asc"
-      : String(filters.sort_order ?? sortRaw).toLowerCase();
-    if (sort) {
-      const ascending = sort === "asc" || sort === "1";
-      const sortByField = primarySort?.id || filters.sort_by || "name";
-      data.sort((a: any, b: any) => {
-        const av = String(a?.[sortByField] ?? a?.name ?? "");
-        const bv = String(b?.[sortByField] ?? b?.name ?? "");
-        return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
-      });
-    }
-
-    const totalPages = Math.ceil(data.length / pageSize) || 0;
-    const start = (page - 1) * pageSize;
-    const adminContacts = await getFranchiseAdminContactsCached();
-    const records = data
-      .slice(start, start + pageSize)
-      .map((r) => mapFranchiseRow(r, adminContacts));
-
-    return {
-      response: true,
-      franchises: records as FranchiseModel[],
-      totalPages,
-      totalItems: data.length,
-    };
-  }
-
   const searchValue = String(filters.search ?? filters.name ?? "").trim();
   const primarySortId = primarySort?.id ? String(primarySort.id).trim() : "";
   /** Column id from the table (matches API sort_by per franchise/getAll docs). */
@@ -779,14 +674,6 @@ export const fetchFranchise = async (
 };
 
 export const deleteFranchise = async (id: string): Promise<boolean> => {
-  if (USE_MOCK_FRANCHISE_API) {
-    const before = mockFranchises.length;
-    mockFranchises = mockFranchises.filter(
-      (f: any) => String(f._id) !== String(id)
-    );
-    return mockFranchises.length !== before;
-  }
-
   const response = await apiRequest(ApiPaths.DELETE_FRANCHISE(id), "DELETE");
 
   if (response.success) {
@@ -826,32 +713,6 @@ export const createOrUpdateFranchise = async (
   isEditable: boolean,
   id?: string
 ): Promise<CreateOrUpdateFranchiseResult> => {
-  if (USE_MOCK_FRANCHISE_API) {
-    if (isEditable) {
-      const idx = mockFranchises.findIndex(
-        (f: any) => String(f._id) === String(id)
-      );
-      if (idx === -1) return { ok: false };
-
-      mockFranchises[idx] = {
-        ...mockFranchises[idx],
-        ...payload,
-        _id: mockFranchises[idx]._id,
-      };
-      return { ok: true, franchiseId: String(mockFranchises[idx]._id) };
-    }
-
-    const newId = String(Date.now());
-    mockFranchises = [
-      {
-        _id: newId,
-        ...payload,
-      },
-      ...mockFranchises,
-    ];
-    return { ok: true, franchiseId: newId };
-  }
-
   const path = isEditable
     ? ApiPaths.UPDATE_FRANCHISE(id!)
     : ApiPaths.CREATE_FRANCHISE;
@@ -867,9 +728,3 @@ export const createOrUpdateFranchise = async (
   }
   return { ok: false };
 };
-
-// ----------------------------
-// Mock data + in-memory "store"
-// ----------------------------
-
-let mockFranchises: any[] = franchiseMockSeed.map((item) => ({ ...item }));

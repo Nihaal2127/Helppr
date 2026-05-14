@@ -5,6 +5,9 @@ import type { CountModel } from "../models/CountModel";
 import { getCount } from "../services/getCountService";
 import type { GetCountPathResolution } from "../helper/getCountRouteType";
 import { resolveGetCountTypeFromPathname } from "../helper/getCountRouteType";
+import { franchiseHeaderFormDefaults } from "../helper/headerFranchisePreference";
+import { AppConstant, UserRole } from "../constant/AppConstant";
+import { getLocalStorage } from "../helper/localStorageHelper";
 
 export const FRANCHISE_HEADER_FIELD = "franchise_id" as const;
 export const FRANCHISE_HEADER_ALL = "all" as const;
@@ -20,11 +23,28 @@ export function useFranchiseHeaderForm(): UseFormReturn<FranchiseHeaderFormValue
   franchiseId: string;
 } {
   const methods = useForm<FranchiseHeaderFormValues>({
-    defaultValues: { franchise_id: FRANCHISE_HEADER_ALL },
+    defaultValues: franchiseHeaderFormDefaults(),
   });
   const franchiseId = String(
     methods.watch("franchise_id") ?? FRANCHISE_HEADER_ALL
   );
+
+  useEffect(() => {
+    const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+    if (role !== UserRole.FRANCHISE_ADMIN && role !== UserRole.EMPLOYEE) return;
+    const sessionFid = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+    if (!sessionFid) return;
+    if (
+      !franchiseId ||
+      franchiseId.toLowerCase() === FRANCHISE_HEADER_ALL ||
+      franchiseId !== sessionFid
+    ) {
+      methods.setValue("franchise_id", sessionFid, { shouldValidate: false });
+    }
+    // `methods.setValue` is stable from react-hook-form; avoid `methods` in deps (identity can churn).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable setValue; franchiseId drives re-sync
+  }, [franchiseId]);
+
   return { ...methods, franchiseId };
 }
 
