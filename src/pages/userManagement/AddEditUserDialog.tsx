@@ -19,6 +19,7 @@ import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreasByCityForForm } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
+import type { UserMultipartUploads } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown, fetchCategory } from "../../services/categoryService";
 import {
@@ -50,7 +51,6 @@ import {
   PARTNER_CREATE_DOCUMENT_SLOTS,
 } from "../../lib/partner/partnerFormDocuments";
 import type { PartnerCreateDocumentKey } from "../../lib/partner/partnerFormDocuments";
-import type { UserMultipartUploads } from "../../services/userService";
 import { openDialog } from "../../lib/global/DialogManager";
 import {
   sanitizeIndianPincodeInput,
@@ -61,6 +61,7 @@ import {
   PartnerSingleSelect,
   emptyPartnerCatalogBlock,
   emptyPartnerServiceRow,
+  newPartnerCatalogRowId,
   flattenPartnerBlocksForSave,
   partnerCatalogControlStyle,
   partnerCatalogOutlineAddBtn,
@@ -74,6 +75,23 @@ import type {
 } from "../../components/partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
 const USER_ROLE = 4;
+
+/** Local guard — keeps catalog UI safe without an extra module export (avoids dev HMR load issues). */
+function ensurePartnerCatalogBlocks(
+  blocks: PartnerCategoryBlock[] | null | undefined
+): PartnerCategoryBlock[] {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return [emptyPartnerCatalogBlock("")];
+  }
+  return blocks.map((b) => ({
+    id: String(b?.id ?? "").trim() || newPartnerCatalogRowId(),
+    categoryId: String(b?.categoryId ?? ""),
+    serviceRows:
+      Array.isArray(b?.serviceRows) && b.serviceRows.length > 0
+        ? b.serviceRows
+        : [emptyPartnerServiceRow()],
+  }));
+}
 
 function formatServicePaymentCadence(paymentType: string): string {
   const t = String(paymentType ?? "")
@@ -258,6 +276,11 @@ function AddEditUserDialogView({
     PartnerCategoryBlock[]
   >(() => [emptyPartnerCatalogBlock("")]);
 
+  const safePartnerCatalogBlocks = useMemo(
+    () => ensurePartnerCatalogBlocks(partnerCatalogBlocks),
+    [partnerCatalogBlocks]
+  );
+
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
   const [partnerVerificationDocFiles, setPartnerVerificationDocFiles] =
@@ -314,16 +337,8 @@ function AddEditUserDialogView({
   );
 
   const addPartnerCatalogLocked = useMemo(
-    () =>
-      isAddPartner &&
-      ((isSuperAdminOrStaff && !effectiveAddPartnerFranchiseId) ||
-        (isFranchisePortalUser && !effectiveAddPartnerFranchiseId)),
-    [
-      isAddPartner,
-      isSuperAdminOrStaff,
-      isFranchisePortalUser,
-      effectiveAddPartnerFranchiseId,
-    ]
+    () => isAddPartner && isSuperAdminOrStaff && !effectiveAddPartnerFranchiseId,
+    [isAddPartner, isSuperAdminOrStaff, effectiveAddPartnerFranchiseId]
   );
 
   const fetchCityFromApi = useCallback(async (stateId: string) => {
@@ -539,7 +554,7 @@ function AddEditUserDialogView({
           setCategoryOptions([{ value: "select-all", label: "Select All" }]);
           return;
         }
-        const catList = res.categories
+        const catList = (Array.isArray(res.categories) ? res.categories : [])
           .map((c) => ({
             value: String(c._id ?? c.category_id ?? "").trim(),
             label: String(c.name ?? "").trim(),
@@ -623,9 +638,11 @@ function AddEditUserDialogView({
 
   const categorySelectOptionsForBlock = useCallback(
     (blockId: string): OptionType[] => {
-      const rest = categoryOptions.filter((c) => c.value !== "select-all");
+      const rest = (categoryOptions ?? []).filter(
+        (c) => c.value !== "select-all"
+      );
       const taken = new Set(
-        partnerCatalogBlocks
+        safePartnerCatalogBlocks
           .filter(
             (b) =>
               b.id !== blockId && String(b.categoryId ?? "").trim() !== ""
@@ -635,7 +652,7 @@ function AddEditUserDialogView({
       const filtered = rest.filter((c) => !taken.has(String(c.value)));
       return [{ value: "", label: "Select category" }, ...filtered];
     },
-    [categoryOptions, partnerCatalogBlocks]
+    [categoryOptions, safePartnerCatalogBlocks]
   );
 
   const catalogServicesForBlocks = useMemo((): PartnerCatalogServiceLite[] => {
@@ -661,11 +678,12 @@ function AddEditUserDialogView({
         return [{ value: "", label: "Select category first" }];
       }
 
-      const currentRow = block.serviceRows.find((r) => r.id === rowId);
+      const rows = block.serviceRows ?? [];
+      const currentRow = rows.find((r) => r.id === rowId);
       const currentSid = String(currentRow?.serviceId ?? "").trim();
 
       const selectedElsewhere = new Set(
-        block.serviceRows
+        rows
           .filter((r) => r.id !== rowId)
           .map((r) => String(r.serviceId ?? "").trim())
           .filter(Boolean)
@@ -724,11 +742,11 @@ function AddEditUserDialogView({
 
   const canAddPartnerCategoryBlock = useMemo(() => {
     if (!isAddPartner) return true;
-    return partnerCatalogBlocks.every((b) => {
+    return safePartnerCatalogBlocks.every((b) => {
       if (!String(b.categoryId ?? "").trim()) return false;
-      return b.serviceRows.every(partnerServiceRowComplete);
+      return (b.serviceRows ?? []).every(partnerServiceRowComplete);
     });
-  }, [isAddPartner, partnerCatalogBlocks]);
+  }, [isAddPartner, safePartnerCatalogBlocks]);
 
   const canAddPartnerServiceRow = useCallback(
     (block: PartnerCategoryBlock, row: PartnerServiceRow) =>
@@ -740,24 +758,30 @@ function AddEditUserDialogView({
   );
 
   const addCategoryBlock = useCallback(() => {
-    setPartnerCatalogBlocks((prev) => [...prev, emptyPartnerCatalogBlock("")]);
+    setPartnerCatalogBlocks((prev) => [
+      ...ensurePartnerCatalogBlocks(prev),
+      emptyPartnerCatalogBlock(""),
+    ]);
   }, []);
 
   const removeCategoryBlock = useCallback((blockId: string) => {
-    setPartnerCatalogBlocks((prev) =>
-      prev.length <= 1 ? prev : prev.filter((b) => b.id !== blockId)
-    );
+    setPartnerCatalogBlocks((prev) => {
+      const blocks = ensurePartnerCatalogBlocks(prev);
+      return blocks.length <= 1
+        ? blocks
+        : blocks.filter((b) => b.id !== blockId);
+    });
   }, []);
 
   const updateBlockCategory = useCallback(
     (blockId: string, categoryId: string) => {
       setPartnerCatalogBlocks((prev) =>
-        prev.map((b) =>
+        ensurePartnerCatalogBlocks(prev).map((b) =>
           b.id === blockId
             ? {
                 ...b,
                 categoryId,
-                serviceRows: b.serviceRows.map((r) => ({
+                serviceRows: (b.serviceRows ?? []).map((r) => ({
                   ...r,
                   serviceId: "",
                   price: "",
@@ -830,9 +854,12 @@ function AddEditUserDialogView({
 
   const addServiceRow = useCallback((blockId: string) => {
     setPartnerCatalogBlocks((prev) =>
-      prev.map((b) =>
+      ensurePartnerCatalogBlocks(prev).map((b) =>
         b.id === blockId
-          ? { ...b, serviceRows: [...b.serviceRows, emptyPartnerServiceRow()] }
+          ? {
+              ...b,
+              serviceRows: [...(b.serviceRows ?? []), emptyPartnerServiceRow()],
+            }
           : b
       )
     );
@@ -845,12 +872,12 @@ function AddEditUserDialogView({
       patch: Partial<Omit<PartnerServiceRow, "id">>
     ) => {
       setPartnerCatalogBlocks((prev) =>
-        prev.map((b) =>
+        ensurePartnerCatalogBlocks(prev).map((b) =>
           b.id !== blockId
             ? b
             : {
                 ...b,
-                serviceRows: b.serviceRows.map((r) =>
+                serviceRows: (b.serviceRows ?? []).map((r) =>
                   r.id === rowId ? { ...r, ...patch } : r
                 ),
               }
@@ -862,14 +889,15 @@ function AddEditUserDialogView({
 
   const removeServiceRow = useCallback((blockId: string, rowId: string) => {
     setPartnerCatalogBlocks((prev) =>
-      prev.map((b) => {
+      ensurePartnerCatalogBlocks(prev).map((b) => {
         if (b.id !== blockId) return b;
-        if (b.serviceRows.length <= 1) {
+        const rows = b.serviceRows ?? [];
+        if (rows.length <= 1) {
           return b;
         }
         return {
           ...b,
-          serviceRows: b.serviceRows.filter((r) => r.id !== rowId),
+          serviceRows: rows.filter((r) => r.id !== rowId),
         };
       })
     );
@@ -962,7 +990,7 @@ function AddEditUserDialogView({
           return;
         }
         const catalogFlat = flattenPartnerBlocksForSave(
-          partnerCatalogBlocks,
+          safePartnerCatalogBlocks,
           catalogServicesForBlocks
         );
         if (!catalogFlat.ok) {
@@ -1158,7 +1186,8 @@ function AddEditUserDialogView({
     void (async () => {
       try {
         const opts = await fetchSubscriptionPlanDropDown();
-        if (!cancelled) setPartnerPlanSelectOptions(opts);
+        if (!cancelled)
+          setPartnerPlanSelectOptions(Array.isArray(opts) ? opts : []);
       } catch {
         if (!cancelled) setPartnerPlanSelectOptions([]);
       }
@@ -1377,7 +1406,7 @@ function AddEditUserDialogView({
                     <CustomTextFieldSelect
                       label="State"
                       controlId="State"
-                      options={states}
+                      options={states ?? []}
                       register={register}
                       fieldName="state_id"
                       error={errors.state_id}
@@ -1395,7 +1424,7 @@ function AddEditUserDialogView({
                     <CustomTextFieldSelect
                       label="City"
                       controlId="City"
-                      options={cities}
+                      options={cities ?? []}
                       register={register}
                       fieldName="city_id"
                       error={errors.city_id}
@@ -1416,7 +1445,7 @@ function AddEditUserDialogView({
                       controlId="Area"
                       options={[
                         { value: "", label: "Select Area" },
-                        ...areas,
+                        ...(areas ?? []),
                       ]}
                       register={register}
                       fieldName="area_id"
@@ -1435,7 +1464,7 @@ function AddEditUserDialogView({
                       controlId="Pincode"
                       options={[
                         { value: "", label: "Select Pincode" },
-                        ...pincodeOptions,
+                        ...(pincodeOptions ?? []),
                       ]}
                       register={register}
                       fieldName="pincode"
@@ -1755,7 +1784,7 @@ function AddEditUserDialogView({
                     <CustomTextFieldSelect
                       label="State"
                       controlId="State"
-                      options={states}
+                      options={states ?? []}
                       register={register}
                       fieldName="state_id"
                       error={errors.state_id}
@@ -1771,7 +1800,7 @@ function AddEditUserDialogView({
                     <CustomTextFieldSelect
                       label="City"
                       controlId="City"
-                      options={cities}
+                      options={cities ?? []}
                       register={register}
                       fieldName="city_id"
                       error={errors.city_id}
@@ -1787,7 +1816,7 @@ function AddEditUserDialogView({
                       controlId="Area"
                       options={[
                         { value: "", label: "Select Area" },
-                        ...areas,
+                        ...(areas ?? []),
                       ]}
                       register={register}
                       fieldName="area_id"
@@ -1803,7 +1832,7 @@ function AddEditUserDialogView({
                       controlId="Pincode"
                       options={[
                         { value: "", label: "Select Pincode" },
-                        ...pincodeOptions,
+                        ...(pincodeOptions ?? []),
                       ]}
                       register={register}
                       fieldName="pincode"
@@ -1914,7 +1943,7 @@ function AddEditUserDialogView({
                         : "Unable to resolve your franchise for the catalogue. Please contact support."}
                     </p>
                   ) : null} */}
-                  {partnerCatalogBlocks.map((block) => (
+                  {safePartnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}
                       className="rounded-3 border px-3 py-3 mb-4"
@@ -1955,7 +1984,7 @@ function AddEditUserDialogView({
                           >
                             <i className="bi bi-plus fs-6" aria-hidden />
                           </button>
-                          {partnerCatalogBlocks.length > 1 ? (
+                          {safePartnerCatalogBlocks.length > 1 ? (
                             <button
                               type="button"
                               title="Remove this category block"
@@ -1972,7 +2001,7 @@ function AddEditUserDialogView({
                         </Col>
                       </Row>
 
-                      {block.serviceRows.map((row) => (
+                      {(block.serviceRows ?? []).map((row) => (
                         <Row
                           key={row.id}
                           className="g-3 align-items-start mb-2"
@@ -2129,7 +2158,7 @@ function AddEditUserDialogView({
                             >
                               <i className="bi bi-plus fs-6" aria-hidden />
                             </button>
-                            {block.serviceRows.length > 1 ? (
+                            {(block.serviceRows ?? []).length > 1 ? (
                               <button
                                 type="button"
                                 title="Remove this service row"
@@ -2161,7 +2190,7 @@ function AddEditUserDialogView({
                   }}
                 >
                   <h3 className="mb-2">Verification &amp; Documents</h3>
-                  {PARTNER_CREATE_DOCUMENT_SLOTS.map((slot) => (
+                  {(PARTNER_CREATE_DOCUMENT_SLOTS ?? []).map((slot) => (
                     <DetailsRowLinkDocument
                       key={slot.key}
                       title={slot.title}

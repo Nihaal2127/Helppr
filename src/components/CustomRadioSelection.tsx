@@ -42,7 +42,7 @@ export const CustomRadioSelection: React.FC<CustomRadioSelectionProps> = ({
         <Form.Label className="fw-medium mb-1">{label}</Form.Label>
       )}
       <div className="d-flex flex-wrap align-items-center" style={{ gap: "12px" }}>
-        {options.map((option, index) => (
+        {(Array.isArray(options) ? options : []).map((option, index) => (
           <Form.Check
             key={`${name}_${index}`}
             inline

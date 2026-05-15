@@ -156,9 +156,6 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const [locationAreaOptions, setLocationAreaOptions] = useState<
     { value: string; label: string }[]
   >([{ value: "all", label: "All" }]);
-  const [sessionFranchiseId] = useState(() =>
-    String(getLocalStorage(AppConstant.partnerId) ?? "").trim()
-  );
   const [sessionCityId, setSessionCityId] = useState("");
 
   const [planFilters, setPlanFilters] = useState<{
@@ -270,7 +267,6 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         pageSize,
         {
           ...partnerFilters,
-          franchiseId: isFranchiseAdminSession ? sessionFranchiseId : undefined,
           cityId: isFranchiseAdminSession ? sessionCityId : undefined,
         },
         partnerSubSortBy
@@ -294,7 +290,6 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
     partnerSubSortBy,
     activeBox,
     isFranchiseAdminSession,
-    sessionFranchiseId,
     sessionCityId,
   ]);
 

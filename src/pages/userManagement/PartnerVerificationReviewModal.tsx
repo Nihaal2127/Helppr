@@ -14,7 +14,7 @@ import {
   normalizePartnerVerification,
   PARTNER_VERIFICATION,
 } from "../../lib/partner/partnerVerification";
-import { DetailsRow, formatDate } from "../../helper/utility";
+import { DetailsRow, formatDate, FullDetailsRow } from "../../helper/utility";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openDialog } from "../../lib/global/DialogManager";
@@ -421,6 +421,11 @@ function PartnerVerificationReviewModalView({
     userDetails &&
     normalizePartnerVerification(userDetails.is_verified) !==
       PARTNER_VERIFICATION.APPROVED;
+
+  const partnerVerificationRejectionReason = useMemo(
+    () => String(userDetails?.verification_rejection_reason ?? "").trim(),
+    [userDetails?.verification_rejection_reason]
+  );
 
   return (
     <>
@@ -841,13 +846,13 @@ function PartnerVerificationReviewModalView({
                   );
                 })}
               </div>
-              {userDetails?.verification_rejection_reason &&
-              normalizePartnerVerification(userDetails?.is_verified) ===
-                PARTNER_VERIFICATION.REJECTED ? (
-                <DetailsRow
-                  title="Rejection reason"
-                  value={userDetails.verification_rejection_reason}
-                />
+              {partnerVerificationRejectionReason ? (
+                <div className="mt-3">
+                  <FullDetailsRow
+                    title="Rejection reason"
+                    value={partnerVerificationRejectionReason}
+                  />
+                </div>
               ) : null}
             </section>
           </Col>

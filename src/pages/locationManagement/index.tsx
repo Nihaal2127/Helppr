@@ -691,18 +691,7 @@ const LocationManagement = () => {
                     setStateTableSortBy([]);
                     setCityTableSortBy([]);
                     setAreaTableSortBy([]);
-                    if (
-                      divId === "box-area" &&
-                      isFranchiseAdmin &&
-                      sessionFranchiseId
-                    ) {
-                      void handleFilterChange(
-                        { franchise_id: sessionFranchiseId },
-                        true
-                      );
-                    } else {
-                      void handleFilterChange({}, true);
-                    }
+                    void handleFilterChange({}, true);
                     setUtilitySearchKey((k) => k + 1);
                   }}
                   isSelected={selectedBox === id}

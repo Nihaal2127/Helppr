@@ -50,7 +50,10 @@ import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
-import { franchiseHeaderFormDefaults } from "../../lib/franchise/headerFranchisePreference";
+import {
+  franchiseHeaderFormDefaults,
+  franchiseIdForApiQuery,
+} from "../../lib/franchise/headerFranchisePreference";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
@@ -275,13 +278,13 @@ const QuoteManagement = () => {
   const [franchiseOptionsForQuote, setFranchiseOptionsForQuote] = useState<
     OptionType[]
   >([]);
-  /** Franchise users: session partner id. Super admin/staff: no page-level franchise (pick in Add Quote only). */
-  const effectiveFranchiseId = useMemo(() => {
+  /** Franchise portal: related-catalog path + create body; lists/counts use auth token only. */
+  const sessionFranchiseIdForQuoteCatalog = useMemo(() => {
     if (isSuperAdminOrStaff) return "";
     return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
   }, [isSuperAdminOrStaff]);
-  const quoteScopeBlocked =
-    !isSuperAdminOrStaff && !String(effectiveFranchiseId).trim();
+  const quoteCatalogBlocked =
+    !isSuperAdminOrStaff && !String(sessionFranchiseIdForQuoteCatalog).trim();
   const addQuoteFieldsLocked =
     isSuperAdminOrStaff &&
     showAddQuote &&
@@ -289,7 +292,7 @@ const QuoteManagement = () => {
   const addQuoteSaveDisabled =
     isSuperAdminOrStaff && showAddQuote
       ? !String(addQuote.franchise_id ?? "").trim()
-      : quoteScopeBlocked;
+      : quoteCatalogBlocked;
   const resetAddQuoteCatalogSelections = useCallback(() => {
     setAddQuoteValue("user_id", "", { shouldValidate: false });
     setAddQuoteValue("user_name", "", { shouldValidate: false });
@@ -637,30 +640,13 @@ const QuoteManagement = () => {
       from_date: fromDate,
       to_date: toDate,
       franchise_id:
-        (isSuperAdminOrStaff
-          ? (() => {
-              const h = String(headerFranchiseScope ?? "").trim();
-              return h && h !== "all" ? h : undefined;
-            })()
-          : effectiveFranchiseId) || undefined,
+        franchiseIdForApiQuery(headerFranchiseScope) || undefined,
     }),
-    [
-      searchKeyword,
-      fromDate,
-      toDate,
-      effectiveFranchiseId,
-      isSuperAdminOrStaff,
-      headerFranchiseScope,
-    ]
+    [searchKeyword, fromDate, toDate, headerFranchiseScope]
   );
 
   /** Refetch the paginated list for the active tab (not tab totals — those use `refreshQuoteSummaryFromGetCount`). */
   const fetchData = useCallback(async () => {
-    if (!isSuperAdminOrStaff && !effectiveFranchiseId) {
-      setQuoteRows([]);
-      setTotalPages(0);
-      return;
-    }
     const seq = (quoteListFetchSeqRef.current += 1);
     const res = await fetchQuotes(
       selectedTab,
@@ -677,15 +663,7 @@ const QuoteManagement = () => {
       setQuoteRows([]);
       setTotalPages(0);
     }
-  }, [
-    currentPage,
-    effectiveFranchiseId,
-    isSuperAdminOrStaff,
-    pageSize,
-    quoteListFilters,
-    selectedTab,
-    sortBy,
-  ]);
+  }, [currentPage, pageSize, quoteListFilters, selectedTab, sortBy]);
 
   /** Ignore stale `getCount` responses when the header franchise filter changes quickly. */
   const quoteCountsReqSeqRef = useRef(0);
@@ -693,13 +671,8 @@ const QuoteManagement = () => {
   /** Tab badges: `GET /quote/getCounts` (Postman), with `POST /getCount` fallback. */
   const refreshQuoteSummaryFromGetCount = useCallback(async () => {
     const seq = (quoteCountsReqSeqRef.current += 1);
-    const fid = String(headerFranchiseScope ?? "").trim();
     const franchiseFilter =
-      fid && fid !== "all"
-        ? fid
-        : !isSuperAdminOrStaff
-        ? String(effectiveFranchiseId ?? "").trim() || undefined
-        : undefined;
+      franchiseIdForApiQuery(headerFranchiseScope) || undefined;
 
     const fromQuoteApi = await fetchQuoteCounts(franchiseFilter);
     if (seq !== quoteCountsReqSeqRef.current) return;
@@ -726,7 +699,7 @@ const QuoteManagement = () => {
       return;
     }
     setQuoteCountsByTab({});
-  }, [headerFranchiseScope, isSuperAdminOrStaff, effectiveFranchiseId]);
+  }, [headerFranchiseScope]);
 
   const refreshCountsThenFetchQuotes = useCallback(() => {
     return refreshQuoteSummaryFromGetCount().then(() => fetchData());
@@ -1003,11 +976,11 @@ const QuoteManagement = () => {
   const handleOpenCreateQuoteModal = useCallback(() => {
     setShowAddQuote(true);
     if (isSuperAdminOrStaff) return;
-    const fid = String(effectiveFranchiseId ?? "").trim();
+    const fid = String(sessionFranchiseIdForQuoteCatalog ?? "").trim();
     if (fid) void loadQuoteCatalogForFranchise(fid);
   }, [
     isSuperAdminOrStaff,
-    effectiveFranchiseId,
+    sessionFranchiseIdForQuoteCatalog,
     loadQuoteCatalogForFranchise,
   ]);
 
@@ -1296,7 +1269,7 @@ const QuoteManagement = () => {
           <button
             type="button"
             className="custom-btn-secondary w-auto"
-            disabled={!isSuperAdminOrStaff && quoteScopeBlocked}
+            disabled={!isSuperAdminOrStaff && quoteCatalogBlocked}
             onClick={handleOpenCreateQuoteModal}
           >
             Create Quote
@@ -1306,25 +1279,14 @@ const QuoteManagement = () => {
         setValue={setValue}
       />
 
-      {!isSuperAdminOrStaff && quoteScopeBlocked ? (
+      {!isSuperAdminOrStaff && quoteCatalogBlocked ? (
         <div className="mt-3 px-2 text-muted small">
-          Franchise is not available for this session. Quote lists and actions
-          stay disabled until it is configured.
+          Franchise is not available for this session. Create quote stays
+          disabled until it is configured.
         </div>
       ) : null}
 
-      <div
-        className="d-flex mt-4 gap-2"
-        style={
-          quoteScopeBlocked
-            ? {
-                pointerEvents: "none",
-                opacity: 0.55,
-                userSelect: "none",
-              }
-            : undefined
-        }
-      >
+      <div className="d-flex mt-4 gap-2">
         {quoteTabs.map((tab) => (
           <CustomSummaryBox
             key={tab.key}
@@ -1339,17 +1301,6 @@ const QuoteManagement = () => {
         ))}
       </div>
 
-      <div
-        style={
-          quoteScopeBlocked
-            ? {
-                pointerEvents: "none",
-                opacity: 0.55,
-                userSelect: "none",
-              }
-            : undefined
-        }
-      >
       <CustomUtilityBox
         key={utilitySearchKey}
         title="Quotes"
@@ -1467,7 +1418,6 @@ const QuoteManagement = () => {
         onSortChange={handleServerSortChange}
         theadClass="table-light"
       />
-      </div>
 
       <Modal
         show={showAddQuote}

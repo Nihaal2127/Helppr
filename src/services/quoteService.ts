@@ -1114,7 +1114,7 @@ export async function fetchQuoteCounts(
 ): Promise<Partial<Record<QuoteTabKey, number>> | null> {
   if (USE_MOCK_QUOTE_API) return null;
   const params = new URLSearchParams();
-  const fid = str(franchiseId);
+  const fid = franchiseIdForApiQuery(franchiseId);
   if (fid) params.set("franchise_id", fid);
   const qs = params.toString();
   const res = await apiRequest(
