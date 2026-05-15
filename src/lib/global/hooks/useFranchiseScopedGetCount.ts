@@ -8,6 +8,7 @@ import { resolveGetCountTypeFromPathname } from "../getCountRouteType";
 import {
   HEADER_FRANCHISE_CHANGED_EVENT,
   franchiseHeaderFormDefaults,
+  franchiseIdForApiQuery,
   readHeaderFranchisePreference,
 } from "../../franchise/headerFranchisePreference";
 
@@ -74,9 +75,8 @@ export function useFranchiseScopedGetCount(args: {
       setCountModel(null);
       return;
     }
-    const fid = String(args.franchiseId ?? "").trim();
-    const extra =
-      fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : undefined;
+    const fid = franchiseIdForApiQuery(args.franchiseId);
+    const extra = fid ? { franchise_id: fid } : undefined;
     const { countModel: next, responseCount } = await getCount(
       resolvedType,
       extra

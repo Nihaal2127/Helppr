@@ -594,6 +594,11 @@ body {
   max-width: min(560px, calc(100vw - 2rem));
 }
 
+/* Partner verification review: partner-level approve/reject modal only */
+.modal-dialog.partner-verification-status-modal {
+  max-width: min(560px, calc(100vw - 2rem));
+}
+
 /* User details + view address dialogs: fixed 90vh, inner body scroll */
 .modal-dialog.user-details-modal-vh,
 .modal-dialog.user-view-address-modal-vh {

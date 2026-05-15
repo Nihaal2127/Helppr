@@ -12,7 +12,10 @@ import { PARTNER_VERIFICATION } from "../lib/partner/partnerVerification";
 import { mapAccessibleScreenSlugsToMenuKeys } from "../lib/layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../lib/layout/menuItems";
 import { UserRole } from "../lib/global/AppConstant";
-import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import {
+  franchiseIdForUserGetAll,
+  sessionMayUseFranchiseIdApiFilter,
+} from "../lib/franchise/headerFranchisePreference";
 
 /**
  * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /
@@ -151,6 +154,7 @@ export type CreateWebManagementUserBody = {
    */
   accessible_screens?: AvailablePageEntry[];
   profile_url?: string;
+  gender?: string;
   /**
    * App-side name; request body sends `chat` (boolean).
    */
@@ -211,6 +215,7 @@ export const createWebManagementUser = async (
   if (body.state_id) requestBody.state_id = body.state_id;
   if (body.city_id) requestBody.city_id = body.city_id;
   if (body.profile_url) requestBody.profile_url = body.profile_url;
+  if (body.gender) requestBody.gender = String(body.gender).trim().toLowerCase();
   if (body.chat_enabled !== undefined) {
     requestBody.chat = Boolean(body.chat_enabled);
   }
@@ -486,6 +491,8 @@ export const fetchUser = async (
       ? filters.is_blocked
       : undefined;
 
+  const franchiseIdQuery = franchiseIdForUserGetAll(filters.franchise_id);
+
   const params = new URLSearchParams({
     type: String(type),
     page: String(page),
@@ -508,10 +515,7 @@ export const fetchUser = async (
       statusRaw !== "blocked" && { is_active: filters.status.toLowerCase() }),
     ...(blockedFilter && { is_blocked: blockedFilter }),
     ...(filters.sort && { sort: filters.sort }),
-    ...(filters.franchise_id &&
-      sessionMayUseFranchiseIdApiFilter() && {
-        franchise_id: filters.franchise_id,
-      }),
+    ...(franchiseIdQuery ? { franchise_id: franchiseIdQuery } : {}),
     ...(filters.wallet_status &&
       filters.wallet_status !== "all" && {
         wallet_status: filters.wallet_status,
@@ -611,16 +615,34 @@ export const deleteUser = async (id: string): Promise<boolean> => {
   }
 };
 
+export type UserMultipartUploads = {
+  image?: File | null;
+  /** Keys match `PARTNER_CREATE_DOCUMENT_FIELDS` in `partnerFormDocuments.ts`. */
+  partnerDocumentFiles?: Partial<Record<string, File>>;
+};
+
+function resolveUserMultipartUploads(
+  uploads?: UserMultipartUploads | File | null
+): UserMultipartUploads {
+  if (!uploads) return {};
+  if (uploads instanceof File) return { image: uploads };
+  return uploads;
+}
+
 export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,
   id?: string,
-  imageFile?: File | null
+  uploads?: UserMultipartUploads | File | null
 ): Promise<boolean> => {
   const path = isEditable ? ApiPaths.UPDATE_USER(id!) : ApiPaths.CREATE_USER;
   const method = isEditable ? "PUT" : "POST";
 
-  const shouldSendMultipart = Boolean(imageFile);
+  const { image, partnerDocumentFiles } = resolveUserMultipartUploads(uploads);
+  const docFileEntries = Object.entries(partnerDocumentFiles ?? {}).filter(
+    (entry): entry is [string, File] => entry[1] instanceof File
+  );
+  const shouldSendMultipart = Boolean(image) || docFileEntries.length > 0;
   let bodyToSend: any = payload;
 
   if (shouldSendMultipart) {
@@ -633,7 +655,19 @@ export const createOrUpdateUser = async (
       }
       formData.append(key, String(value));
     });
-    formData.append("image", imageFile as File);
+    if (image) {
+      formData.append("image", image);
+    }
+    for (const [fieldName, file] of docFileEntries) {
+      formData.append(fieldName, file);
+    }
+    if (
+      !isEditable &&
+      Number(payload?.type) === 2 &&
+      !formData.has("partner_documents")
+    ) {
+      formData.append("partner_documents", "{}");
+    }
     bodyToSend = formData;
   }
 

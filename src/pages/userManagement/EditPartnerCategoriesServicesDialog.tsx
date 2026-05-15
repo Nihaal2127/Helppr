@@ -10,6 +10,8 @@ import Select from "react-select";
 import type { SingleValue } from "react-select";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
+import type { PartnerServiceApiRow } from "../../lib/partner/partnerCategoryServiceView";
+import { flattenPartnerBlocksForSave } from "../../components/partnerCatalogBlockUi";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import { createOrUpdateUser } from "../../services/userService";
@@ -218,6 +220,44 @@ function buildBlocksFromInitial(
   return blocks.length > 0 ? blocks : [emptyBlock(initialCategoryIds[0] ?? "")];
 }
 
+function partnerServiceRefId(
+  ref: string | { _id?: string; name?: string } | null | undefined
+): string {
+  if (ref == null) return "";
+  if (typeof ref === "object") return String(ref._id ?? "").trim();
+  return String(ref).trim();
+}
+
+/** Build edit blocks from `partner_services` rows (user-by-id API). */
+function buildBlocksFromPartnerServices(
+  partnerServices: PartnerServiceApiRow[]
+): PartnerCategoryBlock[] {
+  const blocks: PartnerCategoryBlock[] = [];
+
+  for (const ps of partnerServices) {
+    const cid = partnerServiceRefId(ps.category_id);
+    const sid = partnerServiceRefId(ps.service_id);
+    const row: PartnerServiceRow = {
+      id: newId(),
+      serviceId: sid,
+      description: String(ps.description ?? "").trim(),
+      price:
+        ps.price != null && ps.price !== ""
+          ? String(ps.price)
+          : "",
+    };
+
+    const last = blocks[blocks.length - 1];
+    if (last && String(last.categoryId) === String(cid) && cid) {
+      last.serviceRows.push(row);
+    } else {
+      blocks.push({ id: newId(), categoryId: cid, serviceRows: [row] });
+    }
+  }
+
+  return blocks.length > 0 ? blocks : [emptyBlock("")];
+}
+
 function EditPartnerCategoriesServicesDialogView({
   user,
   initialCategoryIds,
@@ -343,6 +383,14 @@ function EditPartnerCategoriesServicesDialogView({
 
   useEffect(() => {
     if (didInit.current) return;
+
+    const partnerServices = user.partner_services;
+    if (Array.isArray(partnerServices) && partnerServices.length > 0) {
+      didInit.current = true;
+      setBlocks(buildBlocksFromPartnerServices(partnerServices));
+      return;
+    }
+
     if (initialServiceIds.length > 0 && allServices.length === 0) return;
 
     didInit.current = true;
@@ -359,6 +407,7 @@ function EditPartnerCategoriesServicesDialogView({
     allServices,
     initialServiceIds,
     initialCategoryIds,
+    user.partner_services,
     user.service_descriptions,
     user.service_prices,
   ]);
@@ -452,61 +501,11 @@ function EditPartnerCategoriesServicesDialogView({
       return;
     }
 
-    type FlatRow = {
-      categoryId: string;
-      serviceId: string;
-      description: string;
-      price: string;
-    };
-    const flat: FlatRow[] = [];
-    for (const b of blocks) {
-      for (const r of b.serviceRows) {
-        flat.push({
-          categoryId: b.categoryId,
-          serviceId: r.serviceId,
-          description: r.description,
-          price: r.price,
-        });
-      }
-    }
-
-    const meaningful = flat.filter(
-      (x) =>
-        x.categoryId ||
-        x.serviceId ||
-        x.description.trim() !== "" ||
-        x.price.trim() !== ""
-    );
-
-    for (const x of meaningful) {
-      if (!x.categoryId || !x.serviceId) {
-        showErrorAlert(
-          "Each filled row needs a category and a service (check every block)."
-        );
-        return;
-      }
-    }
-
-    if (meaningful.length === 0) {
-      showErrorAlert(
-        "Add at least one category with a service, description, and price."
-      );
+    const catalogFlat = flattenPartnerBlocksForSave(blocks, allServices);
+    if (!catalogFlat.ok) {
+      showErrorAlert(catalogFlat.message);
       return;
     }
-
-    const categoryIdsOrdered: string[] = [];
-    for (const x of meaningful) {
-      if (!categoryIdsOrdered.includes(x.categoryId)) {
-        categoryIdsOrdered.push(x.categoryId);
-      }
-    }
-
-    const serviceIds = meaningful.map((x) => x.serviceId);
-    const serviceDescriptions = meaningful.map((x) => x.description.trim());
-    const servicePrices = meaningful.map((x) => x.price.trim());
-    const serviceNames = meaningful.map(
-      (x) => allServices.find((s) => String(s._id) === x.serviceId)?.name ?? ""
-    );
 
     const payload: Record<string, unknown> = {
       type: PARTNER_ROLE,
@@ -521,11 +520,12 @@ function EditPartnerCategoriesServicesDialogView({
       city_id: user.city_id ?? "",
       is_active: user.is_active ?? true,
       pincode: user.pincode ?? "",
-      category_ids: categoryIdsOrdered,
-      service_ids: serviceIds,
-      service_names: serviceNames,
-      service_descriptions: serviceDescriptions,
-      service_prices: servicePrices,
+      category_ids: catalogFlat.category_ids,
+      service_ids: catalogFlat.service_ids,
+      service_names: catalogFlat.service_names,
+      service_descriptions: catalogFlat.service_descriptions,
+      service_prices: catalogFlat.service_prices,
+      "partner-services": catalogFlat.partner_services,
       ...(user.profile_url && { profile_url: user.profile_url }),
     };
 
@@ -533,7 +533,7 @@ function EditPartnerCategoriesServicesDialogView({
     try {
       const ok = await createOrUpdateUser(payload, true, user._id);
       if (ok) {
-        onSaved(categoryIdsOrdered, serviceIds);
+        onSaved(catalogFlat.category_ids, catalogFlat.service_ids);
       }
     } finally {
       setSaving(false);

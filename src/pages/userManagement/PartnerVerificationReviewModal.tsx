@@ -5,13 +5,12 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Modal, Row, Col, Form, Button } from "react-bootstrap";
+import { Modal, Row, Col, Form, Button, Carousel } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import { DocumentModel } from "../../lib/models/DocumentModel";
 import { fetchUserById, updatePartnerVerificationDecision } from "../../services/userService";
 import {
-  partnerVerificationLabel,
   normalizePartnerVerification,
   PARTNER_VERIFICATION,
 } from "../../lib/partner/partnerVerification";
@@ -20,23 +19,24 @@ import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openDialog } from "../../lib/global/DialogManager";
 import editIcon from "../../assets/icons/edit_red.svg";
-import deleteIcon from "../../assets/icons/delete_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
-  deletePartnerDocument,
   updatePartnerDocument,
   updateStatusDocument,
 } from "../../services/partnerDocumentService";
 import CustomUploadDialog from "../../components/CustomUpload";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
-import { buildViewCategoryServiceGroups } from "../../lib/partner/partnerCategoryServiceView";
-import type { ViewCategoryServicesGroup } from "../../lib/partner/partnerCategoryServiceView";
+import {
+  buildViewCategoryServiceGroups,
+  buildViewCategoryServiceGroupsFromPartnerServices,
+} from "../../lib/partner/partnerCategoryServiceView";
 import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
 import AddEditUserDialog from "./AddEditUserDialog";
+import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
+import { formatGenderLabel } from "../../lib/user/genderOptions";
 
 type CatalogOption = { value: string; label: string };
 
@@ -48,48 +48,6 @@ type CatalogServiceLite = {
   desc?: string;
   price?: number | null;
 };
-
-/** Same fallback as partner details when catalogue rows are empty. */
-const DUMMY_PARTNER_CATEGORY_SERVICE_GROUPS: ViewCategoryServicesGroup[] = [
-  {
-    categoryId: "dummy-cat-1",
-    categoryLabel: "Home cleaning",
-    rows: [
-      {
-        name: "Deep clean",
-        description: "Full home sanitization, floors, walls, and fixtures.",
-        price: `${AppConstant.currencySymbol}2499`,
-      },
-      {
-        name: "Kitchen cleaning",
-        description: "Degrease hob, cabinets exterior, sink, and tiles.",
-        price: `${AppConstant.currencySymbol}899`,
-      },
-      {
-        name: "Bathroom cleaning",
-        description: "Tiles, fittings, glass, and disinfection.",
-        price: `${AppConstant.currencySymbol}649`,
-      },
-    ],
-  },
-  {
-    categoryId: "dummy-cat-2",
-    categoryLabel: "Appliance repair",
-    rows: [
-      {
-        name: "AC servicing",
-        description:
-          "Split / window unit gas check, filter wash, and test run.",
-        price: `${AppConstant.currencySymbol}599`,
-      },
-      {
-        name: "Washing machine repair",
-        description: "Motor, drain, or board fault diagnosis and fix.",
-        price: `${AppConstant.currencySymbol}450`,
-      },
-    ],
-  },
-];
 
 type PartnerVerificationDocSlot = {
   id: string;
@@ -107,7 +65,9 @@ const PARTNER_VERIFICATION_DOCUMENT_SLOTS: PartnerVerificationDocSlot[] = [
   {
     id: "police_verification",
     title: "Police Verification Certificate",
-    match: (n) => n.includes("police") && n.includes("verification"),
+    match: (n) =>
+      (n.includes("police") && n.includes("verification")) ||
+      n.includes("police_verification_certificate"),
   },
   {
     id: "pan_card",
@@ -141,21 +101,6 @@ function findPartnerVerificationDocForSlot(
     const n = normalizePartnerDocName(d.name);
     return Boolean(n) && slot.match(n);
   });
-}
-
-function fileLabelFromImagePath(path: string | null | undefined): string {
-  const s = String(path ?? "").trim();
-  if (!s) return "";
-  const parts = s.split(/[/\\]/);
-  return (parts[parts.length - 1] ?? s).trim() || s;
-}
-
-function partnerVerificationDocumentDisplayName(
-  doc: DocumentModel
-): string {
-  const name = String(doc.name ?? "").trim();
-  if (name) return name;
-  return fileLabelFromImagePath(doc.document_image);
 }
 
 type PartnerVerificationReviewModalProps = {
@@ -280,7 +225,12 @@ function PartnerVerificationReviewModalView({
 
   const viewCategoryServiceGroups = useMemo(() => {
     if (!userDetails) return [];
-    const built = buildViewCategoryServiceGroups(
+    const fromPartnerServices =
+      buildViewCategoryServiceGroupsFromPartnerServices(
+        userDetails.partner_services
+      );
+    if (fromPartnerServices.length > 0) return fromPartnerServices;
+    return buildViewCategoryServiceGroups(
       {
         category_ids: userDetails.category_ids ?? undefined,
         service_ids: userDetails.service_ids ?? undefined,
@@ -290,23 +240,12 @@ function PartnerVerificationReviewModalView({
       catalogServices,
       catalogCategoryOptions
     );
-    return built.length > 0 ? built : DUMMY_PARTNER_CATEGORY_SERVICE_GROUPS;
   }, [userDetails, catalogServices, catalogCategoryOptions]);
 
-  const deleteDocument = async (document: DocumentModel) => {
-    openConfirmDialog(
-      "Are you sure you want to delete document?",
-      "Delete",
-      "Cancel",
-      async () => {
-        const response = await deletePartnerDocument(document._id);
-        if (response) {
-          void onRefreshuser();
-        }
-      },
-      deleteIcon
-    );
-  };
+  const partnerBankAccounts = useMemo(
+    () => partnerBankAccountsFromUser(userDetails),
+    [userDetails]
+  );
 
   const addDocument = useCallback(
     (document: DocumentModel) => {
@@ -340,28 +279,6 @@ function PartnerVerificationReviewModalView({
     [onRefreshuser]
   );
 
-  const openDocumentDecisionModal = useCallback(
-    (document: DocumentModel) => {
-      if (
-        userDetails &&
-        normalizePartnerVerification(userDetails.is_verified) ===
-          PARTNER_VERIFICATION.APPROVED
-      ) {
-        showErrorAlert(
-          "Document verification cannot be changed after the partner is approved."
-        );
-        return;
-      }
-      setDocDecisionTarget(document);
-      setDocDecision(
-        document.verification_status === 3 ? "reject" : "approve"
-      );
-      setDocRejectReason(String(document.rejected_reasone ?? ""));
-      setDocDecisionOpen(true);
-    },
-    [userDetails]
-  );
-
   const openPartnerLevelVerificationModal = useCallback(() => {
     if (!userDetails) return;
     if (
@@ -385,10 +302,6 @@ function PartnerVerificationReviewModalView({
     }
     setPartnerLevelModalOpen(true);
   }, [userDetails]);
-
-  /** Same handler; kept for stale HMR bundles that still reference this name. */
-  const openVerificationSectionDocumentModal =
-    openPartnerLevelVerificationModal;
 
   const closePartnerLevelVerificationModal = useCallback(() => {
     setPartnerLevelModalOpen(false);
@@ -590,16 +503,54 @@ function PartnerVerificationReviewModalView({
               />
             </Col>
             <Col className="min-w-0">
-              <DetailsRow title="Name" value={userDetails?.name ?? "—"} />
-              <DetailsRow title="Email" value={userDetails?.email ?? "—"} />
-              <DetailsRow
-                title="Phone"
-                value={userDetails?.phone_number ?? "—"}
-              />
-              <DetailsRow
-                title="Address"
-                value={userDetails?.address ?? "—"}
-              />
+              <Row className="g-2">
+                <Col xs={12} md={6}>
+                  <DetailsRow title="Name" value={userDetails?.name ?? "—"} />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Gender"
+                    value={formatGenderLabel(userDetails?.gender)}
+                  />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow title="Email" value={userDetails?.email ?? "—"} />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Date of Birth"
+                    value={
+                      userDetails?.date_of_birth
+                        ? formatDate(String(userDetails.date_of_birth))
+                        : "—"
+                    }
+                  />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Experience"
+                    value={
+                      userDetails?.experience !== undefined &&
+                      userDetails?.experience !== null &&
+                      String(userDetails.experience).trim() !== ""
+                        ? String(userDetails.experience)
+                        : "—"
+                    }
+                  />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Phone"
+                    value={userDetails?.phone_number ?? "—"}
+                  />
+                </Col>
+                <Col xs={12}>
+                  <DetailsRow
+                    title="Address"
+                    value={userDetails?.address ?? "—"}
+                  />
+                </Col>
+              </Row>
             </Col>
           </Row>
         </section>
@@ -772,9 +723,9 @@ function PartnerVerificationReviewModalView({
         </Row>
 
         <Row className="custom-helper-row mt-2">
-          <Col xs={12}>
+          <Col xs={12} lg={6}>
             <section
-              className="custom-other-details"
+              className="custom-other-details h-100"
               style={{ marginLeft: "0px", marginRight: "0px" }}
             >
               <div
@@ -802,14 +753,6 @@ function PartnerVerificationReviewModalView({
                   />
                 ) : null}
               </div>
-              <DetailsRow
-                title="Verification Status"
-                value={
-                  userDetails
-                    ? partnerVerificationLabel(userDetails.is_verified)
-                    : "—"
-                }
-              />
               <div className="d-flex flex-column gap-1 mt-2">
                 {PARTNER_VERIFICATION_DOCUMENT_SLOTS.map((slot) => {
                   const doc = findPartnerVerificationDocForSlot(
@@ -820,10 +763,6 @@ function PartnerVerificationReviewModalView({
                     String(doc?.document_image ?? "").trim()
                   );
                   const canAct = Boolean(pendingOrRejected);
-                  const displayName =
-                    doc && hasFile
-                      ? partnerVerificationDocumentDisplayName(doc)
-                      : "";
                   const addDisabled = !doc?._id || !canAct;
 
                   return (
@@ -865,17 +804,6 @@ function PartnerVerificationReviewModalView({
                           </label>
                         ) : (
                           <>
-                            <span
-                              className="text-break"
-                              style={{
-                                color: "var(--content-txt-color)",
-                                fontWeight: 500,
-                                maxWidth: "min(260px, 50vw)",
-                                textAlign: "end",
-                              }}
-                            >
-                              {displayName || "—"}
-                            </span>
                             <label
                               className="custom-document-view mb-0"
                               onClick={(e) => {
@@ -901,32 +829,11 @@ function PartnerVerificationReviewModalView({
                               onClick={(e) => {
                                 e.preventDefault();
                                 if (!canAct || !doc?._id) return;
-                                void deleteDocument(doc);
+                                if (doc) addDocument(doc);
                               }}
                             >
-                              Delete
+                              ReUpload
                             </label>
-                            {doc?._id ? (
-                              <img
-                                src={editIcon}
-                                alt={`Edit ${slot.title}`}
-                                title={
-                                  canAct
-                                    ? "Edit verification status"
-                                    : "Partner already approved"
-                                }
-                                style={{
-                                  width: "15px",
-                                  height: "15px",
-                                  cursor: "pointer",
-                                  opacity: canAct ? 1 : 0.45,
-                                  marginLeft: "4px",
-                                }}
-                                onClick={() => {
-                                  if (doc) openDocumentDecisionModal(doc);
-                                }}
-                              />
-                            ) : null}
                           </>
                         )}
                       </Col>
@@ -934,16 +841,6 @@ function PartnerVerificationReviewModalView({
                   );
                 })}
               </div>
-              <DetailsRow
-                title="Verified Date"
-                value={
-                  userDetails?.verified_at
-                    ? formatDate(String(userDetails.verified_at))
-                    : userDetails?.last_paid_date
-                    ? formatDate(String(userDetails.last_paid_date))
-                    : "—"
-                }
-              />
               {userDetails?.verification_rejection_reason &&
               normalizePartnerVerification(userDetails?.is_verified) ===
                 PARTNER_VERIFICATION.REJECTED ? (
@@ -952,6 +849,82 @@ function PartnerVerificationReviewModalView({
                   value={userDetails.verification_rejection_reason}
                 />
               ) : null}
+            </section>
+          </Col>
+          <Col xs={12} lg={6}>
+            <section
+              className="custom-other-details h-100"
+              style={{ marginLeft: "0px", marginRight: "0px" }}
+            >
+              <h3 style={{ margin: "0 0 10px 0" }}>Bank information</h3>
+              {partnerBankAccounts.length === 0 ? (
+                <div className="text-muted small py-1">—</div>
+              ) : (
+                <Carousel
+                  key={partnerBankAccounts.map((a) => a._id).join("-")}
+                  className="partner-accounts-carousel"
+                  interval={null}
+                  controls={partnerBankAccounts.length > 1}
+                  style={{ marginTop: "0.5rem" }}
+                  indicators={partnerBankAccounts.length > 1}
+                  prevIcon={
+                    <i
+                      className="bi bi-chevron-left fs-4 text-danger"
+                      aria-hidden
+                    />
+                  }
+                  nextIcon={
+                    <i
+                      className="bi bi-chevron-right fs-4 text-danger"
+                      aria-hidden
+                    />
+                  }
+                >
+                  {partnerBankAccounts.map((acc) => (
+                    <Carousel.Item key={acc._id || acc.account_number}>
+                      <div
+                        className="rounded border px-3 py-3 mx-1 mb-2"
+                        style={{
+                          borderColor: "var(--lb1-border)",
+                          background: "var(--bg-color)",
+                        }}
+                      >
+                    <DetailsRow
+                      title="Account Name"
+                      value={acc.account_holder_name || "—"}
+                    />
+                    <DetailsRow
+                      title="Account Number"
+                      value={acc.account_number || "—"}
+                    />
+                    <DetailsRow
+                      title="IFSC Code"
+                      value={acc.ifsc_code || "—"}
+                    />
+                    <DetailsRow title="Bank Name" value={acc.bank_name || "—"} />
+                    <DetailsRow
+                      title="Branch"
+                      value={acc.branch_name || "—"}
+                    />
+                    <DetailsRow
+                      title="Account Status"
+                      value={
+                        <span
+                          className={
+                            acc.is_active !== false
+                              ? "custom-active"
+                              : "custom-inactive"
+                          }
+                        >
+                          {acc.is_active !== false ? "Active" : "Inactive"}
+                        </span>
+                      }
+                    />
+                  </div>
+                    </Carousel.Item>
+                  ))}
+                </Carousel>
+              )}
             </section>
           </Col>
         </Row>
@@ -1061,8 +1034,7 @@ function PartnerVerificationReviewModalView({
         onHide={closePartnerLevelVerificationModal}
         enforceFocus={false}
         backdrop="static"
-        size="sm"
-        dialogClassName="custom-big-modal"
+        dialogClassName="partner-verification-status-modal"
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title mb-0">
@@ -1074,12 +1046,12 @@ function PartnerVerificationReviewModalView({
           <Row className="g-3">
             <Col xs={12}>
               <Row className="align-items-start g-2">
-                <Col xs={12} sm={4} md={3} className="pt-sm-1">
-                  <label className="custom-profile-lable mb-0">
+                <Col xs={12} sm={5} className="pt-sm-1">
+                  <label className="custom-profile-lable mb-0 text-nowrap">
                     Verification status
                   </label>
                 </Col>
-                <Col xs={12} sm={8} md={9}>
+                <Col xs={12} sm={7}>
                   <div className="d-flex flex-wrap gap-3 align-items-center">
                     <Form.Check
                       type="radio"

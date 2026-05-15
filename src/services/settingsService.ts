@@ -11,6 +11,7 @@ import { expenseCategoriesMockSeed } from "../mockData/settingsExpenseCategoryMo
 import { AppConstant } from "../lib/global/AppConstant";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { showErrorAlert } from "../lib/global/alertHelper";
+import { genderForApiPayload } from "../lib/user/genderOptions";
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import {
@@ -218,6 +219,7 @@ function mapApiUserToRoleSettingsModel(
     city_id: String(raw.city_id ?? "").trim() || undefined,
     email: String(raw.email ?? "").trim() || undefined,
     phone_number: String(raw.phone_number ?? "").trim() || undefined,
+    gender: genderForApiPayload(raw.gender) ?? undefined,
     profile_url: String(raw.profile_url ?? "").trim() || undefined,
     status: normalizeActiveStatus(raw.is_active),
     createdDate: String(raw.created_at ?? new Date().toISOString()),
@@ -236,6 +238,7 @@ function mapApiUserToStaffSettingsModel(
     name: String(raw.name ?? "-"),
     email: String(raw.email ?? "").trim() || undefined,
     phone_number: String(raw.phone_number ?? "").trim() || undefined,
+    gender: genderForApiPayload(raw.gender) ?? undefined,
     profile_url: String(raw.profile_url ?? "").trim() || undefined,
     status: normalizeActiveStatus(raw.is_active),
     createdDate: String(raw.created_at ?? new Date().toISOString()),
@@ -541,6 +544,9 @@ export const createRoleUserWithApi = async (
     name: payload.roleName.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
+    ...(genderForApiPayload(payload.gender)
+      ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
     type,
     status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
@@ -612,6 +618,9 @@ export const updateRoleUserWithApi = async (
     name: payload.roleName.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
+    ...(genderForApiPayload(payload.gender)
+      ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
     status: sanitizeStatus(payload.status),
     is_active: updateStatusPayloadValue(payload.status),
     franchise_id: payload.franchise_id,
@@ -750,6 +759,9 @@ export const createStaffUserWithApi = async (
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
+    ...(genderForApiPayload(payload.gender)
+      ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
     type: WEB_MANAGEMENT_USER_TYPE.STAFF,
     status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
@@ -804,6 +816,9 @@ export const updateStaffUserWithApi = async (
     name: payload.name.trim(),
     email: (payload.email ?? "").trim(),
     phone_number: (payload.phone_number ?? "").trim(),
+    ...(genderForApiPayload(payload.gender)
+      ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
     status: sanitizeStatus(payload.status),
     is_active: updateStatusPayloadValue(payload.status),
     profile_url: profileUrlForApi(payload.profile_url),

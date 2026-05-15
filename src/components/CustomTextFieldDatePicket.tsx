@@ -18,6 +18,7 @@ interface CustomTextFieldDatePicketProps {
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
   suppressHiddenRegister?: boolean;
+  birthDatePicker?: boolean;
 }
 
 const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
@@ -35,6 +36,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
   register,
   validation,
   suppressHiddenRegister,
+  birthDatePicker,
 }) => {
   return (
     <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
@@ -56,6 +58,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
           asCol={asCol}
           filterDate={filterDate}
           suppressHiddenRegister={suppressHiddenRegister}
+          birthDatePicker={birthDatePicker}
         />
       </Col>
     </Row>

@@ -192,21 +192,16 @@ const ExpensesPage = () => {
   const franchiseIdForExpenseApi = useCallback(
     (expense: ExpenseModel) => {
       const fromRow = String(expense.franchise_id ?? expense.franchiseId ?? "").trim();
+      if (isFranchiseScopedUser) return fromRow;
       if (fromRow) return fromRow;
-      if (isFranchiseScopedUser) {
-        const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
-        return (sessionFranchiseId || fromLogin).trim();
-      }
       return "";
     },
-    [isFranchiseScopedUser, sessionFranchiseId]
+    [isFranchiseScopedUser]
   );
 
   const effectiveListFranchiseId = useMemo(() => {
     if (isFranchiseScopedUser) {
-      const fromLogin = String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
-      const scopedId = sessionFranchiseId || fromLogin;
-      return scopedId ? scopedId : undefined;
+      return undefined;
     }
     if (!franchiseId || franchiseId === "all") {
       return undefined;
@@ -227,12 +222,6 @@ const ExpensesPage = () => {
   }, [refreshListParams]);
 
   const fetchData = useCallback(async () => {
-    if (isFranchiseScopedUser) {
-      const hasScope =
-        Boolean(sessionFranchiseId?.trim()) ||
-        Boolean(String(getLocalStorage(AppConstant.partnerId) ?? "").trim());
-      if (!hasScope) return;
-    }
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {

@@ -455,36 +455,48 @@ export const DetailsRowLinkDocument = ({
                 e.preventDefault();
                 onViewClick();
               }}
-              className="custom-document-view"
+              className="custom-document-view mb-0"
             >
               View
             </label>
-
+            <span className="text-muted mx-1">|</span>
             <label
               onClick={(e) => {
                 e.preventDefault();
-                onDeleteClick();
+                onAddClick();
               }}
-              className="custom-document-delete"
+              className="custom-document-delete mb-0"
+              title="Replace document"
             >
-              Delete
+              ReUpload
             </label>
           </>
         ) : hideAdd ? (
           <span className="text-muted small">—</span>
         ) : trimmedUploaded ? (
-          <label
-            onClick={(e) => {
-              e.preventDefault();
-              onAddClick();
-            }}
-            className="custom-document-add mb-0 d-inline-block"
-            style={{ fontWeight: 400, cursor: "pointer" }}
-            title="Tap to replace this image"
-          >
-            image uploaded{" "}
-            <span className="text-break">{trimmedUploaded}</span>
-          </label>
+          <div className="d-flex flex-wrap align-items-center justify-content-end gap-2">
+            <label
+              onClick={(e) => {
+                e.preventDefault();
+                onViewClick();
+              }}
+              className="custom-document-view mb-0 d-inline-flex align-items-center gap-1"
+              title="View document"
+            >
+              <i className="bi bi-eye" aria-hidden />
+            </label>
+            <span className="text-muted">|</span>
+            <label
+              onClick={(e) => {
+                e.preventDefault();
+                onAddClick();
+              }}
+              className="custom-document-delete mb-0"
+              title="Replace document"
+            >
+              ReUpload
+            </label>
+          </div>
         ) : (
           <label
             onClick={(e) => {

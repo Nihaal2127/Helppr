@@ -46,11 +46,50 @@ export function franchiseHeaderFormDefaults(): { franchise_id: string } {
   return { franchise_id: readHeaderFranchisePreference() };
 }
 
+/** Logged-in franchise admin or franchise employee (portal session). */
+export function isFranchisePortalSession(): boolean {
+  const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  return role === UserRole.FRANCHISE_ADMIN || role === UserRole.EMPLOYEE;
+}
+
 /**
  * Super admin (`UserRole.ADMIN`) and staff may send `franchise_id` on list/count APIs to filter by franchise.
- * Franchise admin / employee JWTs are already scoped — the backend returns **403** if they pass this filter.
+ * Franchise portal users are scoped by the auth token — never send `franchise_id` on those requests.
  */
 export function sessionMayUseFranchiseIdApiFilter(): boolean {
-  const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
-  return role === UserRole.ADMIN || role === UserRole.STAFF;
+  return !isFranchisePortalSession();
+}
+
+/**
+ * `franchise_id` for list/count/catalog query params — super admin/staff header filter only.
+ * Franchise admin/employee: backend scopes by Bearer token; omit `franchise_id`.
+ */
+export function franchiseIdForApiQuery(
+  requestedFranchiseId?: string | null
+): string {
+  if (isFranchisePortalSession()) return "";
+  const fid = String(requestedFranchiseId ?? "").trim();
+  if (!fid || fid.toLowerCase() === "all") return "";
+  return fid;
+}
+
+/** Logged-in franchise id from session (`partnerId` at login) — UI only, not for API query scoping. */
+export function sessionFranchiseIdForScopedApis(): string {
+  if (!isFranchisePortalSession()) return "";
+  return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+}
+
+/**
+ * `GET /area/getAll?franchise_id=` — super admin/staff may filter any franchise;
+ * franchise admin may only pass their own session franchise id.
+ */
+export function franchiseIdForAreaGetAll(requestedFranchiseId?: string): string {
+  return franchiseIdForApiQuery(requestedFranchiseId);
+}
+
+/**
+ * Resolves `franchise_id` for `GET /user/getAll`, verification lists, and `POST /getCount` (`user-management`).
+ */
+export function franchiseIdForUserGetAll(requestedFranchiseId?: string): string {
+  return franchiseIdForApiQuery(requestedFranchiseId);
 }

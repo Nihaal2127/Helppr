@@ -6,6 +6,7 @@ import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import { DetailsRow, formatDate, DetailsRowStatus } from "../../helper/utility";
+import { formatGenderLabel } from "../../lib/user/genderOptions";
 import AddEditUserDialog from "./AddEditUserDialog";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { RoleEnum } from "../../lib/global/RoleEnum";
@@ -77,6 +78,10 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> & {
                 <Col className="custom-helper-column">
                   <DetailsRow title="User ID" value={userDetails?.user_id} />
                   <DetailsRow title="User Name" value={userDetails?.name} />
+                  <DetailsRow
+                    title="Gender"
+                    value={formatGenderLabel(userDetails?.gender)}
+                  />
                   <DetailsRow title="Email ID" value={userDetails?.email} />
                   <DetailsRow
                     title="Phone No"

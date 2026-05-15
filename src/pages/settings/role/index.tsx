@@ -34,6 +34,11 @@ import {
   voidRole,
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
+import GenderRadioField from "../../../components/GenderRadioField";
+import {
+  formatGenderLabel,
+  normalizeGenderValue,
+} from "../../../lib/user/genderOptions";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 import { mainMenuItems } from "../../../lib/layout/menuItems";
@@ -64,10 +69,13 @@ import {
   passwordsMatch,
 } from "../../../lib/user/userFormValidation";
 
+type GenderField = "male" | "female" | "others";
+
 const emptyRoleForm = {
   roleName: "",
   email: "",
   phone_number: "",
+  gender: "male" as GenderField,
   profile_url: "",
   roleType: "franchise_admin" as "franchise_admin" | "employee",
   assignedFranchise: "",
@@ -86,6 +94,7 @@ const emptyStaffForm = {
   name: "",
   email: "",
   phone_number: "",
+  gender: "male" as GenderField,
   profile_url: "",
   status: "active" as "active" | "inactive",
   screenPermissions: [] as string[],
@@ -267,6 +276,7 @@ const RoleManagement = () => {
         phone_number: nationalDigitsWithoutIndia91(
           String(item.phone_number ?? "")
         ),
+        gender: normalizeGenderValue(item.gender) || "male",
         profile_url: item.profile_url ?? "",
         roleType: item.roleType,
         assignedFranchise:
@@ -312,6 +322,7 @@ const RoleManagement = () => {
         phone_number: nationalDigitsWithoutIndia91(
           String(item.phone_number ?? "")
         ),
+        gender: normalizeGenderValue(item.gender) || "male",
         profile_url: item.profile_url ?? "",
         status: item.status,
         screenPermissions: item.screenPermissions?.length
@@ -341,6 +352,7 @@ const RoleManagement = () => {
       phone_number: nationalDigitsWithoutIndia91(
         String(editing.phone_number ?? "")
       ),
+      gender: normalizeGenderValue(editing.gender) || "male",
       profile_url: editing.profile_url ?? "",
       roleType: editing.roleType,
       assignedFranchise:
@@ -370,6 +382,7 @@ const RoleManagement = () => {
       phone_number: nationalDigitsWithoutIndia91(
         String(staffEditing.phone_number ?? "")
       ),
+      gender: normalizeGenderValue(staffEditing.gender) || "male",
       profile_url: staffEditing.profile_url ?? "",
       status: staffEditing.status,
       screenPermissions: staffEditing.screenPermissions?.length
@@ -1427,7 +1440,10 @@ const RoleManagement = () => {
                     title="Phone"
                     value={editing.phone_number || "-"}
                   />
-
+                  <DetailsRow
+                    title="Gender"
+                    value={formatGenderLabel(editing.gender)}
+                  />
                   <DetailsRow
                     title="Assigned Franchise"
                     value={franchiseDisplayFor(editing) || "-"}
@@ -1502,6 +1518,12 @@ const RoleManagement = () => {
                       phone_number: sanitizeIndiaNationalPhoneInput(value),
                     }))
                   }
+                />
+              </div>
+              <div className="col-md-12">
+                <GenderRadioField
+                  value={form.gender}
+                  onChange={(gender) => setForm((p) => ({ ...p, gender }))}
                 />
               </div>
               {!editing && (
@@ -1698,6 +1720,7 @@ const RoleManagement = () => {
                   roleName: form.roleName.trim(),
                   email: form.email.trim(),
                   phone_number: rolePhoneFull,
+                  gender: form.gender,
                   profile_url: form.profile_url.trim() || undefined,
                   roleType: form.roleType,
                   assignedFranchise: form.assignedFranchise || undefined,
@@ -1838,6 +1861,10 @@ const RoleManagement = () => {
                     value={staffEditing.phone_number}
                   />
                   <FullDetailsRow
+                    title="Gender"
+                    value={formatGenderLabel(staffEditing.gender)}
+                  />
+                  <FullDetailsRow
                     title="Screen Permissions"
                     value={
                       staffEditing.screenPermissions?.length ? (
@@ -1906,6 +1933,14 @@ const RoleManagement = () => {
                       ...p,
                       phone_number: sanitizeIndiaNationalPhoneInput(value),
                     }))
+                  }
+                />
+              </div>
+              <div className="col-md-12">
+                <GenderRadioField
+                  value={staffForm.gender}
+                  onChange={(gender) =>
+                    setStaffForm((p) => ({ ...p, gender }))
                   }
                 />
               </div>
@@ -2093,6 +2128,7 @@ const RoleManagement = () => {
                   name: staffForm.name.trim(),
                   email: staffForm.email.trim(),
                   phone_number: staffPhoneFull,
+                  gender: staffForm.gender,
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
                   screenPermissions: staffForm.screenPermissions.filter(

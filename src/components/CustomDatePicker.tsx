@@ -21,6 +21,8 @@ interface CustomDatePickerProps {
   groupClassName?: string;
   /** Second copy of the same field: still calls `setValue(controlId, …)` but skips the hidden `register` input. */
   suppressHiddenRegister?: boolean;
+  /** Date of birth: year/month dropdowns, past dates only. */
+  birthDatePicker?: boolean;
 }
 
 const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
@@ -38,12 +40,17 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   validation,
   groupClassName,
   suppressHiddenRegister = false,
+  birthDatePicker = false,
 }) => {
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
 
   const datePickerRef = useRef<DatePicker | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const maxDob = birthDatePicker ? new Date() : undefined;
+  const minDob = birthDatePicker
+    ? new Date(new Date().getFullYear() - 100, 0, 1)
+    : undefined;
 
   const handleDateChange = (date: Date | null) => {
     setValue(controlId, date || null, { shouldValidate: true });
@@ -78,12 +85,26 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             } full-width-date-picker`}
             filterDate={
               filterDate ??
-              ((date) => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                return date >= today;
-              })
+              (birthDatePicker
+                ? (date) => {
+                    const d = new Date(date);
+                    d.setHours(0, 0, 0, 0);
+                    const max = new Date();
+                    max.setHours(23, 59, 59, 999);
+                    return d <= max;
+                  }
+                : (date) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return date >= today;
+                  })
             }
+            showYearDropdown={birthDatePicker}
+            showMonthDropdown={birthDatePicker}
+            scrollableYearDropdown={birthDatePicker}
+            yearDropdownItemNumber={birthDatePicker ? 100 : undefined}
+            maxDate={birthDatePicker ? maxDob : undefined}
+            minDate={birthDatePicker ? minDob : undefined}
             showPopperArrow={false}
             shouldCloseOnSelect
           />

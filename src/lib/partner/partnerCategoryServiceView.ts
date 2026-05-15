@@ -208,3 +208,78 @@ export function buildViewCategoryServiceGroups(
 
   return built;
 }
+
+export type PartnerServiceApiRow = {
+  _id?: string;
+  category_id?:
+    | string
+    | null
+    | { _id?: string; name?: string };
+  service_id?:
+    | string
+    | null
+    | { _id?: string; name?: string };
+  description?: string | null;
+  price?: number | string | null;
+};
+
+function nestedRefId(
+  ref: string | { _id?: string; name?: string } | null | undefined
+): string {
+  if (ref == null) return "";
+  if (typeof ref === "object") return String(ref._id ?? "").trim();
+  return String(ref).trim();
+}
+
+function nestedRefName(
+  ref: string | { _id?: string; name?: string } | null | undefined,
+  fallbackId: string
+): string {
+  if (ref != null && typeof ref === "object" && String(ref.name ?? "").trim()) {
+    return String(ref.name).trim();
+  }
+  return fallbackId || "—";
+}
+
+/** Build category/service table groups from `partner_services` on user-by-id API. */
+export function buildViewCategoryServiceGroupsFromPartnerServices(
+  partnerServices: PartnerServiceApiRow[] | null | undefined
+): ViewCategoryServicesGroup[] {
+  if (!Array.isArray(partnerServices) || partnerServices.length === 0) {
+    return [];
+  }
+
+  const byCat = new Map<
+    string,
+    { categoryLabel: string; rows: ViewCategoryServiceRow[] }
+  >();
+  const insertOrder: string[] = [];
+
+  for (const ps of partnerServices) {
+    const cid = nestedRefId(ps.category_id) || UNCATEGORIZED_KEY;
+    const catLabel = nestedRefName(ps.category_id, cid);
+    const sid = nestedRefId(ps.service_id);
+    const svcName = nestedRefName(ps.service_id, sid);
+    const description = String(ps.description ?? "").trim() || "—";
+    const price = formatServicePrice(ps.price);
+
+    if (!byCat.has(cid)) {
+      byCat.set(cid, { categoryLabel: catLabel, rows: [] });
+      insertOrder.push(cid);
+    }
+    const rows = byCat.get(cid)!.rows;
+    const row: ViewCategoryServiceRow = {
+      serviceId: sid || undefined,
+      name: svcName,
+      description,
+      price,
+    };
+    if (!rows.some((r) => rowsEqualKey(r, row))) rows.push(row);
+  }
+
+  return insertOrder.map((cid) => ({
+    categoryId: cid,
+    categoryLabel: byCat.get(cid)!.categoryLabel,
+    rows: byCat.get(cid)!.rows,
+  }));
+}

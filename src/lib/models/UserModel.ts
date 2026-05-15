@@ -1,10 +1,14 @@
 import { BankAccountModel } from "./BankAccountModel";
 import { DocumentModel } from "./DocumentModel";
+import type { PartnerServiceApiRow } from "../partner/partnerCategoryServiceView";
 
 export interface UserModel {
   _id: string;
   name: string | null;
   email: string | null;
+  gender?: string | null;
+  date_of_birth?: string | null;
+  experience?: string | number | null;
   phone_number: string | null;
   address: string | null;
   landmark: string | null;
@@ -69,6 +73,7 @@ export interface UserModel {
   my_services: string[] | [];
 
   bank_account: BankAccountModel | null;
+  bank_accounts?: BankAccountModel[] | null;
   documents: DocumentModel[] | [];
 
   /** Partner catalog (when API returns them). */
@@ -79,6 +84,8 @@ export interface UserModel {
   /** Parallel to `service_ids` when API returns partner-specific text/amounts. */
   service_descriptions?: string[] | null;
   service_prices?: (string | number)[] | null;
+  /** Partner catalog rows from user-by-id (`category_id` / `service_id` may be populated objects). */
+  partner_services?: PartnerServiceApiRow[] | null;
 
   /** Partner verification: `"pending"` | `"Approved"` | `"Rejected"` (API contract). */
   is_verified?: boolean | string | null;

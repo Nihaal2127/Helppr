@@ -2,7 +2,7 @@ import { CountModel } from "../lib/models/CountModel";
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { showLog } from "../helper/utility";
-import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import { franchiseIdForUserGetAll } from "../lib/franchise/headerFranchisePreference";
 
 /** Optional fields merged into `POST /getCount` after `type` (when super admin / staff scope dashboards by franchise). */
 export type GetCountExtra = {
@@ -22,13 +22,9 @@ export const getCount = async (
 }> => {
   try {
     const payload: Record<string, unknown> = { type };
-    const fid = String(extra?.franchise_id ?? "").trim();
-    if (
-      sessionMayUseFranchiseIdApiFilter() &&
-      fid &&
-      fid.toLowerCase() !== "all"
-    ) {
-      payload.franchise_id = fid;
+    const franchiseIdQuery = franchiseIdForUserGetAll(extra?.franchise_id);
+    if (franchiseIdQuery) {
+      payload.franchise_id = franchiseIdQuery;
     }
     const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);
     if (response.success) {

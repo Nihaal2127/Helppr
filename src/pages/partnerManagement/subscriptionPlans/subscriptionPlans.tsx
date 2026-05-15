@@ -32,7 +32,10 @@ import { fetchAreaDropDown } from "../../../services/areaService";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import { AppConstant, UserRole } from "../../../lib/global/AppConstant";
 import { getLocalStorage } from "../../../lib/global/localStorageHelper";
-import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
+import {
+  franchiseHeaderFormDefaults,
+  franchiseIdForApiQuery,
+} from "../../../lib/franchise/headerFranchisePreference";
 import { fetchUserById } from "../../../services/userService";
 
 /** Days from today until `endDateStr` (date-only); negative if already past. */
@@ -218,9 +221,8 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const fid = String(headerFranchiseId ?? "").trim();
-      const scope =
-        fid && fid !== "all" ? { franchise_id: fid } : undefined;
+      const fid = franchiseIdForApiQuery(headerFranchiseId);
+      const scope = fid ? { franchise_id: fid } : undefined;
       const { responseCount, countModel } = await getCount(
         "partner-management",
         scope

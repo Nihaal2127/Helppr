@@ -36,17 +36,16 @@ export const CustomRadioSelection: React.FC<CustomRadioSelectionProps> = ({
     }
   }, [defaultValue, isEditable, name, setValue]);
 
-  const flexDirection = options.length === 2 ? "row" : "column";
-
   return (
     <Form.Group style={{ marginTop: "10px" }}>
       {label?.trim() && (
         <Form.Label className="fw-medium mb-1">{label}</Form.Label>
       )}
-      <div className={`d-flex`} style={{ flexDirection, gap: "8px" }}>
+      <div className="d-flex flex-wrap align-items-center" style={{ gap: "12px" }}>
         {options.map((option, index) => (
           <Form.Check
             key={`${name}_${index}`}
+            inline
             type="radio"
             id={`${name}_${index}`}
             label={<span className="custom-radio-text">{option.label}</span>}

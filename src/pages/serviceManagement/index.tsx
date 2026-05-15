@@ -16,6 +16,7 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
@@ -97,10 +98,9 @@ const ServiceManagement = () => {
       type: "service-management",
       franchiseId: headerFranchiseId,
     });
-  /** Header franchise ≠ "all" → lists from `GET …/franchise-category|franchise-service/getAll?franchise_id=…` (`all_*` rows use `franchise_active`). */
-  const franchiseCatalogScope =
-    Boolean(String(headerFranchiseId ?? "").trim()) &&
-    String(headerFranchiseId).toLowerCase() !== "all";
+  /** Super admin/staff header franchise → scoped catalog URL; franchise portal uses token-scoped global getAll. */
+  const catalogFranchiseId = franchiseIdForApiQuery(headerFranchiseId);
+  const franchiseCatalogScope = Boolean(catalogFranchiseId);
   const catalogListStatusField = franchiseCatalogScope
     ? "franchise_active"
     : "is_active";
@@ -173,7 +173,7 @@ const ServiceManagement = () => {
               ...(showRequestedCategory ? { is_request: "true" } : {}),
             },
             sortBy,
-            headerFranchiseId
+            catalogFranchiseId || undefined
           );
           if (response) {
             if (generation !== fetchGenerationRef.current) return;
@@ -197,7 +197,7 @@ const ServiceManagement = () => {
               ...(showRequestedService ? { is_request: "true" } : {}),
             },
             sortBy,
-            headerFranchiseId
+            catalogFranchiseId || undefined
           );
           if (response) {
             if (generation !== fetchGenerationRef.current) return;
@@ -224,7 +224,7 @@ const ServiceManagement = () => {
       showRequestedCategory,
       showRequestedService,
       sortBy,
-      headerFranchiseId,
+      catalogFranchiseId,
     ]
   );
 
@@ -252,7 +252,7 @@ const ServiceManagement = () => {
     showRequestedCategory,
     showRequestedService,
     refreshData,
-    headerFranchiseId,
+    catalogFranchiseId,
   ]);
 
 

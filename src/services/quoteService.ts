@@ -21,7 +21,7 @@ import {
 } from "../lib/service/serviceMinDepositDisplay";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
-import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import { franchiseIdForApiQuery } from "../lib/franchise/headerFranchisePreference";
 import {
   displayStateName,
   stripKnownAddressParts,
@@ -1754,9 +1754,7 @@ export async function fetchQuotes(
     return { response: true, quotes: records, totalPages, totalCount };
   }
 
-  const fidRaw = str(filters.franchise_id);
-  const fid =
-    sessionMayUseFranchiseIdApiFilter() && fidRaw ? fidRaw : fidRaw;
+  const fid = franchiseIdForApiQuery(filters.franchise_id);
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
@@ -1902,8 +1900,9 @@ export async function fetchQuoteCreateOptions(opts?: {
     };
   }
 
-  const extra = opts?.franchiseId
-    ? { franchise_id: String(opts.franchiseId).trim() }
+  const scopedFranchiseId = franchiseIdForApiQuery(opts?.franchiseId);
+  const extra = scopedFranchiseId
+    ? { franchise_id: scopedFranchiseId }
     : undefined;
   const [quoteCategoryOptions, customers, employees] = await Promise.all([
     fetchCategoryDropDown(),

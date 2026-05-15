@@ -22,8 +22,11 @@ import {
 } from "../lib/user/userFormValidation";
 import { showErrorAlert } from "../lib/global/alertHelper";
 import { openDialog } from "../lib/global/DialogManager";
+import GenderRadioField from "./GenderRadioField";
 
 const MODAL_DOM_ID = "add-franchise-admin-nested-dialog";
+
+type GenderField = "male" | "female" | "others";
 
 type Props = {
   onClose: () => void;
@@ -35,6 +38,7 @@ type FormState = {
   roleName: string;
   email: string;
   phone_number: string;
+  gender: GenderField;
   password: string;
   confirmPassword: string;
   assignedFranchise: string;
@@ -46,6 +50,7 @@ const emptyForm: FormState = {
   roleName: "",
   email: "",
   phone_number: "",
+  gender: "male",
   password: "",
   confirmPassword: "",
   assignedFranchise: "",
@@ -136,6 +141,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
       roleName: form.roleName.trim(),
       email: form.email.trim(),
       phone_number: rolePhoneFull,
+      gender: form.gender,
       profile_url: form.profile_url.trim() || undefined,
       roleType: "franchise_admin" as const,
       assignedFranchise: form.assignedFranchise || undefined,
@@ -233,6 +239,12 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
                   phone_number: sanitizeIndiaNationalPhoneInput(value),
                 }))
               }
+            />
+          </div>
+          <div className="col-md-12">
+            <GenderRadioField
+              value={form.gender}
+              onChange={(gender) => setForm((p) => ({ ...p, gender }))}
             />
           </div>
           <div className="col-md-12">

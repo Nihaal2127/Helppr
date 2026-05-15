@@ -14,10 +14,10 @@ import {
   getStatusOptions,
   DetailsRowLinkDocument,
 } from "../../helper/utility";
-import { showErrorAlert, showInfoAlert } from "../../lib/global/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
-import { fetchArea } from "../../services/areaService";
+import { fetchAreasByCityForForm } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown, fetchCategory } from "../../services/categoryService";
@@ -29,16 +29,28 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
+import {
+  genderForApiPayload,
+  normalizeGenderValue,
+} from "../../lib/user/genderOptions";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
+import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { PARTNER_VERIFICATION } from "../../lib/partner/partnerVerification";
+import {
+  PARTNER_CREATE_DOCUMENT_FIELDS,
+  PARTNER_CREATE_DOCUMENT_SLOTS,
+} from "../../lib/partner/partnerFormDocuments";
+import type { PartnerCreateDocumentKey } from "../../lib/partner/partnerFormDocuments";
+import type { UserMultipartUploads } from "../../services/userService";
 import { openDialog } from "../../lib/global/DialogManager";
 import {
   sanitizeIndianPincodeInput,
@@ -175,13 +187,6 @@ const normalizePincodeValue = (value: unknown): string => {
   return "";
 };
 
-type PartnerVerificationDocKey =
-  | "vehicle_registration"
-  | "police_verification"
-  | "pan_card"
-  | "driving_license"
-  | "aadhar_card";
-
 function AddEditUserDialogView({
   role,
   isEditable,
@@ -204,7 +209,15 @@ function AddEditUserDialogView({
     defaultValues: {
       name: user?.name || "",
       email: user?.email || "",
+      date_of_birth: user?.date_of_birth
+        ? String(user.date_of_birth).slice(0, 10)
+        : "",
+      experience:
+        user?.experience !== undefined && user?.experience !== null
+          ? String(user.experience)
+          : "",
       phone_number: nationalDigitsWithoutIndia91(user?.phone_number || ""),
+      gender: normalizeGenderValue(user?.gender) || "male",
       address: normalizeAddressValue(user?.address),
       state_id: user?.state_id || "",
       city_id: user?.city_id || "",
@@ -247,8 +260,8 @@ function AddEditUserDialogView({
 
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
-  const [partnerVerificationDocFilenames, setPartnerVerificationDocFilenames] =
-    useState<Partial<Record<PartnerVerificationDocKey, string>>>({});
+  const [partnerVerificationDocFiles, setPartnerVerificationDocFiles] =
+    useState<Partial<Record<PartnerCreateDocumentKey, File>>>({});
   const [states, setState] = useState<{ value: string; label: string }[]>([]);
   const [cities, setCity] = useState<{ value: string; label: string }[]>([]);
   const [areas, setAreas] = useState<{ value: string; label: string }[]>([]);
@@ -264,8 +277,6 @@ function AddEditUserDialogView({
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
     OptionType[]
   >([]);
-  const fetchRef = useRef(false);
-  const fetchCityRef = useRef(false);
   const prevAddPartnerFranchiseRef = useRef<string | null>(null);
 
   const currentUserRole = String(
@@ -293,6 +304,15 @@ function AddEditUserDialogView({
     watchedPartnerFranchiseId,
   ]);
 
+  /** API catalog scope: super admin/staff pick franchise; franchise portal uses auth token only. */
+  const catalogFranchiseApiId = useMemo(
+    () =>
+      franchiseIdForApiQuery(
+        isSuperAdminOrStaff ? effectiveAddPartnerFranchiseId : ""
+      ),
+    [isSuperAdminOrStaff, effectiveAddPartnerFranchiseId]
+  );
+
   const addPartnerCatalogLocked = useMemo(
     () =>
       isAddPartner &&
@@ -307,22 +327,33 @@ function AddEditUserDialogView({
   );
 
   const fetchCityFromApi = useCallback(async (stateId: string) => {
-    if (fetchCityRef.current) return;
-    fetchCityRef.current = true;
+    const sid = String(stateId ?? "").trim();
+    if (!sid) {
+      setCity([]);
+      return;
+    }
     try {
-      const cityOptions = await fetchCityDropDown([stateId]);
+      const cityOptions = await fetchCityDropDown([sid]);
       setCity(cityOptions);
-    } finally {
-      fetchCityRef.current = false;
+    } catch {
+      setCity([]);
     }
   }, []);
 
   const onStateChangeClearLocationChain = useCallback(
     (stateId: string) => {
+      const sid = String(stateId ?? "").trim();
+      setValue("state_id", sid, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
       setValue("city_id", "", { shouldValidate: false });
       setValue("area_id", "", { shouldValidate: false });
       setValue("pincode", "", { shouldValidate: false });
-      void fetchCityFromApi(stateId);
+      setAreas([]);
+      setAreaPincodes(new Map());
+      setPincodeOptions([]);
+      void fetchCityFromApi(sid);
     },
     [setValue, fetchCityFromApi]
   );
@@ -333,19 +364,17 @@ function AddEditUserDialogView({
   }, [setValue]);
 
   const fetchStateFromApi = useCallback(async () => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
     try {
       const stateOptions = await fetchStateDropDown();
       setState(stateOptions);
 
-      if (isEditable && user) {
-        await fetchCityFromApi(user.state_id ?? "");
+      if (isEditable && user?.state_id) {
+        await fetchCityFromApi(String(user.state_id));
       }
-    } finally {
-      fetchRef.current = false;
+    } catch {
+      setState([]);
     }
-  }, [isEditable, user, fetchCityFromApi]);
+  }, [isEditable, user?.state_id, fetchCityFromApi]);
 
   useEffect(() => {
     if (!(isAddPartner || isPartnerEdit)) return;
@@ -490,15 +519,21 @@ function AddEditUserDialogView({
 
   useEffect(() => {
     if (!isAddPartner) return;
-    const fid = effectiveAddPartnerFranchiseId;
-    if (!fid) {
+    const apiFranchiseId = catalogFranchiseApiId;
+    if (isSuperAdminOrStaff && !apiFranchiseId) {
       setCategoryOptions([{ value: "select-all", label: "Select All" }]);
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetchCategory(1, 5000, { status: "true" }, [], fid);
+        const res = await fetchCategory(
+          1,
+          5000,
+          { status: "true" },
+          [],
+          apiFranchiseId || undefined
+        );
         if (cancelled) return;
         if (!res.response) {
           setCategoryOptions([{ value: "select-all", label: "Select All" }]);
@@ -523,11 +558,11 @@ function AddEditUserDialogView({
     return () => {
       cancelled = true;
     };
-  }, [isAddPartner, effectiveAddPartnerFranchiseId]);
+  }, [isAddPartner, isSuperAdminOrStaff, catalogFranchiseApiId]);
 
   useEffect(() => {
     let cancelled = false;
-    const loadAreas = async () => {
+    const loadAreasForCity = async () => {
       const cityId = String(watchedCityId ?? "").trim();
       const stateId = String(watchedStateId ?? "").trim();
       if (!cityId) {
@@ -538,52 +573,17 @@ function AddEditUserDialogView({
         return;
       }
 
+      const rows = await fetchAreasByCityForForm(cityId, stateId || undefined);
+      if (cancelled) return;
+
       const areaOptions: { value: string; label: string }[] = [];
       const pinMap = new Map<string, string[]>();
-      let page = 1;
-      const pageSize = 200;
 
-      for (;;) {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await fetchArea(
-          page,
-          pageSize,
-          { state_id: stateId, city_id: cityId },
-          []
-        );
-        if (!res.response) break;
-
-        const rowsScopedByCity = ((res.areas ?? []) as any[]).filter((row: any) => {
-          const rowCityId = String(row?.city_id ?? row?.city?.id ?? row?.city?._id ?? "").trim();
-          return rowCityId ? rowCityId === cityId : true;
-        });
-
-        for (const row of rowsScopedByCity) {
-          const id = String(row?._id ?? row?.id ?? "").trim();
-          if (!id) continue;
-          const label = String(row?.name ?? "").trim();
-          if (label) areaOptions.push({ value: id, label });
-          const rawPins = Array.isArray(row?.pincodes)
-            ? row.pincodes
-            : Array.isArray(row?.pin_codes)
-            ? row.pin_codes
-            : typeof row?.pincode === "string"
-            ? row.pincode.split(",")
-            : [];
-          const pins: string[] = Array.from(
-            new Set<string>(
-              rawPins.map((v: any) => String(v ?? "").trim()).filter(Boolean)
-            )
-          );
-          pinMap.set(id, pins);
-        }
-
-        if (!res.totalPages || page >= res.totalPages) break;
-        page += 1;
-        if (page > 50) break;
+      for (const row of rows) {
+        areaOptions.push({ value: row.value, label: row.label });
+        pinMap.set(row.value, row.pincodes);
       }
 
-      if (cancelled) return;
       setAreas(areaOptions);
       setAreaPincodes(pinMap);
       const currentArea = String(watch("area_id") ?? "").trim();
@@ -591,7 +591,8 @@ function AddEditUserDialogView({
         setValue("area_id", "", { shouldValidate: false });
       }
     };
-    void loadAreas();
+
+    void loadAreasForCity();
     return () => {
       cancelled = true;
     };
@@ -767,8 +768,8 @@ function AddEditUserDialogView({
       );
       const cid = String(categoryId ?? "").trim();
       if (!cid || !isAddPartner) return;
-      const fid = effectiveAddPartnerFranchiseId;
-      if (!fid) {
+      const apiFranchiseId = catalogFranchiseApiId;
+      if (isSuperAdminOrStaff && !apiFranchiseId) {
         setServicesByCategoryId((prev) => ({ ...prev, [cid]: [] }));
         return;
       }
@@ -785,7 +786,7 @@ function AddEditUserDialogView({
               ...(stateId ? { state_id: stateId } : {}),
             },
             [],
-            fid
+            apiFranchiseId || undefined
           );
           const list =
             svcRes.response && Array.isArray(svcRes.services)
@@ -820,7 +821,8 @@ function AddEditUserDialogView({
     },
     [
       isAddPartner,
-      effectiveAddPartnerFranchiseId,
+      isSuperAdminOrStaff,
+      catalogFranchiseApiId,
       watchedCityId,
       watchedStateId,
     ]
@@ -882,32 +884,16 @@ function AddEditUserDialogView({
       : "";
   };
 
-  /** Opens upload dialog like `PartnerDetailsDialog` `addDocument`; no partner doc id until partner is saved. */
+  /** Stores files for multipart `POST /user/create` document fields. */
   const openAddPartnerVerificationDocumentUpload = useCallback(
-    (docKey: PartnerVerificationDocKey) => {
-      CustomUploadDialog.show(async (files, replaceUrls) => {
-        const formData = new FormData();
-        formData.append("type", "1");
-        files.forEach((file) => formData.append("files", file));
-
-        const { response, fileList } = await createOrUpdateDocument(
-          formData,
-          false
-        );
-
-        const localName = String(files[0]?.name ?? "").trim();
-        if (response && localName) {
-          setPartnerVerificationDocFilenames((prev) => ({
-            ...prev,
-            [docKey]: localName,
-          }));
-        }
-
-        if (response && fileList.length > 0) {
-          showInfoAlert(
-            "Document uploaded. After you save this partner, open Partner details to attach or replace verification documents for each type."
-          );
-        }
+    (docKey: PartnerCreateDocumentKey) => {
+      CustomUploadDialog.show((files) => {
+        const file = files[0];
+        if (!file) return;
+        setPartnerVerificationDocFiles((prev) => ({
+          ...prev,
+          [docKey]: file,
+        }));
       });
     },
     []
@@ -1052,6 +1038,11 @@ function AddEditUserDialogView({
       created_by_id: getLocalStorage(AppConstant.createdById),
       name: data.name,
       email: data.email,
+      gender: genderForApiPayload(data.gender) ?? "male",
+      ...(role === PARTNER_ROLE && {
+        date_of_birth: toYmdString(data.date_of_birth) ?? "",
+        experience: String(data.experience ?? "").trim(),
+      }),
       phone_number: data.phone_number,
       address: isUserUpdate
         ? normalizeAddressValue(user?.address)
@@ -1117,6 +1108,22 @@ function AddEditUserDialogView({
     };
 
     const selectedImageFile = fileInputs.length > 0 ? fileInputs[0] : null;
+    const partnerDocumentFiles: UserMultipartUploads["partnerDocumentFiles"] =
+      {};
+    if (isAddPartner) {
+      for (const slot of PARTNER_CREATE_DOCUMENT_SLOTS) {
+        const file = partnerVerificationDocFiles[slot.key];
+        if (file) {
+          partnerDocumentFiles[PARTNER_CREATE_DOCUMENT_FIELDS[slot.key]] = file;
+        }
+      }
+    }
+    const multipartUploads: UserMultipartUploads = {
+      image: selectedImageFile,
+      ...(Object.keys(partnerDocumentFiles).length > 0
+        ? { partnerDocumentFiles }
+        : {}),
+    };
 
     let responseUser;
     if (isEditable) {
@@ -1128,14 +1135,14 @@ function AddEditUserDialogView({
         payload,
         true,
         user?._id,
-        selectedImageFile
+        multipartUploads
       );
     } else {
       responseUser = await createOrUpdateUser(
         payload,
         false,
         undefined,
-        selectedImageFile
+        multipartUploads
       );
     }
 
@@ -1174,14 +1181,27 @@ function AddEditUserDialogView({
   // Ensure Add opens blank and Update always hydrates selected user.
   useEffect(() => {
     if (isAddPartner) {
-      setPartnerVerificationDocFilenames({});
+      setPartnerVerificationDocFiles({});
     }
     reset({
       name: isEditable ? user?.name || "" : "",
       email: isEditable ? user?.email || "" : "",
+      date_of_birth:
+        isEditable && user?.date_of_birth
+          ? String(user.date_of_birth).slice(0, 10)
+          : "",
+      experience:
+        isEditable &&
+        user?.experience !== undefined &&
+        user?.experience !== null
+          ? String(user.experience)
+          : "",
       phone_number: isEditable
         ? nationalDigitsWithoutIndia91(user?.phone_number || "")
         : "",
+      gender: isEditable
+        ? normalizeGenderValue(user?.gender) || "male"
+        : "male",
       address: isEditable ? normalizeAddressValue(user?.address) : "",
       state_id: isEditable ? user?.state_id || "" : "",
       city_id: isEditable ? user?.city_id || "" : "",
@@ -1207,6 +1227,7 @@ function AddEditUserDialogView({
 
   const subscriptionStartStr = watch("subscription_start_date");
   const subscriptionEndStr = watch("subscription_end_date");
+  const dateOfBirthStr = watch("date_of_birth");
   const toYmdString = (v: unknown): string | null => {
     if (v == null || v === "") return null;
     if (typeof v === "string") return v.length >= 10 ? v.slice(0, 10) : v;
@@ -1279,6 +1300,40 @@ function AddEditUserDialogView({
                 </Row>
                 <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
+                    <CustomTextFieldDatePicket
+                      label="Date of Birth"
+                      controlId="date_of_birth"
+                      selectedDate={toYmdString(dateOfBirthStr)}
+                      birthDatePicker
+                      onChange={(date) => {
+                        const value = date
+                          ? date.toISOString().slice(0, 10)
+                          : "";
+                        setValue("date_of_birth", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      register={register}
+                      setValue={setValue}
+                      placeholderText="Select date of birth"
+                      validation={{ required: "Date of birth is required" }}
+                      error={errors.date_of_birth}
+                    />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <CustomTextField
+                      label="Experience"
+                      controlId="experience"
+                      placeholder="Years of experience"
+                      register={register}
+                      error={errors.experience}
+                      validation={{ required: "Experience is required" }}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
                     <CustomTextFieldIndiaMobile
                       label="Phone No"
                       controlId="phone_number"
@@ -1289,6 +1344,22 @@ function AddEditUserDialogView({
                     />
                   </Col>
                   <Col xs={12} md={6}>
+                    <CustomTextFieldRadio
+                      label="Gender"
+                      name="gender"
+                      options={[
+                        { value: "male", label: "Male" },
+                        { value: "female", label: "Female" },
+                        { value: "others", label: "Others" },
+                      ]}
+                      defaultValue={String(watch("gender") ?? "male")}
+                      isEditable={true}
+                      setValue={setValue}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={12}>
                     <CustomTextField
                       label="Address"
                       controlId="address"
@@ -1311,10 +1382,10 @@ function AddEditUserDialogView({
                       fieldName="state_id"
                       error={errors.state_id}
                       requiredMessage="Please select state"
-                      defaultValue={
-                        isEditable ? (user?.state_id ? user?.state_id : "") : ""
-                      }
+                      defaultValue={String(watch("state_id") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select state"
                       onChange={(e) =>
                         onStateChangeClearLocationChain(e.target.value)
                       }
@@ -1329,10 +1400,11 @@ function AddEditUserDialogView({
                       fieldName="city_id"
                       error={errors.city_id}
                       requiredMessage="Please select city"
-                      defaultValue={
-                        isEditable ? (user?.city_id ? user?.city_id : "") : ""
-                      }
+                      defaultValue={String(watch("city_id") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select city"
+                      isDisabled={!String(watch("state_id") ?? "").trim()}
                       onChange={() => onCityChangeClearAreaPin()}
                     />
                   </Col>
@@ -1350,10 +1422,11 @@ function AddEditUserDialogView({
                       fieldName="area_id"
                       error={(errors as any).area_id}
                       requiredMessage="Please select area"
-                      defaultValue={
-                        isEditable ? normalizeIdLike((user as any)?.area_id) : ""
-                      }
+                      defaultValue={String(watch("area_id") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select area"
+                      isDisabled={!String(watch("city_id") ?? "").trim()}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1368,10 +1441,11 @@ function AddEditUserDialogView({
                       fieldName="pincode"
                       error={errors.pincode}
                       requiredMessage="Please select pincode"
-                      defaultValue={
-                        isEditable ? normalizePincodeValue(user?.pincode) : ""
-                      }
+                      defaultValue={String(watch("pincode") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select pincode"
+                      isDisabled={!String(watch("area_id") ?? "").trim()}
                     />
                   </Col>
                 </Row>
@@ -1565,6 +1639,45 @@ function AddEditUserDialogView({
                     })
                   }
                 />
+                {isPartnerEdit ? (
+                  <>
+                    <CustomTextFieldDatePicket
+                      label="Date of Birth"
+                      controlId="date_of_birth"
+                      selectedDate={toYmdString(dateOfBirthStr)}
+                      birthDatePicker
+                      onChange={(date) => {
+                        const value = date
+                          ? date.toISOString().slice(0, 10)
+                          : "";
+                        setValue("date_of_birth", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      register={register}
+                      setValue={setValue}
+                      placeholderText="Select date of birth"
+                      validation={{ required: "Date of birth is required" }}
+                      error={errors.date_of_birth}
+                    />
+                    <CustomTextField
+                      label="Experience"
+                      controlId="experience"
+                      placeholder="Years of experience"
+                      register={register}
+                      error={errors.experience}
+                      validation={{ required: "Experience is required" }}
+                      value={watch("experience") ?? ""}
+                      onChange={(value) =>
+                        setValue("experience", value, {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
                 <CustomTextFieldIndiaMobile
                   label="Phone No"
                   controlId="phone_number"
@@ -1579,6 +1692,18 @@ function AddEditUserDialogView({
                       shouldValidate: false,
                     })
                   }
+                />
+                <CustomTextFieldRadio
+                  label="Gender"
+                  name="gender"
+                  options={[
+                    { value: "male", label: "Male" },
+                    { value: "female", label: "Female" },
+                    { value: "others", label: "Others" },
+                  ]}
+                  defaultValue={String(watch("gender") ?? "male")}
+                  isEditable={true}
+                  setValue={setValue}
                 />
                 {!isEditable ? (
                   <>
@@ -2036,72 +2161,34 @@ function AddEditUserDialogView({
                   }}
                 >
                   <h3 className="mb-2">Verification &amp; Documents</h3>
-                  <DetailsRowLinkDocument
-                    title="Vehicle Registration"
-                    isEditable={false}
-                    uploadedFileName={
-                      partnerVerificationDocFilenames.vehicle_registration
-                    }
-                    onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload(
-                        "vehicle_registration"
-                      )
-                    }
-                    onViewClick={() => {}}
-                    onDeleteClick={() => {}}
-                  />
-                  <DetailsRowLinkDocument
-                    title="Police Verification Certificate"
-                    isEditable={false}
-                    uploadedFileName={
-                      partnerVerificationDocFilenames.police_verification
-                    }
-                    onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload(
-                        "police_verification"
-                      )
-                    }
-                    onViewClick={() => {}}
-                    onDeleteClick={() => {}}
-                  />
-                  <DetailsRowLinkDocument
-                    title="PAN Card"
-                    isEditable={false}
-                    uploadedFileName={partnerVerificationDocFilenames.pan_card}
-                    onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload("pan_card")
-                    }
-                    onViewClick={() => {}}
-                    onDeleteClick={() => {}}
-                  />
-                  <DetailsRowLinkDocument
-                    title="Driving License"
-                    isEditable={false}
-                    uploadedFileName={
-                      partnerVerificationDocFilenames.driving_license
-                    }
-                    onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload(
-                        "driving_license"
-                      )
-                    }
-                    onViewClick={() => {}}
-                    onDeleteClick={() => {}}
-                  />
-                  <DetailsRowLinkDocument
-                    title="Aadhar Card"
-                    isEditable={false}
-                    uploadedFileName={
-                      partnerVerificationDocFilenames.aadhar_card
-                    }
-                    onAddClick={() =>
-                      void openAddPartnerVerificationDocumentUpload(
-                        "aadhar_card"
-                      )
-                    }
-                    onViewClick={() => {}}
-                    onDeleteClick={() => {}}
-                  />
+                  {PARTNER_CREATE_DOCUMENT_SLOTS.map((slot) => (
+                    <DetailsRowLinkDocument
+                      key={slot.key}
+                      title={slot.title}
+                      isEditable={false}
+                      uploadedFileName={
+                        partnerVerificationDocFiles[slot.key]?.name
+                      }
+                      onAddClick={() =>
+                        void openAddPartnerVerificationDocumentUpload(slot.key)
+                      }
+                      onViewClick={() => {
+                        const file = partnerVerificationDocFiles[slot.key];
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          window.open(url, "_blank", "noopener,noreferrer");
+                          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                        }
+                      }}
+                      onDeleteClick={() => {
+                        setPartnerVerificationDocFiles((prev) => {
+                          const next = { ...prev };
+                          delete next[slot.key];
+                          return next;
+                        });
+                      }}
+                    />
+                  ))}
                 </section>
 
                 <section
@@ -2110,7 +2197,7 @@ function AddEditUserDialogView({
                 >
                   <h3 className="mb-3">Bank information</h3>
                   <Row className="g-3 mb-2">
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={4}>
                       <CustomTextField
                         label="Bank Name"
                         controlId="partner_bank_legal_name"
@@ -2120,7 +2207,7 @@ function AddEditUserDialogView({
                         validation={{ required: "Bank name is required" }}
                       />
                     </Col>
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={4}>
                       <CustomTextField
                         label="Branch Name"
                         controlId="partner_bank_branch"
@@ -2130,7 +2217,7 @@ function AddEditUserDialogView({
                         validation={{ required: "Branch name is required" }}
                       />
                     </Col>
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={4}>
                       <CustomTextField
                         label="IFSC Code"
                         controlId="partner_bank_ifsc"
@@ -2140,7 +2227,7 @@ function AddEditUserDialogView({
                         validation={{ required: "IFSC code is required" }}
                       />
                     </Col>
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={4}>
                       <CustomTextField
                         label="Account Name"
                         controlId="partner_bank_holder"
@@ -2150,7 +2237,7 @@ function AddEditUserDialogView({
                         validation={{ required: "Account name is required" }}
                       />
                     </Col>
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={4}>
                       <CustomTextField
                         label="Account Number"
                         controlId="partner_bank_account_number"
@@ -2160,24 +2247,21 @@ function AddEditUserDialogView({
                         validation={{ required: "Account number is required" }}
                       />
                     </Col>
+                    <Col xs={12} md={4}>
+                      <CustomTextFieldRadio
+                        label="Account Status"
+                        name="bank_account_is_active"
+                        options={getStatusOptions()}
+                        defaultValue={String(
+                          watch("bank_account_is_active") ?? "true"
+                        )}
+                        isEditable={true}
+                        setValue={setValue}
+                      />
+                    </Col>
                   </Row>
                 </section>
               </>
-            ) : null}
-
-            {isPartnerEdit ? (
-              <Row className="mt-2">
-                <Col xs={12}>
-                  <CustomTextFieldRadio
-                    label="Status"
-                    name="is_active"
-                    options={getStatusOptions()}
-                    defaultValue={user?.is_active?.toString() ?? "true"}
-                    isEditable={true}
-                    setValue={setValue}
-                  />
-                </Col>
-              </Row>
             ) : null}
 
             <Row className="mt-4">

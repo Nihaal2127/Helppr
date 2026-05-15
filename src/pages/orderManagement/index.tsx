@@ -39,6 +39,7 @@ import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
@@ -107,9 +108,8 @@ const OrderManagement = () => {
 
   /** Tab badges: `POST /getCount` `{ type: "order-management", franchise_id? }`; falls back to list totals if unmapped. */
   const reloadTabCounts = useCallback(async () => {
-    const fid = String(headerFranchiseId ?? "").trim();
-    const scope =
-      fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : undefined;
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    const scope = fid ? { franchise_id: fid } : undefined;
     const { responseCount, countModel } = await getCount(
       "order-management",
       scope

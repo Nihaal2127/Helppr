@@ -10,7 +10,6 @@ import CustomCloseButton from "../CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import { BankAccountModel } from "../../lib/models/BankAccountModel";
 import { fetchUserById } from "../../services/userService";
-import { partnerVerificationLabel } from "../../lib/partner/partnerVerification";
 import editIcon from "../../assets/icons/edit_red.svg";
 import addIcon from "../../assets/icons/add.svg";
 import deleteIcon from "../../assets/icons/delete_red.svg";
@@ -21,6 +20,7 @@ import {
   formatDate,
   DetailsRowLinkDocument,
 } from "../../helper/utility";
+import { formatGenderLabel } from "../../lib/user/genderOptions";
 import AddEditBankAccountDialog from "../../pages/userManagement/AddEditBankAccountDialog";
 import { DocumentModel } from "../../lib/models/DocumentModel";
 import { AppConstant } from "../../lib/global/AppConstant";
@@ -37,22 +37,17 @@ import { ServiceDetailsDialog } from "../user";
 import { openDialog } from "../../lib/global/DialogManager";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
-import { buildViewCategoryServiceGroups } from "../../lib/partner/partnerCategoryServiceView";
-import type { ViewCategoryServicesGroup } from "../../lib/partner/partnerCategoryServiceView";
+import {
+  buildViewCategoryServiceGroups,
+  buildViewCategoryServiceGroupsFromPartnerServices,
+} from "../../lib/partner/partnerCategoryServiceView";
 import EditPartnerCategoriesServicesDialog from "../../pages/userManagement/EditPartnerCategoriesServicesDialog";
+import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
 
 type PartnerDetailsDialogProps = {
   userId: string;
   onClose: () => void;
   onRefreshData: () => void;
-};
-
-type StaticPartnerBankAccount = {
-  id: string;
-  account_holder_name: string;
-  account_number: string;
-  ifsc_code: string;
-  bank_name: string;
 };
 
 type CatalogOption = { value: string; label: string };
@@ -66,140 +61,12 @@ type CatalogServiceLite = {
   price?: number | null;
 };
 
-/** Demo data for multi-account carousel (API may return a single bank_account today). */
-const STATIC_PARTNER_BANK_ACCOUNTS: StaticPartnerBankAccount[] = [
-  {
-    id: "static-acc-1",
-    account_holder_name: "Apex Logistics Pvt Ltd",
-    account_number: "XXXX4521987321",
-    ifsc_code: "HDFC0001234",
-    bank_name: "HDFC Bank Ltd.",
-  },
-  {
-    id: "static-acc-2",
-    account_holder_name: "Apex Logistics Pvt Ltd",
-    account_number: "XXXX8890123456",
-    ifsc_code: "SBIN0000456",
-    bank_name: "State Bank of India",
-  },
-  {
-    id: "static-acc-3",
-    account_holder_name: "Apex Logistics Pvt Ltd",
-    account_number: "XXXX3344556677",
-    ifsc_code: "ICIC0007890",
-    bank_name: "ICICI Bank Ltd.",
-  },
-  {
-    id: "static-acc-4",
-    account_holder_name: "Apex Logistics Pvt Ltd",
-    account_number: "XXXX1122334455",
-    ifsc_code: "AXIS0009988",
-    bank_name: "Axis Bank Ltd.",
-  },
-];
-
-const DUMMY_PARTNER_CATEGORY_SERVICE_GROUPS: ViewCategoryServicesGroup[] = [
-  {
-    categoryId: "dummy-cat-1",
-    categoryLabel: "Home cleaning",
-    rows: [
-      {
-        name: "Deep clean",
-        description: "Full home sanitization, floors, walls, and fixtures.",
-        price: `${AppConstant.currencySymbol}2499`,
-      },
-      {
-        name: "Kitchen cleaning",
-        description: "Degrease hob, cabinets exterior, sink, and tiles.",
-        price: `${AppConstant.currencySymbol}899`,
-      },
-      {
-        name: "Bathroom cleaning",
-        description: "Tiles, fittings, glass, and disinfection.",
-        price: `${AppConstant.currencySymbol}649`,
-      },
-    ],
-  },
-  {
-    categoryId: "dummy-cat-2",
-    categoryLabel: "Appliance repair",
-    rows: [
-      {
-        name: "AC servicing",
-        description:
-          "Split / window unit gas check, filter wash, and test run.",
-        price: `${AppConstant.currencySymbol}599`,
-      },
-      {
-        name: "Washing machine repair",
-        description: "Motor, drain, or board fault diagnosis and fix.",
-        price: `${AppConstant.currencySymbol}450`,
-      },
-    ],
-  },
-];
-
-function normalizeBankDigits(value: string): string {
-  return value.replace(/\s/g, "").replace(/[xX*]/g, "").toLowerCase();
-}
-
-function bankCarouselRowMatchesApiAccount(
-  acc: Pick<StaticPartnerBankAccount, "account_number" | "ifsc_code">,
-  api: BankAccountModel | null | undefined
-): boolean {
-  if (!api?._id) return false;
-  const ifscMatch =
-    acc.ifsc_code.replace(/\s/g, "").toLowerCase() ===
-    api.ifsc_code.replace(/\s/g, "").toLowerCase();
-  if (!ifscMatch) return false;
-  const rowDigits = normalizeBankDigits(acc.account_number);
-  const apiDigits = normalizeBankDigits(api.account_number);
-  if (rowDigits && apiDigits) {
-    return (
-      rowDigits === apiDigits ||
-      rowDigits.endsWith(apiDigits) ||
-      apiDigits.endsWith(rowDigits)
-    );
-  }
-  return (
-    acc.account_number.replace(/\s/g, "") ===
-    api.account_number.replace(/\s/g, "")
-  );
-}
-
-function bankAccountFromCarouselRow(
-  acc: StaticPartnerBankAccount & { isActive: boolean },
-  apiAccount: BankAccountModel | null | undefined
-): BankAccountModel {
-  if (bankCarouselRowMatchesApiAccount(acc, apiAccount) && apiAccount) {
-    return {
-      ...apiAccount,
-      is_active: apiAccount.is_active ?? acc.isActive,
-    };
-  }
-  return {
-    _id: "",
-    partner_id: "",
-    bank_name: acc.bank_name,
-    account_holder_name: acc.account_holder_name,
-    account_number: acc.account_number,
-    ifsc_code: acc.ifsc_code,
-    branch_name: "",
-    is_primary: true,
-    deleted_at: null,
-    created_at: null,
-    updated_at: null,
-    is_active: acc.isActive,
-  };
-}
-
 function PartnerDetailsDialogView({
   userId,
   onClose,
   onRefreshData,
 }: PartnerDetailsDialogProps) {
   const [userDetails, setUserDetails] = useState<UserModel>();
-  const activeStaticBankAccountId = STATIC_PARTNER_BANK_ACCOUNTS[0].id;
   const [catalogServices, setCatalogServices] = useState<CatalogServiceLite[]>(
     []
   );
@@ -208,21 +75,10 @@ function PartnerDetailsDialogView({
   >([]);
   const fetchRef = useRef(false);
 
-  const orderedStaticBankAccounts = useMemo(() => {
-    const active = STATIC_PARTNER_BANK_ACCOUNTS.find(
-      (a) => a.id === activeStaticBankAccountId
-    );
-    const rest = STATIC_PARTNER_BANK_ACCOUNTS.filter(
-      (a) => a.id !== activeStaticBankAccountId
-    );
-    const ordered = active
-      ? [active, ...rest]
-      : [...STATIC_PARTNER_BANK_ACCOUNTS];
-    return ordered.map((a) => ({
-      ...a,
-      isActive: a.id === activeStaticBankAccountId,
-    }));
-  }, [activeStaticBankAccountId]);
+  const partnerBankAccounts = useMemo(
+    () => partnerBankAccountsFromUser(userDetails),
+    [userDetails]
+  );
 
   const fetchDataFromApi = useCallback(async () => {
     if (fetchRef.current) return;
@@ -305,7 +161,12 @@ function PartnerDetailsDialogView({
 
   const viewCategoryServiceGroups = useMemo(() => {
     if (!userDetails) return [];
-    const built = buildViewCategoryServiceGroups(
+    const fromPartnerServices =
+      buildViewCategoryServiceGroupsFromPartnerServices(
+        userDetails.partner_services
+      );
+    if (fromPartnerServices.length > 0) return fromPartnerServices;
+    return buildViewCategoryServiceGroups(
       {
         category_ids: userDetails.category_ids ?? undefined,
         service_ids: userDetails.service_ids ?? undefined,
@@ -315,7 +176,6 @@ function PartnerDetailsDialogView({
       catalogServices,
       catalogCategoryOptions
     );
-    return built.length > 0 ? built : DUMMY_PARTNER_CATEGORY_SERVICE_GROUPS;
   }, [userDetails, catalogServices, catalogCategoryOptions]);
 
   const openServices = (status: number | null) => {
@@ -407,30 +267,32 @@ function PartnerDetailsDialogView({
               <Col className="custom-helper-column">
                 <DetailsRow title="Partner Name" value={userDetails?.name} />
                 <DetailsRow
+                  title="Gender"
+                  value={formatGenderLabel(userDetails?.gender)}
+                />
+                <DetailsRow
+                  title="Date of Birth"
+                  value={
+                    userDetails?.date_of_birth
+                      ? formatDate(String(userDetails.date_of_birth))
+                      : "—"
+                  }
+                />
+                <DetailsRow
+                  title="Experience"
+                  value={
+                    userDetails?.experience !== undefined &&
+                    userDetails?.experience !== null &&
+                    String(userDetails.experience).trim() !== ""
+                      ? String(userDetails.experience)
+                      : "—"
+                  }
+                />
+                <DetailsRow
                   title="Phone No"
                   value={userDetails?.phone_number}
                 />
                 <DetailsRow title="State" value={userDetails?.state_name} />
-                <DetailsRow
-                  title="Registered Date"
-                  value={formatDate(
-                    userDetails?.created_at ? userDetails?.created_at : ""
-                  )}
-                />
-                <DetailsRow
-                  title="Status"
-                  value={
-                    <span
-                      className={
-                        userDetails?.is_active
-                          ? "custom-active"
-                          : "custom-inactive"
-                      }
-                    >
-                      {userDetails?.is_active ? "Active" : "Inactive"}
-                    </span>
-                  }
-                />
               </Col>
               <Col className="custom-helper-column">
                 <div>
@@ -516,6 +378,49 @@ function PartnerDetailsDialogView({
                           ? userDetails.last_service_date
                           : ""
                       )}
+                    </div>
+                  </Row>
+                  <Row className="row custom-personal-row gx-0 align-items-start">
+                    <div className="col-md-4 custom-personal-row-title">
+                      Registered Date
+                    </div>
+                    <div
+                      className="col-md-8"
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: "normal",
+                        fontFamily: "Inter",
+                        color: "var(--txt-color)",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {formatDate(
+                        userDetails?.created_at ? userDetails.created_at : ""
+                      )}
+                    </div>
+                  </Row>
+                  <Row className="row custom-personal-row gx-0 align-items-start">
+                    <div className="col-md-4 custom-personal-row-title">
+                      Status
+                    </div>
+                    <div
+                      className="col-md-8"
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: "normal",
+                        fontFamily: "Inter",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      <span
+                        className={
+                          userDetails?.is_active
+                            ? "custom-active"
+                            : "custom-inactive"
+                        }
+                      >
+                        {userDetails?.is_active ? "Active" : "Inactive"}
+                      </span>
                     </div>
                   </Row>
                 </div>
@@ -816,20 +721,6 @@ function PartnerDetailsDialogView({
                 style={{ marginLeft: "0px", marginRight: "0px" }}
               >
                 <h3>Verification & Documents</h3>
-                <DetailsRow
-                  title="Verification Status"
-                  value={partnerVerificationLabel(userDetails?.is_verified)}
-                />
-                <DetailsRow
-                  title="Verified Date"
-                  value={
-                    userDetails?.verified_at
-                      ? formatDate(String(userDetails.verified_at))
-                      : userDetails?.last_paid_date
-                      ? formatDate(String(userDetails.last_paid_date))
-                      : "—"
-                  }
-                />
                 {userDetails?.documents?.map((document) => (
                   <DetailsRowLinkDocument
                     key={
@@ -844,7 +735,7 @@ function PartnerDetailsDialogView({
                     }
                     onViewClick={() => CustomImagePreviewDialog(document)}
                     onAddClick={() => addDocument(document)}
-                    onDeleteClick={() => deleteDocument(document)}
+                    onDeleteClick={() => addDocument(document)}
                   />
                 ))}
               </section>
@@ -897,13 +788,16 @@ function PartnerDetailsDialogView({
                                     <DetailsRow title="IFSC Code" value={userDetails?.bank_account?.ifsc_code} />
                                     <DetailsRow title="Bank Name" value={userDetails?.bank_account?.bank_name} />
                                     */}
+                {partnerBankAccounts.length === 0 ? (
+                  <div className="text-muted small py-2">—</div>
+                ) : (
                 <Carousel
-                  key={activeStaticBankAccountId}
+                  key={partnerBankAccounts.map((a) => a._id).join("-")}
                   className="partner-accounts-carousel"
                   interval={null}
-                  controls
+                  controls={partnerBankAccounts.length > 1}
                   style={{ marginTop: "1.25rem" }}
-                  indicators
+                  indicators={partnerBankAccounts.length > 1}
                   prevIcon={
                     <i
                       className="bi bi-chevron-left fs-4 text-danger "
@@ -917,8 +811,8 @@ function PartnerDetailsDialogView({
                     />
                   }
                 >
-                  {orderedStaticBankAccounts.map((acc) => (
-                    <Carousel.Item key={acc.id}>
+                  {partnerBankAccounts.map((acc) => (
+                    <Carousel.Item key={acc._id || acc.account_number}>
                       <div
                         className="rounded border px-3 py-3 mx-3 mb-4 position-relative"
                         style={{
@@ -940,14 +834,10 @@ function PartnerDetailsDialogView({
                             zIndex: 1,
                           }}
                           onClick={() => {
-                            const model = bankAccountFromCarouselRow(
-                              acc,
-                              userDetails?.bank_account
-                            );
                             AddEditBankAccountDialog.show(
                               userId,
-                              Boolean(model._id),
-                              model,
+                              Boolean(acc._id),
+                              acc,
                               onRefreshuser
                             );
                           }}
@@ -963,32 +853,28 @@ function PartnerDetailsDialogView({
                         <DetailsRow title="IFSC Code" value={acc.ifsc_code} />
                         <DetailsRow title="Bank Name" value={acc.bank_name} />
                         <DetailsRow
+                          title="Branch"
+                          value={acc.branch_name || "—"}
+                        />
+                        <DetailsRow
                           title="Account Status"
                           value={
                             <span
                               className={
-                                acc.isActive
+                                acc.is_active !== false
                                   ? "custom-active"
                                   : "custom-inactive"
                               }
                             >
-                              {acc.isActive ? "Active" : "Inactive"}
+                              {acc.is_active !== false ? "Active" : "Inactive"}
                             </span>
                           }
                         />
-                        {/* {!acc.isActive && (
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm btn-outline-danger mt-2"
-                                                            onClick={() => setActiveStaticBankAccountId(acc.id)}
-                                                        >
-                                                            Set as active account
-                                                        </button>
-                                                    )} */}
                       </div>
                     </Carousel.Item>
                   ))}
                 </Carousel>
+                )}
               </section>
             </Col>
           </Row>

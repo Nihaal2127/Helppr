@@ -1,8 +1,8 @@
-/** Values sent and returned as `UserModel.is_verified` for partners. */
+/** Values sent and returned as `UserModel.is_verified` for partners (`getAll?is_verified=`). */
 export const PARTNER_VERIFICATION = {
   PENDING: "pending",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
+  APPROVED: "approved",
+  REJECTED: "rejected",
 } as const;
 
 export type PartnerVerificationValue =

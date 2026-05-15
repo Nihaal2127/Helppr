@@ -11,10 +11,12 @@ import { UserModel } from "../../lib/models/UserModel";
 import { createOrUpdateUser, fetchUserById } from "../../services/userService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
-import { fetchAreaDropDown } from "../../services/areaService";
+import { fetchAreaViewOptionsByCity } from "../../services/areaService";
+import type { AreaViewSelectOption } from "../../services/areaService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import { DetailsRow, formatDate } from "../../helper/utility";
+import { formatGenderLabel } from "../../lib/user/genderOptions";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import UserAddressReadOnlyCards from "./UserAddressReadOnlyCards";
 import UserViewAddressModal from "./UserViewAddressModal";
@@ -105,13 +107,13 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
           cityIds.map(async (cityId) => {
             const stateId =
               addresses.find((x) => x.city_id === cityId)?.state_id ?? "";
-            return fetchAreaDropDown(cityId, stateId);
+            return fetchAreaViewOptionsByCity(cityId, stateId);
           })
         );
         if (!cancelled) {
           const merged = allAreas.flat();
           const unique = Array.from(
-            new Map(merged.map((x) => [x.value, x])).values()
+            new Map(merged.map((r) => [r.value, r])).values()
           );
           setViewAreas(unique);
         }
@@ -146,7 +148,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
       setViewAreas([]);
       return;
     }
-    const opts = await fetchAreaDropDown(cityId, stateId);
+    const opts = await fetchAreaViewOptionsByCity(cityId, stateId);
     setViewAreas(opts);
   }, []);
 
@@ -395,6 +397,10 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
             >
               <Col className="custom-helper-column">
                 <DetailsRow title="User Name" value={userDetails?.name} />
+                <DetailsRow
+                  title="Gender"
+                  value={formatGenderLabel(userDetails?.gender)}
+                />
                 <DetailsRow
                   title="Phone No"
                   value={userDetails?.phone_number}

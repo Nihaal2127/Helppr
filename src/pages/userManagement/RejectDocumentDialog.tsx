@@ -42,6 +42,7 @@ const RejectDocumentDialog: React.FC<RejectDocumentDialogProps> & {
         onHide={onClose}
         centered
         dialogClassName="custom-big-modal"
+        size="lg"
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title">

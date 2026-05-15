@@ -4,16 +4,34 @@ import { StateModel } from "../lib/models/StateModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 
+function stateDropDownRecords(data: unknown): unknown[] {
+  if (!data || typeof data !== "object") return [];
+  const root = data as Record<string, unknown>;
+  if (Array.isArray(root.records)) return root.records;
+  const nested = root.data;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    const inner = nested as Record<string, unknown>;
+    if (Array.isArray(inner.records)) return inner.records;
+  }
+  if (Array.isArray(nested)) return nested;
+  return [];
+}
+
 export const fetchStateDropDown = async (): Promise<
   { value: string; label: string }[]
 > => {
   const response = await apiRequest(`${ApiPaths.GET_STATE_DROP_DOWN()}`, "GET");
 
   if (response.success) {
-    return response.data.records.map((state: any) => ({
-      value: state._id,
-      label: state.name,
-    }));
+    return stateDropDownRecords(response.data)
+      .map((row) => {
+        const state = row as { _id?: string; name?: string };
+        const value = String(state._id ?? "").trim();
+        const label = String(state.name ?? "").trim();
+        if (!value || !label) return null;
+        return { value, label };
+      })
+      .filter((o): o is { value: string; label: string } => o !== null);
   } else {
     showLog(response.message || "Failed to fetch state");
     return [];

@@ -21,6 +21,9 @@ import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import {
+  sessionFranchiseIdForScopedApis,
+} from "../../lib/franchise/headerFranchisePreference";
 import { AreaModel } from "../../lib/models/AreaModel";
 import { fetchArea, deleteArea } from "../../services/areaService";
 import AddEditAreaDialog from "./AddEditAreaDialog";
@@ -76,6 +79,9 @@ const LocationManagement = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const fetchRef = useRef(false);
+  const isFranchiseAdmin =
+    getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
+  const sessionFranchiseId = sessionFranchiseIdForScopedApis();
   const { register: areaFilterRegister, setValue: setAreaFilterValue } =
     useForm<{
       area_franchise_id: string;
@@ -146,12 +152,7 @@ const LocationManagement = () => {
             setTotalPages(0);
           }
         } else if (selected === "box-area") {
-          const isFranchiseAdmin =
-            getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
-          const areaFilters: LocationFilters = {
-            ...filters,
-            ...(isFranchiseAdmin ? { type: "my-franchise" } : {}),
-          };
+          const areaFilters: LocationFilters = { ...filters };
           const { response, areas, totalPages } = await fetchArea(
             currentPage,
             pageSize,
@@ -159,44 +160,46 @@ const LocationManagement = () => {
             areaTableSortBy
           );
           if (response && Array.isArray(areas)) {
-            let scopedAreas = areas;
             const selectedFranchiseId = String(
               areaFilters.franchise_id ?? ""
             ).trim();
-            // Server already scopes rows for franchise admin; avoid double-filtering.
-            if (isFranchiseAdmin && areaFilters.type === "my-franchise") {
+
+            if (isFranchiseAdmin) {
+              setAreaList(areas);
               setTotalPages(totalPages);
-              scopedAreas = areas;
             } else if (selectedFranchiseId) {
-              const allowedAreaIds = franchiseAreaIdsById.get(selectedFranchiseId);
+              const allowedAreaIds =
+                franchiseAreaIdsById.get(selectedFranchiseId);
               if (allowedAreaIds && allowedAreaIds.size > 0) {
-                scopedAreas = areas.filter((row: any) =>
-                  allowedAreaIds.has(String(row?._id ?? row?.id ?? "").trim())
+                setAreaList(
+                  areas.filter((row: any) =>
+                    allowedAreaIds.has(String(row?._id ?? row?.id ?? "").trim())
+                  )
                 );
                 setTotalPages(1);
               } else if (allowedAreaIds && allowedAreaIds.size === 0) {
-                scopedAreas = [];
+                setAreaList([]);
                 setTotalPages(0);
               } else {
-                // Fallback when franchise->area map is unavailable:
-                // filter by row's own franchise reference if present.
-                scopedAreas = areas.filter((row: any) => {
-                  const rowFranchiseId = String(
-                    row?.franchise_id ??
-                      row?.franchiseId ??
-                      row?.franchise?._id ??
-                      ""
-                  ).trim();
-                  return rowFranchiseId
-                    ? rowFranchiseId === selectedFranchiseId
-                    : true;
-                });
+                setAreaList(
+                  areas.filter((row: any) => {
+                    const rowFranchiseId = String(
+                      row?.franchise_id ??
+                        row?.franchiseId ??
+                        row?.franchise?._id ??
+                        ""
+                    ).trim();
+                    return rowFranchiseId
+                      ? rowFranchiseId === selectedFranchiseId
+                      : true;
+                  })
+                );
                 setTotalPages(1);
               }
             } else {
+              setAreaList(areas);
               setTotalPages(totalPages);
             }
-            setAreaList(scopedAreas);
           } else {
             setAreaList([]);
             setTotalPages(0);
@@ -213,6 +216,8 @@ const LocationManagement = () => {
       franchiseAreaIdsById,
       pageSize,
       stateTableSortBy,
+      isFranchiseAdmin,
+      sessionFranchiseId,
     ]
   );
 
@@ -264,6 +269,7 @@ const LocationManagement = () => {
   useEffect(() => {
     const loadAreaDropdowns = async () => {
       if (selectedBox !== "box-area") return;
+      if (isFranchiseAdmin) return;
       const franchises = await fetchFranchiseDropDown();
       setAreaFranchiseOptions(franchises);
       // Fallback map: selected franchise -> assigned area ids.
@@ -292,7 +298,7 @@ const LocationManagement = () => {
       setFranchiseAreaIdsById(areaMap);
     };
     loadAreaDropdowns();
-  }, [selectedBox]);
+  }, [selectedBox, isFranchiseAdmin]);
 
   const handleAreaFranchiseFilterChange = async (franchiseId: string) => {
     setSelectedAreaFranchiseId(franchiseId);
@@ -564,7 +570,7 @@ const LocationManagement = () => {
         selectedBox === "box-city" || selectedBox === "box-area"
       }
       controlSlot={
-        selectedBox === "box-area" ? (
+        selectedBox === "box-area" && !isFranchiseAdmin ? (
           <div style={{ minWidth: "200px" }}>
             {FormSelectComponent ? (
               <FormSelectComponent
@@ -685,7 +691,18 @@ const LocationManagement = () => {
                     setStateTableSortBy([]);
                     setCityTableSortBy([]);
                     setAreaTableSortBy([]);
-                    handleFilterChange({}, true);
+                    if (
+                      divId === "box-area" &&
+                      isFranchiseAdmin &&
+                      sessionFranchiseId
+                    ) {
+                      void handleFilterChange(
+                        { franchise_id: sessionFranchiseId },
+                        true
+                      );
+                    } else {
+                      void handleFilterChange({}, true);
+                    }
                     setUtilitySearchKey((k) => k + 1);
                   }}
                   isSelected={selectedBox === id}

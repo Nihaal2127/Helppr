@@ -20,6 +20,7 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
 import { UserDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog } from "../../components/partner";
@@ -45,7 +46,8 @@ const UserManagement = () => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     undefined
   );
-  const [verificationStatusFilter, setVerificationStatusFilter] = useState<
+  /** `pending` | `rejected` | undefined (Total = both pending + rejected). */
+  const [partnerIsVerifiedFilter, setPartnerIsVerifiedFilter] = useState<
     string | undefined
   >(undefined);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
@@ -65,10 +67,10 @@ const UserManagement = () => {
       Inactive: userCountModel.inactive_user,
     });
     setParnterData({
-      Total: userCountModel.total_partner,
-      Active: userCountModel.active_partner,
-      Inactive: userCountModel.inactive_partner,
-      Blocked: userCountModel.blocked_partner,
+      Total: userCountModel.total_partner ?? 0,
+      Active: userCountModel.active_partner ?? 0,
+      Inactive: userCountModel.inactive_partner ?? 0,
+      Blocked: Number(userCountModel.blocked_partner ?? 0),
     });
     setVerificationData({
       Total: userCountModel.total_document,
@@ -84,7 +86,7 @@ const UserManagement = () => {
     setCurrentPage(1);
     setSearchKeyword("");
     setStatusFilter(undefined);
-    setVerificationStatusFilter(undefined);
+    setPartnerIsVerifiedFilter(undefined);
     setSortBy([]);
     setUtilitySearchKey((k) => k + 1);
   }, [location.state]);
@@ -97,38 +99,72 @@ const UserManagement = () => {
         typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
 
     const franchiseScope =
-      headerFranchiseId &&
-      String(headerFranchiseId).trim() !== "" &&
-      headerFranchiseId !== FRANCHISE_HEADER_ALL
-        ? String(headerFranchiseId).trim()
-        : undefined;
+      franchiseIdForApiQuery(headerFranchiseId) || undefined;
 
     const filters = {
       keyword: searchKeyword || undefined,
       status: statusFilter,
       ...(franchiseScope ? { franchise_id: franchiseScope } : {}),
-      ...(selectedBox === "box-verification" &&
-      verificationStatusFilter !== undefined &&
-      verificationStatusFilter !== ""
-        ? { verification_status: verificationStatusFilter }
-        : {}),
     };
 
     if (selectedBox === "box-verification") {
-      const { response, users, totalPages } = await fetchUser(
-        true,
-        2,
-        page,
-        pageSize,
-        filters,
-        sortBy
-      );
-      if (response) {
-        setVerificationList(users);
-        setTotalPages(totalPages);
+      const verificationFilters = {
+        ...filters,
+        ...(partnerIsVerifiedFilter
+          ? { is_verified: partnerIsVerifiedFilter }
+          : {}),
+      };
+
+      if (partnerIsVerifiedFilter) {
+        const { response, users, totalPages } = await fetchUser(
+          false,
+          2,
+          page,
+          pageSize,
+          verificationFilters,
+          sortBy
+        );
+        if (response) {
+          setVerificationList(users);
+          setTotalPages(totalPages);
+        } else {
+          setVerificationList([]);
+          setTotalPages(0);
+        }
       } else {
-        setVerificationList([]);
-        setTotalPages(0);
+        const fetchLimit = Math.max(page * pageSize, pageSize);
+        const [pendingRes, rejectedRes] = await Promise.all([
+          fetchUser(
+            false,
+            2,
+            1,
+            fetchLimit,
+            { ...filters, is_verified: PARTNER_VERIFICATION.PENDING },
+            sortBy
+          ),
+          fetchUser(
+            false,
+            2,
+            1,
+            fetchLimit,
+            { ...filters, is_verified: PARTNER_VERIFICATION.REJECTED },
+            sortBy
+          ),
+        ]);
+
+        const mergedById = new Map<string, UserModel>();
+        for (const u of [
+          ...(pendingRes.response ? pendingRes.users : []),
+          ...(rejectedRes.response ? rejectedRes.users : []),
+        ]) {
+          const id = String(u._id ?? "");
+          if (id) mergedById.set(id, u);
+        }
+        const merged = Array.from(mergedById.values());
+        const start = (page - 1) * pageSize;
+        const pageSlice = merged.slice(start, start + pageSize);
+        setVerificationList(pageSlice);
+        setTotalPages(Math.max(1, Math.ceil(merged.length / pageSize)));
       }
     } else {
       const type = selectedBox === "box-user" ? 4 : 2;
@@ -167,7 +203,7 @@ const UserManagement = () => {
     selectedBox,
     sortBy,
     statusFilter,
-    verificationStatusFilter,
+    partnerIsVerifiedFilter,
     headerFranchiseId,
   ]
 );
@@ -472,7 +508,7 @@ const UserManagement = () => {
                 setCurrentPage(1);
                 setSearchKeyword("");
                 setStatusFilter(undefined);
-                setVerificationStatusFilter(undefined);
+                setPartnerIsVerifiedFilter(undefined);
                 setSortBy([]);
                 setUtilitySearchKey((k) => k + 1);
               }}
@@ -485,11 +521,13 @@ const UserManagement = () => {
                 id === "box-verification"
                   ? (key) => {
                       if (key === "Pending") {
-                        setVerificationStatusFilter("1");
+                        setPartnerIsVerifiedFilter(PARTNER_VERIFICATION.PENDING);
                       } else if (key === "Rejected") {
-                        setVerificationStatusFilter("3");
+                        setPartnerIsVerifiedFilter(
+                          PARTNER_VERIFICATION.REJECTED
+                        );
                       } else if (key === "Total") {
-                        setVerificationStatusFilter(undefined);
+                        setPartnerIsVerifiedFilter(undefined);
                       }
                       setCurrentPage(1);
                     }

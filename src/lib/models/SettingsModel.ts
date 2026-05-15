@@ -29,6 +29,7 @@ export interface RoleSettingsModel {
   /** Contact (settings / mock; optional for backward compatibility). */
   email?: string;
   phone_number?: string;
+  gender?: string;
   /** Profile image path or URL after upload (mock). */
   profile_url?: string;
   status: ActiveStatus;
@@ -43,6 +44,7 @@ export interface StaffSettingsModel {
   name: string;
   email?: string;
   phone_number?: string;
+  gender?: string;
   profile_url?: string;
   status: ActiveStatus;
   createdDate: string;

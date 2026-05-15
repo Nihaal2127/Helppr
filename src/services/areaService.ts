@@ -3,7 +3,9 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { AreaModel } from "../lib/models/AreaModel";
 import { showLog } from "../helper/utility";
 import { fetchMockAreas } from "./areaMockService";
-import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import {
+  franchiseIdForAreaGetAll,
+} from "../lib/franchise/headerFranchisePreference";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 
 const USE_MOCK_AREA_API = false;
@@ -75,11 +77,7 @@ export const fetchArea = async (
     return fetchMockAreas(page, pageSize, filters);
   }
 
-  const franchiseIdQuery =
-    String(filters.franchise_id ?? "").trim() &&
-    sessionMayUseFranchiseIdApiFilter()
-      ? String(filters.franchise_id).trim()
-      : "";
+  const franchiseIdQuery = franchiseIdForAreaGetAll(filters.franchise_id);
 
   const params = new URLSearchParams({
     page: String(page),
@@ -129,6 +127,100 @@ export const fetchArea = async (
     };
   }
 };
+
+export type AreaFormSelectOption = {
+  value: string;
+  label: string;
+  pincodes: string[];
+};
+
+function pincodesFromAreaRecord(row: AreaModel): string[] {
+  const raw = Array.isArray(row.pincodes)
+    ? row.pincodes
+    : Array.isArray(row.pin_codes)
+    ? row.pin_codes
+    : typeof row.pincode === "string"
+    ? row.pincode.split(",")
+    : [];
+  return Array.from(
+    new Set(raw.map((p: unknown) => String(p ?? "").trim()).filter(Boolean))
+  );
+}
+
+/**
+ * All areas for a city via `GET /area/getAll?city_id=` (Add/Edit user & partner forms).
+ */
+export async function fetchAreasByCityForForm(
+  cityId: string,
+  stateId?: string
+): Promise<AreaFormSelectOption[]> {
+  const city = String(cityId ?? "").trim();
+  if (!city) return [];
+
+  const state = String(stateId ?? "").trim();
+  const byId = new Map<string, AreaFormSelectOption>();
+  let page = 1;
+  const pageSize = 200;
+
+  for (;;) {
+    const res = await fetchArea(
+      page,
+      pageSize,
+      {
+        city_id: city,
+        ...(state ? { state_id: state } : {}),
+      },
+      []
+    );
+    if (!res.response) break;
+
+    for (const row of res.areas ?? []) {
+      const id = String(row._id ?? "").trim();
+      const label = String(row.name ?? "").trim();
+      if (!id || !label) continue;
+      byId.set(id, {
+        value: id,
+        label,
+        pincodes: pincodesFromAreaRecord(row),
+      });
+    }
+
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 50) break;
+  }
+
+  return Array.from(byId.values()).sort((a, b) =>
+    a.label.localeCompare(b.label)
+  );
+}
+
+/** Area + pincode options for address modals and user/partner forms. */
+export type AreaViewSelectOption = {
+  value: string;
+  label: string;
+  pincodes?: string[];
+  pincode?: string;
+};
+
+export function mapAreaFormSelectToViewOptions(
+  rows: AreaFormSelectOption[]
+): AreaViewSelectOption[] {
+  return rows.map((r) => ({
+    value: r.value,
+    label: r.label,
+    pincodes: r.pincodes,
+    pincode: r.pincodes[0],
+  }));
+}
+
+export async function fetchAreaViewOptionsByCity(
+  cityId: string,
+  stateId?: string
+): Promise<AreaViewSelectOption[]> {
+  const rows = await fetchAreasByCityForForm(cityId, stateId);
+  return mapAreaFormSelectToViewOptions(rows);
+}
 
 export const deleteArea = async (id: string): Promise<boolean> => {
   const response = await apiRequest(ApiPaths.DELETE_AREA(id), "DELETE");
