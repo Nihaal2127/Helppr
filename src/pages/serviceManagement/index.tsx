@@ -88,60 +88,6 @@ const requestStatusCell = () => ({ row }: { row: any }) => {
   return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
 };
 
-/** Shared category list + requested-category “Services” column (hover list). */
-function categoryRowServicesNamesDisplay(cat: Record<string, unknown>) {
-  let names: string[] = [];
-
-  if (Array.isArray(cat.services) && cat.services.length > 0) {
-    names = cat.services
-      .map((s: unknown) =>
-        typeof s === "object" && s !== null
-          ? String((s as { name?: string; label?: string }).name ?? (s as { label?: string }).label ?? "")
-          : String(s)
-      )
-      .filter(Boolean);
-  }
-
-  if (
-    names.length === 0 &&
-    Array.isArray(cat.service_names) &&
-    cat.service_names.length > 0
-  ) {
-    names = cat.service_names
-      .map((n: unknown) =>
-        typeof n === "object" && n !== null
-          ? String((n as { name?: string; label?: string }).name ?? (n as { label?: string }).label ?? "")
-          : String(n)
-      )
-      .filter(Boolean);
-  }
-
-  if (!names || names.length === 0) return "-";
-  const hasMoreServices = names.length > 1;
-  const additionalCount = names.length - 1;
-
-  return (
-    <div className="pin-code-hover-wrapper">
-      <span className="pin-code-hover-trigger">
-        {hasMoreServices ? (
-          <>
-            {`${names[0]}...`}
-            <span style={{ color: "red" }}>{`+${additionalCount}`}</span>
-          </>
-        ) : (
-          names[0]
-        )}
-      </span>
-      <div className="pin-code-hover-card">
-        {names.map((n, idx) => (
-          <div key={`${n}-${idx}`} className="pin-code-hover-item">
-            {`• ${n}`}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const ServiceManagement = () => {
   const { register, setValue, franchiseId: headerFranchiseId } =
@@ -355,13 +301,6 @@ const ServiceManagement = () => {
       },
 
       { Header: "Category Name", accessor: "name", sort: true },
-
-      {
-        Header: "Services",
-        accessor: "services",
-        Cell: ({ row }: { row: any }) =>
-          categoryRowServicesNamesDisplay(row.original as Record<string, unknown>),
-      },
       {
         Header: franchiseCatalogScope ? "Franchise status" : "Status",
         accessor: catalogListStatusField,
@@ -464,12 +403,6 @@ const ServiceManagement = () => {
       },
 
       { Header: "Category Name", accessor: "name" },
-      {
-        Header: "Services",
-        accessor: "services",
-        Cell: ({ row }: { row: any }) =>
-          categoryRowServicesNamesDisplay(row.original as Record<string, unknown>),
-      },
       {
         Header: "Date",
         accessor: "createdAt",
@@ -629,7 +562,7 @@ const ServiceManagement = () => {
               : showRequestedService
               ? "Search Service name, Description etc."
               : selectedBox === "box-category"
-              ? "Search Category name, Services"
+              ? "Search Category name, Description etc."
               : "Search Service name, Category"
           }`}
           onSearch={(value) => {

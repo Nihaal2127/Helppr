@@ -1,10 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  displayStateName,
-  formatAddressLineFromRecord,
+  buildAddressLocationLookupsFromCustomers,
+  parseCatalogAddressRecord,
 } from "./quoteAddressFormat";
-import { normalizePincodeDigits } from "./quoteFranchisePins";
+import type { QuoteAddressFieldFallback } from "./quoteAddressFormat";
 
 export type QuoteAddressRowUi = {
   id: string;
@@ -31,12 +31,6 @@ const emptyUi = (): QuoteAddressUiState => ({
   error: "",
 });
 
-function strTrim(v: unknown): string {
-  if (v == null) return "";
-  const s = String(v).trim();
-  return s === "undefined" || s === "null" ? "" : s;
-}
-
 /**
  * Add Quote / Edit Quote: customer address cards + franchise area / pin rules.
  * When `preferredAddressId` matches a selectable saved address, it is selected by default.
@@ -48,6 +42,8 @@ export function useQuoteCustomerAddressPanel(args: {
   franchiseQuoteAreaIdSet: Set<string>;
   franchisePinsLoadDone: boolean;
   preferredAddressId?: string;
+  /** Hydrated quote address from GET /quote/get — fills gaps when catalog rows omit city/state names. */
+  quoteAddressFallback?: QuoteAddressFieldFallback;
 }): {
   addressUi: QuoteAddressUiState;
   selectedAddressId: string;
@@ -60,10 +56,16 @@ export function useQuoteCustomerAddressPanel(args: {
     franchiseQuoteAreaIdSet,
     franchisePinsLoadDone,
     preferredAddressId,
+    quoteAddressFallback,
   } = args;
 
   const [addressUi, setAddressUi] = useState<QuoteAddressUiState>(emptyUi);
   const [selectedAddressId, setSelectedAddressId] = useState("");
+
+  const locationLookups = useMemo(
+    () => buildAddressLocationLookupsFromCustomers(quoteCustomerRecords),
+    [quoteCustomerRecords]
+  );
 
   useEffect(() => {
     const uid = String(userId ?? "").trim();
@@ -96,55 +98,17 @@ export function useQuoteCustomerAddressPanel(args: {
     const addrs = (customer.addresses ?? customer.user_addresses) as
       | unknown[]
       | undefined;
-    const parsed: {
-      id: string;
-      summary: string;
-      pinNorm: string;
-      areaId: string;
-      contactName: string;
-      stateName: string;
-      cityName: string;
-      areaName: string;
-      streetAddress: string;
-      landmark: string;
-      pincode: string;
-    }[] = Array.isArray(addrs)
+    const parsed = Array.isArray(addrs)
       ? addrs
           .filter((a) => a != null && typeof a === "object")
-          .map((a) => {
-            const rec = a as Record<string, unknown>;
-            const id = strTrim(rec._id);
-            const pinNorm = normalizePincodeDigits(
-              rec.pincode ?? rec.postal_code ?? rec.postcode
-            );
-            const areaId = strTrim(rec.area_id);
-            const stateName = displayStateName(
-              strTrim(rec.state_name ?? rec.state)
-            );
-            const cityName = strTrim(rec.city_name ?? rec.city);
-            const areaName = strTrim(rec.area_name ?? rec.area);
-            const landmark = strTrim(rec.landmark);
-            const door = strTrim(rec.door_no);
-            const street = strTrim(rec.street ?? rec.address_line);
-            const freeform = strTrim(rec.address);
-            let streetAddress = [door, street].filter(Boolean).join(", ");
-            if (!streetAddress) streetAddress = freeform;
-            return {
-              id,
-              summary: formatAddressLineFromRecord(rec),
-              pinNorm,
-              areaId,
-              contactName:
-                strTrim(rec.contact_name ?? rec.contactName) || "Address",
-              stateName,
-              cityName,
-              areaName,
-              streetAddress,
-              landmark,
-              pincode: strTrim(rec.pincode ?? rec.postal_code ?? rec.postcode),
-            };
-          })
-          .filter((r) => r.id)
+          .map((a) =>
+            parseCatalogAddressRecord(
+              a as Record<string, unknown>,
+              locationLookups,
+              quoteAddressFallback
+            )
+          )
+          .filter((r): r is NonNullable<typeof r> => r != null)
       : [];
 
     if (!parsed.length) {
@@ -213,6 +177,8 @@ export function useQuoteCustomerAddressPanel(args: {
     franchiseQuoteAreaIdSet,
     franchisePinsLoadDone,
     preferredAddressId,
+    quoteAddressFallback,
+    locationLookups,
   ]);
 
   return { addressUi, selectedAddressId, setSelectedAddressId };

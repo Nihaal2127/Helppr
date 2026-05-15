@@ -1,19 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Row, Col, Button } from "react-bootstrap";
+import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { DetailsRow, WideLabelValueBlock } from "../../helper/utility";
-import { AppConstant } from "../../lib/global/AppConstant";
+import QuoteInfoFieldRow from "../../components/quote/QuoteInfoFieldRow";
 import { openDialog } from "../../lib/global/DialogManager";
 import type { QuoteViewData } from "../../lib/quote/quoteViewTypes";
+import { formatQuoteScheduleForView } from "../../lib/quote/quoteScheduleDisplay";
+import { displayStateName } from "../../lib/quote/quoteAddressFormat";
+import type { ServiceDropDownOption } from "../../services/servicesService";
 import {
-  formatQuoteScheduleForView,
-  formatServiceAddressLines,
-} from "../../lib/quote/quoteScheduleDisplay";
-import { convertQuoteToOrder, fetchQuoteById } from "../../services/quoteService";
+  convertQuoteToOrder,
+  fetchQuoteDetailById,
+} from "../../services/quoteService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { toQuoteViewData } from "../../lib/quote/quoteViewMapper";
-import profileIcon from "../../assets/icons/profile.svg";
+import { computeQuotePriceBreakdown } from "../../lib/quote/quotePriceBreakdown";
+import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import QuoteInfoPersonSection from "../../components/quote/QuoteInfoPersonSection";
+import editIcon from "../../assets/icons/edit_red.svg";
+import {
+  QUOTE_MODAL_LAYOUT,
+  QUOTE_SECTION_TITLE_CLASS,
+} from "../../lib/quote/quoteModalLayout";
 
 export type { QuoteViewData };
 
@@ -23,70 +31,60 @@ type QuoteInfoDialogProps = {
   onRefreshData?: () => void;
 };
 
-const statusColorMap: Record<string, string> = {
-  new: "#0d6efd",
-  pending: "#fd7e14",
-  accepted: "#198754",
-  success: "#20c997",
-  failed: "#dc3545",
+const STATUS_TEXT_CLASS: Record<string, string> = {
+  new: "text-primary",
+  pending: "text-warning",
+  accepted: "text-success",
+  success: "text-success",
+  failed: "text-danger",
 };
-
-function InfoCard({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className="quote-info-card border rounded-3 mb-3"
-      style={{
-        backgroundColor: "var(--bg-color, #fff)",
-        borderColor: "rgba(0,0,0,0.08)",
-        boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
-      }}
-    >
-      <div
-        className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom"
-        style={{ borderColor: "rgba(0,0,0,0.06)" }}
-      >
-        <h3 className="h6 mb-0" style={{ fontWeight: 700 }}>
-          {title}
-        </h3>
-        {action ? <div className="d-flex align-items-center gap-2">{action}</div> : null}
-      </div>
-      <div className="p-3 pt-3">{children}</div>
-    </section>
-  );
-}
 
 const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   show: (quote: QuoteViewData, onRefreshData?: () => void) => void;
 } = ({ quote, onClose, onRefreshData }) => {
   const [displayQuote, setDisplayQuote] = useState<QuoteViewData>(quote);
+  const [serviceFees, setServiceFees] = useState<
+    ServiceDropDownOption | undefined
+  >(undefined);
 
+  const quoteMongoId = String(
+    quote._id ?? quote.quote_id ?? ""
+  ).trim();
+
+  /** View: `GET /quote/get/:id` only (not franchise related-catalog). */
   useEffect(() => {
-    setDisplayQuote(quote);
-  }, [quote]);
+    if (!quoteMongoId) {
+      setDisplayQuote(quote);
+      setServiceFees(undefined);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { quote: row, serviceFees: fees } =
+        await fetchQuoteDetailById(quoteMongoId);
+      if (cancelled) return;
+      if (row) {
+        setDisplayQuote(toQuoteViewData(row));
+        setServiceFees(fees);
+      } else {
+        setDisplayQuote(quote);
+        setServiceFees(undefined);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteMongoId, quote]);
 
   const statusKey = String(displayQuote.status ?? "").toLowerCase();
-  const statusColor = statusColorMap[statusKey] ?? "var(--primary-txt-color)";
+  const statusTextClass =
+    STATUS_TEXT_CLASS[statusKey] ?? "text-body-secondary";
   const isSuccess = statusKey === "success";
   const isAccepted = statusKey === "accepted";
-  const quoteMongoId = String(displayQuote._id ?? displayQuote.quote_id ?? "").trim();
 
   const partnerNameForDisplay = isAccepted
     ? displayQuote.partner_name
     : displayQuote.requested_partner;
-
-  const profileSrc = displayQuote.profile_url
-    ? `${AppConstant.IMAGE_BASE_URL}${displayQuote.profile_url}?t=${Date.now()}`
-    : profileIcon;
-
-  const serviceAddressBlock = formatServiceAddressLines(displayQuote);
 
   const scheduleDisplay = useMemo(
     () =>
@@ -115,13 +113,27 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
 
   const canEditQuote = !isSuccess && Boolean(quoteMongoId);
 
+  const priceBreakdown = useMemo(
+    () =>
+      computeQuotePriceBreakdown(displayQuote.service_price ?? 0, serviceFees),
+    [displayQuote.service_price, serviceFees]
+  );
+
+  const customerProfile = displayQuote.profile_url ?? null;
+  const partnerProfile = displayQuote.partner_profile_url ?? null;
+  const employeeProfile = displayQuote.employee_profile_url ?? null;
+
   const openEditAll = () => {
     if (!quoteMongoId) return;
     void import("./QuoteEditAllDialog").then(({ default: QuoteEditAllDialog }) => {
       QuoteEditAllDialog.show(quoteMongoId, () => {
         void (async () => {
-          const row = await fetchQuoteById(quoteMongoId);
-          if (row) setDisplayQuote(toQuoteViewData(row));
+          const { quote: row, serviceFees: fees } =
+            await fetchQuoteDetailById(quoteMongoId);
+          if (row) {
+            setDisplayQuote(toQuoteViewData(row));
+            setServiceFees(fees);
+          }
           onRefreshData?.();
         })();
       });
@@ -129,181 +141,140 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   };
 
   return (
-    <Modal show={true} size="lg" onHide={onClose} centered>
-      <Modal.Header className="py-3 px-4 border-bottom-0 align-items-start">
-        <div className="flex-grow-1 min-w-0">
-          <Modal.Title as="h5" className="custom-modal-title mb-1">
-            Quote information
-          </Modal.Title>
-          <div className="small text-muted">
-            Quote ID{" "}
-            <span className="text-body fw-semibold">{displayQuote.quote_id}</span>
-          </div>
-        </div>
-        <div className="d-flex align-items-center gap-2 flex-shrink-0">
+    <Modal show={true} onHide={onClose} {...QUOTE_MODAL_LAYOUT}>
+      <Modal.Header className="py-3 px-4 border-bottom-0 d-flex align-items-center flex-shrink-0">
+        <Modal.Title className="mb-0 me-auto">Quote information</Modal.Title>
+        <div className="d-flex align-items-center gap-3 ms-3">
           {canEditQuote ? (
-            <Button
-              type="button"
-              variant="outline-primary"
-              size="sm"
-              className="d-inline-flex align-items-center gap-1"
+            <img
+              src={editIcon}
+              alt="Edit quote"
+              width={22}
+              height={22}
+              style={{ cursor: "pointer" }}
+              role="button"
               onClick={openEditAll}
-            >
-              <i className="bi bi-pencil-square" aria-hidden />
-              Edit quote
-            </Button>
+            />
           ) : null}
-          <CustomCloseButton onClose={onClose} />
+          <CustomCloseButton onClose={onClose} inline size={22} />
         </div>
       </Modal.Header>
-      <Modal.Body
-        className="px-4 pb-4 pt-0"
-        style={{ maxHeight: "72vh", overflowY: "auto" }}
-      >
+      <Modal.Body className="add-quote-modal-body pt-0">
         {isSuccess ? (
-          <InfoCard title="Order">
-            <Row>
-              <Col xs={12}>
-                <DetailsRow
-                  title="Order ID"
-                  value={displayQuote.order_id ?? "-"}
-                />
-              </Col>
-            </Row>
-          </InfoCard>
+          <section className="border rounded p-3 mb-3">
+            <h6 className={QUOTE_SECTION_TITLE_CLASS}>Order</h6>
+            <QuoteInfoFieldRow
+              label="Order ID"
+              value={displayQuote.order_id ?? "-"}
+            />
+          </section>
         ) : null}
 
-        <InfoCard title="Quote details">
+        <section className="border rounded p-3 mb-3">
+          <h6 className={QUOTE_SECTION_TITLE_CLASS}>Quote details</h6>
           <Row className="g-3">
             <Col xs={12} md={6}>
-              <DetailsRow title="Service" value={serviceLabel ?? "-"} />
-              <DetailsRow
-                title="Category"
+              <QuoteInfoFieldRow label="Service" value={serviceLabel ?? "-"} />
+              <QuoteInfoFieldRow
+                label="Category"
                 value={displayQuote.category_name ?? "-"}
               />
-            </Col>
-            <Col xs={12} md={6}>
-              <DetailsRow
-                title="Service price"
-                value={`${AppConstant.currencySymbol}${
-                  displayQuote.service_price ?? 0
-                }`}
+              <QuoteInfoFieldRow
+                label="Quote description"
+                value={(displayQuote.description ?? "").trim() || "-"}
               />
-              <DetailsRow
-                title="Quote status"
+              <QuoteInfoFieldRow
+                label="Quote status"
                 value={
-                  <span style={{ color: statusColor, fontWeight: 600 }}>
+                  <span className={`fw-semibold ${statusTextClass}`}>
                     {displayQuote.status}
                   </span>
                 }
               />
-            </Col>
-            <Col xs={12}>
-              <WideLabelValueBlock label="Quote description" whiteSpace="pre-line">
-                {(displayQuote.description ?? "").trim() || "-"}
-              </WideLabelValueBlock>
-            </Col>
-            <Col xs={12}>
-              <WideLabelValueBlock
+              <QuoteInfoFieldRow
                 label="Schedule date and time"
-                whiteSpace="pre-line"
-                gap="clamp(1rem, 5vw, 2.5rem)"
-              >
-                {scheduleDisplay}
-              </WideLabelValueBlock>
+                value={scheduleDisplay}
+              />
             </Col>
-            <Col xs={12}>
-              <WideLabelValueBlock label="Service address" whiteSpace="pre-line">
-                {serviceAddressBlock || "-"}
-              </WideLabelValueBlock>
+            <Col xs={12} md={6}>
+              <QuoteInfoFieldRow
+                label="State"
+                value={displayStateName(displayQuote.state ?? "") || "-"}
+              />
+              <QuoteInfoFieldRow label="City" value={displayQuote.city ?? "-"} />
+              <QuoteInfoFieldRow label="Area" value={displayQuote.area ?? "-"} />
+              <QuoteInfoFieldRow
+                label="Pin code"
+                value={displayQuote.pincode ?? "-"}
+              />
+              <QuoteInfoFieldRow
+                label="Address"
+                value={
+                  displayQuote.address_line?.trim() ||
+                  displayQuote.street?.trim() ||
+                  "-"
+                }
+              />
             </Col>
           </Row>
-        </InfoCard>
+        </section>
 
-        <InfoCard title="Customer">
-          <Row className="g-3 align-items-start">
-            <Col xs="auto" className="flex-shrink-0">
-              <img
-                src={profileSrc}
-                alt=""
-                width={72}
-                height={72}
-                className="rounded-circle object-fit-cover"
-                style={{ border: "1px solid var(--txtfld-border, #dee2e6)" }}
-              />
-            </Col>
-            <Col className="min-w-0">
-              <Row className="g-2">
-                <Col sm={6}>
-                  <DetailsRow title="Name" value={displayQuote.user_name ?? "-"} />
-                  <DetailsRow
-                    title="Email"
-                    value={displayQuote.user_email ?? "-"}
-                  />
-                </Col>
-                <Col sm={6}>
-                  <DetailsRow
-                    title="Phone"
-                    value={displayQuote.phone_number ?? "-"}
-                  />
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-        </InfoCard>
+        <QuoteInfoPersonSection
+          title="Customer"
+          role="customer"
+          profileUrl={customerProfile}
+          fields={[
+            { label: "Name", value: displayQuote.user_name ?? "-", column: "left" },
+            { label: "Email", value: displayQuote.user_email ?? "-", column: "left" },
+            { label: "Phone", value: displayQuote.phone_number ?? "-", column: "right" },
+          ]}
+        />
 
-        <InfoCard title="Partner">
-          <Row className="g-2">
-            <Col md={4} xs={12}>
-              <DetailsRow title="Name" value={partnerNameForDisplay ?? "-"} />
-            </Col>
-            <Col md={4} xs={12}>
-              <DetailsRow
-                title="Phone"
-                value={displayQuote.partner_phone ?? "-"}
-              />
-            </Col>
-            <Col md={4} xs={12}>
-              <DetailsRow
-                title="Email"
-                value={displayQuote.partner_email ?? "-"}
-              />
-            </Col>
-            {(displayQuote.partner_city ?? "").trim() ? (
-              <Col xs={12}>
-                <WideLabelValueBlock label="Location / service area" whiteSpace="normal">
-                  {displayQuote.partner_city}
-                </WideLabelValueBlock>
-              </Col>
-            ) : null}
-          </Row>
-        </InfoCard>
+        <QuoteInfoPersonSection
+          title="Partner"
+          role="partner"
+          profileUrl={partnerProfile}
+          fields={[
+            { label: "Name", value: partnerNameForDisplay ?? "-", column: "left" },
+            { label: "Email", value: displayQuote.partner_email ?? "-", column: "left" },
+            { label: "Phone", value: displayQuote.partner_phone ?? "-", column: "right" },
+            ...((displayQuote.partner_city ?? "").trim()
+              ? [
+                  {
+                    label: "Location / service area",
+                    value: displayQuote.partner_city,
+                    fullWidth: true as const,
+                  },
+                ]
+              : []),
+          ]}
+        />
 
-        <InfoCard title="Employee">
-          <Row className="g-2">
-            <Col md={4} xs={12}>
-              <DetailsRow title="Name" value={displayQuote.employee_name ?? "-"} />
-            </Col>
-            <Col md={4} xs={12}>
-              <DetailsRow
-                title="Phone"
-                value={displayQuote.employee_phone ?? "-"}
-              />
-            </Col>
-            <Col md={4} xs={12}>
-              <DetailsRow
-                title="Email"
-                value={displayQuote.employee_email ?? "-"}
-              />
-            </Col>
-          </Row>
-        </InfoCard>
+        <QuoteInfoPersonSection
+          title="Employee"
+          role="employee"
+          profileUrl={employeeProfile}
+          fields={[
+            { label: "Name", value: displayQuote.employee_name ?? "-", column: "left" },
+            { label: "Email", value: displayQuote.employee_email ?? "-", column: "left" },
+            { label: "Phone", value: displayQuote.employee_phone ?? "-", column: "right" },
+          ]}
+        />
+
+        {priceBreakdown ? (
+          <div className="mb-3">
+            <QuotePriceBreakdownPanel
+              breakdown={priceBreakdown}
+              variant="view"
+            />
+          </div>
+        ) : null}
 
         {isAccepted && quoteMongoId ? (
-          <div className="pt-1">
+          <div className="mt-2">
             <Button
               type="button"
-              className="custom-btn-primary"
+              variant="primary"
               onClick={() => {
                 openConfirmDialog(
                   "Convert this quote to an order?",

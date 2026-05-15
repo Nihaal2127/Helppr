@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
-import { Button, Col, Form, Modal, Row } from "react-bootstrap";
+import { Button, Col, Form, InputGroup, Modal, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
@@ -14,9 +14,10 @@ import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import {
   applyQuoteHeaderPatch,
   buildQuoteSchedulePricePreview,
+  computeAutoQuotePriceFromPartner,
   deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
-  fetchQuoteById,
+  fetchQuoteDetailById,
   getPartnerActiveServiceProvidingRow,
   getPartnerAvailableCategoryIdSet,
   getPartnerCategoryIdsFromProviding,
@@ -39,6 +40,10 @@ import { seedEditQuoteFormFromRow } from "../../lib/quote/quoteEditFormSeed";
 import type { EditQuoteFormValues } from "../../lib/quote/quoteEditFormSeed";
 import { useQuoteCustomerAddressPanel } from "../../lib/quote/useQuoteCustomerAddressPanel";
 import type { QuoteAddressRowUi } from "../../lib/quote/useQuoteCustomerAddressPanel";
+import { computeQuotePriceBreakdown } from "../../lib/quote/quotePriceBreakdown";
+import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import { QUOTE_MODAL_LAYOUT } from "../../lib/quote/quoteModalLayout";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
@@ -62,10 +67,6 @@ function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function startOfTodayLocal(): Date {
-  return startOfLocalDay(new Date());
-}
-
 function parseIsoDateOnly(iso: string): Date | null {
   const t = String(iso ?? "").trim();
   if (!t) return null;
@@ -77,12 +78,6 @@ function parseIsoDateOnly(iso: string): Date | null {
   if (!y || !m || !day) return null;
   const d = new Date(y, m - 1, day);
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function isCalendarDateNotBeforeToday(iso: string): boolean {
-  const d = parseIsoDateOnly(iso);
-  if (!d) return false;
-  return startOfLocalDay(d) >= startOfTodayLocal();
 }
 
 function compareIsoDateOnlyAsc(aIso: string, bIso: string): number | null {
@@ -168,6 +163,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
   const catalogSeqRef = useRef(0);
   const initialStatusKeyRef = useRef("");
+  const skipAutoPriceRef = useRef(true);
+  const [apiServiceFees, setApiServiceFees] = useState<
+    ServiceDropDownOption | undefined
+  >(undefined);
 
   const {
     register,
@@ -175,6 +174,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     setValue,
     watch,
     reset,
+    getValues,
     formState: { errors, isSubmitted },
   } = useForm<EditQuoteFormValues>({
     defaultValues: {
@@ -205,14 +205,18 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     let cancelled = false;
     (async () => {
       setLoadError("");
-      const row = await fetchQuoteById(quoteMongoId);
+      const { quote: row, serviceFees } = await fetchQuoteDetailById(
+        quoteMongoId
+      );
       if (cancelled) return;
       if (!row) {
         setLoadError("Could not load this quote.");
         setQuoteRow(null);
+        setApiServiceFees(undefined);
         return;
       }
       setQuoteRow(row);
+      setApiServiceFees(serviceFees);
       initialStatusKeyRef.current = String(row.status ?? "").toLowerCase();
     })();
     return () => {
@@ -299,8 +303,46 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
   useEffect(() => {
     if (!quoteRow || catalogBusy || !franchisePinsLoadDone) return;
+    skipAutoPriceRef.current = true;
     reset(seedEditQuoteFormFromRow(quoteRow));
+    const t = window.setTimeout(() => {
+      skipAutoPriceRef.current = false;
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [quoteRow, catalogBusy, franchisePinsLoadDone, reset]);
+
+  const clearScheduleAndPriceFields = useCallback(() => {
+    setValue("requested_date", "", { shouldValidate: false });
+    setValue("requested_date_to", "", { shouldValidate: false });
+    setValue("requested_time_from", "", { shouldValidate: false });
+    setValue("requested_time_to", "", { shouldValidate: false });
+    setValue("service_price", "", { shouldValidate: false });
+  }, [setValue]);
+
+  const applySelectFieldValue = useCallback(
+    (name: keyof EditQuoteFormValues, value: unknown) => {
+      setValue(name, value as EditQuoteFormValues[typeof name], {
+        shouldValidate: isSubmitted,
+      });
+    },
+    [isSubmitted, setValue]
+  );
+
+  const quoteAddressFallback = useMemo(
+    () =>
+      quoteRow?.address_id
+        ? {
+            addressId: quoteRow.address_id,
+            state: quoteRow.state,
+            city: quoteRow.city,
+            area: quoteRow.area,
+            street: quoteRow.street ?? quoteRow.address_line,
+            landmark: quoteRow.landmark,
+            pincode: quoteRow.pincode,
+          }
+        : undefined,
+    [quoteRow]
+  );
 
   const { addressUi, selectedAddressId, setSelectedAddressId } =
     useQuoteCustomerAddressPanel({
@@ -310,6 +352,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       franchiseQuoteAreaIdSet,
       franchisePinsLoadDone,
       preferredAddressId: quoteRow?.address_id,
+      quoteAddressFallback,
     });
 
   const selectedPartnerCatalogRecord = useMemo(() => {
@@ -411,21 +454,25 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     return quoteServiceOptionsForCategory.find((o) => o.value === serviceId);
   }, [serviceId, quoteServiceOptionsForCategory]);
 
-  const feeOptionForPreview = useMemo(
-    () =>
-      mergeQuoteServiceFeesForBreakdown(
-        selectedServiceOption,
-        selectedPartnerCatalogRecord,
-        serviceId
-      ),
-    [selectedServiceOption, selectedPartnerCatalogRecord, serviceId]
-  );
+  const feeOptionForPreview = useMemo(() => {
+    const merged = mergeQuoteServiceFeesForBreakdown(
+      selectedServiceOption,
+      selectedPartnerCatalogRecord,
+      serviceId
+    );
+    return merged ?? apiServiceFees;
+  }, [selectedServiceOption, selectedPartnerCatalogRecord, serviceId, apiServiceFees]);
 
   const scheduleTimeIntervals = useMemo(() => {
     const pay = String(feeOptionForPreview?.payment_type ?? "").toLowerCase();
     if (pay.includes("hour")) return 60;
     return 30;
   }, [feeOptionForPreview?.payment_type]);
+
+  const editPriceBreakdown = useMemo(
+    () => computeQuotePriceBreakdown(form.service_price, feeOptionForPreview),
+    [form.service_price, feeOptionForPreview]
+  );
 
   const schedulePricePreview = useMemo(() => {
     if (!isScheduleComplete || !partnerSelected) return null;
@@ -481,13 +528,45 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     [form.requested_time_from]
   );
 
-  const scheduleFromDateFilter = useCallback((date: Date) => {
-    return startOfLocalDay(date) >= startOfTodayLocal();
-  }, []);
+  /** Edit: allow any calendar date (existing quotes may be in the past). Create keeps today+. */
+  const scheduleDateAllowAll = useCallback(() => true, []);
+
+  useEffect(() => {
+    if (skipAutoPriceRef.current) return;
+    if (!isScheduleComplete || !partnerSelected) return;
+    const sid = serviceId;
+    if (!sid) return;
+    const row = getPartnerActiveServiceProvidingRow(
+      selectedPartnerCatalogRecord,
+      sid
+    );
+    const metrics = deriveQuoteScheduleMetrics({
+      scheduleMode,
+      requested_date: String(form.requested_date ?? ""),
+      requested_date_to: String(form.requested_date_to ?? ""),
+      requested_time: String(form.requested_time ?? ""),
+      requested_time_from: String(form.requested_time_from ?? ""),
+      requested_time_to: String(form.requested_time_to ?? ""),
+    });
+    if (!metrics) return;
+    const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
+    setValue("service_price", String(n), { shouldValidate: false });
+  }, [
+    isScheduleComplete,
+    partnerSelected,
+    serviceId,
+    scheduleMode,
+    form.requested_date,
+    form.requested_date_to,
+    form.requested_time,
+    form.requested_time_from,
+    form.requested_time_to,
+    selectedPartnerCatalogRecord,
+    setValue,
+  ]);
 
   const scheduleToDateFilter = useCallback(
     (date: Date) => {
-      if (startOfLocalDay(date) < startOfTodayLocal()) return false;
       const fromIso = String(form.requested_date ?? "").trim();
       if (!fromIso) return true;
       const from = parseIsoDateOnly(fromIso);
@@ -575,19 +654,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    if (!isCalendarDateNotBeforeToday(String(data.requested_date ?? "").trim())) {
-      showErrorAlert("Schedule date must be today or a future date.");
-      return;
-    }
     if (scheduleMode === "range") {
-      if (
-        !isCalendarDateNotBeforeToday(
-          String(data.requested_date_to ?? "").trim()
-        )
-      ) {
-        showErrorAlert("End date must be today or a future date.");
-        return;
-      }
       const cmp = compareIsoDateOnlyAsc(
         String(data.requested_date ?? "").trim(),
         String(data.requested_date_to ?? "").trim()
@@ -636,7 +703,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       work_end_time: metrics.work_end_time,
       work_hours_per_day: metrics.work_hours_per_day,
       total_work_hours: metrics.total_work_hours,
-      description: String(data.description ?? "").trim() || undefined,
+      quote_description: String(data.description ?? "").trim() || undefined,
     };
 
     let ok = await updateQuote(id, patch);
@@ -769,10 +836,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     <Modal
       show
       onHide={onClose}
-      centered
-      size="xl"
-      dialogClassName="add-quote-modal-dialog"
-      contentClassName="add-quote-modal-content"
+      {...QUOTE_MODAL_LAYOUT}
       enforceFocus={false}
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -793,7 +857,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
             onSubmit={handleSubmit(onSubmit)}
           >
             <section className="custom-other-details add-quote-form-section">
-              <Row className="gy-4 gx-md-5 align-items-start">
+              <Row className="gy-3 gx-md-4 align-items-start">
                 <Col xs={12} md={6}>
                   <CustomTextFieldSelect
                     label="User"
@@ -900,26 +964,22 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         requiredMessage="Please select a partner"
                         defaultValue={form.requested_partner}
                         setValue={(name, value) => {
-                          setValue(name as keyof EditQuoteFormValues, value, {
-                            shouldValidate: isSubmitted,
-                          });
                           if (name === "requested_partner") {
-                            setValue("category_id", "", { shouldValidate: false });
-                            setValue("requested_services", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_date", "", { shouldValidate: false });
-                            setValue("requested_date_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_from", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("service_price", "", { shouldValidate: false });
+                            const prev = getValues("requested_partner");
+                            applySelectFieldValue("requested_partner", value);
+                            if (String(value ?? "") !== String(prev ?? "")) {
+                              setValue("category_id", "", { shouldValidate: false });
+                              setValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              clearScheduleAndPriceFields();
+                            }
+                            return;
                           }
+                          applySelectFieldValue(
+                            name as keyof EditQuoteFormValues,
+                            value
+                          );
                         }}
                         placeholder="Select partner"
                         menuPortal
@@ -942,25 +1002,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         defaultValue={form.category_id}
                         isClearable
                         setValue={(name, value) => {
-                          setValue(name as keyof EditQuoteFormValues, value, {
-                            shouldValidate: isSubmitted,
-                          });
                           if (name === "category_id") {
-                            setValue("requested_services", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_date", "", { shouldValidate: false });
-                            setValue("requested_date_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_from", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("service_price", "", { shouldValidate: false });
+                            const prev = getValues("category_id");
+                            applySelectFieldValue("category_id", value);
+                            if (String(value ?? "") !== String(prev ?? "")) {
+                              setValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              clearScheduleAndPriceFields();
+                            }
+                            return;
                           }
+                          applySelectFieldValue(
+                            name as keyof EditQuoteFormValues,
+                            value
+                          );
                         }}
                         placeholder={
                           partnerSelected ? "Select category" : "Select partner first"
@@ -986,22 +1042,18 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         }
                         defaultValue={form.requested_services}
                         setValue={(name, value) => {
-                          setValue(name as keyof EditQuoteFormValues, value, {
-                            shouldValidate: isSubmitted,
-                          });
                           if (name === "requested_services") {
-                            setValue("requested_date", "", { shouldValidate: false });
-                            setValue("requested_date_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_from", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("requested_time_to", "", {
-                              shouldValidate: false,
-                            });
-                            setValue("service_price", "", { shouldValidate: false });
+                            const prev = getValues("requested_services");
+                            applySelectFieldValue("requested_services", value);
+                            if (String(value ?? "") !== String(prev ?? "")) {
+                              clearScheduleAndPriceFields();
+                            }
+                            return;
                           }
+                          applySelectFieldValue(
+                            name as keyof EditQuoteFormValues,
+                            value
+                          );
                         }}
                         placeholder={
                           !partnerSelected
@@ -1035,26 +1087,22 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       requiredMessage="Please select a partner"
                       defaultValue={form.requested_partner}
                       setValue={(name, value) => {
-                        setValue(name as keyof EditQuoteFormValues, value, {
-                          shouldValidate: isSubmitted,
-                        });
                         if (name === "requested_partner") {
-                          setValue("category_id", "", { shouldValidate: false });
-                          setValue("requested_services", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_date", "", { shouldValidate: false });
-                          setValue("requested_date_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_from", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("service_price", "", { shouldValidate: false });
+                          const prev = getValues("requested_partner");
+                          applySelectFieldValue("requested_partner", value);
+                          if (String(value ?? "") !== String(prev ?? "")) {
+                            setValue("category_id", "", { shouldValidate: false });
+                            setValue("requested_services", "", {
+                              shouldValidate: false,
+                            });
+                            clearScheduleAndPriceFields();
+                          }
+                          return;
                         }
+                        applySelectFieldValue(
+                          name as keyof EditQuoteFormValues,
+                          value
+                        );
                       }}
                       placeholder="Select partner"
                       menuPortal
@@ -1075,25 +1123,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       defaultValue={form.category_id}
                       isClearable
                       setValue={(name, value) => {
-                        setValue(name as keyof EditQuoteFormValues, value, {
-                          shouldValidate: isSubmitted,
-                        });
                         if (name === "category_id") {
-                          setValue("requested_services", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_date", "", { shouldValidate: false });
-                          setValue("requested_date_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_from", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("service_price", "", { shouldValidate: false });
+                          const prev = getValues("category_id");
+                          applySelectFieldValue("category_id", value);
+                          if (String(value ?? "") !== String(prev ?? "")) {
+                            setValue("requested_services", "", {
+                              shouldValidate: false,
+                            });
+                            clearScheduleAndPriceFields();
+                          }
+                          return;
                         }
+                        applySelectFieldValue(
+                          name as keyof EditQuoteFormValues,
+                          value
+                        );
                       }}
                       placeholder={
                         partnerSelected ? "Select category" : "Select partner first"
@@ -1119,22 +1163,18 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       }
                       defaultValue={form.requested_services}
                       setValue={(name, value) => {
-                        setValue(name as keyof EditQuoteFormValues, value, {
-                          shouldValidate: isSubmitted,
-                        });
                         if (name === "requested_services") {
-                          setValue("requested_date", "", { shouldValidate: false });
-                          setValue("requested_date_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_from", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("requested_time_to", "", {
-                            shouldValidate: false,
-                          });
-                          setValue("service_price", "", { shouldValidate: false });
+                          const prev = getValues("requested_services");
+                          applySelectFieldValue("requested_services", value);
+                          if (String(value ?? "") !== String(prev ?? "")) {
+                            clearScheduleAndPriceFields();
+                          }
+                          return;
                         }
+                        applySelectFieldValue(
+                          name as keyof EditQuoteFormValues,
+                          value
+                        );
                       }}
                       placeholder={
                         !partnerSelected
@@ -1191,7 +1231,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               asCol={false}
                               labelSize={12}
                               placeholderText="From date"
-                              filterDate={scheduleFromDateFilter}
+                              filterDate={scheduleDateAllowAll}
                             />
                           </Col>
                           <Col xs={12} md={3}>
@@ -1278,7 +1318,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               asCol={false}
                               labelSize={12}
                               placeholderText="Select date"
-                              filterDate={scheduleFromDateFilter}
+                              filterDate={scheduleDateAllowAll}
                             />
                           </Col>
                           <Col xs={12} md={4}>
@@ -1349,87 +1389,146 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                 </>
               ) : null}
 
-              {hasServiceSelected && isScheduleComplete ? (
-                <Row className="mt-4 align-items-start">
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Service price"
-                      controlId="service_price"
-                      register={register}
-                      error={errors.service_price}
-                      validation={{
-                        required: "Service price is required",
-                      }}
-                      placeholder="0"
-                      asCol={false}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <label
-                      htmlFor="edit-quote-status"
-                      className="custom-profile-lable d-block mb-2"
-                    >
-                      Quote status
-                    </label>
-                    <Form.Select
-                      id="edit-quote-status"
-                      className="form-select custom-form-input"
-                      style={{
-                        borderRadius: "8px",
-                        borderColor: "var(--primary-color)",
-                        height: "35px",
-                        fontSize: "14px",
-                      }}
-                      {...register("quote_status")}
-                    >
-                      {STATUS_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Col>
-                </Row>
+              {hasServiceSelected ? (
+                <div className="add-quote-price-section mt-4 pt-3 border-top">
+                  <h6 className="add-quote-price-section-heading mb-3">
+                    Service price
+                  </h6>
+                  <Row className="gy-3 gx-md-4 align-items-start">
+                    <Col xs={12} md={6}>
+                      <Form.Group controlId="service_price" className="mb-0">
+                        <Form.Label className="fw-medium mb-1">
+                          Service Price
+                        </Form.Label>
+                        <InputGroup>
+                          <InputGroup.Text
+                            className="custom-form-input text-muted"
+                            style={{
+                              ...partnerCatalogControlStyle,
+                              borderTopRightRadius: 0,
+                              borderBottomRightRadius: 0,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {AppConstant.currencySymbol}
+                          </InputGroup.Text>
+                          <Form.Control
+                            type="text"
+                            inputMode="decimal"
+                            disabled={lockedFields}
+                            className={`custom-form-input border-start-0${
+                              errors.service_price ? " is-invalid" : ""
+                            }`}
+                            style={{
+                              ...partnerCatalogControlStyle,
+                              borderLeft: 0,
+                              borderTopLeftRadius: 0,
+                              borderBottomLeftRadius: 0,
+                            }}
+                            placeholder="e.g. 1200"
+                            {...register("service_price", {
+                              required: "Service price is required",
+                            })}
+                          />
+                        </InputGroup>
+                        {errors.service_price?.message ? (
+                          <div className="text-danger small mt-1">
+                            {String(errors.service_price.message)}
+                          </div>
+                        ) : null}
+                      </Form.Group>
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Form.Group controlId="edit-quote-status" className="mb-0">
+                        <Form.Label
+                          htmlFor="edit-quote-status"
+                          className="fw-medium mb-1"
+                        >
+                          Quote status
+                        </Form.Label>
+                        <Form.Select
+                          id="edit-quote-status"
+                          className="form-select custom-form-input"
+                          style={{
+                            borderRadius: "8px",
+                            borderColor: "var(--primary-color)",
+                            height: "35px",
+                            fontSize: "14px",
+                          }}
+                          disabled={lockedFields}
+                          {...register("quote_status")}
+                        >
+                          {STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                </div>
               ) : null}
 
-              <Row className="mt-3">
+              <Row className="mt-3 g-3">
                 <Col xs={12}>
-                  <CustomTextField
-                    label="Quote description"
-                    controlId="description"
-                    register={register}
-                    asCol={false}
-                    as="textarea"
-                    rows={4}
-                    placeholder="Optional notes"
-                  />
+                  <Form.Group controlId="description" className="mb-0">
+                    <Form.Label className="fw-medium mb-1">
+                      Quote description
+                    </Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      maxLength={2000}
+                      disabled={lockedFields}
+                      className={`custom-form-input${
+                        errors.description ? " is-invalid" : ""
+                      }`}
+                      style={{
+                        ...partnerCatalogControlStyle,
+                        minHeight: "96px",
+                        resize: "vertical",
+                      }}
+                      placeholder="Optional notes for this quote"
+                      {...register("description")}
+                    />
+                    {errors.description?.message ? (
+                      <div className="text-danger small mt-1">
+                        {String(errors.description.message)}
+                      </div>
+                    ) : null}
+                  </Form.Group>
                 </Col>
               </Row>
 
-              <Row className="mt-4">
-                <Col xs="auto">
-                  <Button
-                    type="submit"
-                    className="custom-btn-primary"
-                    disabled={lockedFields}
-                  >
-                    Save changes
-                  </Button>
-                </Col>
-                <Col xs="auto">
-                  <Button
-                    type="button"
-                    variant="outline-secondary"
-                    onClick={onClose}
-                  >
-                    Cancel
-                  </Button>
-                </Col>
-              </Row>
+              {editPriceBreakdown && hasServiceSelected ? (
+                <div className="add-quote-breakdown-end mt-3">
+                  <QuotePriceBreakdownPanel breakdown={editPriceBreakdown} />
+                </div>
+              ) : null}
             </section>
           </form>
         )}
       </Modal.Body>
+      {!loadError && quoteRow ? (
+        <Modal.Footer className="add-quote-modal-footer border-top-0 justify-content-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="quote-edit-all-form"
+            className="custom-btn-primary"
+            disabled={lockedFields}
+          >
+            Update
+          </Button>
+        </Modal.Footer>
+      ) : null}
     </Modal>
   );
 };

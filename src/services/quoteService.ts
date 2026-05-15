@@ -22,6 +22,10 @@ import {
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import {
+  displayStateName,
+  stripKnownAddressParts,
+} from "../lib/quote/quoteAddressFormat";
 
 export type OptionType = { value: string; label: string };
 
@@ -977,6 +981,23 @@ const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
 /** `GET /user/getDropDown?type=2` — partners (fallback when `getPartnerDropDown` is empty). */
 const PARTNER_USER_TYPE = APP_USER_TYPE.PARTNER;
 
+/**
+ * Tab key → `GET /quote/getAll?status=` bucket name (same rules as `getCounts`).
+ * Kept as a named export so list/count code and HMR reloads never reference a removed symbol.
+ */
+export const QUOTE_TAB_API_STATUS: Record<QuoteTabKey, string> = {
+  new: "new",
+  pending: "pending",
+  accepted: "accepted",
+  success: "success",
+  failed: "failed",
+};
+
+/** Active tab → `GET /quote/getAll?status=` dashboard bucket. */
+export function quoteListStatusParam(tab: QuoteTabKey): string {
+  return QUOTE_TAB_API_STATUS[tab] ?? tab;
+}
+
 const QUOTE_SORTABLE_ACCESSORS = new Set([
   "quote_id",
   "requested_services",
@@ -984,13 +1005,148 @@ const QUOTE_SORTABLE_ACCESSORS = new Set([
   "requested_partner",
   "partner_name",
   "user_name",
+  "service_price",
+  "requested_date",
+  "scheduled_date",
+  "status",
 ]);
+
+/** Table column accessor → `GET /quote/getAll` `sort_by` (Postman). */
+const QUOTE_LIST_SORT_TO_API: Record<string, string> = {
+  quote_id: "quote_sequence_id",
+  service_price: "service_price",
+  requested_date: "from_date",
+  scheduled_date: "from_date",
+  status: "status",
+  requested_services: "created_at",
+  services: "created_at",
+  requested_partner: "created_at",
+  partner_name: "created_at",
+  user_name: "created_at",
+};
 
 export function normalizeQuoteListSort(sort: QuoteListSort): QuoteListSort {
   if (!sort.length) return [];
   const first = sort[0];
   if (!first?.id || !QUOTE_SORTABLE_ACCESSORS.has(first.id)) return [];
   return [{ id: first.id, desc: Boolean(first.desc) }];
+}
+
+export function quoteListSortToApi(
+  sort: QuoteListSort
+): { sort_by: string; sort_order: "asc" | "desc" } | null {
+  const safe = normalizeQuoteListSort(sort);
+  if (!safe.length) return null;
+  const { id, desc } = safe[0];
+  return {
+    sort_by: QUOTE_LIST_SORT_TO_API[id] ?? "created_at",
+    sort_order: desc ? "desc" : "asc",
+  };
+}
+
+/** Maps `GET /quote/getCounts` or `POST /getCount` quote-management `record` into tab totals. */
+export function mapQuoteTabCountsFromRecord(
+  record: Record<string, unknown> | null | undefined
+): Partial<Record<QuoteTabKey, number>> | null {
+  if (!record || typeof record !== "object") return null;
+  const byLower = new Map(
+    Object.entries(record).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  const pick = (...aliases: string[]): number | null => {
+    for (const a of aliases) {
+      const v = byLower.get(a.toLowerCase());
+      if (v !== undefined && v !== null) {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return null;
+  };
+  const out: Partial<Record<QuoteTabKey, number>> = {};
+  const assign = (key: QuoteTabKey, ...aliases: string[]) => {
+    const n = pick(...aliases);
+    if (n !== null) out[key] = n;
+  };
+  assign("new", "quote_new", "new_quote", "new", "total_new", "quotes_new");
+  assign(
+    "pending",
+    "quote_pending",
+    "pending_quote",
+    "pending",
+    "total_pending",
+    "quotes_pending"
+  );
+  assign(
+    "accepted",
+    "quote_accepted",
+    "accepted_quote",
+    "accepted",
+    "total_accepted",
+    "quotes_accepted"
+  );
+  assign(
+    "success",
+    "quote_success",
+    "success_quote",
+    "success",
+    "total_success",
+    "quotes_success"
+  );
+  assign(
+    "failed",
+    "quote_failed",
+    "failed_quote",
+    "failed",
+    "total_failed",
+    "quotes_failed"
+  );
+  if (Object.keys(out).length === 0) return null;
+  for (const key of Object.keys(QUOTE_TAB_API_STATUS) as QuoteTabKey[]) {
+    if (out[key] === undefined) out[key] = 0;
+  }
+  return out;
+}
+
+/** `GET /quote/getCounts` — dashboard tab badges (Postman). */
+export async function fetchQuoteCounts(
+  franchiseId?: string | null
+): Promise<Partial<Record<QuoteTabKey, number>> | null> {
+  if (USE_MOCK_QUOTE_API) return null;
+  const params = new URLSearchParams();
+  const fid = str(franchiseId);
+  if (fid) params.set("franchise_id", fid);
+  const qs = params.toString();
+  const res = await apiRequest(
+    `${ApiPaths.GET_QUOTE_COUNTS()}${qs ? `?${qs}` : ""}`,
+    "GET",
+    undefined,
+    false,
+    true,
+    true
+  );
+  if (!res.success) return null;
+  const raw =
+    (res.data as { record?: unknown })?.record ??
+    (res.data as { data?: { record?: unknown } })?.data?.record ??
+    (res.data as { data?: unknown })?.data;
+  if (!raw || typeof raw !== "object") return null;
+  return mapQuoteTabCountsFromRecord(raw as Record<string, unknown>);
+}
+
+function toQuoteApiBody(
+  body: Record<string, unknown>
+): Record<string, unknown> {
+  const out = { ...body };
+  if (
+    "description" in out &&
+    out.description != null &&
+    String(out.description).trim() &&
+    !("quote_description" in out)
+  ) {
+    out.quote_description = out.description;
+    delete out.description;
+  }
+  return out;
 }
 
 function str(v: unknown): string {
@@ -1070,9 +1226,12 @@ function hoursBetweenHHmm(start: string, end: string): number {
   return Math.max(1, Number.isFinite(diff) ? diff : 8);
 }
 
-/** Backend may send tab status as number (`1` = New, etc.) or string. */
+/**
+ * Normalizes API status (lifecycle codes, bucket labels, or display strings) to UI tab labels.
+ * List/count buckets (`new`, `pending`, …) are applied server-side on `getAll` / `getCounts`.
+ */
 function formatStatusLabel(raw: unknown): string {
-  const byNumber: Record<number, string> = {
+  const dashboardByNumber: Record<number, string> = {
     1: "New",
     2: "Pending",
     3: "Accepted",
@@ -1080,24 +1239,40 @@ function formatStatusLabel(raw: unknown): string {
     5: "Failed",
   };
   if (typeof raw === "number" && Number.isFinite(raw)) {
-    const lab = byNumber[raw];
+    const lab = dashboardByNumber[raw];
     if (lab) return lab;
+    const lifecycleByNumber: Record<number, string> = {
+      1: "Pending",
+      2: "Accepted",
+      3: "Failed",
+      4: "Success",
+      5: "Failed",
+      6: "Failed",
+    };
+    const alt = lifecycleByNumber[raw];
+    if (alt) return alt;
   }
   const s = str(raw);
-  const byDigit: Record<string, string> = {
+  const dashboardByDigit: Record<string, string> = {
     "1": "New",
     "2": "Pending",
     "3": "Accepted",
     "4": "Success",
     "5": "Failed",
   };
-  if (byDigit[s]) return byDigit[s];
+  if (dashboardByDigit[s]) return dashboardByDigit[s];
   const k = s.toLowerCase();
   const map: Record<string, string> = {
     new: "New",
     pending: "Pending",
+    approved: "Accepted",
     accepted: "Accepted",
+    rejected: "Failed",
+    converted: "Success",
     success: "Success",
+    cancelled: "Failed",
+    canceled: "Failed",
+    expired: "Failed",
     failed: "Failed",
   };
   return map[k] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : "New");
@@ -1135,10 +1310,15 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
 
   const userRef = nestedObj(r.user_id) ?? nestedObj(r.user);
   const partnerRef = nestedObj(r.partner_id) ?? nestedObj(r.partner);
-  const employeeRef = nestedObj(r.employee_id);
+  const employeeRef = nestedObj(r.employee_id) ?? nestedObj(r.employee);
   const franchiseRef = nestedObj(r.franchise_id);
   const categoryRef = nestedObj(r.category_id) ?? nestedObj(r.category);
-  const serviceRef = nestedObj(r.service_id) ?? nestedObj(r.service);
+  const servicePackageRef = nestedObj(r.service_id);
+  const innerCatalogService = servicePackageRef
+    ? nestedObj(servicePackageRef.service_id)
+    : undefined;
+  const serviceRef =
+    innerCatalogService ?? servicePackageRef ?? nestedObj(r.service);
   const addressRef =
     nestedObj(r.address_id) ??
     nestedObj(r.address) ??
@@ -1156,7 +1336,11 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const requested_services = str(
     r.service_name ??
       r.requested_services ??
+      innerCatalogService?.name ??
+      innerCatalogService?.service_name ??
+      servicePackageRef?.name ??
       serviceRef?.name ??
+      serviceRef?.service_name ??
       r.name ??
       ""
   );
@@ -1188,7 +1372,13 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const requested_partner =
     str(r.requested_partner) || partnerName || refId(r.partner_id);
 
-  const status = formatStatusLabel(r.status ?? r.quote_status ?? "new");
+  const status = formatStatusLabel(
+    r.status_label ??
+      r.status_name ??
+      r.status ??
+      r.quote_status ??
+      "new"
+  );
 
   const user_name = str(
     r.user_name ?? userRef?.name ?? r.customer_name ?? ""
@@ -1197,9 +1387,10 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
 
   const addr = addressRef ?? {};
   const cityIdObj = nestedObj(addr.city_id);
+  const stateIdObj = nestedObj(addr.state_id);
   const door_no = str(addr.door_no ?? addr.door_number ?? r.door_no);
-  const streetCombined = str(
-    addr.street ?? addr.street_name ?? addr.address ?? r.street
+  const state = displayStateName(
+    str(stateIdObj?.name ?? addr.state_name ?? addr.state ?? r.state)
   );
   const city = str(
     addr.city ??
@@ -1211,6 +1402,15 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const area = str(addr.area ?? addr.area_name ?? r.area);
   const landmark = str(addr.landmark ?? r.landmark);
   const pincode = str(addr.pincode ?? r.pincode);
+  const freeformAddress = str(addr.address);
+  const address_line = freeformAddress;
+  const explicitStreet = str(addr.street ?? addr.street_name ?? r.street);
+  let streetCombined = explicitStreet;
+  if (!streetCombined && freeformAddress) {
+    streetCombined =
+      stripKnownAddressParts(freeformAddress, [state, city, area]) ||
+      freeformAddress;
+  }
 
   return {
     _id: mongoId || quoteId,
@@ -1233,6 +1433,10 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     city,
     requested_date,
     requested_time,
+    from_date: fromD || undefined,
+    to_date: toD || undefined,
+    work_start_time: ws || undefined,
+    work_end_time: we || undefined,
     service_price:
       r.service_price != null ? Number(r.service_price) : undefined,
     scheduled_date: str(
@@ -1268,10 +1472,20 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
       const s = str(r.profile_url ?? userRef?.profile_url);
       return s || null;
     })(),
+    partner_profile_url: (() => {
+      const s = str(r.partner_profile_url ?? partnerRef?.profile_url);
+      return s || null;
+    })(),
+    employee_profile_url: (() => {
+      const s = str(r.employee_profile_url ?? employeeRef?.profile_url);
+      return s || null;
+    })(),
     category_id: refId(r.category_id) || refId(categoryRef) || undefined,
     category_name: str(r.category_name ?? categoryRef?.name) || undefined,
     area: area || undefined,
     landmark: landmark || undefined,
+    state: state || undefined,
+    address_line: address_line || undefined,
     pincode: pincode || undefined,
     service_id: refId(r.service_id) || refId(serviceRef) || undefined,
     partner_id: refId(r.partner_id) || refId(partnerRef) || undefined,
@@ -1459,22 +1673,25 @@ export async function fetchQuotes(
 
   const fidRaw = str(filters.franchise_id);
   const fid =
-    sessionMayUseFranchiseIdApiFilter() && fidRaw ? fidRaw : "";
+    sessionMayUseFranchiseIdApiFilter() && fidRaw ? fidRaw : fidRaw;
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    tab,
-    ...(filters.keyword ? { keyword: filters.keyword } : {}),
+    status: QUOTE_TAB_API_STATUS[tab],
+    include_history: "false",
+    ...(filters.keyword ? { search: filters.keyword.trim() } : {}),
     ...(filters.from_date ? { from_date: filters.from_date } : {}),
     ...(filters.to_date ? { to_date: filters.to_date } : {}),
     ...(fid ? { franchise_id: fid } : {}),
   });
 
-  const safeSort = normalizeQuoteListSort(sort);
-  const primarySort = safeSort[0];
-  if (primarySort) {
-    params.set("sort_by", primarySort.id);
-    params.set("sort_order", primarySort.desc ? "desc" : "asc");
+  const apiSort = quoteListSortToApi(sort);
+  if (apiSort) {
+    params.set("sort_by", apiSort.sort_by);
+    params.set("sort_order", apiSort.sort_order);
+  } else {
+    params.set("sort_by", "created_at");
+    params.set("sort_order", "desc");
   }
 
   const res = await apiRequest(
@@ -1679,16 +1896,80 @@ async function quoteMutation(
   path: string,
   body?: unknown
 ): Promise<boolean> {
+  const payload =
+    body != null && typeof body === "object" && !Array.isArray(body)
+      ? toQuoteApiBody(body as Record<string, unknown>)
+      : body;
   const res = await apiRequest(
     path,
     method,
-    body === undefined ? undefined : body,
+    payload === undefined ? undefined : payload,
     false,
     false,
     false,
     true
   );
   return Boolean(res.success);
+}
+
+/**
+ * Tax / commission / min-deposit for view breakdown from `GET /quote/get/:id`
+ * populated `service_id` / `partner_id` — no related-catalog call.
+ */
+/** @deprecated Stale import — use `fetchQuoteDetailById` / `extractServiceFeesFromQuoteRecord`. */
+export function extractServiceFeesFromQuoteRow(): undefined {
+  return undefined;
+}
+
+export function extractServiceFeesFromQuoteRecord(
+  raw: Record<string, unknown>
+): ServiceDropDownOption | undefined {
+  const servicePackageRef = nestedObj(raw.service_id) ?? nestedObj(raw.service);
+  const innerCatalogService = servicePackageRef
+    ? nestedObj(servicePackageRef.service_id)
+    : undefined;
+  const partnerRef = nestedObj(raw.partner_id) ?? nestedObj(raw.partner);
+  const serviceId =
+    refId(raw.service_id) ||
+    refId(servicePackageRef) ||
+    refId(innerCatalogService) ||
+    str(raw.service_id);
+  if (!serviceId && !servicePackageRef && !innerCatalogService) return undefined;
+
+  const feeRow = (servicePackageRef ?? innerCatalogService) as
+    | Record<string, unknown>
+    | undefined;
+  const catalogOpt: ServiceDropDownOption | undefined = feeRow
+    ? {
+        value: serviceId || str(feeRow._id),
+        label:
+          str(
+            innerCatalogService?.name ??
+              innerCatalogService?.service_name ??
+              feeRow.name ??
+              feeRow.service_name
+          ) || serviceId,
+        ...quoteServiceFeeFieldsFromRow(
+          innerCatalogService ?? undefined,
+          feeRow
+        ),
+        payment_type: str(
+          feeRow.payment_type ?? feeRow.min_deposit_type ?? ""
+        ),
+        price:
+          feeRow.price != null
+            ? Number(feeRow.price)
+            : innerCatalogService?.price != null
+            ? Number(innerCatalogService.price)
+            : undefined,
+      }
+    : undefined;
+
+  return mergeQuoteServiceFeesForBreakdown(
+    catalogOpt,
+    partnerRef ?? null,
+    serviceId
+  );
 }
 
 export async function fetchQuoteById(
@@ -1711,6 +1992,36 @@ export async function fetchQuoteById(
     (res.data as any)?.data;
   if (!raw || typeof raw !== "object") return null;
   return mapServerQuoteRecord(raw as Record<string, unknown>);
+}
+
+/** `GET /quote/get/:id` — quote row plus fee fields from populated refs (view modal). */
+export async function fetchQuoteDetailById(quoteMongoId: string): Promise<{
+  quote: QuoteRow | null;
+  serviceFees: ServiceDropDownOption | undefined;
+}> {
+  const id = str(quoteMongoId);
+  if (!id) return { quote: null, serviceFees: undefined };
+  const res = await apiRequest(
+    ApiPaths.GET_QUOTE_BY_ID(id),
+    "GET",
+    undefined,
+    false,
+    true,
+    true
+  );
+  if (!res.success) return { quote: null, serviceFees: undefined };
+  const raw =
+    (res.data as any)?.record ??
+    (res.data as any)?.data?.record ??
+    (res.data as any)?.data;
+  if (!raw || typeof raw !== "object") {
+    return { quote: null, serviceFees: undefined };
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    quote: mapServerQuoteRecord(record),
+    serviceFees: extractServiceFeesFromQuoteRecord(record),
+  };
 }
 
 export async function fetchCustomerQuotes(
@@ -1750,7 +2061,8 @@ export type CreateQuoteBody = {
   total_work_hours: number;
   work_start_time: string;
   work_end_time: string;
-  description?: string;
+  /** Sent as `quote_description` on `POST /quote/create`. */
+  quote_description?: string;
 };
 
 export async function createQuote(body: CreateQuoteBody): Promise<boolean> {
@@ -1829,9 +2141,11 @@ export async function applyQuoteHeaderPatch(
     } else if (sk === "failed") {
       const ok = await rejectQuote(id, "Marked as failed");
       if (!ok) return false;
-    } else {
-      const body: Record<string, unknown> = { status: sk };
-      const ok = await updateQuote(id, body);
+    } else if (sk === "success") {
+      const ok = await convertQuoteToOrder(id);
+      if (!ok) return false;
+    } else if (sk === "pending" || sk === "new") {
+      const ok = await updateQuote(id, { status: sk });
       if (!ok) return false;
     }
   }
@@ -1862,15 +2176,17 @@ export async function applyQuoteSchedulePatch(
   const perDay = hoursBetweenHHmm(ws, we);
   const total = perDay;
 
-  return updateQuote(id, {
+  const ok = await updateQuote(id, {
     from_date: ymd,
     to_date: ymd,
     work_start_time: ws,
     work_end_time: we,
     work_hours_per_day: perDay,
     total_work_hours: total,
-    ...(patch.status ? { status: patch.status.trim().toLowerCase() } : {}),
   });
+  if (!ok) return false;
+  if (!patch.status) return true;
+  return applyQuoteHeaderPatch(id, { status: patch.status });
 }
 
 export async function updateQuotePartner(
@@ -1958,6 +2274,6 @@ export function buildCreateQuotePayload(input: {
     total_work_hours: metrics.total_work_hours,
     work_start_time: metrics.work_start_time,
     work_end_time: metrics.work_end_time,
-    ...(desc ? { description: desc } : {}),
+    ...(desc ? { quote_description: desc } : {}),
   };
 }

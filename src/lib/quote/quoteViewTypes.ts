@@ -12,6 +12,8 @@ export type QuoteViewData = {
   user_email?: string;
   user_city?: string;
   profile_url?: string | null;
+  partner_profile_url?: string | null;
+  employee_profile_url?: string | null;
   category_id?: string;
   category_name?: string;
   requested_date: string;
@@ -21,6 +23,8 @@ export type QuoteViewData = {
   city: string;
   area?: string;
   landmark?: string;
+  state?: string;
+  address_line?: string;
   pincode?: string;
   service_id?: string;
   partner_id?: string;

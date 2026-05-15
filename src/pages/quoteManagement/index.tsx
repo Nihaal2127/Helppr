@@ -30,7 +30,9 @@ import {
   deleteQuote,
   deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
+  fetchQuoteCounts,
   fetchQuotes,
+  mapQuoteTabCountsFromRecord,
   getPartnerActiveServiceProvidingRow,
   getPartnerAvailableCategoryIdSet,
   getPartnerCategoryIdsFromProviding,
@@ -60,9 +62,14 @@ import {
 } from "../../lib/quote/quoteFranchisePins";
 import { setQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import {
-  displayStateName,
-  formatAddressLineFromRecord,
+  buildAddressLocationLookupsFromCustomers,
+  parseCatalogAddressRecord,
 } from "../../lib/quote/quoteAddressFormat";
+import {
+  computeQuotePriceBreakdown,
+} from "../../lib/quote/quotePriceBreakdown";
+import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import { QUOTE_MODAL_LAYOUT } from "../../lib/quote/quoteModalLayout";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -177,154 +184,6 @@ function isScheduleEndAfterStartSameDay(start: string, end: string): boolean {
 
 const addQuoteTimePickerAllowAllHours = (): boolean => true;
 
-function formatQuoteRupees(amount: number): string {
-  const rounded = Math.round((amount + Number.EPSILON) * 100) / 100;
-  const s = rounded.toFixed(2).replace(/\.00$/, "");
-  return `${AppConstant.currencySymbol}${s}`;
-}
-
-type AddQuotePriceBreakdown = {
-  /** Scheduled / entered service amount (excl. commission & tax). */
-  base: number;
-  commissionPct: number;
-  /** Commission on service price only (not included in base). */
-  commissionAmount: number;
-  /** Service + commission (tax is calculated on this). */
-  subtotalBeforeTax: number;
-  taxPct: number;
-  /** Tax on subtotal (service + commission). */
-  taxAmount: number;
-  /** Subtotal + tax. */
-  grandTotal: number;
-  minDepositTitle: string;
-  minDepositAmount: number;
-  minDepositNote: string;
-};
-
-function roundQuoteMoney(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-function computeAddQuotePriceBreakdown(
-  servicePriceStr: string,
-  opt: ServiceDropDownOption | undefined
-): AddQuotePriceBreakdown | null {
-  const base = Number.parseFloat(String(servicePriceStr ?? "").trim());
-  if (!Number.isFinite(base) || base < 0) return null;
-  const taxPct = Math.max(0, Number(opt?.tax ?? 0) || 0);
-  const commissionPct = Math.max(0, Number(opt?.commission ?? 0) || 0);
-  const commissionAmount = roundQuoteMoney(base * (commissionPct / 100));
-  const subtotalBeforeTax = roundQuoteMoney(base + commissionAmount);
-  const taxAmount = roundQuoteMoney(subtotalBeforeTax * (taxPct / 100));
-  const grandTotal = roundQuoteMoney(subtotalBeforeTax + taxAmount);
-
-  const typeKey = extractMinDepositTypeKey(
-    String(opt?.min_deposit_type ?? opt?.payment_type ?? "")
-  );
-  let minDepositAmount = 0;
-  let minDepositTitle = "Minimum deposit";
-  let minDepositNote = "";
-
-  if (typeKey === "per_consultancy") {
-    const flat = Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? 0);
-    minDepositAmount = Number.isFinite(flat) ? roundQuoteMoney(flat) : 0;
-    minDepositNote = "(fixed amount for this billing type)";
-  } else {
-    let pct =
-      Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? NaN) || 0;
-    if (!Number.isFinite(pct) || pct <= 0) {
-      const rawType = String(opt?.min_deposit_type ?? opt?.payment_type ?? "");
-      const m = rawType.match(/\(\s*([\d.]+)\s*%?\s*\)/);
-      if (m) pct = Number(m[1]) || 0;
-    }
-    pct = Math.max(0, pct);
-    minDepositAmount = roundQuoteMoney(grandTotal * (pct / 100));
-    minDepositNote =
-      pct > 0
-        ? `(${pct}${AppConstant.percentageSymbol} of total incl. tax)`
-        : "";
-  }
-
-  return {
-    base,
-    commissionPct,
-    commissionAmount,
-    subtotalBeforeTax,
-    taxPct,
-    taxAmount,
-    grandTotal,
-    minDepositTitle,
-    minDepositAmount,
-    minDepositNote,
-  };
-}
-
-/**
- * Maps `getCount` `record` for `type: "quote-management"` into tab totals.
- * Accepts common key variants (snake_case / prefixes) so staging can evolve without UI churn.
- */
-function mapGetCountRecordToQuoteTabCounts(
-  record: Record<string, unknown> | null | undefined
-): Partial<Record<QuoteTabKey, number>> | null {
-  if (!record || typeof record !== "object") return null;
-  const byLower = new Map(
-    Object.entries(record).map(([k, v]) => [k.toLowerCase(), v])
-  );
-  const pick = (...aliases: string[]): number | null => {
-    for (const a of aliases) {
-      const v = byLower.get(a.toLowerCase());
-      if (v !== undefined && v !== null) {
-        const n = Number(v);
-        if (Number.isFinite(n)) return n;
-      }
-    }
-    return null;
-  };
-  const out: Partial<Record<QuoteTabKey, number>> = {};
-  const assign = (key: QuoteTabKey, ...aliases: string[]) => {
-    const n = pick(...aliases);
-    if (n !== null) out[key] = n;
-  };
-  assign("new", "quote_new", "new_quote", "new", "total_new", "quotes_new");
-  assign(
-    "pending",
-    "quote_pending",
-    "pending_quote",
-    "pending",
-    "total_pending",
-    "quotes_pending"
-  );
-  assign(
-    "accepted",
-    "quote_accepted",
-    "accepted_quote",
-    "accepted",
-    "total_accepted",
-    "quotes_accepted"
-  );
-  assign(
-    "success",
-    "quote_success",
-    "success_quote",
-    "success",
-    "total_success",
-    "quotes_success"
-  );
-  assign(
-    "failed",
-    "quote_failed",
-    "failed_quote",
-    "failed",
-    "total_failed",
-    "quotes_failed"
-  );
-  if (Object.keys(out).length === 0) return null;
-  for (const { key } of quoteTabs) {
-    if (out[key] === undefined) out[key] = 0;
-  }
-  return out;
-}
-
 const QuoteManagement = () => {
   const [selectedTab, setSelectedTab] = useState<QuoteTabKey>("new");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -415,17 +274,6 @@ const QuoteManagement = () => {
   }, [isSuperAdminOrStaff]);
   const quoteScopeBlocked =
     !isSuperAdminOrStaff && !String(effectiveFranchiseId).trim();
-  const franchiseIdForQuoteCatalog = useMemo(() => {
-    if (isSuperAdminOrStaff && showAddQuote) {
-      return String(addQuote.franchise_id ?? "").trim();
-    }
-    return effectiveFranchiseId;
-  }, [
-    isSuperAdminOrStaff,
-    showAddQuote,
-    addQuote.franchise_id,
-    effectiveFranchiseId,
-  ]);
   const addQuoteFieldsLocked =
     isSuperAdminOrStaff &&
     showAddQuote &&
@@ -454,11 +302,14 @@ const QuoteManagement = () => {
 
   /** Avoid applying stale `related-catalog` if the user switches franchise quickly. */
   const quoteCatalogLoadSeqRef = useRef(0);
+  /** Add-quote: load related-catalog once per franchise selection, not on every modal open. */
+  const lastQuoteCatalogFranchiseIdRef = useRef("");
 
   const loadQuoteCatalogForFranchise = useCallback(
-    async (franchiseId: string) => {
+    async (franchiseId: string, opts?: { force?: boolean }) => {
       const id = String(franchiseId ?? "").trim();
       if (!id) {
+        lastQuoteCatalogFranchiseIdRef.current = "";
         quoteCatalogLoadSeqRef.current += 1;
         setQuoteCatalogServices([]);
         setQuoteCategoryOptions([]);
@@ -473,6 +324,10 @@ const QuoteManagement = () => {
         setQuoteFranchiseCatalogSnapshot(null);
         return;
       }
+      if (!opts?.force && id === lastQuoteCatalogFranchiseIdRef.current) {
+        return;
+      }
+      lastQuoteCatalogFranchiseIdRef.current = id;
       const seq = (quoteCatalogLoadSeqRef.current += 1);
       setFranchisePinsLoadDone(false);
       const { success, record } = await fetchFranchiseRelatedCatalog(id);
@@ -519,8 +374,9 @@ const QuoteManagement = () => {
       const nextId = String(e.target.value ?? "").trim();
       setAddQuoteValue("franchise_id", e.target.value, { shouldValidate: true });
       resetAddQuoteCatalogSelections();
-      if (isSuperAdminOrStaff) {
-        void loadQuoteCatalogForFranchise(nextId);
+      lastQuoteCatalogFranchiseIdRef.current = "";
+      if (isSuperAdminOrStaff && nextId) {
+        void loadQuoteCatalogForFranchise(nextId, { force: true });
       }
     },
     [
@@ -533,6 +389,11 @@ const QuoteManagement = () => {
   const [createQuoteAddressId, setCreateQuoteAddressId] = useState("");
   const [addQuoteAddressUi, setAddQuoteAddressUi] =
     useState<AddQuoteAddressUiState>(emptyAddQuoteAddressUi);
+
+  const addQuoteLocationLookups = useMemo(
+    () => buildAddressLocationLookupsFromCustomers(quoteCustomerRecords),
+    [quoteCustomerRecords]
+  );
 
   const addQuotePartnerSelected = Boolean(
     String(addQuote.requested_partner ?? "").trim()
@@ -658,7 +519,7 @@ const QuoteManagement = () => {
 
   const addQuotePriceBreakdown = useMemo(
     () =>
-      computeAddQuotePriceBreakdown(
+      computeQuotePriceBreakdown(
         addQuote.service_price,
         addQuoteFeeOptionForBreakdown
       ),
@@ -821,12 +682,26 @@ const QuoteManagement = () => {
   /** Ignore stale `getCount` responses when the header franchise filter changes quickly. */
   const quoteCountsReqSeqRef = useRef(0);
 
-  /** Tab badges: `POST /getCount` with `{ type: "quote-management", franchise_id? }`. */
+  /** Tab badges: `GET /quote/getCounts` (Postman), with `POST /getCount` fallback. */
   const refreshQuoteSummaryFromGetCount = useCallback(async () => {
     const seq = (quoteCountsReqSeqRef.current += 1);
     const fid = String(headerFranchiseScope ?? "").trim();
+    const franchiseFilter =
+      fid && fid !== "all"
+        ? fid
+        : !isSuperAdminOrStaff
+        ? String(effectiveFranchiseId ?? "").trim() || undefined
+        : undefined;
+
+    const fromQuoteApi = await fetchQuoteCounts(franchiseFilter);
+    if (seq !== quoteCountsReqSeqRef.current) return;
+    if (fromQuoteApi) {
+      setQuoteCountsByTab(fromQuoteApi);
+      return;
+    }
+
     const scope =
-      fid && fid !== "all" ? { franchise_id: fid } : undefined;
+      franchiseFilter ? { franchise_id: franchiseFilter } : undefined;
     const { responseCount, countModel } = await getCount(
       "quote-management",
       scope
@@ -837,13 +712,13 @@ const QuoteManagement = () => {
         ? (countModel as unknown as Record<string, unknown>)
         : null;
     const mapped =
-      responseCount && rec ? mapGetCountRecordToQuoteTabCounts(rec) : null;
+      responseCount && rec ? mapQuoteTabCountsFromRecord(rec) : null;
     if (mapped) {
       setQuoteCountsByTab(mapped);
       return;
     }
     setQuoteCountsByTab({});
-  }, [headerFranchiseScope]);
+  }, [headerFranchiseScope, isSuperAdminOrStaff, effectiveFranchiseId]);
 
   const refreshCountsThenFetchQuotes = useCallback(() => {
     return refreshQuoteSummaryFromGetCount().then(() => fetchData());
@@ -875,13 +750,9 @@ const QuoteManagement = () => {
   }, [isSuperAdminOrStaff, showAddQuote]);
 
   useEffect(() => {
-    if (!showAddQuote) return;
-    void loadQuoteCatalogForFranchise(franchiseIdForQuoteCatalog);
-  }, [
-    showAddQuote,
-    franchiseIdForQuoteCatalog,
-    loadQuoteCatalogForFranchise,
-  ]);
+    if (showAddQuote) return;
+    lastQuoteCatalogFranchiseIdRef.current = "";
+  }, [showAddQuote]);
 
   useEffect(() => {
     const opts = catalogPartnerRecords.map((p) => {
@@ -955,55 +826,16 @@ const QuoteManagement = () => {
     const addrs = (customer.addresses ?? customer.user_addresses) as
       | unknown[]
       | undefined;
-    const parsed: {
-      id: string;
-      summary: string;
-      pinNorm: string;
-      areaId: string;
-      contactName: string;
-      stateName: string;
-      cityName: string;
-      areaName: string;
-      streetAddress: string;
-      landmark: string;
-      pincode: string;
-    }[] = Array.isArray(addrs)
+    const parsed = Array.isArray(addrs)
       ? addrs
           .filter((a) => a != null && typeof a === "object")
-          .map((a) => {
-            const rec = a as Record<string, unknown>;
-            const id = strTrim(rec._id);
-            const pinNorm = normalizePincodeDigits(
-              rec.pincode ?? rec.postal_code ?? rec.postcode
-            );
-            const areaId = strTrim(rec.area_id);
-            const stateName = displayStateName(
-              strTrim(rec.state_name ?? rec.state)
-            );
-            const cityName = strTrim(rec.city_name ?? rec.city);
-            const areaName = strTrim(rec.area_name ?? rec.area);
-            const landmark = strTrim(rec.landmark);
-            const door = strTrim(rec.door_no);
-            const street = strTrim(rec.street ?? rec.address_line);
-            const freeform = strTrim(rec.address);
-            let streetAddress = [door, street].filter(Boolean).join(", ");
-            if (!streetAddress) streetAddress = freeform;
-            return {
-              id,
-              summary: formatAddressLineFromRecord(rec),
-              pinNorm,
-              areaId,
-              contactName:
-                strTrim(rec.contact_name ?? rec.contactName) || "Address",
-              stateName,
-              cityName,
-              areaName,
-              streetAddress,
-              landmark,
-              pincode: strTrim(rec.pincode ?? rec.postal_code ?? rec.postcode),
-            };
-          })
-          .filter((r) => r.id)
+          .map((a) =>
+            parseCatalogAddressRecord(
+              a as Record<string, unknown>,
+              addQuoteLocationLookups
+            )
+          )
+          .filter((r): r is NonNullable<typeof r> => r != null)
       : [];
 
     if (!parsed.length) {
@@ -1079,6 +911,7 @@ const QuoteManagement = () => {
     franchiseQuotePinSet,
     franchiseQuoteAreaIdSet,
     franchisePinsLoadDone,
+    addQuoteLocationLookups,
   ]);
 
   useEffect(() => {
@@ -1616,10 +1449,7 @@ const QuoteManagement = () => {
       <Modal
         show={showAddQuote}
         onHide={() => setShowAddQuote(false)}
-        centered
-        size="xl"
-        dialogClassName="add-quote-modal-dialog"
-        contentClassName="add-quote-modal-content"
+        {...QUOTE_MODAL_LAYOUT}
         enforceFocus={false}
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -1636,7 +1466,7 @@ const QuoteManagement = () => {
           >
             <section className="custom-other-details add-quote-form-section">
               <div>
-                <Row className="gy-4 gx-md-5 align-items-start">
+                <Row className="gy-3 gx-md-4 align-items-start">
                   {isSuperAdminOrStaff ? (
                     <Col xs={12} md={6}>
                       <Row className="align-items-start">
@@ -1884,7 +1714,7 @@ const QuoteManagement = () => {
 
                 {isSuperAdminOrStaff ? (
                   <>
-                    <Row className="gy-4 gx-md-5 align-items-start">
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           label="Employee"
@@ -1962,7 +1792,7 @@ const QuoteManagement = () => {
                         />
                       </Col>
                     </Row>
-                    <Row className="gy-4 gx-md-5 align-items-start">
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           label="Category"
@@ -2089,7 +1919,7 @@ const QuoteManagement = () => {
                   </>
                 ) : (
                   <>
-                    <Row className="gy-4 gx-md-5 align-items-start">
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           label="Requested Partner"
@@ -2204,7 +2034,7 @@ const QuoteManagement = () => {
                         />
                       </Col>
                     </Row>
-                    <Row className="gy-4 gx-md-5 align-items-start">
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           key={`add-quote-svc-${addQuote.category_id || "none"}`}
@@ -2291,7 +2121,7 @@ const QuoteManagement = () => {
                   </Row>
 
                   <div className="add-quote-schedule-panel">
-                    <Row className="gy-4 gx-md-5">
+                    <Row className="gy-3 gx-md-4">
                       {scheduleMode === "range" ? (
                         <>
                           <Col xs={12} md={3}>
@@ -2506,27 +2336,14 @@ const QuoteManagement = () => {
                 </>
               ) : null}
               {hasAddQuoteServiceSelected && isAddQuoteScheduleComplete ? (
-                <>
-                  <Row className="mt-4 mb-2">
+                <div className="add-quote-price-section mt-4 pt-3 border-top">
+                  <Row className="g-3 align-items-start mb-3">
                     <Col xs={12}>
-                      <label
-                        style={{
-                          fontSize: "17px",
-                          fontWeight: "600",
-                          color: "var(--primary-color)",
-                        }}
-                        className="d-block mb-1"
-                      >
+                      <h6 className="add-quote-price-section-heading mb-0">
                         Service price
-                      </label>
-                      <div className="small text-muted mb-2">
-                        Commission on service price; tax on service + commission.
-                        You can edit the service price before saving.
-                      </div>
+                      </h6>
                     </Col>
-                  </Row>
-                  <Row className="mt-3 align-items-start">
-                    <Col xs={12} md={6}>
+                    <Col xs={12} md={6} lg={5}>
                       <Form.Group controlId="service_price">
                         <Form.Label className="fw-medium mb-1">
                           Service Price
@@ -2571,92 +2388,7 @@ const QuoteManagement = () => {
                       </Form.Group>
                     </Col>
                   </Row>
-                  {addQuotePriceBreakdown ? (
-                    <Row className="mt-3">
-                      <Col xs={12} md={8}>
-                        <div
-                          className="rounded-3 p-3"
-                          style={{
-                            border: "1px solid var(--primary-color)",
-                            backgroundColor: "var(--bg-color)",
-                          }}
-                        >
-                          <div
-                            className="fw-semibold mb-2"
-                            style={{ color: "var(--primary-color)" }}
-                          >
-                            Amount breakdown
-                          </div>
-                          <dl className="row mb-0 small gx-2">
-                            <dt className="col-7 col-sm-6 mb-1">Service price</dt>
-                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
-                              {formatQuoteRupees(addQuotePriceBreakdown.base)}
-                            </dd>
-                            <dt className="col-7 col-sm-6 mb-1">
-                              Admin commission (
-                              {addQuotePriceBreakdown.commissionPct}
-                              {AppConstant.percentageSymbol} on service)
-                            </dt>
-                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
-                              {formatQuoteRupees(
-                                addQuotePriceBreakdown.commissionAmount
-                              )}
-                            </dd>
-                            <dt className="col-7 col-sm-6 mb-1">
-                              Subtotal (before tax)
-                            </dt>
-                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
-                              {formatQuoteRupees(
-                                addQuotePriceBreakdown.subtotalBeforeTax
-                              )}
-                            </dd>
-                            <dt className="col-7 col-sm-6 mb-1">
-                              Tax (
-                              {addQuotePriceBreakdown.taxPct}
-                              {AppConstant.percentageSymbol} on subtotal)
-                            </dt>
-                            <dd className="col-5 col-sm-6 text-sm-end mb-1">
-                              {formatQuoteRupees(addQuotePriceBreakdown.taxAmount)}
-                            </dd>
-                            <dt
-                              className="add-quote-breakdown-total-label col-7 col-sm-6 mb-0 pt-2 border-top"
-                              style={{ borderColor: "rgba(0,0,0,0.08)" }}
-                            >
-                              Total (incl. tax)
-                            </dt>
-                            <dd
-                              className="add-quote-breakdown-total-value col-5 col-sm-6 text-sm-end mb-0 pt-2 border-top"
-                              style={{ borderColor: "rgba(0,0,0,0.08)" }}
-                            >
-                              {formatQuoteRupees(
-                                addQuotePriceBreakdown.grandTotal
-                              )}
-                            </dd>
-                          </dl>
-                          <div
-                            className="add-quote-breakdown-min-deposit mt-3 pt-2 border-top"
-                            style={{ borderColor: "rgba(0,0,0,0.08)" }}
-                          >
-                            <div className="add-quote-breakdown-min-deposit-label">
-                              {addQuotePriceBreakdown.minDepositTitle}
-                              {addQuotePriceBreakdown.minDepositNote ? (
-                                <>
-                                  {" "}
-                                  {addQuotePriceBreakdown.minDepositNote}
-                                </>
-                              ) : null}
-                            </div>
-                            <div className="add-quote-breakdown-min-deposit-value">
-                              {formatQuoteRupees(
-                                addQuotePriceBreakdown.minDepositAmount
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </Col>
-                    </Row>
-                  ) : null}
-                  <Row className="mt-3">
+                  <Row className="g-3">
                     <Col xs={12}>
                       <Form.Group controlId="description">
                         <Form.Label className="fw-medium mb-1">
@@ -2664,7 +2396,7 @@ const QuoteManagement = () => {
                         </Form.Label>
                         <Form.Control
                           as="textarea"
-                          rows={4}
+                          rows={3}
                           maxLength={2000}
                           disabled={addQuoteFieldsLocked}
                           className={`custom-form-input${
@@ -2672,7 +2404,7 @@ const QuoteManagement = () => {
                           }`}
                           style={{
                             ...partnerCatalogControlStyle,
-                            minHeight: "120px",
+                            minHeight: "96px",
                             resize: "vertical",
                           }}
                           placeholder="Optional notes for this quote"
@@ -2689,10 +2421,17 @@ const QuoteManagement = () => {
                       </Form.Group>
                     </Col>
                   </Row>
-                </>
+                </div>
               ) : null}
               </div>
             </section>
+            {addQuotePriceBreakdown &&
+            hasAddQuoteServiceSelected &&
+            isAddQuoteScheduleComplete ? (
+              <div className="add-quote-breakdown-end mt-3">
+                <QuotePriceBreakdownPanel breakdown={addQuotePriceBreakdown} />
+              </div>
+            ) : null}
           </form>
         </Modal.Body>
         <Modal.Footer className="add-quote-modal-footer border-top-0">

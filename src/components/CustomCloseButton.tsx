@@ -3,11 +3,14 @@ import customCloseIcon from "../assets/icons/close_button_red.svg";
 interface CustomCloseButtonProps {
   onClose: () => void;
   size?: number;
+  /** When true, sits in flex header flow (no absolute positioning). */
+  inline?: boolean;
 }
 
 const CustomCloseButton: React.FC<CustomCloseButtonProps> = ({
   onClose,
   size = 24,
+  inline = false,
 }) => {
   return (
     <img
@@ -20,9 +23,13 @@ const CustomCloseButton: React.FC<CustomCloseButtonProps> = ({
         background: "none",
         border: "none",
         cursor: "pointer",
-        position: "absolute",
-        top: "15px",
-        right: "15px",
+        ...(inline
+          ? { flexShrink: 0 }
+          : {
+              position: "absolute",
+              top: "15px",
+              right: "15px",
+            }),
       }}
     />
   );

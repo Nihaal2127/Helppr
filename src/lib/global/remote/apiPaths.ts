@@ -154,6 +154,7 @@ export const ApiPaths = {
   CANCEL_QUOTE: (id: string) => `/quote/cancel/${id}`,
   CONVERT_QUOTE: (id: string) => `/quote/convert/${id}`,
   DELETE_QUOTE: (id: string) => `/quote/delete/${id}`,
+  GET_QUOTE_COUNTS: () => `/quote/getCounts`,
   // Partner management
   /** Global subscription tier catalog (Postman: `/subscription-plan/*`). */
   SUBSCRIPTION_PLAN_GET_ALL: () => `/subscription-plan/getAll`,

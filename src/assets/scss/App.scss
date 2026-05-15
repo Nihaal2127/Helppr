@@ -1574,14 +1574,24 @@ body:has(.modal.show ~ .modal.show) {
   // }
 }
 
+/* Quote add / edit / view — shared width + 90vh scroll (see quoteModalLayout.ts) */
 .modal-dialog.add-quote-modal-dialog {
-  max-width: min(1180px, 98vw);
+  max-width: min(1040px, 96vw);
   width: 100%;
   margin-left: auto;
   margin-right: auto;
+
+  &.modal-vh-90:not(:has(.modal-footer)) .modal-body {
+    max-height: calc(90vh - 5rem);
+  }
 }
 
 .add-quote-modal-content {
+  h6.quote-section-title {
+    color: var(--navi-color);
+    font-weight: 700;
+  }
+
   .modal-header {
     padding: 1.25rem 1.75rem 1rem;
   }
@@ -1603,15 +1613,25 @@ body:has(.modal.show ~ .modal.show) {
   }
 
   .add-quote-form-section.custom-other-details {
-    padding: 1.25rem 1.25rem 1.5rem;
+    padding: 1rem 1.1rem 1.25rem;
     margin: 0;
     border-radius: 8px;
   }
 
   @media (min-width: 768px) {
     .add-quote-form-section.custom-other-details {
-      padding: 1.5rem 1.75rem 1.75rem;
+      padding: 1.25rem 1.5rem 1.5rem;
     }
+  }
+
+  .add-quote-price-section {
+    border-color: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .add-quote-price-section-heading {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-color);
   }
 
   .add-quote-schedule-panel {
@@ -1651,33 +1671,6 @@ body:has(.modal.show ~ .modal.show) {
     margin-top: 0.25rem;
   }
 
-  /* Add quote — amount breakdown: emphasise total; soften minimum deposit */
-  .add-quote-breakdown-total-label,
-  .add-quote-breakdown-total-value {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #111;
-  }
-
-  .add-quote-breakdown-min-deposit {
-    border-color: rgba(0, 0, 0, 0.06) !important;
-    color: #9aa0a6;
-    font-size: 0.8125rem;
-    line-height: 1.45;
-  }
-
-  .add-quote-breakdown-min-deposit-label {
-    font-weight: 500;
-    color: #a8aeb4;
-  }
-
-  .add-quote-breakdown-min-deposit-value {
-    margin-top: 0.2rem;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: #b0b6bc;
-    letter-spacing: 0.01em;
-  }
 }
 
 .franchise-requested-category-form .form-label,

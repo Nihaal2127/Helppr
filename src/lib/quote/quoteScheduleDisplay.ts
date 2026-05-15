@@ -1,4 +1,5 @@
 import type { QuoteRow, QuoteTabKey } from "../types/quoteTypes";
+import { formatQuoteServiceAddressLines } from "./quoteAddressFormat";
 
 /** e.g. `12 Apr 2026` */
 function formatDayDdMmmYyyy(iso: string): string {
@@ -203,19 +204,8 @@ export function formatServiceAddressLines(q: {
   area?: string;
   landmark?: string;
   city?: string;
+  state?: string;
   pincode?: string;
 }): string {
-  const line1 = dedupeCommaPhrase(
-    [q.door_no, q.street].filter(Boolean).join(", ")
-  );
-  const line2 = dedupeCommaPhrase(
-    [q.area, q.landmark].filter(Boolean).join(", ")
-  );
-  const line3 = dedupeCommaPhrase(
-    [q.city, q.pincode]
-      .filter(Boolean)
-      .join(q.pincode ? " - " : "")
-  );
-  const lines = [line1, line2, line3].filter((x) => x && String(x).trim());
-  return lines.length ? lines.join("\n") : "-";
+  return formatQuoteServiceAddressLines(q);
 }

@@ -50,33 +50,58 @@ export function workTimeToTimeStorage(raw: string | undefined): string {
 
 function ymdChunk(isoish: string): string {
   const x = isoish.trim();
+  if (!x) return "";
   if (x.length >= 10 && x[4] === "-") return x.slice(0, 10);
-  return x;
+  const d = new Date(x);
+  if (Number.isNaN(d.getTime())) return x;
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
   const statusKey = String(row.status ?? "").toLowerCase();
   const useScheduled = statusKey === "accepted" || statusKey === "success";
 
-  const dateRaw = useScheduled
-    ? String(row.scheduled_date ?? "").trim()
-    : String(row.requested_date ?? "").trim();
-  const dateParts = dateRaw
-    ? dateRaw.split(/\s+to\s+/i).map((p) => p.trim()).filter(Boolean)
-    : [];
-  const requested_date = dateParts[0] ? ymdChunk(dateParts[0]) : "";
-  const requested_date_to =
-    dateParts.length > 1 ? ymdChunk(dateParts[1]) : "";
-
+  let requested_date = "";
+  let requested_date_to = "";
   let requested_time_from = "";
   let requested_time_to = "";
+
   if (useScheduled) {
+    const sched = String(row.scheduled_date ?? "").trim();
+    requested_date = sched ? ymdChunk(sched) : "";
     requested_time_from = workTimeToTimeStorage(row.service_from_time);
     requested_time_to = workTimeToTimeStorage(row.service_to_time);
   } else {
-    const [a, b] = splitHumanTimeRange(row.requested_time);
-    requested_time_from = workTimeToTimeStorage(a);
-    requested_time_to = workTimeToTimeStorage(b);
+    const fromYmd = row.from_date
+      ? ymdChunk(row.from_date)
+      : "";
+    const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
+
+    if (fromYmd) {
+      requested_date = fromYmd;
+      requested_date_to =
+        toYmd && toYmd !== fromYmd ? toYmd : "";
+    } else {
+      const dateRaw = String(row.requested_date ?? "").trim();
+      const dateParts = dateRaw
+        ? dateRaw.split(/\s+to\s+/i).map((p) => p.trim()).filter(Boolean)
+        : [];
+      requested_date = dateParts[0] ? ymdChunk(dateParts[0]) : "";
+      requested_date_to =
+        dateParts.length > 1 ? ymdChunk(dateParts[1]) : "";
+    }
+
+    if (row.work_start_time || row.work_end_time) {
+      requested_time_from = workTimeToTimeStorage(row.work_start_time);
+      requested_time_to = workTimeToTimeStorage(row.work_end_time);
+    } else {
+      const [a, b] = splitHumanTimeRange(row.requested_time);
+      requested_time_from = workTimeToTimeStorage(a);
+      requested_time_to = workTimeToTimeStorage(b);
+    }
   }
 
   const partnerVal = String(

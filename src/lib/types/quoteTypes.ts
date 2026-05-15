@@ -37,6 +37,11 @@ export type QuoteRow = {
   city: string;
   requested_date: string;
   requested_time: string;
+  /** Raw schedule from API (`from_date` / `to_date` as YYYY-MM-DD). */
+  from_date?: string;
+  to_date?: string;
+  work_start_time?: string;
+  work_end_time?: string;
   service_price?: number;
   scheduled_date?: string;
   service_from_time?: string;
@@ -60,10 +65,15 @@ export type QuoteRow = {
   user_email?: string;
   user_city?: string;
   profile_url?: string | null;
+  partner_profile_url?: string | null;
+  employee_profile_url?: string | null;
   category_id?: string;
   category_name?: string;
   area?: string;
   landmark?: string;
+  state?: string;
+  /** Raw `address_id.address` from GET /quote/get (composite line). */
+  address_line?: string;
   pincode?: string;
   service_id?: string;
   partner_id?: string;
