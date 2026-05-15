@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import QuoteInfoFieldRow from "../../components/quote/QuoteInfoFieldRow";
 import { openDialog } from "../../lib/global/DialogManager";
 import type { QuoteViewData } from "../../lib/quote/quoteViewTypes";
+import type { QuoteRow } from "../../lib/types/quoteTypes";
 import { formatQuoteScheduleForView } from "../../lib/quote/quoteScheduleDisplay";
 import { displayStateName } from "../../lib/quote/quoteAddressFormat";
 import type { ServiceDropDownOption } from "../../services/servicesService";
@@ -13,8 +14,14 @@ import {
 } from "../../services/quoteService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
-import { toQuoteViewData } from "../../lib/quote/quoteViewMapper";
-import { computeQuotePriceBreakdown } from "../../lib/quote/quotePriceBreakdown";
+import {
+  mergeQuoteViewData,
+  toQuoteViewData,
+} from "../../lib/quote/quoteViewMapper";
+import {
+  computeQuotePriceBreakdown,
+  formatQuoteRupees,
+} from "../../lib/quote/quotePriceBreakdown";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
 import QuoteInfoPersonSection from "../../components/quote/QuoteInfoPersonSection";
 import editIcon from "../../assets/icons/edit_red.svg";
@@ -32,7 +39,7 @@ type QuoteInfoDialogProps = {
 };
 
 const STATUS_TEXT_CLASS: Record<string, string> = {
-  new: "text-primary",
+  new: "text-secondary",
   pending: "text-warning",
   accepted: "text-success",
   success: "text-success",
@@ -46,15 +53,37 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const [serviceFees, setServiceFees] = useState<
     ServiceDropDownOption | undefined
   >(undefined);
+  const baselineQuoteRef = useRef(quote);
+  baselineQuoteRef.current = quote;
 
   const quoteMongoId = String(
     quote._id ?? quote.quote_id ?? ""
   ).trim();
 
+  const applyQuoteDetail = useCallback(
+    (row: QuoteRow | null, fees: ServiceDropDownOption | undefined) => {
+      if (row) {
+        setDisplayQuote((prev) =>
+          mergeQuoteViewData(
+            toQuoteViewData(row),
+            mergeQuoteViewData(prev, baselineQuoteRef.current)
+          )
+        );
+        setServiceFees(fees);
+        return;
+      }
+      setDisplayQuote((prev) =>
+        mergeQuoteViewData(prev, baselineQuoteRef.current)
+      );
+      setServiceFees(undefined);
+    },
+    []
+  );
+
   /** View: `GET /quote/get/:id` only (not franchise related-catalog). */
   useEffect(() => {
     if (!quoteMongoId) {
-      setDisplayQuote(quote);
+      setDisplayQuote(baselineQuoteRef.current);
       setServiceFees(undefined);
       return;
     }
@@ -63,18 +92,12 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
       const { quote: row, serviceFees: fees } =
         await fetchQuoteDetailById(quoteMongoId);
       if (cancelled) return;
-      if (row) {
-        setDisplayQuote(toQuoteViewData(row));
-        setServiceFees(fees);
-      } else {
-        setDisplayQuote(quote);
-        setServiceFees(undefined);
-      }
+      applyQuoteDetail(row, fees);
     })();
     return () => {
       cancelled = true;
     };
-  }, [quoteMongoId, quote]);
+  }, [quoteMongoId, applyQuoteDetail]);
 
   const statusKey = String(displayQuote.status ?? "").toLowerCase();
   const statusTextClass =
@@ -106,10 +129,26 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
     ]
   );
 
-  const serviceLabel =
-    isSuccess || isAccepted
-      ? displayQuote.services_summary ?? displayQuote.requested_services
-      : displayQuote.requested_services;
+  const serviceLabel = useMemo(() => {
+    const candidates = [
+      isSuccess || isAccepted
+        ? displayQuote.services_summary
+        : undefined,
+      displayQuote.requested_services,
+      serviceFees?.label,
+    ];
+    for (const c of candidates) {
+      const t = String(c ?? "").trim();
+      if (t) return t;
+    }
+    return "-";
+  }, [
+    displayQuote.requested_services,
+    displayQuote.services_summary,
+    isSuccess,
+    isAccepted,
+    serviceFees?.label,
+  ]);
 
   const canEditQuote = !isSuccess && Boolean(quoteMongoId);
 
@@ -123,19 +162,19 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const partnerProfile = displayQuote.partner_profile_url ?? null;
   const employeeProfile = displayQuote.employee_profile_url ?? null;
 
+  const refreshQuoteDetail = useCallback(async () => {
+    if (!quoteMongoId) return;
+    const { quote: row, serviceFees: fees } =
+      await fetchQuoteDetailById(quoteMongoId);
+    applyQuoteDetail(row, fees);
+    onRefreshData?.();
+  }, [quoteMongoId, applyQuoteDetail, onRefreshData]);
+
   const openEditAll = () => {
     if (!quoteMongoId) return;
     void import("./QuoteEditAllDialog").then(({ default: QuoteEditAllDialog }) => {
       QuoteEditAllDialog.show(quoteMongoId, () => {
-        void (async () => {
-          const { quote: row, serviceFees: fees } =
-            await fetchQuoteDetailById(quoteMongoId);
-          if (row) {
-            setDisplayQuote(toQuoteViewData(row));
-            setServiceFees(fees);
-          }
-          onRefreshData?.();
-        })();
+        void refreshQuoteDetail();
       });
     });
   };
@@ -174,7 +213,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           <h6 className={QUOTE_SECTION_TITLE_CLASS}>Quote details</h6>
           <Row className="g-3">
             <Col xs={12} md={6}>
-              <QuoteInfoFieldRow label="Service" value={serviceLabel ?? "-"} />
+              <QuoteInfoFieldRow label="Service" value={serviceLabel} />
               <QuoteInfoFieldRow
                 label="Category"
                 value={displayQuote.category_name ?? "-"}
@@ -182,6 +221,15 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <QuoteInfoFieldRow
                 label="Quote description"
                 value={(displayQuote.description ?? "").trim() || "-"}
+              />
+              <QuoteInfoFieldRow
+                label="Service price"
+                value={
+                  displayQuote.service_price != null &&
+                  Number.isFinite(displayQuote.service_price)
+                    ? formatQuoteRupees(displayQuote.service_price)
+                    : "-"
+                }
               />
               <QuoteInfoFieldRow
                 label="Quote status"

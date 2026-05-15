@@ -1343,11 +1343,15 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const franchiseRef = nestedObj(r.franchise_id);
   const categoryRef = nestedObj(r.category_id) ?? nestedObj(r.category);
   const servicePackageRef = nestedObj(r.service_id);
+  const packageServiceRef = servicePackageRef
+    ? nestedObj(servicePackageRef.service) ??
+      nestedObj(servicePackageRef.service_id)
+    : undefined;
   const innerCatalogService = servicePackageRef
-    ? nestedObj(servicePackageRef.service_id)
+    ? nestedObj(servicePackageRef.service_id) ?? packageServiceRef
     : undefined;
   const serviceRef =
-    innerCatalogService ?? servicePackageRef ?? nestedObj(r.service);
+    innerCatalogService ?? packageServiceRef ?? servicePackageRef ?? nestedObj(r.service);
   const addressRef =
     nestedObj(r.address_id) ??
     nestedObj(r.address) ??
@@ -1365,9 +1369,12 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const requested_services = str(
     r.service_name ??
       r.requested_services ??
+      packageServiceRef?.name ??
+      packageServiceRef?.service_name ??
       innerCatalogService?.name ??
       innerCatalogService?.service_name ??
       servicePackageRef?.name ??
+      servicePackageRef?.service_name ??
       serviceRef?.name ??
       serviceRef?.service_name ??
       r.name ??
@@ -1466,8 +1473,21 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     to_date: toD || undefined,
     work_start_time: ws || undefined,
     work_end_time: we || undefined,
-    service_price:
-      r.service_price != null ? Number(r.service_price) : undefined,
+    service_price: (() => {
+      for (const key of [
+        "service_price",
+        "servicePrice",
+        "price",
+        "total_price",
+        "total_amount",
+      ] as const) {
+        const raw = r[key];
+        if (raw == null || raw === "") continue;
+        const n = Number(raw);
+        if (Number.isFinite(n)) return n;
+      }
+      return undefined;
+    })(),
     scheduled_date: str(
       r.scheduled_date ?? r.scheduledDate ?? r.scheduled_service_date
     ),
@@ -1532,9 +1552,9 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
       str(r.employee_email ?? employeeRef?.email) || undefined,
     description:
       str(
-        r.customer_description ??
+        r.quote_description ??
+          r.customer_description ??
           r.description ??
-          r.quote_description ??
           r.notes
       ) || undefined,
   };
@@ -1560,6 +1580,50 @@ function parseQuoteDateToMs(input?: string): number | null {
   const dt = new Date(fromPart);
   if (Number.isNaN(dt.getTime())) return null;
   return dt.getTime();
+}
+
+/** Schedule bounds for list filters (prefers API `from_date` / `to_date`). */
+function quoteScheduleBoundsMs(row: QuoteRow): {
+  fromMs: number | null;
+  toMs: number | null;
+} {
+  let fromYmd = str(row.from_date);
+  let toYmd = str(row.to_date);
+  if (!fromYmd) {
+    const raw = str(row.requested_date);
+    if (raw) {
+      const parts = raw.split(/\s+to\s+/i).map((p) => p.trim()).filter(Boolean);
+      fromYmd = isoOrDateToYmd(parts[0] ?? "");
+      toYmd = parts.length > 1 ? isoOrDateToYmd(parts[1]) : fromYmd;
+    }
+  }
+  if (!fromYmd && row.scheduled_date) {
+    fromYmd = isoOrDateToYmd(row.scheduled_date);
+    toYmd = fromYmd;
+  }
+  if (!toYmd && fromYmd) toYmd = fromYmd;
+  const fromMs = fromYmd
+    ? new Date(fromYmd + "T00:00:00").getTime()
+    : null;
+  const toMs = toYmd ? new Date(toYmd + "T23:59:59.999").getTime() : null;
+  return { fromMs, toMs };
+}
+
+/** Quote schedule range overlaps filter `[filterFrom, filterTo]` (inclusive days). */
+function quoteScheduleOverlapsFilter(
+  row: QuoteRow,
+  filterFromMs: number | null,
+  filterToMs: number | null
+): boolean {
+  if (filterFromMs == null && filterToMs == null) return true;
+  const { fromMs, toMs } = quoteScheduleBoundsMs(row);
+  if (fromMs == null && toMs == null) return false;
+  const qStart = fromMs ?? toMs;
+  const qEnd = toMs ?? fromMs;
+  if (qStart == null || qEnd == null) return false;
+  if (filterFromMs != null && qEnd < filterFromMs) return false;
+  if (filterToMs != null && qStart > filterToMs) return false;
+  return true;
 }
 
 function matchesKeyword(row: QuoteRow, keyword: string): boolean {
@@ -1661,17 +1725,7 @@ function filterQuotesForTab(
 
   return rows.filter((row) => {
     if (!matchesKeyword(row, keyword)) return false;
-
-    const rowDateTs = parseQuoteDateToMs(
-      tab === "accepted" || tab === "success"
-        ? row.scheduled_date || row.requested_date
-        : row.requested_date
-    );
-
-    const matchesFrom =
-      fromTs == null || (rowDateTs != null && rowDateTs >= fromTs);
-    const matchesTo = toTs == null || (rowDateTs != null && rowDateTs <= toTs);
-    return matchesFrom && matchesTo;
+    return quoteScheduleOverlapsFilter(row, fromTs, toTs);
   });
 }
 
@@ -1954,8 +2008,12 @@ export function extractServiceFeesFromQuoteRecord(
   raw: Record<string, unknown>
 ): ServiceDropDownOption | undefined {
   const servicePackageRef = nestedObj(raw.service_id) ?? nestedObj(raw.service);
+  const packageServiceRef = servicePackageRef
+    ? nestedObj(servicePackageRef.service) ??
+      nestedObj(servicePackageRef.service_id)
+    : undefined;
   const innerCatalogService = servicePackageRef
-    ? nestedObj(servicePackageRef.service_id)
+    ? nestedObj(servicePackageRef.service_id) ?? packageServiceRef
     : undefined;
   const partnerRef = nestedObj(raw.partner_id) ?? nestedObj(raw.partner);
   const serviceId =
@@ -1965,15 +2023,17 @@ export function extractServiceFeesFromQuoteRecord(
     str(raw.service_id);
   if (!serviceId && !servicePackageRef && !innerCatalogService) return undefined;
 
-  const feeRow = (servicePackageRef ?? innerCatalogService) as
-    | Record<string, unknown>
-    | undefined;
+  const feeRow = (innerCatalogService ??
+    packageServiceRef ??
+    servicePackageRef) as Record<string, unknown> | undefined;
   const catalogOpt: ServiceDropDownOption | undefined = feeRow
     ? {
         value: serviceId || str(feeRow._id),
         label:
           str(
-            innerCatalogService?.name ??
+            packageServiceRef?.name ??
+              packageServiceRef?.service_name ??
+              innerCatalogService?.name ??
               innerCatalogService?.service_name ??
               feeRow.name ??
               feeRow.service_name

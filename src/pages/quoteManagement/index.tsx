@@ -1350,9 +1350,17 @@ const QuoteManagement = () => {
         toolsInlineRow
         hideMoreIcon
         controlSlot={
-          <>
-            <div style={{ minWidth: "220px" }}>
-              <Form.Label className="mb-1 fw-medium">From Date</Form.Label>
+          <div className="d-flex flex-wrap align-items-end gap-3">
+            <span
+              className="text-muted small fw-semibold mb-2 w-100"
+              style={{ letterSpacing: "0.02em" }}
+            >
+              Schedule
+            </span>
+            <div style={{ minWidth: "200px" }}>
+              <Form.Label className="mb-1 fw-medium small">
+                Schedule from date
+              </Form.Label>
               <CustomDatePicker
                 label=""
                 controlId="from_date"
@@ -1393,11 +1401,16 @@ const QuoteManagement = () => {
                 }
                 asCol={false}
                 groupClassName="mb-0 w-100"
-                placeholderText="To Date"
-                filterDate={() => true}
+                placeholderText="Schedule to date"
+                filterDate={(date) => {
+                  if (!fromDate) return true;
+                  const from = parseIsoDateOnly(fromDate);
+                  if (!from) return true;
+                  return startOfLocalDay(date) >= startOfLocalDay(from);
+                }}
               />
             </div>
-          </>
+          </div>
         }
         afterSearchSlot={
           <Button
