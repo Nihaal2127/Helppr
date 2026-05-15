@@ -10,15 +10,23 @@ function formatDayDdMmmYyyy(iso: string): string {
   return `${day} ${mon} ${yr}`;
 }
 
-/** Parses `10:30 AM`, `4:30 PM`, `05:00 PM` → Date on 2000-01-01 for formatting */
+/** Parses `10:30 AM` or 24h `17:00` → Date on 2000-01-01 for formatting */
 function parseTimeToSameDayDate(t: string): Date | null {
-  const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return null;
-  let h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  const ap = m[3].toUpperCase();
-  if (ap === "PM" && h !== 12) h += 12;
-  if (ap === "AM" && h === 12) h = 0;
+  const trimmed = t.trim();
+  const m12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m12) {
+    let h = parseInt(m12[1], 10);
+    const min = parseInt(m12[2], 10);
+    const ap = m12[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return new Date(2000, 0, 1, h, min, 0, 0);
+  }
+  const m24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m24) return null;
+  const h = parseInt(m24[1], 10);
+  const min = parseInt(m24[2], 10);
   if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return new Date(2000, 0, 1, h, min, 0, 0);
 }
@@ -173,6 +181,22 @@ export function formatQuoteScheduleForView(row: {
   });
 }
 
+/** Collapse repeated comma-separated tokens (e.g. area/city echoed in `street`). */
+function dedupeCommaPhrase(phrase: string): string {
+  const t = String(phrase ?? "").trim();
+  if (!t) return "";
+  const parts = t.split(/[,，]/).map((p) => p.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    const key = p.toLowerCase().replace(/\s+/g, " ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out.join(", ");
+}
+
 export function formatServiceAddressLines(q: {
   door_no?: string;
   street?: string;
@@ -181,11 +205,17 @@ export function formatServiceAddressLines(q: {
   city?: string;
   pincode?: string;
 }): string {
-  const line1 = [q.door_no, q.street].filter(Boolean).join(", ");
-  const line2 = [q.area, q.landmark].filter(Boolean).join(", ");
-  const line3 = [q.city, q.pincode]
-    .filter(Boolean)
-    .join(q.pincode ? " - " : "");
+  const line1 = dedupeCommaPhrase(
+    [q.door_no, q.street].filter(Boolean).join(", ")
+  );
+  const line2 = dedupeCommaPhrase(
+    [q.area, q.landmark].filter(Boolean).join(", ")
+  );
+  const line3 = dedupeCommaPhrase(
+    [q.city, q.pincode]
+      .filter(Boolean)
+      .join(q.pincode ? " - " : "")
+  );
   const lines = [line1, line2, line3].filter((x) => x && String(x).trim());
   return lines.length ? lines.join("\n") : "-";
 }

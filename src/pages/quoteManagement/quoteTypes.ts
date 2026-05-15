@@ -70,5 +70,10 @@ export type QuoteRow = {
   partner_user_id?: string;
   partner_phone?: string;
   partner_city?: string;
+  partner_email?: string;
+  franchise_id?: string;
+  franchise_name?: string;
+  address_id?: string;
+  employee_email?: string;
   description?: string;
 };

@@ -29,10 +29,15 @@ export type QuoteViewData = {
   partner_user_id?: string;
   partner_phone?: string;
   partner_city?: string;
+  partner_email?: string;
+  franchise_id?: string;
+  franchise_name?: string;
+  address_id?: string;
   /** Employee shown in quote view */
   employee_id?: string;
   employee_name?: string;
   employee_phone?: string;
+  employee_email?: string;
   service_price?: number;
   scheduled_date?: string;
   scheduled_time_from?: string;

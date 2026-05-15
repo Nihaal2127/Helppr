@@ -15,7 +15,10 @@ import { fetchCategoryDropDown } from "./categoryService";
 import { fetchServiceDropDown } from "./servicesService";
 import type { ServiceDropDownOption } from "./servicesService";
 import { normalizeServiceCategoryRef } from "./servicesService";
-import { extractMinDepositTypeKey } from "../helper/serviceMinDepositDisplay";
+import {
+  extractMinDepositTypeKey,
+  labelForMinDepositType,
+} from "../helper/serviceMinDepositDisplay";
 import { getLocalStorage } from "../helper/localStorageHelper";
 import { AppConstant, UserRole } from "../constant/AppConstant";
 import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
@@ -824,7 +827,8 @@ export function deriveQuoteScheduleMetrics(input: {
 }
 
 /**
- * Suggested quote amount from partner line-item (`price`, `payment_type`, optional `tax` %).
+ * Suggested **pre-tax** service total from partner line (`price`, `payment_type`) × schedule.
+ * Tax is shown in the Add Quote breakdown only; do not bake tax into this amount (avoids double counting with the breakdown).
  */
 export function computeAutoQuotePriceFromPartner(
   partnerServiceRow: Record<string, unknown> | null | undefined,
@@ -847,15 +851,83 @@ export function computeAutoQuotePriceFromPartner(
   } else {
     sub = unit * metrics.days;
   }
-  const taxPct = Number(partnerServiceRow.tax ?? 0);
-  if (!Number.isFinite(taxPct) || taxPct <= 0) {
-    return Math.max(0, Math.round(sub * 100) / 100);
-  }
-  const withTax = sub * (1 + taxPct / 100);
-  return Math.max(0, Math.round(withTax * 100) / 100);
+  return Math.max(0, Math.round(sub * 100) / 100);
 }
 
-/** Prefer partners linked to `serviceId` when the API exposes linkage; otherwise full list. */
+export type QuoteSchedulePricePreview = {
+  billingLabel: string;
+  primaryLine: string;
+  secondaryLine?: string;
+  preTaxTotal: number;
+};
+
+/**
+ * One-line pre-tax total explanation for Add Quote (matches `computeAutoQuotePriceFromPartner`).
+ */
+export function buildQuoteSchedulePricePreview(
+  partnerServiceRow: Record<string, unknown> | null | undefined,
+  metrics: QuoteScheduleMetrics | null,
+  currencySymbol: string
+): QuoteSchedulePricePreview | null {
+  if (!partnerServiceRow || !metrics) return null;
+  const unit = Number(partnerServiceRow.price ?? 0);
+  if (!Number.isFinite(unit) || unit < 0) return null;
+  const rawType = str(partnerServiceRow.payment_type);
+  const key = extractMinDepositTypeKey(rawType);
+  const billingLabel = labelForMinDepositType(rawType) || key || "Billing";
+  const sym = currencySymbol;
+  const fmt = (n: number) =>
+    `${sym}${String(Math.round(n * 100) / 100).replace(/\.00$/, "")}`;
+
+  if (key === "per_hour") {
+    const totalH = metrics.total_work_hours;
+    const sub = unit * totalH;
+    return {
+      billingLabel,
+      primaryLine: `${fmt(unit)}/hr × ${totalH} h = ${fmt(sub)}`,
+      secondaryLine: `${metrics.work_hours_per_day} h/day × ${metrics.days} day(s)`,
+      preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
+    };
+  }
+  if (key === "per_day") {
+    const d = metrics.days;
+    const sub = unit * d;
+    return {
+      billingLabel,
+      primaryLine: `${fmt(unit)}/day × ${d} day(s) = ${fmt(sub)}`,
+      secondaryLine: `${metrics.work_start_time}–${metrics.work_end_time} each day`,
+      preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
+    };
+  }
+  if (key === "per_month") {
+    const months = Math.max(1, Math.ceil(metrics.days / 30));
+    const sub = unit * months;
+    return {
+      billingLabel,
+      primaryLine: `${fmt(unit)}/month × ${months} month(s) = ${fmt(sub)}`,
+      secondaryLine: `${metrics.days} day(s) in range · ${metrics.work_start_time}–${metrics.work_end_time} daily`,
+      preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
+    };
+  }
+  if (key === "per_consultancy") {
+    const sub = unit;
+    return {
+      billingLabel,
+      primaryLine: `${fmt(unit)} × 1 = ${fmt(sub)}`,
+      secondaryLine: `${metrics.work_start_time}–${metrics.work_end_time}`,
+      preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
+    };
+  }
+  const d = metrics.days;
+  const sub = unit * d;
+  return {
+    billingLabel,
+    primaryLine: `${fmt(unit)}/day × ${d} day(s) = ${fmt(sub)}`,
+    secondaryLine: `${metrics.work_start_time}–${metrics.work_end_time} each day`,
+    preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
+  };
+}
+
 export function filterCatalogPartnerRecordsByService(
   partners: Record<string, unknown>[],
   serviceId: string | undefined
@@ -906,6 +978,7 @@ const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
 const PARTNER_USER_TYPE = APP_USER_TYPE.PARTNER;
 
 const QUOTE_SORTABLE_ACCESSORS = new Set([
+  "quote_id",
   "requested_services",
   "services",
   "requested_partner",
@@ -923,7 +996,33 @@ export function normalizeQuoteListSort(sort: QuoteListSort): QuoteListSort {
 function str(v: unknown): string {
   if (v == null) return "";
   const s = String(v).trim();
-  return s === "undefined" || s === "null" ? "" : s;
+  return s === "undefined" || s === "null" || s === "[object Object]" ? "" : s;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Populated ref `{ _id, name, ... }` or raw id string/number. */
+function refId(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return str(v);
+  if (isPlainObject(v)) return str(v._id);
+  return "";
+}
+
+function nestedObj(v: unknown): Record<string, unknown> | undefined {
+  return isPlainObject(v) ? v : undefined;
+}
+
+/** API `from_date` / `to_date` may be full ISO; normalize to `YYYY-MM-DD` for schedule UI. */
+function isoOrDateToYmd(input: string): string {
+  const t = str(input);
+  if (!t) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return t;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function pad2(n: number): string {
@@ -971,8 +1070,29 @@ function hoursBetweenHHmm(start: string, end: string): number {
   return Math.max(1, Number.isFinite(diff) ? diff : 8);
 }
 
-function formatStatusLabel(raw: string): string {
-  const k = raw.trim().toLowerCase();
+/** Backend may send tab status as number (`1` = New, etc.) or string. */
+function formatStatusLabel(raw: unknown): string {
+  const byNumber: Record<number, string> = {
+    1: "New",
+    2: "Pending",
+    3: "Accepted",
+    4: "Success",
+    5: "Failed",
+  };
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const lab = byNumber[raw];
+    if (lab) return lab;
+  }
+  const s = str(raw);
+  const byDigit: Record<string, string> = {
+    "1": "New",
+    "2": "Pending",
+    "3": "Accepted",
+    "4": "Success",
+    "5": "Failed",
+  };
+  if (byDigit[s]) return byDigit[s];
+  const k = s.toLowerCase();
   const map: Record<string, string> = {
     new: "New",
     pending: "Pending",
@@ -980,7 +1100,7 @@ function formatStatusLabel(raw: string): string {
     success: "Success",
     failed: "Failed",
   };
-  return map[k] || (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "New");
+  return map[k] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : "New");
 }
 
 function extractPagedRecords(data: any): {
@@ -997,10 +1117,12 @@ function extractPagedRecords(data: any): {
     : [];
   const totalPages = Number(inner.totalPages ?? d.totalPages ?? 0) || 0;
   const rawTotal =
+    inner.totalItems ??
     inner.total_count ??
     inner.totalCount ??
     inner.total ??
     inner.count ??
+    d.totalItems ??
     d.total_count ??
     d.totalCount;
   let totalCount = Number(rawTotal);
@@ -1010,28 +1132,37 @@ function extractPagedRecords(data: any): {
 
 export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const mongoId = str(r._id);
-  const quoteId =
-    str(r.quote_id ?? r.quoteId ?? r.quote_number ?? r.reference) || mongoId;
 
-  const serviceObj = r.service as Record<string, unknown> | undefined;
-  const userObj = r.user as Record<string, unknown> | undefined;
-  const partnerObj = r.partner as Record<string, unknown> | undefined;
-  const categoryObj = r.category as Record<string, unknown> | undefined;
-  const addr =
-    (r.address as Record<string, unknown>) ||
-    (r.user_address as Record<string, unknown>) ||
-    r;
+  const userRef = nestedObj(r.user_id) ?? nestedObj(r.user);
+  const partnerRef = nestedObj(r.partner_id) ?? nestedObj(r.partner);
+  const employeeRef = nestedObj(r.employee_id);
+  const franchiseRef = nestedObj(r.franchise_id);
+  const categoryRef = nestedObj(r.category_id) ?? nestedObj(r.category);
+  const serviceRef = nestedObj(r.service_id) ?? nestedObj(r.service);
+  const addressRef =
+    nestedObj(r.address_id) ??
+    nestedObj(r.address) ??
+    nestedObj(r.user_address);
+
+  const quoteId =
+    str(
+      r.quote_sequence_id ??
+        r.quote_id ??
+        r.quoteId ??
+        r.quote_number ??
+        r.reference
+    ) || mongoId;
 
   const requested_services = str(
-    r.requested_services ??
-      r.service_name ??
-      serviceObj?.name ??
+    r.service_name ??
+      r.requested_services ??
+      serviceRef?.name ??
       r.name ??
       ""
   );
 
-  const fromD = str(r.from_date ?? r.fromDate ?? "");
-  const toD = str(r.to_date ?? r.toDate ?? "");
+  const fromD = isoOrDateToYmd(str(r.from_date ?? r.fromDate ?? ""));
+  const toD = isoOrDateToYmd(str(r.to_date ?? r.toDate ?? ""));
   let requested_date = str(r.requested_date);
   if (!requested_date && (fromD || toD)) {
     if (fromD && toD && fromD !== toD) requested_date = `${fromD} to ${toD}`;
@@ -1051,18 +1182,35 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const partnerName = str(
     r.partner_name ??
       r.requested_partner ??
-      partnerObj?.name ??
-      partnerObj?.partner_name
+      partnerRef?.name ??
+      partnerRef?.partner_name
   );
-  const requested_partner = str(r.requested_partner) || partnerName;
+  const requested_partner =
+    str(r.requested_partner) || partnerName || refId(r.partner_id);
 
-  const statusRaw = str(r.status ?? r.quote_status);
-  const status = formatStatusLabel(statusRaw || "new");
+  const status = formatStatusLabel(r.status ?? r.quote_status ?? "new");
 
   const user_name = str(
-    r.user_name ?? userObj?.name ?? r.customer_name ?? ""
+    r.user_name ?? userRef?.name ?? r.customer_name ?? ""
   );
-  const user_id = str(r.user_id ?? userObj?._id ?? "");
+  const user_id = refId(r.user_id) || refId(r.user);
+
+  const addr = addressRef ?? {};
+  const cityIdObj = nestedObj(addr.city_id);
+  const door_no = str(addr.door_no ?? addr.door_number ?? r.door_no);
+  const streetCombined = str(
+    addr.street ?? addr.street_name ?? addr.address ?? r.street
+  );
+  const city = str(
+    addr.city ??
+      addr.city_name ??
+      cityIdObj?.name ??
+      r.city ??
+      r.user_city
+  );
+  const area = str(addr.area ?? addr.area_name ?? r.area);
+  const landmark = str(addr.landmark ?? r.landmark);
+  const pincode = str(addr.pincode ?? r.pincode);
 
   return {
     _id: mongoId || quoteId,
@@ -1070,13 +1218,19 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     requested_services,
     requested_partner,
     partner_name: partnerName || undefined,
-    employee_id: str(r.employee_id ?? r.employeeId) || undefined,
-    employee_name: str(r.employee_name ?? r.employeeName) || undefined,
-    employee_phone: str(r.employee_phone ?? r.employeePhone) || undefined,
+    employee_id: refId(r.employee_id) || str(r.employeeId) || undefined,
+    employee_name:
+      str(r.employee_name ?? r.employeeName ?? employeeRef?.name) || undefined,
+    employee_phone:
+      str(
+        r.employee_phone ??
+          r.employeePhone ??
+          employeeRef?.phone_number
+      ) || undefined,
     user_name,
-    door_no: str(addr.door_no ?? addr.door_number ?? r.door_no),
-    street: str(addr.street ?? addr.street_name ?? r.street),
-    city: str(addr.city_name ?? addr.city ?? r.city),
+    door_no,
+    street: streetCombined,
+    city,
     requested_date,
     requested_time,
     service_price:
@@ -1102,25 +1256,44 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     status,
     user_id: user_id || undefined,
     phone_number:
-      str(r.phone_number ?? userObj?.phone_number ?? r.user_phone) ||
+      str(
+        r.phone_number ??
+          userRef?.phone_number ??
+          r.user_phone ??
+          addr.contact_number
+      ) || undefined,
+    user_email: str(r.user_email ?? userRef?.email) || undefined,
+    user_city: str(r.user_city ?? userRef?.city_name ?? city) || undefined,
+    profile_url: (() => {
+      const s = str(r.profile_url ?? userRef?.profile_url);
+      return s || null;
+    })(),
+    category_id: refId(r.category_id) || refId(categoryRef) || undefined,
+    category_name: str(r.category_name ?? categoryRef?.name) || undefined,
+    area: area || undefined,
+    landmark: landmark || undefined,
+    pincode: pincode || undefined,
+    service_id: refId(r.service_id) || refId(serviceRef) || undefined,
+    partner_id: refId(r.partner_id) || refId(partnerRef) || undefined,
+    partner_user_id:
+      str(r.partner_user_id ?? partnerRef?.user_id) || undefined,
+    partner_phone: str(r.partner_phone ?? partnerRef?.phone_number) || undefined,
+    partner_city: str(r.partner_city ?? partnerRef?.city_name) || undefined,
+    partner_email: str(r.partner_email ?? partnerRef?.email) || undefined,
+    franchise_id: refId(r.franchise_id) || refId(franchiseRef) || undefined,
+    franchise_name:
+      str(r.franchise_name ?? franchiseRef?.name ?? franchiseRef?.franchise_name) ||
       undefined,
-    user_email: str(r.user_email ?? userObj?.email) || undefined,
-    user_city: str(r.user_city ?? userObj?.city_name ?? addr.city) || undefined,
-    profile_url: str(r.profile_url ?? userObj?.profile_url) || null,
-    category_id: str(r.category_id ?? categoryObj?._id) || undefined,
-    category_name: str(r.category_name ?? categoryObj?.name) || undefined,
-    area: str(r.area ?? addr.area_name) || undefined,
-    landmark: str(r.landmark ?? addr.landmark) || undefined,
-    pincode: str(r.pincode ?? addr.pincode) || undefined,
-    service_id: str(r.service_id ?? serviceObj?._id) || undefined,
-    partner_id: str(r.partner_id ?? partnerObj?._id) || undefined,
-    partner_user_id: str(r.partner_user_id) || undefined,
-    partner_phone: str(
-      r.partner_phone ?? partnerObj?.phone_number
-    ) || undefined,
-    partner_city: str(r.partner_city ?? partnerObj?.city_name) || undefined,
+    address_id: refId(r.address_id) || refId(addressRef) || undefined,
+    employee_email:
+      str(r.employee_email ?? employeeRef?.email) || undefined,
     description:
-      str(r.description ?? r.quote_description ?? r.notes) || undefined,
+      str(
+        r.customer_description ??
+          r.description ??
+          r.quote_description ??
+          r.notes
+      ) || undefined,
   };
 }
 
@@ -1156,8 +1329,10 @@ function matchesKeyword(row: QuoteRow, keyword: string): boolean {
     row.requested_partner,
     row.partner_name,
     row.user_name,
+    row.category_name,
+    row.phone_number,
     row.service_price != null ? String(row.service_price) : "",
-    `${row.door_no}, ${row.street}, ${row.city}`,
+    `${row.door_no}, ${row.street}, ${row.area ?? ""}, ${row.city}`,
     row.status,
   ]
     .filter(Boolean)
@@ -1195,7 +1370,9 @@ function sortValueForColumn(row: QuoteRow, sortId: string): string | number {
       return row.status ?? "";
     case "address":
     case "location":
-      return `${row.door_no}, ${row.street}, ${row.city}`;
+      return [row.door_no, row.street, row.area, row.city, row.pincode]
+        .filter(Boolean)
+        .join(", ");
     case "time":
     case "time_range":
       return `${row.service_from_time ?? ""} ${row.service_to_time ?? ""}`;
@@ -1556,6 +1733,7 @@ export async function fetchCustomerQuotes(
   return records.map((r) => mapServerQuoteRecord(r as Record<string, unknown>));
 }
 
+/** POST `/quote/create` — `service_price` is the scheduled service total only (Add Quote breakdown is UI-only). */
 export type CreateQuoteBody = {
   user_id: string;
   category_id: string;

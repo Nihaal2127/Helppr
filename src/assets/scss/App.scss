@@ -1613,6 +1613,71 @@ body:has(.modal.show ~ .modal.show) {
       padding: 1.5rem 1.75rem 1.75rem;
     }
   }
+
+  .add-quote-schedule-panel {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 1rem 1.1rem 1.15rem;
+    background: #fafbfc;
+    margin-top: 0.25rem;
+  }
+
+  .add-quote-schedule-preview {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  }
+
+  .add-quote-schedule-preview-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--primary-color);
+    margin-bottom: 0.35rem;
+  }
+
+  .add-quote-schedule-preview-line {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.4;
+  }
+
+  .add-quote-schedule-preview-sub {
+    font-size: 13px;
+    color: #5c5c5c;
+    margin-top: 0.25rem;
+  }
+
+  /* Add quote — amount breakdown: emphasise total; soften minimum deposit */
+  .add-quote-breakdown-total-label,
+  .add-quote-breakdown-total-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111;
+  }
+
+  .add-quote-breakdown-min-deposit {
+    border-color: rgba(0, 0, 0, 0.06) !important;
+    color: #9aa0a6;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .add-quote-breakdown-min-deposit-label {
+    font-weight: 500;
+    color: #a8aeb4;
+  }
+
+  .add-quote-breakdown-min-deposit-value {
+    margin-top: 0.2rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #b0b6bc;
+    letter-spacing: 0.01em;
+  }
 }
 
 .franchise-requested-category-form .form-label,

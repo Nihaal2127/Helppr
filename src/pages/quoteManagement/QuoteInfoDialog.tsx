@@ -4,19 +4,16 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { DetailsRow, WideLabelValueBlock } from "../../helper/utility";
 import { AppConstant } from "../../constant/AppConstant";
 import { openDialog } from "../../helper/DialogManager";
-import profileIcon from "../../assets/icons/profile.svg";
-import QuoteUpdatePartnerDialog from "./QuoteUpdatePartnerDialog";
-import QuoteEditQuoteFieldsDialog from "./QuoteEditQuoteFieldsDialog";
-import QuoteEditScheduleDetailsDialog from "./QuoteEditScheduleDetailsDialog";
-import QuoteSelectEmployeeDialog from "./QuoteSelectEmployeeDialog";
 import type { QuoteViewData } from "./quoteViewTypes";
 import {
   formatQuoteScheduleForView,
   formatServiceAddressLines,
 } from "./quoteScheduleDisplay";
-import { convertQuoteToOrder } from "../../services/quoteService";
+import { convertQuoteToOrder, fetchQuoteById } from "../../services/quoteService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { toQuoteViewData } from "./quoteViewMapper";
+import profileIcon from "../../assets/icons/profile.svg";
 
 export type { QuoteViewData };
 
@@ -34,6 +31,38 @@ const statusColorMap: Record<string, string> = {
   failed: "#dc3545",
 };
 
+function InfoCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className="quote-info-card border rounded-3 mb-3"
+      style={{
+        backgroundColor: "var(--bg-color, #fff)",
+        borderColor: "rgba(0,0,0,0.08)",
+        boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+      }}
+    >
+      <div
+        className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom"
+        style={{ borderColor: "rgba(0,0,0,0.06)" }}
+      >
+        <h3 className="h6 mb-0" style={{ fontWeight: 700 }}>
+          {title}
+        </h3>
+        {action ? <div className="d-flex align-items-center gap-2">{action}</div> : null}
+      </div>
+      <div className="p-3 pt-3">{children}</div>
+    </section>
+  );
+}
+
 const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   show: (quote: QuoteViewData, onRefreshData?: () => void) => void;
 } = ({ quote, onClose, onRefreshData }) => {
@@ -46,12 +75,8 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const statusKey = String(displayQuote.status ?? "").toLowerCase();
   const statusColor = statusColorMap[statusKey] ?? "var(--primary-txt-color)";
   const isSuccess = statusKey === "success";
-  const isNew = statusKey === "new";
   const isAccepted = statusKey === "accepted";
   const quoteMongoId = String(displayQuote._id ?? displayQuote.quote_id ?? "").trim();
-
-  const showPartnerEdit = isNew || isAccepted;
-  const showEmployeeEdit = true;
 
   const partnerNameForDisplay = isAccepted
     ? displayQuote.partner_name
@@ -88,101 +113,84 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
       ? displayQuote.services_summary ?? displayQuote.requested_services
       : displayQuote.requested_services;
 
-  const canEditServicePrice = !isSuccess;
-  const canEditQuoteStatus = !isAccepted && !isSuccess;
-  const canEditSchedule = isAccepted;
-  const canEditQuoteHeaderFields = canEditServicePrice || canEditQuoteStatus;
+  const canEditQuote = !isSuccess && Boolean(quoteMongoId);
 
-  const editIcon = (onClick: () => void, ariaLabel = "Edit") => (
-    <i
-      className="bi bi-pencil-fill fs-6 text-danger"
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
-      }}
-      style={{ cursor: "pointer" }}
-      aria-label={ariaLabel}
-    />
-  );
+  const openEditAll = () => {
+    if (!quoteMongoId) return;
+    void import("./QuoteEditAllDialog").then(({ default: QuoteEditAllDialog }) => {
+      QuoteEditAllDialog.show(quoteMongoId, () => {
+        void (async () => {
+          const row = await fetchQuoteById(quoteMongoId);
+          if (row) setDisplayQuote(toQuoteViewData(row));
+          onRefreshData?.();
+        })();
+      });
+    });
+  };
 
   return (
     <Modal show={true} size="lg" onHide={onClose} centered>
-      <Modal.Header className="py-3 px-4 border-bottom-0">
-        <Modal.Title as="h5" className="custom-modal-title">
-          Quote Information
-        </Modal.Title>
-        <CustomCloseButton onClose={onClose} />
+      <Modal.Header className="py-3 px-4 border-bottom-0 align-items-start">
+        <div className="flex-grow-1 min-w-0">
+          <Modal.Title as="h5" className="custom-modal-title mb-1">
+            Quote information
+          </Modal.Title>
+          <div className="small text-muted">
+            Quote ID{" "}
+            <span className="text-body fw-semibold">{displayQuote.quote_id}</span>
+          </div>
+        </div>
+        <div className="d-flex align-items-center gap-2 flex-shrink-0">
+          {canEditQuote ? (
+            <Button
+              type="button"
+              variant="outline-primary"
+              size="sm"
+              className="d-inline-flex align-items-center gap-1"
+              onClick={openEditAll}
+            >
+              <i className="bi bi-pencil-square" aria-hidden />
+              Edit quote
+            </Button>
+          ) : null}
+          <CustomCloseButton onClose={onClose} />
+        </div>
       </Modal.Header>
       <Modal.Body
         className="px-4 pb-4 pt-0"
-        style={{ maxHeight: "70vh", overflowY: "auto" }}
+        style={{ maxHeight: "72vh", overflowY: "auto" }}
       >
-        <section className="custom-other-details" style={{ padding: "10px" }}>
-          {isSuccess && (
-            <>
-              <Row className="mb-2">
-                <Col>
-                  <h3 className="mb-0">Order</h3>
-                </Col>
-              </Row>
-              <Row>
-                <Col xs={12}>
-                  <DetailsRow
-                    title="Order ID"
-                    value={displayQuote.order_id ?? "-"}
-                  />
-                </Col>
-              </Row>
-            </>
-          )}
-          <Row className={`mb-2 align-items-center${isSuccess ? " mt-3" : ""}`}>
-            <Col>
-              <h3 className="mb-0">Quote</h3>
-            </Col>
-            {canEditQuoteHeaderFields && (
-              <Col xs="auto" className="text-end">
-                {editIcon(() => {
-                  QuoteEditQuoteFieldsDialog.show(
-                    quoteMongoId,
-                    {
-                      defaultPrice: displayQuote.service_price ?? 0,
-                      defaultStatus: displayQuote.status ?? "",
-                      showPrice: canEditServicePrice,
-                      showStatus: canEditQuoteStatus,
-                    },
-                    (patch) => {
-                      setDisplayQuote((q) => ({
-                        ...q,
-                        ...(patch.service_price != null
-                          ? { service_price: patch.service_price }
-                          : {}),
-                        ...(patch.status != null
-                          ? { status: patch.status }
-                          : {}),
-                      }));
-                      onRefreshData?.();
-                    }
-                  );
-                }, "Edit quote")}
+        {isSuccess ? (
+          <InfoCard title="Order">
+            <Row>
+              <Col xs={12}>
+                <DetailsRow
+                  title="Order ID"
+                  value={displayQuote.order_id ?? "-"}
+                />
               </Col>
-            )}
-          </Row>
-          <Row>
-            <Col className="custom-helper-column">
-              <DetailsRow title="Service" value={serviceLabel} />
-              <DetailsRow title="Category" value={displayQuote.category_name} />
-            </Col>
-            <Col className="custom-helper-column">
+            </Row>
+          </InfoCard>
+        ) : null}
+
+        <InfoCard title="Quote details">
+          <Row className="g-3">
+            <Col xs={12} md={6}>
+              <DetailsRow title="Service" value={serviceLabel ?? "-"} />
               <DetailsRow
-                title="Service Price"
+                title="Category"
+                value={displayQuote.category_name ?? "-"}
+              />
+            </Col>
+            <Col xs={12} md={6}>
+              <DetailsRow
+                title="Service price"
                 value={`${AppConstant.currencySymbol}${
                   displayQuote.service_price ?? 0
                 }`}
               />
               <DetailsRow
-                title="Quote Status"
+                title="Quote status"
                 value={
                   <span style={{ color: statusColor, fontWeight: 600 }}>
                     {displayQuote.status}
@@ -190,85 +198,34 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                 }
               />
             </Col>
-          </Row>
-          <Row className="mt-2">
             <Col xs={12}>
               <WideLabelValueBlock label="Quote description" whiteSpace="pre-line">
                 {(displayQuote.description ?? "").trim() || "-"}
               </WideLabelValueBlock>
             </Col>
-          </Row>
-          <Row className="mt-2 align-items-start g-2">
-            <Col className="min-w-0" style={{ flex: "1 1 0%" }}>
+            <Col xs={12}>
               <WideLabelValueBlock
                 label="Schedule date and time"
                 whiteSpace="pre-line"
-                gap="clamp(1rem, 6vw, 3rem)"
+                gap="clamp(1rem, 5vw, 2.5rem)"
               >
                 {scheduleDisplay}
               </WideLabelValueBlock>
             </Col>
-            {canEditSchedule && (
-              <Col xs="auto" className="pt-1 flex-shrink-0 align-self-start">
-                {editIcon(() => {
-                  QuoteEditScheduleDetailsDialog.show(
-                    quoteMongoId,
-                    displayQuote.quote_id,
-                    {
-                      scheduled_date: displayQuote.scheduled_date,
-                      scheduled_time_from: displayQuote.scheduled_time_from,
-                      scheduled_time_to: displayQuote.scheduled_time_to,
-                      status: displayQuote.status,
-                    },
-                    (patch) => {
-                      setDisplayQuote((q) => ({
-                        ...q,
-                        scheduled_date: patch.scheduled_date,
-                        scheduled_time_from: patch.scheduled_time_from,
-                        scheduled_time_to: patch.scheduled_time_to,
-                        status: patch.status,
-                      }));
-                      onRefreshData?.();
-                    }
-                  );
-                }, "Edit schedule")}
-              </Col>
-            )}
-          </Row>
-          <Row className="mt-3">
-            <Col xs={12} md={12}>
-              <h4 className="h6 mb-2">Service Address</h4>
-              <div
-                className="text-wrap"
-                style={{
-                  fontSize: 16,
-                  fontWeight: "normal",
-                  fontFamily: "Inter, sans-serif",
-                  color: "var(--txt-color)",
-                  whiteSpace: "pre-line",
-                  wordBreak: "break-word",
-                }}
-              >
+            <Col xs={12}>
+              <WideLabelValueBlock label="Service address" whiteSpace="pre-line">
                 {serviceAddressBlock || "-"}
-              </div>
+              </WideLabelValueBlock>
             </Col>
           </Row>
-        </section>
+        </InfoCard>
 
-        <section
-          className="custom-other-details mt-3"
-          style={{ padding: "10px" }}
-        >
-          <Row className="mb-2">
-            <Col>
-              <h3 className="mb-0">User</h3>
-            </Col>
-          </Row>
+        <InfoCard title="Customer">
           <Row className="g-3 align-items-start">
             <Col xs="auto" className="flex-shrink-0">
               <img
                 src={profileSrc}
-                alt="Profile"
+                alt=""
                 width={72}
                 height={72}
                 className="rounded-circle object-fit-cover"
@@ -278,7 +235,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
             <Col className="min-w-0">
               <Row className="g-2">
                 <Col sm={6}>
-                  <DetailsRow title="Name" value={displayQuote.user_name} />
+                  <DetailsRow title="Name" value={displayQuote.user_name ?? "-"} />
                   <DetailsRow
                     title="Email"
                     value={displayQuote.user_email ?? "-"}
@@ -286,132 +243,64 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                 </Col>
                 <Col sm={6}>
                   <DetailsRow
-                    title="Phone number"
-                    value={displayQuote.phone_number}
+                    title="Phone"
+                    value={displayQuote.phone_number ?? "-"}
                   />
                 </Col>
               </Row>
-              <Row className="mt-2">
-                <Col xs={12} md={12}>
-                  <WideLabelValueBlock label="Address" whiteSpace="normal">
-                    {serviceAddressBlock}
-                  </WideLabelValueBlock>
-                </Col>
-              </Row>
             </Col>
           </Row>
-        </section>
+        </InfoCard>
 
-        <section
-          className="custom-other-details mt-3"
-          style={{ padding: "10px" }}
-        >
-          <Row className="d-flex justify-content-between align-items-center mb-2">
-            <Col>
-              <h3 className="mb-0">Partner</h3>
+        <InfoCard title="Partner">
+          <Row className="g-2">
+            <Col md={4} xs={12}>
+              <DetailsRow title="Name" value={partnerNameForDisplay ?? "-"} />
             </Col>
-            {showPartnerEdit && (
-              <Col className="text-end">
-                {editIcon(() => {
-                  const defaultPid = (
-                    displayQuote.partner_id ||
-                    displayQuote.partner_user_id ||
-                    ""
-                  ).trim();
-                  QuoteUpdatePartnerDialog.show(
-                    quoteMongoId || undefined,
-                    displayQuote.service_id,
-                    defaultPid || undefined,
-                    (partnerId, partnerName) => {
-                      setDisplayQuote((q) => ({
-                        ...q,
-                        requested_partner: partnerName,
-                        partner_id: partnerId,
-                        partner_name: partnerName,
-                        partner_user_id: isAccepted
-                          ? partnerId
-                          : q.partner_user_id,
-                      }));
-                      onRefreshData?.();
-                    },
-                    {
-                      serviceLabel,
-                      categoryName: displayQuote.category_name ?? "",
-                    },
-                    true
-                  );
-                }, "Change partner")}
-              </Col>
-            )}
-          </Row>
-          <Row>
-            <Col md={6} className="custom-helper-column">
-              <DetailsRow title="Name" value={partnerNameForDisplay} />
-            </Col>
-            <Col md={6} className="custom-helper-column">
+            <Col md={4} xs={12}>
               <DetailsRow
-                title="Phone number"
-                value={displayQuote.partner_phone}
+                title="Phone"
+                value={displayQuote.partner_phone ?? "-"}
               />
             </Col>
-          </Row>
-          <Row className="mt-2">
-            <Col xs={12} md={12}>
-              <WideLabelValueBlock label="Address" whiteSpace="normal">
-                {displayQuote.partner_city}
-              </WideLabelValueBlock>
-            </Col>
-          </Row>
-        </section>
-
-        <section
-          className="custom-other-details mt-3"
-          style={{ padding: "10px" }}
-        >
-          <Row className="mb-2">
-            <Col>
-              <h3 className="mb-0">Employee</h3>
-            </Col>
-            {showEmployeeEdit && (
-              <Col className="text-end">
-                {editIcon(() => {
-                  QuoteSelectEmployeeDialog.show(
-                    quoteMongoId || undefined,
-                    displayQuote.quote_id,
-                    {
-                      employee_id: displayQuote.employee_id,
-                      employee_name: displayQuote.employee_name,
-                      employee_phone: displayQuote.employee_phone,
-                    },
-                    (patch) => {
-                      setDisplayQuote((q) => ({
-                        ...q,
-                        employee_id: patch.employee_id,
-                        employee_name: patch.employee_name,
-                        employee_phone: patch.employee_phone,
-                      }));
-                      onRefreshData?.();
-                    }
-                  );
-                }, "Change employee")}
-              </Col>
-            )}
-          </Row>
-          <Row>
-            <Col className="custom-helper-column">
-              <DetailsRow title="Name" value={displayQuote.employee_name} />
-            </Col>
-            <Col className="custom-helper-column">
+            <Col md={4} xs={12}>
               <DetailsRow
-                title="Phone number"
+                title="Email"
+                value={displayQuote.partner_email ?? "-"}
+              />
+            </Col>
+            {(displayQuote.partner_city ?? "").trim() ? (
+              <Col xs={12}>
+                <WideLabelValueBlock label="Location / service area" whiteSpace="normal">
+                  {displayQuote.partner_city}
+                </WideLabelValueBlock>
+              </Col>
+            ) : null}
+          </Row>
+        </InfoCard>
+
+        <InfoCard title="Employee">
+          <Row className="g-2">
+            <Col md={4} xs={12}>
+              <DetailsRow title="Name" value={displayQuote.employee_name ?? "-"} />
+            </Col>
+            <Col md={4} xs={12}>
+              <DetailsRow
+                title="Phone"
                 value={displayQuote.employee_phone ?? "-"}
               />
             </Col>
+            <Col md={4} xs={12}>
+              <DetailsRow
+                title="Email"
+                value={displayQuote.employee_email ?? "-"}
+              />
+            </Col>
           </Row>
-        </section>
+        </InfoCard>
 
         {isAccepted && quoteMongoId ? (
-          <div className="px-4 pb-3 pt-2 border-top">
+          <div className="pt-1">
             <Button
               type="button"
               className="custom-btn-primary"
