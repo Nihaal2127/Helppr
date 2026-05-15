@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Col, Form, Row } from "react-bootstrap";
-import { useForm, UseFormRegister } from "react-hook-form";
+import type { UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import { FinancialSubPageBackButton } from "../../../components/FinancialSubPageNav";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -20,7 +20,10 @@ import {
   textUnderlineCell,
 } from "../../../helper/utility";
 import { AppConstant } from "../../../lib/global/AppConstant";
-import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
+import {
+  FRANCHISE_HEADER_ALL,
+  useFranchiseHeaderForm,
+} from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import CustomTable from "../../../components/CustomTable";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
@@ -36,8 +39,8 @@ import { UserDetailsDialog } from "../../../components/user";
 import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 
-/** Temporary fallback while order-payments API returns 500. */
-const USE_MOCK_ORDER_PAYMENTS = true;
+/** Live `GET /order_service/getAll` (set true only for offline UI work). */
+const USE_MOCK_ORDER_PAYMENTS = false;
 
 const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
   {
@@ -246,13 +249,16 @@ function buildListFilters(p: {
   partnerPaymentScope: string;
   fromDate: string;
   toDate: string;
+  franchiseId?: string;
 }): FinancialListFilters {
+  const fid = String(p.franchiseId ?? "").trim();
   const out: FinancialListFilters = {
     ...(p.keyword ? { keyword: p.keyword } : {}),
     ...(p.sort ? { sort: p.sort } : {}),
     ...(p.orderStatus ? { service_status: p.orderStatus } : {}),
     ...(p.fromDate ? { from_date: p.fromDate } : {}),
     ...(p.toDate ? { to_date: p.toDate } : {}),
+    ...(fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : {}),
   };
   if (p.customerPaymentScope) {
     out.customer_payment_status = p.customerPaymentScope;
@@ -281,11 +287,11 @@ function formatInrGroupedAmount(amount: number): string {
 const OrderPayments = () => {
   const navigate = useNavigate();
 
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
-    franchise_id: string;
-  }>({
-    defaultValues: franchiseHeaderFormDefaults(),
-  });
+  const {
+    register: headerRegister,
+    setValue: setHeaderValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
 
   const [summary, setSummary] = useState<{
     completedOrders: number;
@@ -348,8 +354,10 @@ const OrderPayments = () => {
     const out: FinancialListFilters = {};
     if (fromDate) out.from_date = fromDate;
     if (toDate) out.to_date = toDate;
+    const fid = headerFranchiseId.trim();
+    if (fid && fid !== FRANCHISE_HEADER_ALL) out.franchise_id = fid;
     return out;
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, headerFranchiseId]);
 
   useEffect(() => {
     if (USE_MOCK_ORDER_PAYMENTS) {
@@ -426,6 +434,7 @@ const OrderPayments = () => {
         partnerPaymentScope: p.partnerPaymentScope,
         fromDate: p.fromDate,
         toDate: p.toDate,
+        franchiseId: headerFranchiseId,
       });
       if (USE_MOCK_ORDER_PAYMENTS) {
         const rows = applyMockFilters(MOCK_ORDER_PAYMENTS_ROWS, merged);
@@ -448,7 +457,7 @@ const OrderPayments = () => {
       }
       fetchRef.current = false;
     },
-    [sortBy]
+    [sortBy, headerFranchiseId]
   );
 
   useEffect(() => {

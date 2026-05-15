@@ -118,12 +118,14 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
         status: patch.status,
       });
       if (!ok) {
-        const acceptedFailed =
-          showStatus &&
-          normalizeStatus(patch.status ?? "") === "accepted";
+        const statusKey = showStatus
+          ? normalizeStatus(patch.status ?? "")
+          : "";
         showErrorAlert(
-          acceptedFailed
-            ? "Could not accept quote or create order. Please try again."
+          statusKey === "success"
+            ? "Could not convert quote to order. Please try again."
+            : statusKey === "accepted"
+            ? "Could not accept quote. Please try again."
             : "Could not update quote. Please try again."
         );
         return;
@@ -131,11 +133,12 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     }
 
     onSaved(patch);
-    const acceptedSaved =
-      showStatus && normalizeStatus(patch.status ?? "") === "accepted";
+    const statusKey = showStatus ? normalizeStatus(patch.status ?? "") : "";
     showSuccessAlert(
-      acceptedSaved
-        ? "Quote accepted and order created."
+      statusKey === "success"
+        ? "Order created successfully."
+        : statusKey === "accepted"
+        ? "Quote accepted."
         : "Quote updated successfully."
     );
     onClose();

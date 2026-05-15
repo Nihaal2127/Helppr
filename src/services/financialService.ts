@@ -3,8 +3,9 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { FinancialModel } from "../lib/models/FinancialModel";
 import { OrderModel } from "../lib/order/OrderModel";
 import { showLog } from "../helper/utility";
-import { fetchOrderById } from "../lib/order/orderService";
+import { fetchOrderById } from "./orderService";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 /**
  * `order_service/getAll` rows usually omit populated `user_info` / `partner_info`.
@@ -69,6 +70,7 @@ export type FinancialListFilters = {
   from_date?: string;
   to_date?: string;
   order_id?: string;
+  franchise_id?: string | null;
 };
 
 export const fetchFinancial = async (
@@ -85,6 +87,12 @@ export const fetchFinancial = async (
   totalItems?: number;
 }> => {
   const primarySort = sortBy[0];
+  const fidRaw = String(filters.franchise_id ?? "").trim();
+  const franchiseId =
+    fidRaw && fidRaw.toLowerCase() !== "all" && sessionMayUseFranchiseIdApiFilter()
+      ? fidRaw
+      : "";
+
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
@@ -110,6 +118,7 @@ export const fetchFinancial = async (
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),
     ...(filters.order_id && { order_id: filters.order_id }),
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
   });
 
   const response = await apiRequest(

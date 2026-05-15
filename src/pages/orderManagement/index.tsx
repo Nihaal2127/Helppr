@@ -10,7 +10,13 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { textUnderlineCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import { deleteOrder, fetchOrder } from "../../lib/order/orderService";
+import {
+  deleteOrder,
+  fetchOrder,
+  mapOrderTabCountsFromRecord,
+  ORDER_TAB_KEYS,
+} from "../../services/orderService";
+import type { OrderTabKey } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
 import { OrderModel } from "../../lib/order/OrderModel";
 import { showOrderInfoDialog } from "../../components/order";
@@ -33,77 +39,6 @@ import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
-
-const ORDER_TAB_KEYS = [2, 3, 4, 5] as const;
-type OrderTabKey = (typeof ORDER_TAB_KEYS)[number];
-
-/**
- * Maps `getCount` `record` for `type: "order-management"` into tab totals (status keys 2–5).
- */
-function mapGetCountRecordToOrderTabCounts(
-  record: Record<string, unknown> | null | undefined
-): Partial<Record<OrderTabKey, number>> | null {
-  if (!record || typeof record !== "object") return null;
-  const byLower = new Map(
-    Object.entries(record).map(([k, v]) => [k.toLowerCase(), v])
-  );
-  const pick = (...aliases: string[]): number | null => {
-    for (const a of aliases) {
-      const v = byLower.get(a.toLowerCase());
-      if (v !== undefined && v !== null) {
-        const n = Number(v);
-        if (Number.isFinite(n)) return n;
-      }
-    }
-    return null;
-  };
-  const out: Partial<Record<OrderTabKey, number>> = {};
-  const assign = (key: OrderTabKey, ...aliases: string[]) => {
-    const n = pick(...aliases);
-    if (n !== null) out[key] = n;
-  };
-  assign(
-    2,
-    "order_in_progress",
-    "in_progress",
-    "orders_in_progress",
-    "order_status_2",
-    "status_2",
-    "total_order_in_progress"
-  );
-  assign(
-    3,
-    "order_completed",
-    "completed",
-    "orders_completed",
-    "order_status_3",
-    "status_3",
-    "total_order_completed"
-  );
-  assign(
-    4,
-    "order_cancelled",
-    "cancelled",
-    "orders_cancelled",
-    "order_status_4",
-    "status_4",
-    "total_order_cancelled"
-  );
-  assign(
-    5,
-    "order_refunded",
-    "refunded",
-    "orders_refunded",
-    "order_status_5",
-    "status_5",
-    "total_order_refunded"
-  );
-  if (Object.keys(out).length === 0) return null;
-  for (const k of ORDER_TAB_KEYS) {
-    if (out[k] === undefined) out[k] = 0;
-  }
-  return out;
-}
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
@@ -184,7 +119,7 @@ const OrderManagement = () => {
         ? (countModel as unknown as Record<string, unknown>)
         : null;
     const mapped =
-      responseCount && rec ? mapGetCountRecordToOrderTabCounts(rec) : null;
+      responseCount && rec ? mapOrderTabCountsFromRecord(rec) : null;
     if (mapped) {
       setOrderCountsByTab(mapped);
       return;
@@ -469,10 +404,13 @@ const OrderManagement = () => {
             </Button>
           }
           onDownloadClick={async () => {
+            const fid = String(headerFranchiseId ?? "").trim();
             await exportData(ApiPaths.EXPORT_ORDER, {
               order_status: selectedStatus,
               ...(fromDate && { from_date: fromDate }),
               ...(toDate && { to_date: toDate }),
+              ...(fid &&
+                fid !== FRANCHISE_HEADER_ALL && { franchise_id: fid }),
             });
           }}
           onSortClick={(value) => {

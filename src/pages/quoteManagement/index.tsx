@@ -1601,9 +1601,14 @@ const QuoteManagement = () => {
                         <div className="small text-muted">
                           Loading address options…
                         </div>
-                      ) : addQuoteAddressUi.error ? (
-                        <div className="small text-danger">{addQuoteAddressUi.error}</div>
-                      ) : addQuoteAddressUi.rows.length ? (
+                      ) : (
+                        <>
+                          {addQuoteAddressUi.error ? (
+                            <div className="small text-danger mb-2">
+                              {addQuoteAddressUi.error}
+                            </div>
+                          ) : null}
+                          {addQuoteAddressUi.rows.length ? (
                         <div className="add-quote-address-cards-grid mb-5">
                           {addQuoteAddressUi.rows.map((row) => {
                             const selected =
@@ -1725,11 +1730,13 @@ const QuoteManagement = () => {
                             );
                           })}
                         </div>
-                      ) : (
+                          ) : !addQuoteAddressUi.error ? (
                         <div className="small text-warning">
                           No saved address on file for this customer. Add an address
                           to the user profile before creating a quote.
                         </div>
+                          ) : null}
+                        </>
                       )}
                     </Col>
                   </Row>

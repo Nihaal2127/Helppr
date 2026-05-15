@@ -117,8 +117,13 @@ const STATUS_OPTIONS: OptionType[] = [
   { value: "new", label: "New" },
   { value: "pending", label: "Pending" },
   { value: "accepted", label: "Accepted" },
+  { value: "success", label: "Success" },
   { value: "failed", label: "Failed" },
 ];
+
+function QuoteAddressPanelError({ message }: { message: string }) {
+  return <p className="small text-danger mb-2">{message}</p>;
+}
 
 const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   show: (quoteMongoId: string, onSaved?: () => void) => void;
@@ -716,8 +721,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       ok = await applyQuoteHeaderPatch(id, { status: nextStatus });
       if (!ok) {
         const statusMsg =
-          nextStatus === "accepted"
-            ? "Quote was updated, but could not be accepted or converted to an order."
+          nextStatus === "success"
+            ? "Quote was updated, but could not be converted to an order."
+            : nextStatus === "accepted"
+            ? "Quote was updated, but could not be accepted."
             : "Quote was updated, but status could not be changed.";
         showErrorAlert(statusMsg);
         onSaved?.();
@@ -726,11 +733,15 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       }
     }
 
+    const statusChangedToSuccess =
+      nextStatus === "success" && nextStatus !== prev;
     const statusChangedToAccepted =
       nextStatus === "accepted" && nextStatus !== prev;
     showSuccessAlert(
-      statusChangedToAccepted
-        ? "Quote accepted and order created."
+      statusChangedToSuccess
+        ? "Order created successfully."
+        : statusChangedToAccepted
+        ? "Quote accepted."
         : "Quote updated."
     );
     onSaved?.();
@@ -918,16 +929,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       <div className="small text-muted">
                         Loading address options…
                       </div>
-                    ) : addressUi.error ? (
-                      <div className="small text-danger">{addressUi.error}</div>
-                    ) : addressUi.rows.length ? (
-                      <div className="add-quote-address-cards-grid mb-4">
-                        {renderAddressCards(addressUi.rows)}
-                      </div>
                     ) : (
-                      <div className="small text-warning">
-                        No saved address on file for this customer.
-                      </div>
+                      <>
+                        {addressUi.error ? (
+                          <QuoteAddressPanelError message={addressUi.error} />
+                        ) : null}
+                        {addressUi.rows.length ? (
+                          <div className="add-quote-address-cards-grid mb-4">
+                            {renderAddressCards(addressUi.rows)}
+                          </div>
+                        ) : !addressUi.error ? (
+                          <div className="small text-warning">
+                            No saved address on file for this customer.
+                          </div>
+                        ) : null}
+                      </>
                     )}
                   </Col>
                 </Row>

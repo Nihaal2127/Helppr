@@ -97,6 +97,7 @@ export const ApiPaths = {
   CREATE_ORDER: "/order/create",
   GET_ORDER: () => `/order/getAll`,
   GET_ORDER_BY_ID: () => `/order/get`,
+  GET_CUSTOMER_ORDERS: "/order/getCustomerOrder",
   UPDATE_ORDER: (id: string) => `/order/update/${id}`,
   DELETE_ORDER: (id: string) => `/order/delete/${id}`,
   CANCLE_ORDER: (id: string) => `/order/cancle/${id}`,

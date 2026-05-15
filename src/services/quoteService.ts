@@ -2237,13 +2237,14 @@ export async function applyQuoteHeaderPatch(
   if (patch.status != null) {
     const sk = patch.status.trim().toLowerCase();
     if (sk === "accepted") {
-      // Approve (pending → approved), then convert creates the order (→ success).
-      await approveQuote(id);
-      return convertQuoteToOrder(id);
+      const ok = await approveQuote(id);
+      if (!ok) return false;
     } else if (sk === "failed") {
       const ok = await rejectQuote(id, "Marked as failed");
       if (!ok) return false;
     } else if (sk === "success") {
+      // Convert requires an approved quote; then POST /quote/convert creates the order.
+      await approveQuote(id);
       const ok = await convertQuoteToOrder(id);
       if (!ok) return false;
     } else if (sk === "pending" || sk === "new") {
