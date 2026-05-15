@@ -1,4 +1,5 @@
 import type { AddQuoteFormValues, QuoteRow } from "../types/quoteTypes";
+import { normalizeQuoteApiStatus } from "../../services/quoteService";
 
 export type EditQuoteFormValues = AddQuoteFormValues & {
   quote_status: string;
@@ -61,7 +62,7 @@ function ymdChunk(isoish: string): string {
 }
 
 export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
-  const statusKey = String(row.status ?? "").toLowerCase();
+  const statusKey = normalizeQuoteApiStatus(row.status) || "new";
   const useScheduled = statusKey === "accepted" || statusKey === "success";
 
   let requested_date = "";
@@ -71,9 +72,19 @@ export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
 
   if (useScheduled) {
     const sched = String(row.scheduled_date ?? "").trim();
-    requested_date = sched ? ymdChunk(sched) : "";
-    requested_time_from = workTimeToTimeStorage(row.service_from_time);
-    requested_time_to = workTimeToTimeStorage(row.service_to_time);
+    if (sched) {
+      requested_date = ymdChunk(sched);
+      requested_time_from = workTimeToTimeStorage(row.service_from_time);
+      requested_time_to = workTimeToTimeStorage(row.service_to_time);
+    } else {
+      // GET /quote/get often has from_date + work_* only (no scheduled_date).
+      const fromYmd = row.from_date ? ymdChunk(row.from_date) : "";
+      const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
+      requested_date = fromYmd;
+      requested_date_to = toYmd && toYmd !== fromYmd ? toYmd : "";
+      requested_time_from = workTimeToTimeStorage(row.work_start_time);
+      requested_time_to = workTimeToTimeStorage(row.work_end_time);
+    }
   } else {
     const fromYmd = row.from_date
       ? ymdChunk(row.from_date)

@@ -102,8 +102,7 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
     if (showStatus) {
       const key = normalizeStatus(data.status);
       if (!key) return;
-      const opt = STATUS_OPTIONS.find((o) => o.value === key);
-      patch.status = opt?.label ?? data.status;
+      patch.status = key;
     }
 
     if (Object.keys(patch).length === 0) {

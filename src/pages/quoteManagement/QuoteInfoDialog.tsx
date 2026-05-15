@@ -329,9 +329,16 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                   "Convert",
                   "Cancel",
                   async () => {
-                    const ok = await convertQuoteToOrder(quoteMongoId);
-                    if (ok) {
-                      showSuccessAlert("Quote converted to order.");
+                    const result = await convertQuoteToOrder(quoteMongoId);
+                    if (result.ok) {
+                      const orderLabel = result.orderUniqueId
+                        ? ` Order ${result.orderUniqueId}.`
+                        : "";
+                      showSuccessAlert(
+                        result.alreadyLinked
+                          ? `Quote is already linked to an order.${orderLabel}`
+                          : `Quote converted to order.${orderLabel}`
+                      );
                       onRefreshData?.();
                       onClose();
                     } else {

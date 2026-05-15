@@ -1256,6 +1256,48 @@ function hoursBetweenHHmm(start: string, end: string): number {
 }
 
 /**
+ * API `status` string (or legacy numeric) → lowercase bucket key for tabs / PUT body.
+ */
+export function normalizeQuoteApiStatus(raw: unknown): string {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const byNumber: Record<number, string> = {
+      1: "new",
+      2: "pending",
+      3: "accepted",
+      4: "success",
+      5: "failed",
+    };
+    const mapped = byNumber[raw];
+    if (mapped) return mapped;
+  }
+  const s = str(raw).toLowerCase();
+  const map: Record<string, string> = {
+    new: "new",
+    pending: "pending",
+    accepted: "accepted",
+    approved: "accepted",
+    success: "success",
+    converted: "success",
+    failed: "failed",
+    rejected: "failed",
+    cancelled: "failed",
+    canceled: "failed",
+    expired: "failed",
+    "1": "new",
+    "2": "pending",
+    "3": "accepted",
+    "4": "success",
+    "5": "failed",
+  };
+  return map[s] || s;
+}
+
+/** Display label for table / view (from API status key). */
+export function quoteStatusDisplayLabel(apiStatus: string): string {
+  return formatStatusLabel(apiStatus);
+}
+
+/**
  * Normalizes API status (lifecycle codes, bucket labels, or display strings) to UI tab labels.
  * List/count buckets (`new`, `pending`, …) are applied server-side on `getAll` / `getCounts`.
  */
@@ -1408,13 +1450,10 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const requested_partner =
     str(r.requested_partner) || partnerName || refId(r.partner_id);
 
-  const status = formatStatusLabel(
-    r.status_label ??
-      r.status_name ??
-      r.status ??
-      r.quote_status ??
-      "new"
+  const statusApi = normalizeQuoteApiStatus(
+    r.status ?? r.status_label ?? r.status_name ?? r.quote_status ?? "new"
   );
+  const status = quoteStatusDisplayLabel(statusApi);
 
   const user_name = str(
     r.user_name ?? userRef?.name ?? r.customer_name ?? ""
@@ -1565,7 +1604,7 @@ function filterQuotesByStatusTab(
   tab: QuoteTabKey
 ): QuoteRow[] {
   const want = tab.toLowerCase();
-  return records.filter((r) => String(r.status ?? "").toLowerCase() === want);
+  return records.filter((r) => normalizeQuoteApiStatus(r.status) === want);
 }
 
 function parseQuoteDateToMs(input?: string): number | null {
@@ -1994,6 +2033,51 @@ async function quoteMutation(
   return Boolean(res.success);
 }
 
+export type QuoteUpdateResult = {
+  success: boolean;
+  message?: string;
+  record?: Record<string, unknown>;
+  order?: { order_id?: string; unique_id?: string };
+};
+
+async function quotePut(
+  quoteMongoId: string,
+  body: Record<string, unknown>
+): Promise<QuoteUpdateResult> {
+  const id = str(quoteMongoId);
+  if (!id) return { success: false };
+  const payload = toQuoteApiBody(body);
+  const res = await apiRequest(
+    ApiPaths.UPDATE_QUOTE(id),
+    "PUT",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  const data = (res.data ?? {}) as Record<string, unknown>;
+  const orderRaw = data.order;
+  const order =
+    orderRaw != null && typeof orderRaw === "object" && !Array.isArray(orderRaw)
+      ? (orderRaw as Record<string, unknown>)
+      : undefined;
+  return {
+    success: Boolean(res.success),
+    message: str(data.message) || undefined,
+    record:
+      data.record != null && typeof data.record === "object"
+        ? (data.record as Record<string, unknown>)
+        : undefined,
+    order: order
+      ? {
+          order_id: str(order._id ?? order.order_id) || undefined,
+          unique_id: str(order.unique_id ?? order.order_id) || undefined,
+        }
+      : undefined,
+  };
+}
+
 /**
  * Tax / commission / min-deposit for view breakdown from `GET /quote/get/:id`
  * populated `service_id` / `partner_id` — no related-catalog call.
@@ -2173,45 +2257,57 @@ export async function updateQuote(
   quoteMongoId: string,
   patch: Record<string, unknown>
 ): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
-  return quoteMutation("PUT", ApiPaths.UPDATE_QUOTE(id), patch);
+  const res = await quotePut(quoteMongoId, patch);
+  return res.success;
 }
 
+/** PUT `/quote/update/:id` with `status: "accepted"`. */
 export async function approveQuote(quoteMongoId: string): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
-  return quoteMutation("PUT", ApiPaths.APPROVE_QUOTE(id));
+  return updateQuote(quoteMongoId, { status: "accepted" });
 }
 
+/** PUT `/quote/update/:id` with `status: "failed"` + `rejection_reason`. */
 export async function rejectQuote(
   quoteMongoId: string,
   rejection_reason: string
 ): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
-  return quoteMutation("PUT", ApiPaths.REJECT_QUOTE(id), {
+  return updateQuote(quoteMongoId, {
+    status: "failed",
     rejection_reason: str(rejection_reason) || "Rejected",
   });
 }
 
+/** PUT `/quote/update/:id` with `status: "failed"` + `cancellation_reason`. */
 export async function cancelQuote(
   quoteMongoId: string,
   cancellation_reason: string
 ): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
-  return quoteMutation("PUT", ApiPaths.CANCEL_QUOTE(id), {
+  return updateQuote(quoteMongoId, {
+    status: "failed",
     cancellation_reason: str(cancellation_reason) || "Cancelled",
   });
 }
 
+export type ConvertQuoteToOrderResult = {
+  ok: boolean;
+  orderUniqueId?: string;
+  alreadyLinked?: boolean;
+};
+
+/** PUT `/quote/update/:id` with `status: "success"` (creates order; idempotent if already linked). */
 export async function convertQuoteToOrder(
   quoteMongoId: string
-): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
-  return quoteMutation("POST", ApiPaths.CONVERT_QUOTE(id));
+): Promise<ConvertQuoteToOrderResult> {
+  const res = await quotePut(quoteMongoId, { status: "success" });
+  if (!res.success) return { ok: false };
+  const msg = str(res.message).toLowerCase();
+  const alreadyLinked = msg.includes("already linked");
+  const orderUniqueId =
+    res.order?.unique_id ||
+    str(res.record?.order_id) ||
+    res.order?.order_id ||
+    undefined;
+  return { ok: true, orderUniqueId, alreadyLinked };
 }
 
 export async function deleteQuote(quoteMongoId: string): Promise<boolean> {
@@ -2220,39 +2316,42 @@ export async function deleteQuote(quoteMongoId: string): Promise<boolean> {
   return quoteMutation("DELETE", ApiPaths.DELETE_QUOTE(id));
 }
 
-/** Applies price / status from the quote header editor (approve / reject / update). */
+export type QuoteHeaderPatch = {
+  service_price?: number;
+  /** API status key or display label (`new`, `Accepted`, …). */
+  status?: string;
+  rejection_reason?: string;
+  cancellation_reason?: string;
+};
+
+/** Price and/or status via single PUT `/quote/update/:id`. */
 export async function applyQuoteHeaderPatch(
   quoteMongoId: string,
-  patch: { service_price?: number; status?: string }
+  patch: QuoteHeaderPatch
 ): Promise<boolean> {
-  const id = str(quoteMongoId);
-  if (!id) return false;
+  const body: Record<string, unknown> = {};
 
   if (patch.service_price != null) {
-    const ok = await updateQuote(id, { service_price: patch.service_price });
-    if (!ok) return false;
+    body.service_price = patch.service_price;
   }
 
   if (patch.status != null) {
-    const sk = patch.status.trim().toLowerCase();
-    if (sk === "accepted") {
-      const ok = await approveQuote(id);
-      if (!ok) return false;
-    } else if (sk === "failed") {
-      const ok = await rejectQuote(id, "Marked as failed");
-      if (!ok) return false;
-    } else if (sk === "success") {
-      // Convert requires an approved quote; then POST /quote/convert creates the order.
-      await approveQuote(id);
-      const ok = await convertQuoteToOrder(id);
-      if (!ok) return false;
-    } else if (sk === "pending" || sk === "new") {
-      const ok = await updateQuote(id, { status: sk });
-      if (!ok) return false;
+    const sk = normalizeQuoteApiStatus(patch.status);
+    if (!sk) return false;
+    body.status = sk;
+    if (sk === "failed") {
+      if (patch.cancellation_reason) {
+        body.cancellation_reason = str(patch.cancellation_reason);
+      } else if (patch.rejection_reason) {
+        body.rejection_reason = str(patch.rejection_reason);
+      } else {
+        body.rejection_reason = "Marked as failed";
+      }
     }
   }
 
-  return true;
+  if (Object.keys(body).length === 0) return true;
+  return updateQuote(quoteMongoId, body);
 }
 
 export async function applyQuoteSchedulePatch(

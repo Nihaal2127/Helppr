@@ -188,12 +188,10 @@ export function mapOrderTabCountsFromRecord(
   return out;
 }
 
-function resolveFranchiseIdForQuery(
-  franchiseId?: string | null
-): string {
+function resolveFranchiseIdForQuery(franchiseId?: string | null): string {
   const fidRaw = str(franchiseId);
   if (!fidRaw || fidRaw.toLowerCase() === "all") return "";
-  return sessionMayUseFranchiseIdApiFilter() ? fidRaw : fidRaw;
+  return sessionMayUseFranchiseIdApiFilter() ? fidRaw : "";
 }
 
 /**

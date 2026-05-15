@@ -15,6 +15,7 @@ import {
   applyQuoteHeaderPatch,
   buildQuoteSchedulePricePreview,
   computeAutoQuotePriceFromPartner,
+  convertQuoteToOrder,
   deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
   fetchQuoteDetailById,
@@ -25,6 +26,7 @@ import {
   getQuoteScheduleModeFromServiceOption,
   mapRelatedCatalogToQuoteOptions,
   mergeQuoteServiceFeesForBreakdown,
+  normalizeQuoteApiStatus,
   resolveFranchiseIdForQuoteForm,
   updateQuote,
 } from "../../services/quoteService";
@@ -222,7 +224,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       }
       setQuoteRow(row);
       setApiServiceFees(serviceFees);
-      initialStatusKeyRef.current = String(row.status ?? "").toLowerCase();
+      initialStatusKeyRef.current =
+        normalizeQuoteApiStatus(row.status) || "new";
     })();
     return () => {
       cancelled = true;
@@ -593,6 +596,33 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
+    const nextStatus = normalizeQuoteApiStatus(data.quote_status);
+    const prev = initialStatusKeyRef.current;
+    const isConvertToOrder = nextStatus === "success" && prev !== "success";
+
+    if (isConvertToOrder) {
+      if (prev !== "accepted") {
+        showErrorAlert("Quote must be accepted before converting to an order.");
+        return;
+      }
+      const result = await convertQuoteToOrder(id);
+      if (!result.ok) {
+        showErrorAlert("Could not convert quote to order.");
+        return;
+      }
+      const orderLabel = result.orderUniqueId
+        ? ` Order ${result.orderUniqueId}.`
+        : "";
+      showSuccessAlert(
+        result.alreadyLinked
+          ? `Quote is already linked to an order.${orderLabel}`
+          : `Order created successfully.${orderLabel}`
+      );
+      onSaved?.();
+      onClose();
+      return;
+    }
+
     const price = Number.parseFloat(String(data.service_price).trim());
     if (Number.isNaN(price) || price < 0) {
       showErrorAlert("Enter a valid service price.");
@@ -715,16 +745,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    const nextStatus = String(data.quote_status ?? "").trim().toLowerCase();
-    const prev = initialStatusKeyRef.current;
     if (nextStatus && nextStatus !== prev) {
       ok = await applyQuoteHeaderPatch(id, { status: nextStatus });
       if (!ok) {
         const statusMsg =
-          nextStatus === "success"
-            ? "Quote was updated, but could not be converted to an order."
-            : nextStatus === "accepted"
+          nextStatus === "accepted"
             ? "Quote was updated, but could not be accepted."
+            : nextStatus === "failed"
+            ? "Quote was updated, but status could not be changed."
             : "Quote was updated, but status could not be changed.";
         showErrorAlert(statusMsg);
         onSaved?.();
@@ -733,16 +761,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       }
     }
 
-    const statusChangedToSuccess =
-      nextStatus === "success" && nextStatus !== prev;
     const statusChangedToAccepted =
       nextStatus === "accepted" && nextStatus !== prev;
     showSuccessAlert(
-      statusChangedToSuccess
-        ? "Order created successfully."
-        : statusChangedToAccepted
-        ? "Quote accepted."
-        : "Quote updated."
+      statusChangedToAccepted ? "Quote accepted." : "Quote updated."
     );
     onSaved?.();
     onClose();
@@ -850,6 +872,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     });
 
   const lockedFields = catalogBusy || !quoteRow;
+  const quoteStatusKey = normalizeQuoteApiStatus(quoteRow?.status) || "new";
+  const isTerminalQuoteStatus =
+    quoteStatusKey === "success" || quoteStatusKey === "failed";
 
   return (
     <Modal
@@ -1472,7 +1497,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             height: "35px",
                             fontSize: "14px",
                           }}
-                          disabled={lockedFields}
+                          disabled={lockedFields || isTerminalQuoteStatus}
                           {...register("quote_status")}
                         >
                           {STATUS_OPTIONS.map((o) => (

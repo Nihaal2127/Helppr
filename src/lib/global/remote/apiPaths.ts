@@ -150,10 +150,6 @@ export const ApiPaths = {
   GET_QUOTE_CUSTOMER_QUOTES: () => `/quote/getCustomerQuotes`,
   CREATE_QUOTE: () => `/quote/create`,
   UPDATE_QUOTE: (id: string) => `/quote/update/${id}`,
-  APPROVE_QUOTE: (id: string) => `/quote/approve/${id}`,
-  REJECT_QUOTE: (id: string) => `/quote/reject/${id}`,
-  CANCEL_QUOTE: (id: string) => `/quote/cancel/${id}`,
-  CONVERT_QUOTE: (id: string) => `/quote/convert/${id}`,
   DELETE_QUOTE: (id: string) => `/quote/delete/${id}`,
   GET_QUOTE_COUNTS: () => `/quote/getCounts`,
   // Partner management
