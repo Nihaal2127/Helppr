@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { DetailsRow } from "../../../helper/utility";
 
 type PortfolioModel = {

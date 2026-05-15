@@ -17,7 +17,7 @@ import {
   formatDate,
   textUnderlineCell,
 } from "../../../helper/utility";
-import { OfferModel } from "../../../models/SettingsModel";
+import { OfferModel } from "../../../lib/models/SettingsModel";
 import {
   ensureSettingsSeedData,
   getOffers,

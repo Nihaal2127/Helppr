@@ -8,9 +8,9 @@ import { fetchServiceDropDown } from "../../services/servicesService";
 import { fetchUserDropDown } from "../../services/userService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
-import { FranchiseModel } from "../../models/FranchiseModels";
-import { AreaModel } from "../../models/AreaModel";
-import type { ReportOptionType } from "./reportFilterShared";
+import { FranchiseModel } from "../../lib/models/FranchiseModels";
+import { AreaModel } from "../../lib/models/AreaModel";
+import type { ReportOptionType } from "../../lib/reports/reportFilterShared";
 import {
   reportAllOption as allOption,
   reportFilterLabelClass as filterLabelClass,
@@ -20,7 +20,7 @@ import {
   loadAllFranchiseRows,
   loadAllAreaRows,
   CUSTOMER_USER_TYPE,
-} from "./reportFilterShared";
+} from "../../lib/reports/reportFilterShared";
 
 type OptionType = ReportOptionType;
 

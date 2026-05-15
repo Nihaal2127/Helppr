@@ -1,6 +1,6 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { TaxOtherChargesModel } from "../models/TaxOtherChargesModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { TaxOtherChargesModel } from "../lib/models/TaxOtherChargesModel";
 
 export const fetchTaxOtherChargesById = async (): Promise<{
   response: boolean;

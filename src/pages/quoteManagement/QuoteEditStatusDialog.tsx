@@ -2,8 +2,8 @@ import React, { useEffect } from "react";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showSuccessAlert } from "../../lib/global/alertHelper";
 import CustomFormSelect from "../../components/CustomFormSelect";
 
 type QuoteEditStatusDialogProps = {

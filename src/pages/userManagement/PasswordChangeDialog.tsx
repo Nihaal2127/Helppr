@@ -2,10 +2,10 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
+import { UserModel } from "../../lib/models/UserModel";
 import { createOrUpdateUser } from "../../services/userService";
 import CustomTextField from "../../components/CustomTextField";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type PasswordChangeDialogProps = {
   user: UserModel;

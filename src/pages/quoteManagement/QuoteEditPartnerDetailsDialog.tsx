@@ -9,9 +9,9 @@ import {
   isValidE164StylePhone,
   nationalDigitsWithoutIndia91,
   sanitizeIndiaNationalPhoneInput,
-} from "../../helper/userFormValidation";
-import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
+} from "../../lib/user/userFormValidation";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showSuccessAlert } from "../../lib/global/alertHelper";
 
 export type QuotePartnerDetailsPatch = {
   partner_name: string;

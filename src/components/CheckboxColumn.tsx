@@ -1,4 +1,4 @@
-import { FinancialModel } from "../models/FinancialModel";
+import { FinancialModel } from "../lib/models/FinancialModel";
 
 const CheckboxColumn = (
   data: FinancialModel[],

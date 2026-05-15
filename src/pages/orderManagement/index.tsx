@@ -10,14 +10,14 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { textUnderlineCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
-import { deleteOrder, fetchOrder } from "../../services/orderService";
+import { deleteOrder, fetchOrder } from "../../lib/order/orderService";
 import { exportData } from "../../services/exportService";
-import { OrderModel } from "../../models/OrderModel";
-import { showOrderInfoDialog } from "./OrderInfoDialog";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { showOrderInfoDialog } from "../../components/order";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
-import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
-import { ApiPaths } from "../../remote/apiPaths";
+import { OrderStatusEnum } from "../../lib/order/OrderStatusEnum";
+import { UserDetailsDialog } from "../../components/user";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm, UseFormRegister } from "react-hook-form";
@@ -27,12 +27,12 @@ import {
   getCustomerPaymentStatusLabel,
   getOrderPartnerDisplayName,
   getPartnerPaymentStatusLabel,
-} from "../../helper/orderDisplayHelpers";
+} from "../../lib/order/orderDisplayHelpers";
 import { getCount } from "../../services/getCountService";
 import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
-} from "../../hooks/useFranchiseScopedGetCount";
+} from "../../lib/global/hooks/useFranchiseScopedGetCount";
 
 const ORDER_TAB_KEYS = [2, 3, 4, 5] as const;
 type OrderTabKey = (typeof ORDER_TAB_KEYS)[number];

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Row, Col, Button, Card } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import { fetchUserHomeCountsById } from "../../../services/userHomeCountsService";
-import { UserHomeCountsModel } from "../../../models/UserHomeCountsModel";
+import { UserHomeCountsModel } from "../../../lib/models/UserHomeCountsModel";
 import AddEditUserHomeCountsDialog from "./AddEditUserHomeCountsDialog";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";

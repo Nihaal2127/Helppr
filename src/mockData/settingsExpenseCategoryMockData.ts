@@ -1,4 +1,4 @@
-import type { ExpenseCategoryModel } from "../models/SettingsModel";
+import type { ExpenseCategoryModel } from "../lib/models/SettingsModel";
 
 export const expenseCategoriesMockSeed: Array<
   Omit<ExpenseCategoryModel, "id" | "createdDate">

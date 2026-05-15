@@ -10,13 +10,13 @@ import {
   markNotificationAsRead,
 } from "../services/notificationService";
 import { formatDate } from "../helper/utility";
-import { getLocalStorage } from "../helper/localStorageHelper";
+import { getLocalStorage } from "../lib/global/localStorageHelper";
 import {
   HEADER_FRANCHISE_CHANGED_EVENT,
   readHeaderFranchisePreference,
   writeHeaderFranchisePreference,
-} from "../helper/headerFranchisePreference";
-import { AppConstant, UserRole } from "../constant/AppConstant";
+} from "../lib/franchise/headerFranchisePreference";
+import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import {
   fetchFranchiseById,
   fetchFranchiseDropDown,

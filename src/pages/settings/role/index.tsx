@@ -19,11 +19,11 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import { CustomFormIndiaMobile } from "../../../components/CustomFormIndiaMobile";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
-import { readHeaderFranchisePreference } from "../../../helper/headerFranchisePreference";
+import { readHeaderFranchisePreference } from "../../../lib/franchise/headerFranchisePreference";
 import {
   RoleSettingsModel,
   StaffSettingsModel,
-} from "../../../models/SettingsModel";
+} from "../../../lib/models/SettingsModel";
 import {
   ensureSettingsSeedData,
   createRoleUserWithApi,
@@ -35,15 +35,15 @@ import {
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
-import { showErrorAlert } from "../../../helper/alertHelper";
-import { mainMenuItems } from "../../../layout/menuItems";
+import { showErrorAlert } from "../../../lib/global/alertHelper";
+import { mainMenuItems } from "../../../lib/layout/menuItems";
 import {
   getFranchiseEmployeeScreenMenuItems,
   isFranchiseEmployeeExcludedScreenKey,
   labelForFranchiseEmployeeScreenKey,
-} from "../../../layout/franchiseEmployeeScreenPermissions";
-import { AppConstant, UserRole } from "../../../constant/AppConstant";
-import { getLocalStorage } from "../../../helper/localStorageHelper";
+} from "../../../lib/layout/franchiseEmployeeScreenPermissions";
+import { AppConstant, UserRole } from "../../../lib/global/AppConstant";
+import { getLocalStorage } from "../../../lib/global/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
 import {
   WEB_MANAGEMENT_USER_TYPE,
@@ -53,7 +53,7 @@ import {
   fetchFranchiseDropDown,
   FranchiseDropDownOption,
 } from "../../../services/franchiseService";
-import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import {
   isValidUserEmail,
   isValidE164StylePhone,
@@ -62,7 +62,7 @@ import {
   fullPhoneFromIndiaNational,
   validateStrongPassword,
   passwordsMatch,
-} from "../../../helper/userFormValidation";
+} from "../../../lib/user/userFormValidation";
 
 const emptyRoleForm = {
   roleName: "",

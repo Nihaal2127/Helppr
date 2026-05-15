@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ROUTES } from "../../routes/Routes";
-import { normalChatConversations } from "./chatMockData";
+import { normalChatConversations } from "../../mockData/ticketManagement/chatMockData";
 
 const NormalChatListPage = () => {
   const navigate = useNavigate();

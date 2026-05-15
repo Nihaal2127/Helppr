@@ -3,8 +3,8 @@ import ReactDOM from "react-dom";
 import { Modal, Button, Row } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import uploadIcon from "../assets/icons/upload.svg";
-import { showErrorAlert } from "../helper/alertHelper";
-import { AppConstant } from "../constant/AppConstant";
+import { showErrorAlert } from "../lib/global/alertHelper";
+import { AppConstant } from "../lib/global/AppConstant";
 import {
   getSupportedImageExtensions,
   getSupportedImageMaxSizeBytes,

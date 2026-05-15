@@ -6,7 +6,6 @@ module.exports = function override(config) {
     "react/jsx-runtime": "react/jsx-runtime.js",
     "react/jsx-dev-runtime": "react/jsx-dev-runtime.js",
   };
-
   // Some dependencies ship sourceMappingURL pointing at files not published in the package (ENOENT noise).
   config.ignoreWarnings = [
     ...(config.ignoreWarnings || []),

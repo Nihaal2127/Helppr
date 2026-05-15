@@ -4,8 +4,8 @@ import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { updateStatusDocument } from "../../services/partnerDocumentService";
 import CustomTextField from "../../components/CustomTextField";
-import { DocumentModel } from "../../models/DocumentModel";
-import { openDialog } from "../../helper/DialogManager";
+import { DocumentModel } from "../../lib/models/DocumentModel";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type RejectDocumentDialogProps = {
   documentReject: DocumentModel;

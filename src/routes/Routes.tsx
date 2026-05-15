@@ -55,20 +55,20 @@ const PartnerPayoutShow = lazyPage(
 );
 const FinancialRefunds = lazyPage(() => import("../pages/financial/refunds"));
 const TicketManagement = lazyPage(() => import("../pages/ticketManagement"));
-const Error404 = lazyPage(() => import("../pages/Error404"));
-const Error500 = lazyPage(() => import("../pages/Error500"));
-const PrivacyPolicy = lazyPage(() => import("../pages/PrivacyPolicy"));
-const TermsConditions = lazyPage(() => import("../pages/TermsConditions"));
-const AboutUs = lazyPage(() => import("../pages/AboutUs"));
+const Error404 = lazyPage(() => import("../pages/public/Error404"));
+const Error500 = lazyPage(() => import("../pages/public/Error500"));
+const PrivacyPolicy = lazyPage(() => import("../pages/public/PrivacyPolicy"));
+const TermsConditions = lazyPage(() => import("../pages/public/TermsConditions"));
+const AboutUs = lazyPage(() => import("../pages/public/AboutUs"));
 const PartnerPrivacyPolicy = lazyPage(
-  () => import("../pages/PartnerPrivacyPolicy")
+  () => import("../pages/public/PartnerPrivacyPolicy")
 );
 const PartnerTermsConditions = lazyPage(
-  () => import("../pages/PartnerTermsConditions")
+  () => import("../pages/public/PartnerTermsConditions")
 );
 const CalendarPage = lazyPage(() => import("../pages/calendar"));
 const QuoteManagement = lazyPage(() => import("../pages/quoteManagement"));
-const Reports = lazyPage(() => import("../pages/reports/Index"));
+const Reports = lazyPage(() => import("../pages/reports"));
 const NotificationsPage = lazyPage(() => import("../pages/notifications"));
 const ExpensesManagement = lazyPage(() => import("../pages/expenses"));
 const NormalChatListPage = React.lazy(

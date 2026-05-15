@@ -7,22 +7,22 @@ import React, {
 } from "react";
 import { Modal, Row, Col, Form, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
-import { DocumentModel } from "../../models/DocumentModel";
+import { UserModel } from "../../lib/models/UserModel";
+import { DocumentModel } from "../../lib/models/DocumentModel";
 import { fetchUserById, updatePartnerVerificationDecision } from "../../services/userService";
 import {
   partnerVerificationLabel,
   normalizePartnerVerification,
   PARTNER_VERIFICATION,
-} from "../../constant/partnerVerification";
+} from "../../lib/partner/partnerVerification";
 import { DetailsRow, formatDate } from "../../helper/utility";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
-import { openDialog } from "../../helper/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { openDialog } from "../../lib/global/DialogManager";
 import editIcon from "../../assets/icons/edit_red.svg";
 import deleteIcon from "../../assets/icons/delete_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant } from "../../lib/global/AppConstant";
 import {
   deletePartnerDocument,
   updatePartnerDocument,
@@ -33,8 +33,8 @@ import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
-import { buildViewCategoryServiceGroups } from "./partnerCategoryServiceView";
-import type { ViewCategoryServicesGroup } from "./partnerCategoryServiceView";
+import { buildViewCategoryServiceGroups } from "../../lib/partner/partnerCategoryServiceView";
+import type { ViewCategoryServicesGroup } from "../../lib/partner/partnerCategoryServiceView";
 import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
 import AddEditUserDialog from "./AddEditUserDialog";
 

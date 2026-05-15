@@ -1,4 +1,4 @@
-import { apiRequestBlob } from "../remote/apiHelper";
+import { apiRequestBlob } from "../lib/global/remote/apiHelper";
 
 export const exportData = async (path: string, payload?: any) => {
   const response = await apiRequestBlob(path, payload);

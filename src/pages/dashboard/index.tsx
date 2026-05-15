@@ -14,10 +14,10 @@ import { Bar, Pie } from "react-chartjs-2";
 import CustomHeader from "../../components/CustomHeader";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { DashboardCard, formatDate } from "../../helper/utility";
-import { DashboardModel } from "../../models/DashboardModel";
-import { getDashboardData } from "../../services/dashboardService";
+import { DashboardModel } from "../../lib/dashboard/dashboardModel";
+import { getDashboardData } from "../../lib/dashboard/dashboardService";
 import CustomDatePicker from "../../components/CustomDatePicker";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant } from "../../lib/global/AppConstant";
 
 type DateRangeType =
   | "TODAY"

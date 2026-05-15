@@ -1,4 +1,4 @@
-import type { SubscriptionPlanModel } from "../models/SubscriptionPlanModel";
+import type { SubscriptionPlanModel } from "../lib/models/SubscriptionPlanModel";
 
 /** Mock seed only — no imports from pages (keeps mock data free of UI modules). */
 export const partnerSubscriptionPlansSeed: SubscriptionPlanModel[] = [

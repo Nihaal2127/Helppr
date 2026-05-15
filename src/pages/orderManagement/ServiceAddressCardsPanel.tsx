@@ -8,11 +8,11 @@ import type {
 import type {
   ServiceAddressCard,
   AddressCityDropdownRow,
-} from "../../models/OrderItemModel";
+} from "../../lib/order/OrderItemModel";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
+import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import type { CustomerSavedAddressPreview } from "../../helper/userAddressPreview";
+import type { CustomerSavedAddressPreview } from "../../lib/user/userAddressPreview";
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 

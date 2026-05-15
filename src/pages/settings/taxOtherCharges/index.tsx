@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Row, Col, Button, Card } from "react-bootstrap";
 import { fetchTaxOtherChargesById } from "../../../services/taxOtherChargesService";
-import { TaxOtherChargesModel } from "../../../models/TaxOtherChargesModel";
+import { TaxOtherChargesModel } from "../../../lib/models/TaxOtherChargesModel";
 import AddEditTaxOtherChargesDialog from "./AddEditTaxOtherChargesDialog";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
-import { AppConstant } from "../../../constant/AppConstant";
+import { AppConstant } from "../../../lib/global/AppConstant";
 
 const TaxOtherCharges = () => {
   const [taxOtherChargesDetails, setTaxOtherChargesDetails] =

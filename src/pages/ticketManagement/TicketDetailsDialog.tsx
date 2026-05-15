@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { TicketModel } from "../../models/TicketModel";
+import { TicketModel } from "../../lib/models/TicketModel";
 import { fetchTicketById } from "../../services/ticketService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import {
@@ -11,7 +11,7 @@ import {
   FullDetailsRow,
 } from "../../helper/utility";
 import EditTicketDialog from "./EditTicketDialog";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type TicketDetailsDialogProps = {
   ticketId: string;

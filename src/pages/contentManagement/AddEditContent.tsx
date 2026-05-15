@@ -5,7 +5,7 @@ import CustomHeader from "../../components/CustomHeader";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { useForm } from "react-hook-form";
-import { showErrorAlert, showInfoAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showInfoAlert } from "../../lib/global/alertHelper";
 import {
   fetchContentById,
   normalizeEditorHtml,

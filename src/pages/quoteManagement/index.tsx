@@ -18,9 +18,9 @@ import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicke
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { useForm, UseFormRegister } from "react-hook-form";
-import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "./quoteTypes";
-import { toQuoteViewData } from "./quoteViewMapper";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../../lib/types/quoteTypes";
+import { toQuoteViewData } from "../../lib/quote/quoteViewMapper";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import {
   buildCreateQuotePayload,
@@ -45,24 +45,24 @@ import {
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import { extractMinDepositTypeKey } from "../../helper/serviceMinDepositDisplay";
-import { partnerCatalogControlStyle } from "../userManagement/partnerCatalogBlockUi";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
-import { AppConstant, UserRole } from "../../constant/AppConstant";
+import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
+import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { franchiseHeaderFormDefaults } from "../../lib/franchise/headerFranchisePreference";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
-import { formatQuoteScheduleForTable, formatServiceAddressLines } from "./quoteScheduleDisplay";
+import { formatQuoteScheduleForTable, formatServiceAddressLines } from "../../lib/quote/quoteScheduleDisplay";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
   normalizePincodeDigits,
-} from "./quoteFranchisePins";
-import { setQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
+} from "../../lib/quote/quoteFranchisePins";
+import { setQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import {
   displayStateName,
   formatAddressLineFromRecord,
-} from "./quoteAddressFormat";
+} from "../../lib/quote/quoteAddressFormat";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>

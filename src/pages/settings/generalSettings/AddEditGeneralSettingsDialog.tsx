@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import CustomTextField from "../../../components/CustomTextField";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { GeneralSettingsModel } from "./index";
 
 type AddEditGeneralSettingsDialogProps = {

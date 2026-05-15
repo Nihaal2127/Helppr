@@ -1,8 +1,8 @@
 import ReactDOM from "react-dom";
 import { Modal } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
-import { DocumentModel } from "../models/DocumentModel";
-import { AppConstant } from "../constant/AppConstant";
+import { DocumentModel } from "../lib/models/DocumentModel";
+import { AppConstant } from "../lib/global/AppConstant";
 import { verificationStatusCell } from "../helper/utility";
 
 export const CustomImagePreviewDialog = (documentPreview: DocumentModel) => {

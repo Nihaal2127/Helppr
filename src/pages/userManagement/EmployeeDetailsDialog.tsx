@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
+import { UserModel } from "../../lib/models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import { DetailsRow, formatDate, DetailsRowStatus } from "../../helper/utility";
 import AddEditUserDialog from "./AddEditUserDialog";
-import { AppConstant } from "../../constant/AppConstant";
-import { RoleEnum } from "../../constant/RoleEnum";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { RoleEnum } from "../../lib/global/RoleEnum";
 import PasswordChangeDialog from "./PasswordChangeDialog";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type EmployeeDetailsDialogProps = {
   userId: string;

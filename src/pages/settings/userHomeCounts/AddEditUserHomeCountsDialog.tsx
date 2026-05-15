@@ -2,11 +2,11 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
-import { showErrorAlert } from "../../../helper/alertHelper";
+import { showErrorAlert } from "../../../lib/global/alertHelper";
 import CustomTextField from "../../../components/CustomTextField";
-import { UserHomeCountsModel } from "../../../models/UserHomeCountsModel";
+import { UserHomeCountsModel } from "../../../lib/models/UserHomeCountsModel";
 import { createOrUpdateUserHomeCounts } from "../../../services/userHomeCountsService";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 
 type AddEditUserHomeCountsDialogProps = {
   isEditable: boolean;

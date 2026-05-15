@@ -13,10 +13,10 @@ import {
 import {
   getLocalStorage,
   setLocalStorage,
-} from "../../helper/localStorageHelper";
-import { showErrorAlert } from "../../helper/alertHelper";
-import { AppConstant, UserRole } from "../../constant/AppConstant";
-import type { UserModel } from "../../models/UserModel";
+} from "../../lib/global/localStorageHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
+import type { UserModel } from "../../lib/models/UserModel";
 
 type PersistedUserRole = (typeof UserRole)[keyof typeof UserRole];
 

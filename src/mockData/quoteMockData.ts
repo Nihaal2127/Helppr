@@ -1,4 +1,4 @@
-import type { QuoteRow } from "../pages/quoteManagement/quoteTypes";
+import type { QuoteRow } from "../lib/types/quoteTypes";
 
 /**
  * Same shape as list API `data`: flat `records`. Each row includes `status` as stored in DB

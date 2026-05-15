@@ -1,16 +1,16 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { CategoryModel } from "../models/CategoryModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { CategoryModel } from "../lib/models/CategoryModel";
 import { showLog } from "../helper/utility";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
-import { showErrorAlert } from "../helper/alertHelper";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
+import { showErrorAlert } from "../lib/global/alertHelper";
 import {
   buildCatalogGetAllQueryParams,
   buildCategoryGetAllPath,
   catalogGetAllDebugLog,
   messageForCatalogGetAllFailure,
   parseFranchiseIdForCatalogGetAll,
-} from "../helper/franchiseCatalog";
+} from "../lib/franchise/franchiseCatalog";
 
 const FRANCHISE_SCOPE_ALL = "all";
 
@@ -151,7 +151,7 @@ export async function fetchCategoryDropDown(
 export const fetchCategory = async (
   page: number,
   pageSize: number,
-  filters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters,
+  filters: import("../lib/franchise/franchiseCatalog").FranchiseCatalogListFilters,
   sortBy: ServerTableSortBy = [],
   franchiseId?: string | null
 ): Promise<{

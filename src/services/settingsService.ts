@@ -3,16 +3,16 @@ import {
   OfferModel,
   RoleSettingsModel,
   StaffSettingsModel,
-} from "../models/SettingsModel";
+} from "../lib/models/SettingsModel";
 import { offersMockSeed } from "../mockData/settingsOffersMockData";
 import { rolesMockSeed } from "../mockData/settingsRolesMockData";
 import { staffMockSeed } from "../mockData/settingsStaffMockData";
 import { expenseCategoriesMockSeed } from "../mockData/settingsExpenseCategoryMockData";
-import { AppConstant } from "../constant/AppConstant";
-import { getLocalStorage } from "../helper/localStorageHelper";
-import { showErrorAlert } from "../helper/alertHelper";
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
+import { AppConstant } from "../lib/global/AppConstant";
+import { getLocalStorage } from "../lib/global/localStorageHelper";
+import { showErrorAlert } from "../lib/global/alertHelper";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
 import {
   createWebManagementUser,
   fetchUserById,
@@ -21,9 +21,9 @@ import {
   staffAvailablePagesFromMenuKeys,
   WEB_MANAGEMENT_USER_TYPE,
 } from "./userService";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { fetchFranchiseById } from "./franchiseService";
-import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

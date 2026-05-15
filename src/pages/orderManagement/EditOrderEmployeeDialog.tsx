@@ -3,10 +3,10 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { OrderModel } from "../../models/OrderModel";
-import { createOrUpdateOrder } from "../../services/orderService";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
 import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
 

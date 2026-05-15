@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type CancleDialogProps = {
   title: string;

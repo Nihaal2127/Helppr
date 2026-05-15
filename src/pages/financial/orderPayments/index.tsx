@@ -19,8 +19,8 @@ import {
   priceCell,
   textUnderlineCell,
 } from "../../../helper/utility";
-import { AppConstant } from "../../../constant/AppConstant";
-import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
+import { AppConstant } from "../../../lib/global/AppConstant";
+import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
 import CustomTable from "../../../components/CustomTable";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
@@ -29,12 +29,12 @@ import {
   fetchFinancial,
   FinancialListFilters,
 } from "../../../services/financialService";
-import { FinancialModel } from "../../../models/FinancialModel";
-import { deleteOrder } from "../../../services/orderService";
-import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
-import UserDetailsDialog from "../../userManagement/UserDetailsDialog";
+import { FinancialModel } from "../../../lib/models/FinancialModel";
+import { deleteOrder } from "../../../lib/order/orderService";
+import { showOrderInfoDialog } from "../../../components/order";
+import { UserDetailsDialog } from "../../../components/user";
 import { ROUTES } from "../../../routes/Routes";
-import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 
 /** Temporary fallback while order-payments API returns 500. */
 const USE_MOCK_ORDER_PAYMENTS = true;

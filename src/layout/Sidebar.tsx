@@ -2,20 +2,20 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
-import { mainMenuItems, profileMenuItems } from "./menuItems";
+import { mainMenuItems, profileMenuItems } from "../lib/layout/menuItems";
 import {
   clearLocalStorage,
   getLocalStorage,
   setLocalStorage,
-} from "../helper/localStorageHelper";
-import { AppConstant } from "../constant/AppConstant";
-import { isMockAuthSession } from "../helper/authSessionHelper";
+} from "../lib/global/localStorageHelper";
+import { AppConstant } from "../lib/global/AppConstant";
+import { isMockAuthSession } from "../lib/global/authSessionHelper";
 import { logout } from "../services/adminService";
 import { ROUTES } from "../routes/Routes";
 import {
   isMainMenuItemVisibleForRole,
   parseAllowedMenuKeys,
-} from "../routes/roleAccess";
+} from "../lib/routes/roleAccess";
 import { openConfirmDialog } from "../components/CustomConfirmDialog";
 import clsx from "clsx";
 

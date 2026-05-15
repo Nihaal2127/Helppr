@@ -2,8 +2,8 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
-import { openDialog } from "../../../helper/DialogManager";
-import { AppConstant } from "../../../constant/AppConstant";
+import { openDialog } from "../../../lib/global/DialogManager";
+import { AppConstant } from "../../../lib/global/AppConstant";
 
 type PayoutDialogProps = {
   totalCommision: number;

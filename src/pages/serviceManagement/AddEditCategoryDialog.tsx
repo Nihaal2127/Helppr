@@ -8,14 +8,14 @@ import React, {
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { CategoryModel } from "../../models/CategoryModel";
+import { CategoryModel } from "../../lib/models/CategoryModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
 import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   createOrUpdateCategory,
   createOrUpdateCategoryWithRecord,
@@ -23,7 +23,7 @@ import {
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { fetchServicesForCategoryDialog } from "../../services/servicesService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 
 type AddEditCategoryDialogProps = {

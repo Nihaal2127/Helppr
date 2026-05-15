@@ -1,4 +1,4 @@
-import type { NotificationModel } from "../models/NotificationModel";
+import type { NotificationModel } from "../lib/models/NotificationModel";
 
 export const notificationsMockSeed: Array<
   Omit<NotificationModel, "id" | "createdAt">

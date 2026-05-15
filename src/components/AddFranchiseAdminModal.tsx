@@ -19,9 +19,9 @@ import {
   passwordsMatch,
   sanitizeIndiaNationalPhoneInput,
   validateStrongPassword,
-} from "../helper/userFormValidation";
-import { showErrorAlert } from "../helper/alertHelper";
-import { openDialog } from "../helper/DialogManager";
+} from "../lib/user/userFormValidation";
+import { showErrorAlert } from "../lib/global/alertHelper";
+import { openDialog } from "../lib/global/DialogManager";
 
 const MODAL_DOM_ID = "add-franchise-admin-nested-dialog";
 

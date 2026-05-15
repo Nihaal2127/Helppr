@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Button, Col, Row } from "react-bootstrap";
-import { AppConstant } from "../constant/AppConstant";
-import { showErrorAlert } from "../helper/alertHelper";
+import { AppConstant } from "../lib/global/AppConstant";
+import { showErrorAlert } from "../lib/global/alertHelper";
 import {
   getSupportedImageExtensions,
   getSupportedImageMaxSizeBytes,

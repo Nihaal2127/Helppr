@@ -4,14 +4,14 @@ import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { fetchUser } from "../../../services/userService";
 import { fetchAllFinancialRowsMatching } from "../../../services/financialService";
 import { submitPartnerWalletPayout } from "../../../services/partnerPayoutService";
-import { FinancialModel } from "../../../models/FinancialModel";
-import { UserModel } from "../../../models/UserModel";
-import { AppConstant } from "../../../constant/AppConstant";
-import { showErrorAlert } from "../../../helper/alertHelper";
+import { FinancialModel } from "../../../lib/models/FinancialModel";
+import { UserModel } from "../../../lib/models/UserModel";
+import { AppConstant } from "../../../lib/global/AppConstant";
+import { showErrorAlert } from "../../../lib/global/alertHelper";
 
 type AddPayoutDialogProps = {
   onClose: () => void;

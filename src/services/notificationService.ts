@@ -2,7 +2,7 @@ import {
   NotificationFilters,
   NotificationModel,
   NotificationModule,
-} from "../models/NotificationModel";
+} from "../lib/models/NotificationModel";
 import { notificationsMockSeed } from "../mockData/notificationMockData";
 
 let mockNotifications: NotificationModel[] = notificationsMockSeed.map(

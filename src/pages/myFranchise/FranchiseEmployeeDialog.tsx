@@ -6,12 +6,12 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import {
   getFranchiseEmployeeScreenMenuItems,
   isFranchiseEmployeeExcludedScreenKey,
-} from "../../layout/franchiseEmployeeScreenPermissions";
+} from "../../lib/layout/franchiseEmployeeScreenPermissions";
 import { menuKeysFromAvailablePages } from "../../services/userService";
 import type { EmployeeRow } from "../../services/myFranchiseService";
 import {
@@ -27,7 +27,7 @@ import {
   sanitizeIndiaNationalPhoneInput,
   validateStrongPassword,
   passwordsMatch,
-} from "../../helper/userFormValidation";
+} from "../../lib/user/userFormValidation";
 
 type EmployeeFormValues = {
   name: string;

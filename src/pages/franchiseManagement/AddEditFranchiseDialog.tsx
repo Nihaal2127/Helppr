@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { FranchiseModel } from "../../models/FranchiseModels";
+import { FranchiseModel } from "../../lib/models/FranchiseModels";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   createOrUpdateFranchise,
   fetchFranchise,
@@ -26,7 +26,7 @@ import {
   fetchUser,
   WEB_MANAGEMENT_USER_TYPE,
 } from "../../services/userService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 import { openAddFranchiseAdminModal } from "../../components/AddFranchiseAdminModal";
 
 type AddEditFranchiseDialogProps = {

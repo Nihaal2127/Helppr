@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import { ROUTES } from "../../routes/Routes";
-import { franchiseHeaderFormDefaults } from "../../helper/headerFranchisePreference";
+import { franchiseHeaderFormDefaults } from "../../lib/franchise/headerFranchisePreference";
 
 const Financials = () => {
   const navigate = useNavigate();

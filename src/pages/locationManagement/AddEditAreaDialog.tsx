@@ -7,16 +7,16 @@ import {
 } from "react-hook-form";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { AreaModel } from "../../models/AreaModel";
+import { AreaModel } from "../../lib/models/AreaModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { createOrUpdateArea } from "../../services/areaService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type PincodeTagFieldProps = {
   value: string[];

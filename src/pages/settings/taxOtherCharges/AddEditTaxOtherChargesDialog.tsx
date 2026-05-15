@@ -2,11 +2,11 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
-import { showErrorAlert } from "../../../helper/alertHelper";
+import { showErrorAlert } from "../../../lib/global/alertHelper";
 import CustomTextField from "../../../components/CustomTextField";
-import { TaxOtherChargesModel } from "../../../models/TaxOtherChargesModel";
+import { TaxOtherChargesModel } from "../../../lib/models/TaxOtherChargesModel";
 import { createOrUpdateTaxOtherCharges } from "../../../services/taxOtherChargesService";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 
 type AddEditTaxOtherChargesDialogProps = {
   isEditable: boolean;

@@ -1,6 +1,6 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { UserModel } from "../models/UserModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { UserModel } from "../lib/models/UserModel";
 import { showLog } from "../helper/utility";
 import { WEB_MANAGEMENT_USER_TYPE } from "./userService";
 

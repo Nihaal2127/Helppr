@@ -8,7 +8,7 @@ import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { fetchContentList } from "../../services/contentManagementService";
 import type { ContentItem } from "../../services/contentManagementService";
-import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 
 type ContentModel = ContentItem;
 

@@ -1,10 +1,10 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { AreaModel } from "../models/AreaModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { AreaModel } from "../lib/models/AreaModel";
 import { showLog } from "../helper/utility";
 import { fetchMockAreas } from "./areaMockService";
-import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 
 const USE_MOCK_AREA_API = false;
 

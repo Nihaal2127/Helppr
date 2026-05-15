@@ -8,10 +8,10 @@ import React, {
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { OrderModel } from "../../models/OrderModel";
+import { OrderModel } from "../../lib/order/OrderModel";
 import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
-import { createOrUpdateOrder } from "../../services/orderService";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchTaxOtherChargesById } from "../../services/taxOtherChargesService";
 import CustomTextField from "../../components/CustomTextField";
@@ -26,36 +26,36 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
 import { getOffers } from "../../services/settingsService";
-import { UserModel } from "../../models/UserModel";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
-import { orderPaymentModeSelectOptions } from "../../constant/PaymentEnum";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { UserModel } from "../../lib/models/UserModel";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { orderPaymentModeSelectOptions } from "../../lib/order/PaymentEnum";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   nationalDigitsWithoutIndia91,
   sanitizeIndiaNationalPhoneInput,
   fullPhoneFromIndiaNational,
-} from "../../helper/userFormValidation";
-import { OrderItemModel } from "../../models/OrderItemModel";
-import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
-import { openDialog } from "../../helper/DialogManager";
+} from "../../lib/user/userFormValidation";
+import { OrderItemModel } from "../../lib/order/OrderItemModel";
+import { TaxOtherChargesModel } from "../../lib/models/TaxOtherChargesModel";
+import { openDialog } from "../../lib/global/DialogManager";
 import type {
   CustomerPaymentRow,
   OrderPaymentExtV1,
   PartnerPaymentRow,
-} from "../../helper/orderPaymentStorage";
+} from "../../lib/order/orderPaymentStorage";
 import {
   mergePaymentExtension,
   sumCustomerAmounts,
   sumPartnerAmounts,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
-} from "../../helper/orderPaymentStorage";
+} from "../../lib/order/orderPaymentStorage";
 import {
   resolveOrderOfferBreakdown,
   computeCreateOrderOfferDiscountRupees,
   splitOfferContributionAmounts,
-} from "../../helper/orderDisplayHelpers";
+} from "../../lib/order/orderDisplayHelpers";
 import { serializeServiceAddressCards } from "./ServiceAddressCardsPanel";
 
 /** Align create-order payment UI with `OrderPaymentEditModal` tokens. */

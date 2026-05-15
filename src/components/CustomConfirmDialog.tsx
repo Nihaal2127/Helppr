@@ -1,7 +1,7 @@
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import Logo from "../assets/icons/login_logo.svg";
-import { openDialog } from "../helper/DialogManager";
+import { openDialog } from "../lib/global/DialogManager";
 
 export const openConfirmDialog = (
   title: string,

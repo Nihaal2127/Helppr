@@ -1,6 +1,6 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { UserHomeCountsModel } from "../models/UserHomeCountsModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { UserHomeCountsModel } from "../lib/models/UserHomeCountsModel";
 
 export const fetchUserHomeCountsById = async (): Promise<{
   response: boolean;

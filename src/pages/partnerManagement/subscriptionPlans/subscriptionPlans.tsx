@@ -16,10 +16,9 @@ import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import AddEditSubscriptionPlanDialog, {
   SubscriptionPlanModel,
-} from "../subscriptionPlans/AddEditSubscriptionPlanDialog";
-import AddEditPartnerSubscriptionDialog, {
-  PartnerSubscriptionModel,
-} from "../subscriptionPlans/AddEditPartnerSubscriptionDialog";
+} from "./AddEditSubscriptionPlanDialog";
+import AddEditPartnerSubscriptionDialog from "./AddEditPartnerSubscriptionDialog";
+import type { PartnerSubscriptionModel } from "../../../lib/types/partnerManagementTypes";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
@@ -30,10 +29,10 @@ import {
 } from "../../../services/partnerManagementService";
 import { getCount } from "../../../services/getCountService";
 import { fetchAreaDropDown } from "../../../services/areaService";
-import type { ServerTableSortBy } from "../../../helper/serverTableSort";
-import { AppConstant, UserRole } from "../../../constant/AppConstant";
-import { getLocalStorage } from "../../../helper/localStorageHelper";
-import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
+import { AppConstant, UserRole } from "../../../lib/global/AppConstant";
+import { getLocalStorage } from "../../../lib/global/localStorageHelper";
+import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
 import { fetchUserById } from "../../../services/userService";
 
 /** Days from today until `endDateStr` (date-only); negative if already past. */

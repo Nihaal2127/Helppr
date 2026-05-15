@@ -15,7 +15,7 @@ import CustomPagination from "./CustomPagination";
 import {
   nextServerSortState,
   ServerTableSortBy,
-} from "../helper/serverTableSort";
+} from "../lib/global/serverTableSort";
 
 export type { ServerTableSortBy };
 

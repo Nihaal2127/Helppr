@@ -5,10 +5,10 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
-import { openDialog } from "../../helper/DialogManager";
-import { createOrUpdateOrder } from "../../services/orderService";
-import { OrderModel } from "../../models/OrderModel";
-import { orderPaymentModeSelectOptions } from "../../constant/PaymentEnum";
+import { openDialog } from "../../lib/global/DialogManager";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { orderPaymentModeSelectOptions } from "../../lib/order/PaymentEnum";
 
 type EditOrderPaymentDialogProps = {
   orderDetails: OrderModel;

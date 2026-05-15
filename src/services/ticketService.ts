@@ -1,8 +1,8 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { TicketModel } from "../models/TicketModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { TicketModel } from "../lib/models/TicketModel";
 import { showLog } from "../helper/utility";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 
 export const fetchTicket = async (
   page: number,

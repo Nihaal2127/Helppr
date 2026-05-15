@@ -13,13 +13,13 @@ import { fetchFinancial } from "../../../services/financialService";
 import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
-} from "../../../hooks/useFranchiseScopedGetCount";
-import { FinancialModel } from "../../../models/FinancialModel";
-import { showOrderInfoDialog } from "../../orderManagement/OrderInfoDialog";
+} from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { FinancialModel } from "../../../lib/models/FinancialModel";
+import { showOrderInfoDialog } from "../../../components/order";
 import { ROUTES } from "../../../routes/Routes";
 import { exportData } from "../../../services/exportService";
-import { ApiPaths } from "../../../remote/apiPaths";
-import { AppConstant } from "../../../constant/AppConstant";
+import { ApiPaths } from "../../../lib/global/remote/apiPaths";
+import { AppConstant } from "../../../lib/global/AppConstant";
 
 const PartnerPayments = () => {
   const navigate = useNavigate();

@@ -15,7 +15,7 @@ import {
   NotificationFilters,
   NotificationModel,
   NotificationModule,
-} from "../../models/NotificationModel";
+} from "../../lib/models/NotificationModel";
 import { formatDate } from "../../helper/utility";
 
 const moduleOptions: { value: NotificationModule | "all"; label: string }[] = [

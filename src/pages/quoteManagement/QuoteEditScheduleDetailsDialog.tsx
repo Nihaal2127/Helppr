@@ -6,8 +6,8 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import CustomTimePicker from "../../components/CustomTimePicker";
 import CustomFormSelect from "../../components/CustomFormSelect";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { applyQuoteSchedulePatch } from "../../services/quoteService";
 
 export type QuoteScheduleDetailsPatch = {

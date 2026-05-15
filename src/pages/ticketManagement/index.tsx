@@ -6,20 +6,20 @@ import { formatDate, textUnderlineCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import EditTicketDialog from "./EditTicketDialog";
-import { TicketModel } from "../../models/TicketModel";
+import { TicketModel } from "../../lib/models/TicketModel";
 import { fetchTicket, deleteTicket } from "../../services/ticketService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import TicketDetailsDialog from "./TicketDetailsDialog";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import { UserDetailsDialog } from "../../components/user";
 import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import { ROUTES } from "../../routes/Routes";
-import { normalChatConversations } from "./chatMockData";
+import { normalChatConversations } from "../../mockData/ticketManagement/chatMockData";
 import {
   groupChatConversations,
   quoteChatConversations,
-} from "./quoteChatMockData";
+} from "../../mockData/ticketManagement/quoteChatMockData";
 
 type ChatCardType = "normal" | "dispute" | "quote" | "group";
 

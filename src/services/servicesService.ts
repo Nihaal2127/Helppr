@@ -1,16 +1,16 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { ServiceModel } from "../models/ServiceModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { ServiceModel } from "../lib/models/ServiceModel";
 import { showLog } from "../helper/utility";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
-import { showErrorAlert } from "../helper/alertHelper";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
+import { showErrorAlert } from "../lib/global/alertHelper";
 import {
   buildCatalogGetAllQueryParams,
   buildServiceGetAllPath,
   catalogGetAllDebugLog,
   messageForCatalogGetAllFailure,
   parseFranchiseIdForCatalogGetAll,
-} from "../helper/franchiseCatalog";
+} from "../lib/franchise/franchiseCatalog";
 
 const FRANCHISE_SCOPE_ALL = "all";
 
@@ -249,7 +249,7 @@ export const fetchServicesForCategoryDialog = async (opts: {
 export const fetchService = async (
   page: number,
   pageSize: number,
-  filters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters & {
+  filters: import("../lib/franchise/franchiseCatalog").FranchiseCatalogListFilters & {
     city_id?: string;
     state_id?: string;
   },
@@ -288,7 +288,7 @@ export const fetchService = async (
     };
   }
 
-  const listFilters: import("../helper/franchiseCatalog").FranchiseCatalogListFilters = {
+  const listFilters: import("../lib/franchise/franchiseCatalog").FranchiseCatalogListFilters = {
     keyword: filters.keyword,
     status: filters.status,
     sort: filters.sort,

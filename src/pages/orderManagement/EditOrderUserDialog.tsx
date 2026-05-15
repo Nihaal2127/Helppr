@@ -3,11 +3,11 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { OrderModel } from "../../models/OrderModel";
-import { UserModel } from "../../models/UserModel";
-import { createOrUpdateOrder } from "../../services/orderService";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { UserModel } from "../../lib/models/UserModel";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
 import { fetchUserDropDown } from "../../services/userService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 /** End-user / customer list (same as create order flow). */
 const CUSTOMER_USER_TYPE = 4;

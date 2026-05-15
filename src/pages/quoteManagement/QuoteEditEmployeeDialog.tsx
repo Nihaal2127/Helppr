@@ -9,9 +9,9 @@ import {
   isValidE164StylePhone,
   nationalDigitsWithoutIndia91,
   sanitizeIndiaNationalPhoneInput,
-} from "../../helper/userFormValidation";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+} from "../../lib/user/userFormValidation";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 
 export type QuoteEmployeePatch = {
   employee_name: string;

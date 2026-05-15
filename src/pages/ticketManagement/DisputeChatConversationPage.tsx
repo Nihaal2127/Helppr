@@ -5,7 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import TransferChatModal from "../../components/TransferChatModal";
 import { ROUTES } from "../../routes/Routes";
 import { fetchTicketById } from "../../services/ticketService";
-import { TicketModel } from "../../models/TicketModel";
+import { TicketModel } from "../../lib/models/TicketModel";
 
 type DraftAttachment = {
   id: string;

@@ -4,9 +4,8 @@ import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomTable from "../../../components/CustomTable";
-import AddEditPostManagementDialog, {
-  PostModel,
-} from "./AddEditPostManagementDialog";
+import AddEditPostManagementDialog from "./AddEditPostManagementDialog";
+import type { PostModel } from "../../../lib/types/partnerManagementTypes";
 import { fetchPosts } from "../../../services/partnerManagementService";
 
 type PostManagementProps = {

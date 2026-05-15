@@ -7,7 +7,7 @@ import {
   normalChatDetails,
   NormalChatMessageSender,
   NormalChatParticipants,
-} from "./chatMockData";
+} from "../../mockData/ticketManagement/chatMockData";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import TransferChatModal from "../../components/TransferChatModal";
 

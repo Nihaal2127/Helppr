@@ -9,18 +9,18 @@ import { useNavigate } from "react-router-dom";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomTable from "../../components/CustomTable";
 import EditTicketDialog from "./EditTicketDialog";
-import { TicketModel } from "../../models/TicketModel";
+import { TicketModel } from "../../lib/models/TicketModel";
 import { fetchTicket, deleteTicket } from "../../services/ticketService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { ROUTES } from "../../routes/Routes";
 import { formatDate } from "../../helper/utility";
-import UserDetailsDialog from "../userManagement/UserDetailsDialog";
+import { UserDetailsDialog } from "../../components/user";
 import {
   contactTypeLabel,
   disputeStatusUiLabel,
   ticketToDisputeStatusUi,
-} from "./ticketDisputeHelpers";
+} from "../../lib/ticket/ticketDisputeHelpers";
 
 const DisputeChatListPage = () => {
   const navigate = useNavigate();

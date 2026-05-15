@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Row, Col } from "react-bootstrap";
-import { VerificationStatusEnum } from "../constant/VerificationStatusEnum";
-import { RoleEnum } from "../constant/RoleEnum";
-import { OrderStatusEnum } from "../constant/OrderStatusEnum";
+import { VerificationStatusEnum } from "../lib/global/VerificationStatusEnum";
+import { RoleEnum } from "../lib/global/RoleEnum";
+import { OrderStatusEnum } from "../lib/order/OrderStatusEnum";
 import { NavigateFunction } from "react-router-dom";
-import { ResolveStatusEnum } from "../constant/ResolveStatusEnum";
-import { AppConstant } from "../constant/AppConstant";
+import { ResolveStatusEnum } from "../lib/global/ResolveStatusEnum";
+import { AppConstant } from "../lib/global/AppConstant";
 
 let navigate: NavigateFunction;
 

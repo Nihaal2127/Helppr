@@ -9,20 +9,20 @@ import CustomTable from "../../../components/CustomTable";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import { fetchUser } from "../../../services/userService";
-import { UserModel } from "../../../models/UserModel";
+import { UserModel } from "../../../lib/models/UserModel";
 import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
-import { AppConstant } from "../../../constant/AppConstant";
-import { franchiseHeaderFormDefaults } from "../../../helper/headerFranchisePreference";
+import { AppConstant } from "../../../lib/global/AppConstant";
+import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
 import {
   formatDate,
   priceCell,
   textUnderlineCell,
 } from "../../../helper/utility";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
-import PartnerDetailsDialog from "../../userManagement/PartnerDetailsDialog";
+import { PartnerDetailsDialog } from "../../../components/partner";
 import AddPayoutDialog from "./AddPayoutDialog";
-import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 
 const WALLET_STATUS_OPTIONS = [
   { value: "all", label: "All" },

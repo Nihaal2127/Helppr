@@ -10,7 +10,7 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import { capitalizeString, DetailsRow, formatDate } from "../../../helper/utility";
-import { ExpenseCategoryModel } from "../../../models/SettingsModel";
+import { ExpenseCategoryModel } from "../../../lib/models/SettingsModel";
 import SettingsNav from "../../../components/SettingsNav";
 import {
   ensureSettingsSeedData,
@@ -18,7 +18,7 @@ import {
   saveExpenseCategoryWithApi,
   voidExpenseCategoryWithApi,
 } from "../../../services/settingsService";
-import type { ServerTableSortBy } from "../../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";

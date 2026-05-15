@@ -3,23 +3,13 @@ import { Modal, Row, Col, Form, Button } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { DetailsRow, WideLabelValueBlock } from "../../../helper/utility";
 import {
   addPartnerPostMock,
   updatePartnerPostStatus,
 } from "../../../services/partnerManagementService";
-
-export type PostModel = {
-  id?: number;
-  partner_id: string;
-  partner_name: string;
-  description: string;
-  media_type: "image" | "video";
-  location: string;
-  uploaded_date: string;
-  status: "pending" | "approved" | "rejected";
-};
+import type { PostModel } from "../../../lib/types/partnerManagementTypes";
 
 type AddEditPostManagementDialogProps = {
   isEditable: boolean;

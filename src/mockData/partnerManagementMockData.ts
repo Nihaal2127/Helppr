@@ -1,5 +1,7 @@
-import type { PartnerSubscriptionModel } from "../pages/partnerManagement/subscriptionPlans/AddEditPartnerSubscriptionDialog";
-import type { PostModel } from "../pages/partnerManagement/postManagement/AddEditPostManagementDialog";
+import type {
+  PartnerSubscriptionModel,
+  PostModel,
+} from "../lib/types/partnerManagementTypes";
 
 type PortfolioSeedRow = {
   _id: string;

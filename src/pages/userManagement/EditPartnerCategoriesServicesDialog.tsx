@@ -9,13 +9,13 @@ import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import Select from "react-select";
 import type { SingleValue } from "react-select";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
+import { UserModel } from "../../lib/models/UserModel";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import { createOrUpdateUser } from "../../services/userService";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 
 const PARTNER_ROLE = 2;
 

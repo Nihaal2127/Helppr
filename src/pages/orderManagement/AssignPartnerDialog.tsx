@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { updateOrderService } from "../../services/orderService";
+import { updateOrderService } from "../../lib/order/orderService";
 import { fetchPartnerDropDown } from "../../services/userService";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type AssignPartnerDialogProps = {
   serviceId: string;

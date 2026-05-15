@@ -5,9 +5,9 @@ import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { capitalizeString, DetailsRow } from "../../../helper/utility";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { saveSubscriptionPlan } from "../../../services/partnerManagementService";
-import type { SubscriptionPlanModel } from "../../../models/SubscriptionPlanModel";
+import type { SubscriptionPlanModel } from "../../../lib/models/SubscriptionPlanModel";
 
 export type { SubscriptionPlanModel };
 

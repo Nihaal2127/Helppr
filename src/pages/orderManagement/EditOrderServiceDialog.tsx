@@ -2,14 +2,14 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { updateOrderService } from "../../services/orderService";
-import { OrderItemModel } from "../../models/OrderItemModel";
+import { updateOrderService } from "../../lib/order/orderService";
+import { OrderItemModel } from "../../lib/order/OrderItemModel";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
-import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
+import { OrderStatusEnum } from "../../lib/order/OrderStatusEnum";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import CustomTextFieldSwitch from "../../components/CustomTextFieldSwitch";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type EditOrderServiceDialogProps = {
   orderItemModel: OrderItemModel;

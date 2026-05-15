@@ -2,9 +2,9 @@ import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { openDialog } from "../../helper/DialogManager";
-import { showSuccessAlert } from "../../helper/alertHelper";
-import { AppConstant } from "../../constant/AppConstant";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showSuccessAlert } from "../../lib/global/alertHelper";
+import { AppConstant } from "../../lib/global/AppConstant";
 
 type QuoteEditServicePriceDialogProps = {
   quoteId: string;

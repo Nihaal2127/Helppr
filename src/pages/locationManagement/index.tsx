@@ -7,21 +7,21 @@ import { capitalizeString, statusCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditStateDialog from "./AddEditStateDialog";
 import AddEditCityDialog from "./AddEditCityDialog";
-import { StateModel } from "../../models/StateModel";
+import { StateModel } from "../../lib/models/StateModel";
 import { fetchState, deleteState } from "../../services/stateService";
 import { deleteCity, fetchCity } from "../../services/cityService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { CityModel } from "../../models/CityModel";
+import { CityModel } from "../../lib/models/CityModel";
 import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
-} from "../../hooks/useFranchiseScopedGetCount";
+} from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../remote/apiPaths";
-import { AppConstant, UserRole } from "../../constant/AppConstant";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AreaModel } from "../../models/AreaModel";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { AreaModel } from "../../lib/models/AreaModel";
 import { fetchArea, deleteArea } from "../../services/areaService";
 import AddEditAreaDialog from "./AddEditAreaDialog";
 import CustomFormSelect from "../../components/CustomFormSelect";
@@ -30,7 +30,7 @@ import {
   fetchFranchise,
   fetchFranchiseDropDown,
 } from "../../services/franchiseService";
-import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 
 type LocationFilters = {
   name?: string;

@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Modal, Col, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
+import { UserModel } from "../../lib/models/UserModel";
 import { fetchUserById } from "../../services/userService";
 import {
   DetailsRow,
   formatDate,
   verificationStatusCell,
 } from "../../helper/utility";
-import { DocumentModel } from "../../models/DocumentModel";
+import { DocumentModel } from "../../lib/models/DocumentModel";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { updateStatusDocument } from "../../services/partnerDocumentService";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant } from "../../lib/global/AppConstant";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import RejectDocumentDialog from "./RejectDocumentDialog";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type VerificationDetailsDialogProps = {
   userId: string;

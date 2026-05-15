@@ -2,15 +2,15 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { createOrUpdateOrder } from "../../services/orderService";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { OrderModel } from "../../models/OrderModel";
-import { OrderStatusEnum } from "../../constant/OrderStatusEnum";
-import { openDialog } from "../../helper/DialogManager";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { OrderStatusEnum } from "../../lib/order/OrderStatusEnum";
+import { openDialog } from "../../lib/global/DialogManager";
 import {
   getCustomerPaymentStatusLabel,
   getPartnerPaymentStatusLabel,
-} from "../../helper/orderDisplayHelpers";
+} from "../../lib/order/orderDisplayHelpers";
 
 type EditOrderDialogProps = {
   orderDetails: OrderModel;

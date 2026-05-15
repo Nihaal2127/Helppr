@@ -1,22 +1,22 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Modal, Button, Form, Table, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { OrderModel } from "../../models/OrderModel";
-import { createOrUpdateOrder } from "../../services/orderService";
-import { AppConstant } from "../../constant/AppConstant";
-import { openDialog } from "../../helper/DialogManager";
+import { OrderModel } from "../../lib/order/OrderModel";
+import { createOrUpdateOrder } from "../../lib/order/orderService";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { openDialog } from "../../lib/global/DialogManager";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { useForm } from "react-hook-form";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type {
   CustomerPaymentRow,
   OrderPaymentExtV1,
   OtherChargeRow,
   PartnerPaymentRow,
-} from "../../helper/orderPaymentStorage";
+} from "../../lib/order/orderPaymentStorage";
 import {
   mergePaymentExtension,
   computeTaxCommissionAmounts,
@@ -27,14 +27,14 @@ import {
   getServiceTaxCommissionPercents,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
-} from "../../helper/orderPaymentStorage";
+} from "../../lib/order/orderPaymentStorage";
 import {
   getPrimaryServiceItem,
   orderRefundAmount,
   orderRefundBreakdown,
   partnerPaymentsEditLocked,
   resolveOrderOfferBreakdown,
-} from "../../helper/orderDisplayHelpers";
+} from "../../lib/order/orderDisplayHelpers";
 
 const PAY_TYPES = ["COD", "Razor pay", "UPI", "Online", "Cash", "—"].map(
   (t) => ({ value: t, label: t })

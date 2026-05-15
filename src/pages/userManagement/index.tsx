@@ -4,7 +4,7 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant } from "../../lib/global/AppConstant";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
 import {
@@ -14,19 +14,19 @@ import {
 import {
   PARTNER_VERIFICATION,
   partnerVerificationLabel,
-} from "../../constant/partnerVerification";
+} from "../../lib/partner/partnerVerification";
 import {
   FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
-} from "../../hooks/useFranchiseScopedGetCount";
-import { UserModel } from "../../models/UserModel";
-import UserDetailsDialog from "./UserDetailsDialog";
-import PartnerDetailsDialog from "./PartnerDetailsDialog";
+} from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { UserModel } from "../../lib/models/UserModel";
+import { UserDetailsDialog } from "../../components/user";
+import { PartnerDetailsDialog } from "../../components/partner";
 import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import ChangePartnerPasswordDialog from "./ChangePartnerPasswordDialog";
 
 const UserManagement = () => {

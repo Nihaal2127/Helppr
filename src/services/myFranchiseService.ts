@@ -1,10 +1,10 @@
 import { fetchArea } from "./areaService";
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { isFranchiseEmployeeExcludedScreenKey } from "../layout/franchiseEmployeeScreenPermissions";
-import { showErrorAlert } from "../helper/alertHelper";
-import { getLocalStorage } from "../helper/localStorageHelper";
-import { AppConstant, UserRole } from "../constant/AppConstant";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { isFranchiseEmployeeExcludedScreenKey } from "../lib/layout/franchiseEmployeeScreenPermissions";
+import { showErrorAlert } from "../lib/global/alertHelper";
+import { getLocalStorage } from "../lib/global/localStorageHelper";
+import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import { apiDocumentId } from "../helper/utility";
 import {
   createWebManagementUser,

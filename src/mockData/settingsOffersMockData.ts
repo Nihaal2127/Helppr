@@ -1,4 +1,4 @@
-import type { OfferModel } from "../models/SettingsModel";
+import type { OfferModel } from "../lib/models/SettingsModel";
 
 export const offersMockSeed: Array<Omit<OfferModel, "id" | "createdAt">> = [
   {

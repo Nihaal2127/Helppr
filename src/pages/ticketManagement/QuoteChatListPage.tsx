@@ -6,7 +6,7 @@ import {
   quoteChatConversations,
   GroupChatConversation,
   QuoteChatConversation,
-} from "./quoteChatMockData";
+} from "../../mockData/ticketManagement/quoteChatMockData";
 
 type ChatItem = QuoteChatConversation | GroupChatConversation;
 

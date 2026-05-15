@@ -8,33 +8,12 @@ import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import CustomImageUploader from "../../../components/CustomImageUploader";
 import { DetailsRow } from "../../../helper/utility";
-import { openDialog } from "../../../helper/DialogManager";
+import { openDialog } from "../../../lib/global/DialogManager";
 import { savePartnerSubscription } from "../../../services/partnerManagementService";
 import { fetchSubscriptionPlanDropDown } from "../../../services/partnerManagementService";
 import { fetchUser } from "../../../services/userService";
-import { showErrorAlert } from "../../../helper/alertHelper";
-
-export type PartnerSubscriptionModel = {
-  _id?: string;
-  partner_id: string;
-  partner_name: string;
-  /** Plan tier slug for display / mock (e.g. `basic`). */
-  subscription_plan: string;
-  /** When using live APIs, selected subscription plan document id. */
-  subscription_plan_id?: string;
-  subscription_start_date: string;
-  subscription_end_date: string;
-  rating: string;
-  location?: string;
-  address?: string;
-  /** Shown for platinum plans (banner / hero image URL or data URL from upload). */
-  banner_image?: string;
-  /** Optional notes for `/partner-subscription/create|update`. */
-  notes?: string;
-  /** Mock-only: force “remaining days” cell to show this value in red (design demo). */
-  remaining_days_demo?: number;
-  is_active: boolean;
-};
+import { showErrorAlert } from "../../../lib/global/alertHelper";
+import type { PartnerSubscriptionModel } from "../../../lib/types/partnerManagementTypes";
 
 type AddEditPartnerSubscriptionDialogProps = {
   isEditable: boolean;

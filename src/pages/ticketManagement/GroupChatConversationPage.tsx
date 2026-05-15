@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import TransferChatModal from "../../components/TransferChatModal";
 import { ROUTES } from "../../routes/Routes";
-import { groupChatConversations, groupChatDetails } from "./quoteChatMockData";
+import { groupChatConversations, groupChatDetails } from "../../mockData/ticketManagement/quoteChatMockData";
 
 type DraftAttachment = {
   id: string;

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { getLocalStorage } from "../helper/localStorageHelper";
-import { AppConstant } from "../constant/AppConstant";
+import { getLocalStorage } from "../lib/global/localStorageHelper";
+import { AppConstant } from "../lib/global/AppConstant";
 import {
   getDefaultAuthorizedPath,
   isAuthenticatedPathAllowed,
   parseAllowedMenuKeys,
-} from "./roleAccess";
+} from "../lib/routes/roleAccess";
 import { routes, ROUTES } from "./Routes";
 
 function ProtectedRouteElement({

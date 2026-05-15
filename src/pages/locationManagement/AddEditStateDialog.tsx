@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { StateModel } from "../../models/StateModel";
+import { StateModel } from "../../lib/models/StateModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { DetailsRow, getStatusOptions } from "../../helper/utility";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { createOrUpdateState } from "../../services/stateService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 
 type AddEditStateDialogProps = {
   isEditable: boolean;

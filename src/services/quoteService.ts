@@ -1,16 +1,16 @@
 import type {
   QuoteRow,
   QuoteTabKey,
-} from "../pages/quoteManagement/quoteTypes";
+} from "../lib/types/quoteTypes";
 import { quoteListMockData } from "../mockData/quoteMockData";
 import {
   APP_USER_TYPE,
   fetchPartnerDropDown,
   fetchUserDropDown,
 } from "./userService";
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { fetchCategoryDropDown } from "./categoryService";
 import { fetchServiceDropDown } from "./servicesService";
 import type { ServiceDropDownOption } from "./servicesService";
@@ -18,10 +18,10 @@ import { normalizeServiceCategoryRef } from "./servicesService";
 import {
   extractMinDepositTypeKey,
   labelForMinDepositType,
-} from "../helper/serviceMinDepositDisplay";
-import { getLocalStorage } from "../helper/localStorageHelper";
-import { AppConstant, UserRole } from "../constant/AppConstant";
-import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
+} from "../lib/service/serviceMinDepositDisplay";
+import { getLocalStorage } from "../lib/global/localStorageHelper";
+import { AppConstant, UserRole } from "../lib/global/AppConstant";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 export type OptionType = { value: string; label: string };
 

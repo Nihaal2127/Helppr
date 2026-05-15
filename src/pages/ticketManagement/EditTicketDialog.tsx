@@ -2,18 +2,18 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { TicketModel } from "../../models/TicketModel";
+import { TicketModel } from "../../lib/models/TicketModel";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { createOrUpdateTicket } from "../../services/ticketService";
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant } from "../../constant/AppConstant";
-import { openDialog } from "../../helper/DialogManager";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { openDialog } from "../../lib/global/DialogManager";
 import {
   disputeStatusUiToApi,
   ticketToDisputeStatusUi,
-} from "./ticketDisputeHelpers";
+} from "../../lib/ticket/ticketDisputeHelpers";
 
 type EditTicketDialogProps = {
   isEditable: boolean;

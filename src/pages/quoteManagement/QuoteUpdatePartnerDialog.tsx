@@ -13,10 +13,10 @@ import {
   filterCatalogPartnerRecordsByService,
   updateQuotePartner,
 } from "../../services/quoteService";
-import { getQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
+import { getQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { DetailsRow } from "../../helper/utility";
 
 export type QuoteUpdatePartnerContext = {

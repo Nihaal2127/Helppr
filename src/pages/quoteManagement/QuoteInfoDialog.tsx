@@ -2,17 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Row, Col, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { DetailsRow, WideLabelValueBlock } from "../../helper/utility";
-import { AppConstant } from "../../constant/AppConstant";
-import { openDialog } from "../../helper/DialogManager";
-import type { QuoteViewData } from "./quoteViewTypes";
+import { AppConstant } from "../../lib/global/AppConstant";
+import { openDialog } from "../../lib/global/DialogManager";
+import type { QuoteViewData } from "../../lib/quote/quoteViewTypes";
 import {
   formatQuoteScheduleForView,
   formatServiceAddressLines,
-} from "./quoteScheduleDisplay";
+} from "../../lib/quote/quoteScheduleDisplay";
 import { convertQuoteToOrder, fetchQuoteById } from "../../services/quoteService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
-import { toQuoteViewData } from "./quoteViewMapper";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { toQuoteViewData } from "../../lib/quote/quoteViewMapper";
 import profileIcon from "../../assets/icons/profile.svg";
 
 export type { QuoteViewData };

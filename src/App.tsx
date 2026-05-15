@@ -1,12 +1,12 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useLocation, useNavigate, matchPath } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
-import { getLocalStorage } from "./helper/localStorageHelper";
-import { AppConstant } from "./constant/AppConstant";
-import { useViewport } from "./helper/useViewPort";
+import { getLocalStorage } from "./lib/global/localStorageHelper";
+import { AppConstant } from "./lib/global/AppConstant";
+import { useViewport } from "./lib/global/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
-import { requestPermission } from "./NotificationService";
+import { requestPermission } from "./services/firebaseMessagingService";
 import { setNavigate } from "./helper/utility";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";

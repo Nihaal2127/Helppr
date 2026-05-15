@@ -8,13 +8,13 @@ import React, {
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { UserModel } from "../../models/UserModel";
+import { UserModel } from "../../lib/models/UserModel";
 import {
   getRoleLabel,
   getStatusOptions,
   DetailsRowLinkDocument,
 } from "../../helper/utility";
-import { showErrorAlert, showInfoAlert } from "../../helper/alertHelper";
+import { showErrorAlert, showInfoAlert } from "../../lib/global/alertHelper";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchArea } from "../../services/areaService";
@@ -36,14 +36,14 @@ import CustomDatePicker from "../../components/CustomDatePicker";
 import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 
-import { getLocalStorage } from "../../helper/localStorageHelper";
-import { AppConstant, UserRole } from "../../constant/AppConstant";
-import { PARTNER_VERIFICATION } from "../../constant/partnerVerification";
-import { openDialog } from "../../helper/DialogManager";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
+import { PARTNER_VERIFICATION } from "../../lib/partner/partnerVerification";
+import { openDialog } from "../../lib/global/DialogManager";
 import {
   sanitizeIndianPincodeInput,
-} from "../../helper/pincodeValidation";
-import { nationalDigitsWithoutIndia91 } from "../../helper/userFormValidation";
+} from "../../lib/user/pincodeValidation";
+import { nationalDigitsWithoutIndia91 } from "../../lib/user/userFormValidation";
 
 import {
   PartnerSingleSelect,
@@ -53,13 +53,13 @@ import {
   partnerCatalogControlStyle,
   partnerCatalogOutlineAddBtn,
   partnerCatalogOutlineDeleteBtn,
-} from "./partnerCatalogBlockUi";
+} from "../../components/partnerCatalogBlockUi";
 import type {
   PartnerCategoryBlock,
   PartnerCatalogServiceLite,
   PartnerServiceRow,
   PartnerCatalogFlattenOk,
-} from "./partnerCatalogBlockUi";
+} from "../../components/partnerCatalogBlockUi";
 const PARTNER_ROLE = 2;
 const USER_ROLE = 4;
 
@@ -984,16 +984,7 @@ function AddEditUserDialogView({
           return;
         }
         partnerCatalogFlat = catalogFlat;
-      } else {
-        if (categoryIds.length === 0) {
-          showErrorAlert("Please select at least one category.");
-          return;
-        }
-        if (serviceIds.length === 0) {
-          showErrorAlert("Please select at least one service.");
-          return;
-        }
-      }
+      } 
     }
 
     if (isAddPartner) {

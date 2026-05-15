@@ -1,4 +1,4 @@
-import type { AreaModel } from "../models/AreaModel";
+import type { AreaModel } from "../lib/models/AreaModel";
 import { locationAreaSeeds } from "../mockData/locationAreaMockData";
 import { fetchStateDropDown } from "./stateService";
 import { fetchCityDropDown } from "./cityService";

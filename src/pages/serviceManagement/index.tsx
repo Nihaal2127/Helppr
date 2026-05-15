@@ -6,17 +6,17 @@ import { capitalizeString, statusCell, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
-import { CategoryModel } from "../../models/CategoryModel";
-import { ServiceModel } from "../../models/ServiceModel";
+import { CategoryModel } from "../../lib/models/CategoryModel";
+import { ServiceModel } from "../../lib/models/ServiceModel";
 import { fetchCategory, fetchCategoryById } from "../../services/categoryService";
 import { fetchService, fetchServiceById } from "../../services/servicesService";
 import CustomActionColumn from "../../components/CustomActionColumn";
-import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
-} from "../../hooks/useFranchiseScopedGetCount";
-import { showErrorAlert } from "../../helper/alertHelper";
+} from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
 const SERVICE_ROW_ID_KEYS = ["_id", "service_id", "id"] as const;

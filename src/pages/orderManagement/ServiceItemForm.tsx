@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import type { UseFormUnregister } from "react-hook-form";
 import { Row, Col, Button } from "react-bootstrap";
-import { OrderItemModel } from "../../models/OrderItemModel";
+import { OrderItemModel } from "../../lib/order/OrderItemModel";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
@@ -9,20 +9,20 @@ import { fetchServiceDropDown } from "../../services/servicesService";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import { fetchPartnerDropDown } from "../../services/userService";
 import addIcon from "../../assets/icons/add.svg";
-import { TaxOtherChargesModel } from "../../models/TaxOtherChargesModel";
+import { TaxOtherChargesModel } from "../../lib/models/TaxOtherChargesModel";
 import type {
   ServiceAddressCard,
   AddressCityDropdownRow,
-} from "../../models/OrderItemModel";
-import { AppConstant } from "../../constant/AppConstant";
+} from "../../lib/order/OrderItemModel";
+import { AppConstant } from "../../lib/global/AppConstant";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import ServiceAddressCardsPanel, {
   serializeServiceAddressCards,
   unregisterServiceAddressCardFields,
   getServiceAddressCardFieldNames,
 } from "./ServiceAddressCardsPanel";
-import type { UserModel } from "../../models/UserModel";
-import { sanitizeIndianPincodeInput } from "../../helper/pincodeValidation";
+import type { UserModel } from "../../lib/models/UserModel";
+import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 
 /** Digits and at most one decimal point (for text `type="text"` service price). */
 function sanitizeDecimalDigits(raw: string): string {

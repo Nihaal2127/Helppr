@@ -2,12 +2,12 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { createOrUpdateBankAccount } from "../../services/bankAccountService";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import { BankAccountModel } from "../../models/BankAccountModel";
-import { openDialog } from "../../helper/DialogManager";
+import { BankAccountModel } from "../../lib/models/BankAccountModel";
+import { openDialog } from "../../lib/global/DialogManager";
 import { getStatusOptions } from "../../helper/utility";
 
 type AddEditBankAccountDialogProps = {

@@ -1,18 +1,20 @@
-import { apiRequest } from "../remote/apiHelper";
-import { showErrorAlert } from "../helper/alertHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import type { PartnerSubscriptionModel } from "../pages/partnerManagement/subscriptionPlans/AddEditPartnerSubscriptionDialog";
-import type { PostModel } from "../pages/partnerManagement/postManagement/AddEditPostManagementDialog";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { showErrorAlert } from "../lib/global/alertHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import type {
+  PartnerSubscriptionModel,
+  PostModel,
+} from "../lib/types/partnerManagementTypes";
 import {
   partnerPortfoliosSeed,
   partnerPostsSeed,
   partnerSubscriptionsSeed,
 } from "../mockData/partnerManagementMockData";
 import { partnerSubscriptionPlansSeed } from "../mockData/partnerSubscriptionPlansSeedData";
-import type { SubscriptionPlanModel } from "../models/SubscriptionPlanModel";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import type { SubscriptionPlanModel } from "../lib/models/SubscriptionPlanModel";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { capitalizeString } from "../helper/utility";
-import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 export type PortfolioRow = {
   _id: string;

@@ -1,4 +1,4 @@
-import type { StaffSettingsModel } from "../models/SettingsModel";
+import type { StaffSettingsModel } from "../lib/models/SettingsModel";
 
 export const staffMockSeed: Array<
   Omit<StaffSettingsModel, "id" | "createdDate">

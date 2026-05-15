@@ -3,7 +3,7 @@ import { Modal, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../components/CustomCloseButton";
 import { Link } from "react-router-dom";
 import { showLog } from "../helper/utility";
-import { showErrorAlert } from "../helper/alertHelper";
+import { showErrorAlert } from "../lib/global/alertHelper";
 import {
   getSupportedImageExtensions,
   getSupportedImageMaxSizeBytes,

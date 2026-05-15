@@ -4,10 +4,10 @@ import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
-import type { UserModel } from "../../models/UserModel";
-import { getQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
+import type { UserModel } from "../../lib/models/UserModel";
+import { getQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { updateQuoteEmployee } from "../../services/quoteService";
 
 const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;

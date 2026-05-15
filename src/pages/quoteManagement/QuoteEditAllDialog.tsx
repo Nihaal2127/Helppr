@@ -6,10 +6,10 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
-import { openDialog } from "../../helper/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../helper/alertHelper";
-import { AppConstant, UserRole } from "../../constant/AppConstant";
-import { getLocalStorage } from "../../helper/localStorageHelper";
+import { openDialog } from "../../lib/global/DialogManager";
+import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
+import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import {
   applyQuoteHeaderPatch,
@@ -29,16 +29,16 @@ import {
 } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import type { AddQuoteFormValues, QuoteRow } from "./quoteTypes";
-import { setQuoteFranchiseCatalogSnapshot } from "./quoteFranchiseCatalogStore";
+import type { AddQuoteFormValues, QuoteRow } from "../../lib/types/quoteTypes";
+import { setQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
-} from "./quoteFranchisePins";
-import { seedEditQuoteFormFromRow } from "./quoteEditFormSeed";
-import type { EditQuoteFormValues } from "./quoteEditFormSeed";
-import { useQuoteCustomerAddressPanel } from "./useQuoteCustomerAddressPanel";
-import type { QuoteAddressRowUi } from "./useQuoteCustomerAddressPanel";
+} from "../../lib/quote/quoteFranchisePins";
+import { seedEditQuoteFormFromRow } from "../../lib/quote/quoteEditFormSeed";
+import type { EditQuoteFormValues } from "../../lib/quote/quoteEditFormSeed";
+import { useQuoteCustomerAddressPanel } from "../../lib/quote/useQuoteCustomerAddressPanel";
+import type { QuoteAddressRowUi } from "../../lib/quote/useQuoteCustomerAddressPanel";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
@@ -130,7 +130,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 } = ({ quoteMongoId, onClose, onSaved }) => {
   const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "");
   const isSuperAdminOrStaff =
-    currentUserRole === UserRole.SUPER_ADMIN ||
+    currentUserRole === UserRole.ADMIN ||
     currentUserRole === UserRole.STAFF;
 
   const [quoteRow, setQuoteRow] = useState<QuoteRow | null>(null);
@@ -1354,9 +1354,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   <Col xs={12} md={6}>
                     <CustomTextField
                       label="Service price"
-                      controlId="edit_service_price"
+                      controlId="service_price"
                       register={register}
-                      name="service_price"
                       error={errors.service_price}
                       validation={{
                         required: "Service price is required",
@@ -1397,9 +1396,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                 <Col xs={12}>
                   <CustomTextField
                     label="Quote description"
-                    controlId="edit_description"
+                    controlId="description"
                     register={register}
-                    name="description"
                     asCol={false}
                     as="textarea"
                     rows={4}

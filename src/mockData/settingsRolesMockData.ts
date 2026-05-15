@@ -1,4 +1,4 @@
-import type { RoleSettingsModel } from "../models/SettingsModel";
+import type { RoleSettingsModel } from "../lib/models/SettingsModel";
 
 export const rolesMockSeed: Array<
   Omit<RoleSettingsModel, "id" | "createdDate">

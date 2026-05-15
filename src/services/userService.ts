@@ -1,18 +1,18 @@
-import { apiRequest } from "../remote/apiHelper";
-import { ApiPaths } from "../remote/apiPaths";
-import { UserModel } from "../models/UserModel";
+import { apiRequest } from "../lib/global/remote/apiHelper";
+import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { UserModel } from "../lib/models/UserModel";
 import { showLog } from "../helper/utility";
-import type { ServerTableSortBy } from "../helper/serverTableSort";
+import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import {
   getLocalStorage,
   setLocalStorage,
-} from "../helper/localStorageHelper";
-import { AppConstant } from "../constant/AppConstant";
-import { PARTNER_VERIFICATION } from "../constant/partnerVerification";
-import { mapAccessibleScreenSlugsToMenuKeys } from "../layout/accessibleScreenSlugs";
-import { mainMenuItems } from "../layout/menuItems";
-import { UserRole } from "../constant/AppConstant";
-import { sessionMayUseFranchiseIdApiFilter } from "../helper/headerFranchisePreference";
+} from "../lib/global/localStorageHelper";
+import { AppConstant } from "../lib/global/AppConstant";
+import { PARTNER_VERIFICATION } from "../lib/partner/partnerVerification";
+import { mapAccessibleScreenSlugsToMenuKeys } from "../lib/layout/accessibleScreenSlugs";
+import { mainMenuItems } from "../lib/layout/menuItems";
+import { UserRole } from "../lib/global/AppConstant";
+import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 /**
  * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /

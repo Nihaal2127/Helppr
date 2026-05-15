@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import classNames from "classnames";
-import { sanitizeIndiaNationalPhoneInput } from "../helper/userFormValidation";
+import { sanitizeIndiaNationalPhoneInput } from "../lib/user/userFormValidation";
 
 export interface CustomFormIndiaMobileProps {
   label: string;

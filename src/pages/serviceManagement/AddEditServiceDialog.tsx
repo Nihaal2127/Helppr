@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { ServiceModel } from "../../models/ServiceModel";
+import { ServiceModel } from "../../lib/models/ServiceModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import { getStatusOptions } from "../../helper/utility";
@@ -10,7 +10,7 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
-import { showErrorAlert } from "../../helper/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   fetchCategoriesAsSelectOptions,
 } from "../../services/categoryService";
@@ -19,13 +19,13 @@ import {
   normalizeServiceCategoryRef,
 } from "../../services/servicesService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import { openDialog } from "../../helper/DialogManager";
+import { openDialog } from "../../lib/global/DialogManager";
 import { FullDetailsRow } from "../../helper/utility";
-import { AppConstant } from "../../constant/AppConstant";
+import { AppConstant } from "../../lib/global/AppConstant";
 import {
   extractMinDepositTypeKey,
   getMinDepositViewParts,
-} from "../../helper/serviceMinDepositDisplay";
+} from "../../lib/service/serviceMinDepositDisplay";
 
 function mapPaymentTypeToMinDepositType(s: ServiceModel | null): string {
   if (!s) return "";

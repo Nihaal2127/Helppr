@@ -19,7 +19,7 @@ import { useForm, UseFormRegister } from "react-hook-form";
 import {
   franchiseHeaderFormDefaults,
   writeHeaderFranchisePreference,
-} from "../../helper/headerFranchisePreference";
+} from "../../lib/franchise/headerFranchisePreference";
 import {
   deleteFranchise,
   fetchFranchise,
@@ -28,7 +28,7 @@ import {
 import { fetchCategory } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import { getCount } from "../../services/getCountService";
-import type { ServerTableSortBy } from "../../helper/serverTableSort";
+import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import CustomFormSelect from "../../components/CustomFormSelect";
 
 /**
