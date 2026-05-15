@@ -118,13 +118,26 @@ const QuoteEditQuoteFieldsDialog: React.FC<QuoteEditQuoteFieldsDialogProps> & {
         status: patch.status,
       });
       if (!ok) {
-        showErrorAlert("Could not update quote. Please try again.");
+        const acceptedFailed =
+          showStatus &&
+          normalizeStatus(patch.status ?? "") === "accepted";
+        showErrorAlert(
+          acceptedFailed
+            ? "Could not accept quote or create order. Please try again."
+            : "Could not update quote. Please try again."
+        );
         return;
       }
     }
 
     onSaved(patch);
-    showSuccessAlert("Quote updated successfully.");
+    const acceptedSaved =
+      showStatus && normalizeStatus(patch.status ?? "") === "accepted";
+    showSuccessAlert(
+      acceptedSaved
+        ? "Quote accepted and order created."
+        : "Quote updated successfully."
+    );
     onClose();
   };
 

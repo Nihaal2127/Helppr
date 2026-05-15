@@ -2016,40 +2016,52 @@ export function extractServiceFeesFromQuoteRecord(
     ? nestedObj(servicePackageRef.service_id) ?? packageServiceRef
     : undefined;
   const partnerRef = nestedObj(raw.partner_id) ?? nestedObj(raw.partner);
-  const serviceId =
-    refId(raw.service_id) ||
-    refId(servicePackageRef) ||
+
+  const catalogServiceId =
     refId(innerCatalogService) ||
-    str(raw.service_id);
+    refId(packageServiceRef) ||
+    refId(servicePackageRef);
+  const providingRowId = refId(servicePackageRef);
+  const serviceId =
+    catalogServiceId || providingRowId || str(raw.service_id);
   if (!serviceId && !servicePackageRef && !innerCatalogService) return undefined;
 
-  const feeRow = (innerCatalogService ??
+  /** On GET /quote/get, tax / commission / min deposit live on the partner-providing row (`service_id`). */
+  const feeSourceRow = (servicePackageRef ??
     packageServiceRef ??
-    servicePackageRef) as Record<string, unknown> | undefined;
-  const catalogOpt: ServiceDropDownOption | undefined = feeRow
+    innerCatalogService) as Record<string, unknown> | undefined;
+  const catalogInner = innerCatalogService ?? packageServiceRef;
+
+  const catalogOpt: ServiceDropDownOption | undefined = feeSourceRow
     ? {
-        value: serviceId || str(feeRow._id),
+        value: catalogServiceId || providingRowId || str(feeSourceRow._id),
         label:
           str(
-            packageServiceRef?.name ??
-              packageServiceRef?.service_name ??
-              innerCatalogService?.name ??
+            innerCatalogService?.name ??
               innerCatalogService?.service_name ??
-              feeRow.name ??
-              feeRow.service_name
+              packageServiceRef?.name ??
+              packageServiceRef?.service_name ??
+              feeSourceRow.name ??
+              feeSourceRow.service_name
           ) || serviceId,
         ...quoteServiceFeeFieldsFromRow(
-          innerCatalogService ?? undefined,
-          feeRow
+          catalogInner ?? undefined,
+          feeSourceRow
         ),
         payment_type: str(
-          feeRow.payment_type ?? feeRow.min_deposit_type ?? ""
+          servicePackageRef?.payment_type ??
+            servicePackageRef?.min_deposit_type ??
+            feeSourceRow.payment_type ??
+            feeSourceRow.min_deposit_type ??
+            ""
         ),
         price:
-          feeRow.price != null
-            ? Number(feeRow.price)
+          servicePackageRef?.price != null
+            ? Number(servicePackageRef.price)
             : innerCatalogService?.price != null
             ? Number(innerCatalogService.price)
+            : feeSourceRow.price != null
+            ? Number(feeSourceRow.price)
             : undefined,
       }
     : undefined;
@@ -2057,7 +2069,7 @@ export function extractServiceFeesFromQuoteRecord(
   return mergeQuoteServiceFeesForBreakdown(
     catalogOpt,
     partnerRef ?? null,
-    serviceId
+    catalogServiceId || serviceId
   );
 }
 
@@ -2225,8 +2237,9 @@ export async function applyQuoteHeaderPatch(
   if (patch.status != null) {
     const sk = patch.status.trim().toLowerCase();
     if (sk === "accepted") {
-      const ok = await approveQuote(id);
-      if (!ok) return false;
+      // Approve (pending → approved), then convert creates the order (→ success).
+      await approveQuote(id);
+      return convertQuoteToOrder(id);
     } else if (sk === "failed") {
       const ok = await rejectQuote(id, "Marked as failed");
       if (!ok) return false;

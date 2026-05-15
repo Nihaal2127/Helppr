@@ -54,7 +54,7 @@ import { franchiseHeaderFormDefaults } from "../../lib/franchise/headerFranchise
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
-import { formatQuoteScheduleForTable, formatServiceAddressLines } from "../../lib/quote/quoteScheduleDisplay";
+import { formatQuoteScheduleForTable } from "../../lib/quote/quoteScheduleDisplay";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
@@ -120,6 +120,14 @@ const quoteTabs: { key: QuoteTabKey; label: string }[] = [
   { key: "success", label: "Success" },
   { key: "failed", label: "Failed" },
 ];
+
+const QUOTE_TABLE_STATUS_CLASS: Record<string, string> = {
+  new: "text-secondary",
+  pending: "text-warning",
+  accepted: "text-success",
+  success: "text-success",
+  failed: "text-danger",
+};
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
@@ -1039,12 +1047,6 @@ const QuoteManagement = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
-      {
-        Header: "Quote ID",
-        accessor: "quote_id",
-        sort: true,
-        Cell: ({ row }: { row: any }) => row.original.quote_id ?? "-",
-      },
     ];
 
     if (selectedTab === "success") {
@@ -1091,13 +1093,18 @@ const QuoteManagement = () => {
         ),
       },
       {
-        Header: "Address",
-        accessor: "address",
-        Cell: ({ row }: { row: any }) => (
-          <span style={{ whiteSpace: "pre-line" }}>
-            {formatServiceAddressLines(row.original as QuoteRow)}
-          </span>
-        ),
+        Header: "Status",
+        accessor: "status",
+        sort: true,
+        Cell: ({ row }: { row: any }) => {
+          const status = String(row.original.status ?? "-");
+          const statusKey = status.toLowerCase();
+          const statusClass =
+            QUOTE_TABLE_STATUS_CLASS[statusKey] ?? "text-body-secondary";
+          return (
+            <span className={`fw-semibold ${statusClass}`}>{status}</span>
+          );
+        },
       },
       actionColumn
     );
@@ -1350,15 +1357,9 @@ const QuoteManagement = () => {
         toolsInlineRow
         hideMoreIcon
         controlSlot={
-          <div className="d-flex flex-wrap align-items-end gap-3">
-            <span
-              className="text-muted small fw-semibold mb-2 w-100"
-              style={{ letterSpacing: "0.02em" }}
-            >
-              Schedule
-            </span>
-            <div style={{ minWidth: "200px" }}>
-              <Form.Label className="mb-1 fw-medium small">
+          <>
+            <div style={{ minWidth: "220px" }}>
+              <Form.Label className="mb-1 fw-medium">
                 Schedule from date
               </Form.Label>
               <CustomDatePicker
@@ -1368,6 +1369,13 @@ const QuoteManagement = () => {
                 onChange={(date) => {
                   const next = toIsoCalendarDate(date);
                   setFromDate(next);
+                  if (next && toDate) {
+                    const cmp = compareIsoDateOnlyAsc(next, toDate);
+                    if (cmp != null && cmp > 0) {
+                      setToDate(null);
+                      setQuoteFilterValue("to_date", "");
+                    }
+                  }
                   setCurrentPage(1);
                 }}
                 register={
@@ -1378,12 +1386,14 @@ const QuoteManagement = () => {
                 }
                 asCol={false}
                 groupClassName="mb-0 w-100"
-                placeholderText="From Date"
+                placeholderText="Schedule from date"
                 filterDate={() => true}
               />
             </div>
             <div style={{ minWidth: "220px" }}>
-              <Form.Label className="mb-1 fw-medium">To Date</Form.Label>
+              <Form.Label className="mb-1 fw-medium">
+                Schedule to date
+              </Form.Label>
               <CustomDatePicker
                 label=""
                 controlId="to_date"
@@ -1410,7 +1420,7 @@ const QuoteManagement = () => {
                 }}
               />
             </div>
-          </div>
+          </>
         }
         afterSearchSlot={
           <Button

@@ -715,14 +715,24 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     if (nextStatus && nextStatus !== prev) {
       ok = await applyQuoteHeaderPatch(id, { status: nextStatus });
       if (!ok) {
-        showErrorAlert("Quote was updated, but status could not be changed.");
+        const statusMsg =
+          nextStatus === "accepted"
+            ? "Quote was updated, but could not be accepted or converted to an order."
+            : "Quote was updated, but status could not be changed.";
+        showErrorAlert(statusMsg);
         onSaved?.();
         onClose();
         return;
       }
     }
 
-    showSuccessAlert("Quote updated.");
+    const statusChangedToAccepted =
+      nextStatus === "accepted" && nextStatus !== prev;
+    showSuccessAlert(
+      statusChangedToAccepted
+        ? "Quote accepted and order created."
+        : "Quote updated."
+    );
     onSaved?.();
     onClose();
   };
