@@ -565,7 +565,8 @@ export function getPartnerProvidingServiceIdSet(
     }
     if (typeof x === "object") {
       const o = x as Record<string, unknown>;
-      const id = str(o.service_id ?? o._id ?? o.id);
+      const id =
+        normalizeMongoRef(o.service_id) || str(o._id ?? o.id);
       if (id) out.add(id);
     }
   }
@@ -1167,6 +1168,34 @@ function refId(v: unknown): string {
   return "";
 }
 
+/**
+ * Catalog service id for quote add/edit dropdowns.
+ * GET /quote/get may return `service_id` as a partner-providing row with nested `service_id.service`.
+ */
+export function resolveQuoteCatalogServiceId(
+  r: Record<string, unknown>
+): string {
+  const servicePackageRef = nestedObj(r.service_id);
+  const innerCatalogService = servicePackageRef
+    ? nestedObj(servicePackageRef.service_id)
+    : undefined;
+
+  const fromInner = refId(innerCatalogService);
+  if (fromInner) return fromInner;
+
+  const fromPackageServiceField = normalizeMongoRef(servicePackageRef?.service_id);
+  if (fromPackageServiceField) return fromPackageServiceField;
+
+  if (typeof r.service_id === "string" || typeof r.service_id === "number") {
+    return str(r.service_id);
+  }
+
+  const flatService = nestedObj(r.service);
+  if (flatService) return refId(flatService);
+
+  return refId(servicePackageRef);
+}
+
 function nestedObj(v: unknown): Record<string, unknown> | undefined {
   return isPlainObject(v) ? v : undefined;
 }
@@ -1487,7 +1516,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     state: state || undefined,
     address_line: address_line || undefined,
     pincode: pincode || undefined,
-    service_id: refId(r.service_id) || refId(serviceRef) || undefined,
+    service_id: resolveQuoteCatalogServiceId(r) || undefined,
     partner_id: refId(r.partner_id) || refId(partnerRef) || undefined,
     partner_user_id:
       str(r.partner_user_id ?? partnerRef?.user_id) || undefined,

@@ -581,11 +581,6 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     [quoteUserOptions]
   );
 
-  const quoteUserOptionsFind = useMemo(
-    () => new Map(quoteUserOptions.map((u) => [u.value, u])),
-    [quoteUserOptions]
-  );
-
   const onSubmit = async (data: EditQuoteFormValues) => {
     const id = String(quoteMongoId ?? "").trim();
     if (!id) {
@@ -624,6 +619,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
     if (!String(data.requested_partner ?? "").trim()) {
       showErrorAlert("Please select a partner.");
+      return;
+    }
+    if (!String(data.category_id ?? "").trim()) {
+      showErrorAlert("Please select a category.");
       return;
     }
     if (!String(data.requested_services ?? "").trim()) {
@@ -690,7 +689,6 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     }
 
     const patch: Record<string, unknown> = {
-      user_id: String(data.user_id ?? "").trim(),
       category_id: String(data.category_id ?? "").trim(),
       service_id: String(data.requested_services ?? "").trim(),
       partner_id: String(data.requested_partner ?? "").trim() || undefined,
@@ -872,15 +870,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     setValue={setValue as (name: string, value: unknown) => void}
                     placeholder="Search user"
                     menuPortal
-                    isClearable
-                    onChange={(e) => {
-                      const uid = String(e.target.value || "");
-                      const row = quoteUserOptionsFind.get(uid);
-                      setValue("user_name", row?.user_name ?? "", {
-                        shouldValidate: isSubmitted,
-                      });
-                    }}
-                    isDisabled={lockedFields}
+                    isClearable={false}
+                    isDisabled
                   />
                 </Col>
                 {!isSuperAdminOrStaff ? (
