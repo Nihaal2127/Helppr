@@ -2,6 +2,7 @@ import React from "react";
 import { Row, Col } from "react-bootstrap";
 import type { UserModel } from "../../lib/models/UserModel";
 import editIcon from "../../assets/icons/edit_red.svg";
+import deleteIcon from "../../assets/icons/delete_red.svg";
 
 const savedCardShell: React.CSSProperties = {
   borderRadius: "8px",
@@ -41,19 +42,8 @@ export type UserAddressReadOnlyCardsProps = {
   cityOptions?: { value: string; label: string }[];
   areaOptions?: { value: string; label: string }[];
   onEdit: (index: number) => void;
+  onDelete?: (index: number) => void;
 };
-
-function enforceSingleActiveRowStatus<
-  T extends { status: "true" | "false" }
->(rows: T[]): T[] {
-  if (rows.length === 0) return rows;
-  const firstActive = rows.findIndex((r) => r.status === "true");
-  const keepIdx = firstActive >= 0 ? firstActive : 0;
-  return rows.map((r, i) => ({
-    ...r,
-    status: (i === keepIdx ? "true" : "false") as "true" | "false",
-  }));
-}
 
 const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
   user,
@@ -61,6 +51,7 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
   cityOptions = [],
   areaOptions = [],
   onEdit,
+  onDelete,
 }) => {
   const toText = (value: unknown) => String(value ?? "").trim();
   const normalizeAddressStatus = (value: unknown): "true" | "false" =>
@@ -147,7 +138,7 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
             row.line !== "—"
         );
 
-  const rows = enforceSingleActiveRowStatus(fallbackRows);
+  const rows = fallbackRows;
 
   return (
     <Row className="g-2">
@@ -179,15 +170,28 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
                   {row.status === "true" ? "(Active)" : "(Inactive)"}
                 </span>
               </div>
-              <span
-                className="p-0 border-0 bg-transparent"
-                style={{ cursor: "pointer" }}
-                onClick={() => onEdit(index)}
-                title="Edit address"
-                aria-label="Edit address"
-              >
-                <img src={editIcon} alt="" width={18} height={18} />
-              </span>
+              <div className="d-flex align-items-center gap-2">
+                <span
+                  className="p-0 border-0 bg-transparent"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => onEdit(index)}
+                  title="Edit address"
+                  aria-label="Edit address"
+                >
+                  <img src={editIcon} alt="" width={18} height={18} />
+                </span>
+                {onDelete ? (
+                  <span
+                    className="p-0 border-0 bg-transparent"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => onDelete(index)}
+                    title="Delete address"
+                    aria-label="Delete address"
+                  >
+                    <img src={deleteIcon} alt="" width={18} height={18} />
+                  </span>
+                ) : null}
+              </div>
             </div>
             <Row className="g-1 gx-2">
               <Col xs={6}>

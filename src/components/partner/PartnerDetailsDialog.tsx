@@ -19,6 +19,7 @@ import {
   DetailsRowLink,
   formatDate,
   DetailsRowLinkDocument,
+  PersonalAccountDetailsGrid,
 } from "../../helper/utility";
 import { formatGenderLabel } from "../../lib/user/genderOptions";
 import AddEditBankAccountDialog from "../../pages/userManagement/AddEditBankAccountDialog";
@@ -42,6 +43,7 @@ import {
   buildViewCategoryServiceGroupsFromPartnerServices,
 } from "../../lib/partner/partnerCategoryServiceView";
 import EditPartnerCategoriesServicesDialog from "../../pages/userManagement/EditPartnerCategoriesServicesDialog";
+import AddEditUserDialog from "../../pages/userManagement/AddEditUserDialog";
 import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
 
 type PartnerDetailsDialogProps = {
@@ -264,154 +266,46 @@ function PartnerDetailsDialogView({
               className="custom-personal-details"
               style={{ flexWrap: "wrap" }}
             >
-              <Col className="custom-helper-column">
-                <DetailsRow title="Partner Name" value={userDetails?.name} />
-                <DetailsRow
-                  title="Gender"
-                  value={formatGenderLabel(userDetails?.gender)}
-                />
-                <DetailsRow
-                  title="Date of Birth"
-                  value={
-                    userDetails?.date_of_birth
-                      ? formatDate(String(userDetails.date_of_birth))
-                      : "—"
-                  }
-                />
-                <DetailsRow
-                  title="Experience"
-                  value={
-                    userDetails?.experience !== undefined &&
-                    userDetails?.experience !== null &&
-                    String(userDetails.experience).trim() !== ""
-                      ? String(userDetails.experience)
-                      : "—"
-                  }
-                />
-                <DetailsRow
-                  title="Phone No"
-                  value={userDetails?.phone_number}
-                />
-                <DetailsRow title="State" value={userDetails?.state_name} />
-              </Col>
-              <Col className="custom-helper-column">
-                <div>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Email ID
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {userDetails?.email === undefined ||
-                      userDetails?.email === "" ||
-                      userDetails?.email === null
-                        ? "-"
-                        : userDetails.email}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      City
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {userDetails?.city_name === undefined ||
-                      userDetails?.city_name === "" ||
-                      userDetails?.city_name === null
-                        ? "-"
-                        : userDetails.city_name}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Postal Code
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {userDetails?.pincode === undefined ||
-                      userDetails?.pincode === "" ||
-                      userDetails?.pincode === null
-                        ? "-"
-                        : userDetails.pincode}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Last Service Date
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {formatDate(
-                        userDetails?.last_service_date
-                          ? userDetails.last_service_date
-                          : ""
-                      )}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Registered Date
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {formatDate(
-                        userDetails?.created_at ? userDetails.created_at : ""
-                      )}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Status
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        wordBreak: "break-word",
-                      }}
-                    >
+              <PersonalAccountDetailsGrid
+                nameLabel="Partner Name"
+                name={userDetails?.name}
+                dateOfBirth={userDetails?.date_of_birth}
+                genderLabel={formatGenderLabel(userDetails?.gender)}
+                email={userDetails?.email}
+                phone={userDetails?.phone_number}
+                registeredDate={userDetails?.created_at}
+                lastServiceDate={userDetails?.last_service_date}
+              />
+              <Row className="g-0 mt-1">
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Experience"
+                    value={
+                      userDetails?.experience !== undefined &&
+                      userDetails?.experience !== null &&
+                      String(userDetails.experience).trim() !== ""
+                        ? String(userDetails.experience)
+                        : "—"
+                    }
+                  />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow title="State" value={userDetails?.state_name} />
+                </Col>
+              </Row>
+              <Row className="g-0">
+                <Col xs={12} md={6}>
+                  <DetailsRow title="City" value={userDetails?.city_name ?? "—"} />
+                </Col>
+                <Col xs={12} md={6}>
+                  <DetailsRow title="Postal Code" value={userDetails?.pincode ?? "—"} />
+                </Col>
+              </Row>
+              <Row className="g-0">
+                <Col xs={12} md={6}>
+                  <DetailsRow
+                    title="Status"
+                    value={
                       <span
                         className={
                           userDetails?.is_active
@@ -421,10 +315,10 @@ function PartnerDetailsDialogView({
                       >
                         {userDetails?.is_active ? "Active" : "Inactive"}
                       </span>
-                    </div>
-                  </Row>
-                </div>
-              </Col>
+                    }
+                  />
+                </Col>
+              </Row>
               <div
                 className="w-100"
                 style={{ flex: "1 1 100%", minWidth: "100%" }}
@@ -462,16 +356,8 @@ function PartnerDetailsDialogView({
               src={editIcon}
               alt="edit"
               onClick={() => {
-                void import("../../pages/userManagement/AddEditUserDialog").then(
-                  ({ default: AddEditUserDialog }) => {
-                    AddEditUserDialog.show(
-                      2,
-                      true,
-                      userDetails!!,
-                      onRefreshuser
-                    );
-                  }
-                );
+                if (!userDetails) return;
+                AddEditUserDialog.show(2, true, userDetails, onRefreshuser);
               }}
             />
           </div>
@@ -878,77 +764,7 @@ function PartnerDetailsDialogView({
               </section>
             </Col>
           </Row>
-          {/* <Row className="custom-helper-row">
-                            <Col xs={12} md={12}>
-                                <section
-                                    className="custom-other-details"
-                                    style={{ marginLeft: "0px", marginRight: "0px" }}
-                                >
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            marginBottom: "10px",
-                                        }}
-                                    >
-                                        <h3 style={{ margin: 0 }}>Categories &amp; services</h3>
-                                    </div>
-                                    <div
-                                        className="rounded border px-3 py-3 position-relative"
-                                        style={{
-                                            borderColor: "var(--lb1-border)",
-                                            background: "var(--bg-color)",
-                                        }}
-                                    >
-                                        {userDetails ? (
-                                            <img
-                                                src={editIcon}
-                                                alt="Edit categories and services"
-                                                title="Edit categories and services"
-                                                className="position-absolute"
-                                                style={{
-                                                    top: "0.75rem",
-                                                    right: "0.75rem",
-                                                    width: "15px",
-                                                    height: "15px",
-                                                    cursor: "pointer",
-                                                    zIndex: 1,
-                                                }}
-                                                onClick={() => {
-                                                    openDialog("edit-partner-categories-services", (close) => (
-                                                        <EditPartnerCategoriesServicesDialog
-                                                            key={`${userDetails._id}-cat-svc-${Date.now()}`}
-                                                            user={userDetails}
-                                                            initialCategoryIds={(userDetails.category_ids ?? []).map(String)}
-                                                            initialServiceIds={(userDetails.service_ids ?? []).map(String)}
-                                                            onClose={close}
-                                                            onSaved={() => {
-                                                                void onRefreshuser();
-                                                                close();
-                                                            }}
-                                                        />
-                                                    ));
-                                                }}
-                                            />
-                                        ) : null}
-                                        {viewCategoryServiceGroups.length === 0 ? (
-                                            <div className="text-muted small py-1">-</div>
-                                        ) : (
-                                            viewCategoryServiceGroups.map((g) => (
-                                                <DetailsRow
-                                                    key={g.categoryId}
-                                                    title={g.categoryLabel}
-                                                    value={
-                                                        g.services.length > 0 ? g.services.join(", ") : "—"
-                                                    }
-                                                />
-                                            ))
-                                        )}
-                                    </div>
-                                </section>
-                            </Col>
-                        </Row> */}
+       
         </Modal.Body>
       </Modal>
     </>

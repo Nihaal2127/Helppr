@@ -23,6 +23,7 @@ import {
 import { showErrorAlert } from "../lib/global/alertHelper";
 import { openDialog } from "../lib/global/DialogManager";
 import GenderRadioField from "./GenderRadioField";
+import CustomDatePicker from "./CustomDatePicker";
 
 const MODAL_DOM_ID = "add-franchise-admin-nested-dialog";
 
@@ -39,6 +40,7 @@ type FormState = {
   email: string;
   phone_number: string;
   gender: GenderField;
+  date_of_birth: string;
   password: string;
   confirmPassword: string;
   assignedFranchise: string;
@@ -51,6 +53,7 @@ const emptyForm: FormState = {
   email: "",
   phone_number: "",
   gender: "male",
+  date_of_birth: "",
   password: "",
   confirmPassword: "",
   assignedFranchise: "",
@@ -209,6 +212,23 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               onChange={(value: string) =>
                 setForm((p) => ({ ...p, roleName: value }))
               }
+            />
+          </div>
+          <div className="col-md-12">
+            <CustomDatePicker
+              label="Date of Birth"
+              controlId="nested_role_date_of_birth"
+              asCol={false}
+              birthDatePicker
+              selectedDate={form.date_of_birth ? form.date_of_birth : null}
+              placeholderText="Select date of birth"
+              register={register}
+              setValue={setValue}
+              onChange={(date) => {
+                const value = date ? date.toISOString().slice(0, 10) : "";
+                setForm((p) => ({ ...p, date_of_birth: value }));
+                setValue("nested_role_date_of_birth", value);
+              }}
             />
           </div>
           <div className="col-md-12">

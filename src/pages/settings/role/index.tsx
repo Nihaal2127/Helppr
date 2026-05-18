@@ -18,7 +18,8 @@ import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import { CustomFormIndiaMobile } from "../../../components/CustomFormIndiaMobile";
 import CustomFormSelect from "../../../components/CustomFormSelect";
-import { DetailsRow, FullDetailsRow } from "../../../helper/utility";
+import { DetailsRow, FullDetailsRow, formatDate } from "../../../helper/utility";
+import CustomDatePicker from "../../../components/CustomDatePicker";
 import { readHeaderFranchisePreference } from "../../../lib/franchise/headerFranchisePreference";
 import {
   RoleSettingsModel,
@@ -71,11 +72,24 @@ import {
 
 type GenderField = "male" | "female" | "others";
 
+function dobToYmd(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") {
+    const s = value.trim();
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
 const emptyRoleForm = {
   roleName: "",
   email: "",
   phone_number: "",
   gender: "male" as GenderField,
+  date_of_birth: "",
   profile_url: "",
   roleType: "franchise_admin" as "franchise_admin" | "employee",
   assignedFranchise: "",
@@ -95,6 +109,7 @@ const emptyStaffForm = {
   email: "",
   phone_number: "",
   gender: "male" as GenderField,
+  date_of_birth: "",
   profile_url: "",
   status: "active" as "active" | "inactive",
   screenPermissions: [] as string[],
@@ -277,6 +292,7 @@ const RoleManagement = () => {
           String(item.phone_number ?? "")
         ),
         gender: normalizeGenderValue(item.gender) || "male",
+        date_of_birth: dobToYmd(item.date_of_birth),
         profile_url: item.profile_url ?? "",
         roleType: item.roleType,
         assignedFranchise:
@@ -323,6 +339,7 @@ const RoleManagement = () => {
           String(item.phone_number ?? "")
         ),
         gender: normalizeGenderValue(item.gender) || "male",
+        date_of_birth: dobToYmd(item.date_of_birth),
         profile_url: item.profile_url ?? "",
         status: item.status,
         screenPermissions: item.screenPermissions?.length
@@ -353,6 +370,7 @@ const RoleManagement = () => {
         String(editing.phone_number ?? "")
       ),
       gender: normalizeGenderValue(editing.gender) || "male",
+      date_of_birth: dobToYmd(editing.date_of_birth),
       profile_url: editing.profile_url ?? "",
       roleType: editing.roleType,
       assignedFranchise:
@@ -383,6 +401,7 @@ const RoleManagement = () => {
         String(staffEditing.phone_number ?? "")
       ),
       gender: normalizeGenderValue(staffEditing.gender) || "male",
+      date_of_birth: dobToYmd(staffEditing.date_of_birth),
       profile_url: staffEditing.profile_url ?? "",
       status: staffEditing.status,
       screenPermissions: staffEditing.screenPermissions?.length
@@ -1445,6 +1464,14 @@ const RoleManagement = () => {
                     value={formatGenderLabel(editing.gender)}
                   />
                   <DetailsRow
+                    title="Date of Birth"
+                    value={
+                      editing.date_of_birth
+                        ? formatDate(String(editing.date_of_birth))
+                        : "-"
+                    }
+                  />
+                  <DetailsRow
                     title="Assigned Franchise"
                     value={franchiseDisplayFor(editing) || "-"}
                   />
@@ -1488,6 +1515,23 @@ const RoleManagement = () => {
                   onChange={(value: string) =>
                     setForm((p) => ({ ...p, roleName: value }))
                   }
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomDatePicker
+                  label="Date of Birth"
+                  controlId="role_date_of_birth"
+                  asCol={false}
+                  birthDatePicker
+                  selectedDate={form.date_of_birth ? form.date_of_birth : null}
+                  placeholderText="Select date of birth"
+                  register={register}
+                  setValue={setValue}
+                  onChange={(date) => {
+                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    setForm((p) => ({ ...p, date_of_birth: value }));
+                    setValue("role_date_of_birth", value);
+                  }}
                 />
               </div>
               <div className="col-md-12">
@@ -1721,6 +1765,7 @@ const RoleManagement = () => {
                   email: form.email.trim(),
                   phone_number: rolePhoneFull,
                   gender: form.gender,
+                  date_of_birth: form.date_of_birth.trim() || undefined,
                   profile_url: form.profile_url.trim() || undefined,
                   roleType: form.roleType,
                   assignedFranchise: form.assignedFranchise || undefined,
@@ -1865,6 +1910,14 @@ const RoleManagement = () => {
                     value={formatGenderLabel(staffEditing.gender)}
                   />
                   <FullDetailsRow
+                    title="Date of Birth"
+                    value={
+                      staffEditing.date_of_birth
+                        ? formatDate(String(staffEditing.date_of_birth))
+                        : "-"
+                    }
+                  />
+                  <FullDetailsRow
                     title="Screen Permissions"
                     value={
                       staffEditing.screenPermissions?.length ? (
@@ -1904,6 +1957,25 @@ const RoleManagement = () => {
                   onChange={(value: string) =>
                     setStaffForm((p) => ({ ...p, name: value }))
                   }
+                />
+              </div>
+              <div className="col-md-12">
+                <CustomDatePicker
+                  label="Date of Birth"
+                  controlId="staff_date_of_birth"
+                  asCol={false}
+                  birthDatePicker
+                  selectedDate={
+                    staffForm.date_of_birth ? staffForm.date_of_birth : null
+                  }
+                  placeholderText="Select date of birth"
+                  register={register}
+                  setValue={setValue}
+                  onChange={(date) => {
+                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    setStaffForm((p) => ({ ...p, date_of_birth: value }));
+                    setValue("staff_date_of_birth", value);
+                  }}
                 />
               </div>
               <div className="col-md-12">
@@ -2129,6 +2201,7 @@ const RoleManagement = () => {
                   email: staffForm.email.trim(),
                   phone_number: staffPhoneFull,
                   gender: staffForm.gender,
+                  date_of_birth: staffForm.date_of_birth.trim() || undefined,
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
                   screenPermissions: staffForm.screenPermissions.filter(

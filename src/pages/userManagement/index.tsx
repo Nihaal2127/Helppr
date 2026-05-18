@@ -324,6 +324,12 @@ const UserManagement = () => {
         accessor: "name",
         sort: true,
       },
+      {
+        Header: "Email",
+        accessor: "email",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.email ?? "").trim() || "—",
+      },
       { Header: "Service Taken", accessor: "total_service" },
       // { Header: "Service Paid", accessor: "service_paid" },
       // { Header: "Service Unpaid", accessor: "service_unpaid" },
@@ -401,7 +407,13 @@ const UserManagement = () => {
         accessor: "name",
         sort: true,
       },
-      { Header: "No. of services", accessor: "no_of_services", sort: true },
+      {
+        Header: "Email",
+        accessor: "email",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.email ?? "").trim() || "—",
+      },
+      { Header: "No. of services", accessor: "no_of_services" },
      
       {
         Header: "Total Earnings",

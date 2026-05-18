@@ -29,6 +29,22 @@ import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranch
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+function dobForApiPayload(value?: string | null): string | undefined {
+  const s = String(value ?? "").trim();
+  if (!s) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 10);
+}
+
+function dobFromApiRaw(raw: Record<string, unknown>): string | undefined {
+  const ymd = dobForApiPayload(
+    String(raw.date_of_birth ?? raw.dateOfBirth ?? "").trim() || undefined
+  );
+  return ymd || undefined;
+}
+
 // ----------------------
 // Offer mock data (in-memory, no localStorage)
 // ----------------------
@@ -220,6 +236,7 @@ function mapApiUserToRoleSettingsModel(
     email: String(raw.email ?? "").trim() || undefined,
     phone_number: String(raw.phone_number ?? "").trim() || undefined,
     gender: genderForApiPayload(raw.gender) ?? undefined,
+    date_of_birth: dobFromApiRaw(raw),
     profile_url: String(raw.profile_url ?? "").trim() || undefined,
     status: normalizeActiveStatus(raw.is_active),
     createdDate: String(raw.created_at ?? new Date().toISOString()),
@@ -239,6 +256,7 @@ function mapApiUserToStaffSettingsModel(
     email: String(raw.email ?? "").trim() || undefined,
     phone_number: String(raw.phone_number ?? "").trim() || undefined,
     gender: genderForApiPayload(raw.gender) ?? undefined,
+    date_of_birth: dobFromApiRaw(raw),
     profile_url: String(raw.profile_url ?? "").trim() || undefined,
     status: normalizeActiveStatus(raw.is_active),
     createdDate: String(raw.created_at ?? new Date().toISOString()),
@@ -547,6 +565,9 @@ export const createRoleUserWithApi = async (
     ...(genderForApiPayload(payload.gender)
       ? { gender: genderForApiPayload(payload.gender) }
       : {}),
+    ...(dobForApiPayload(payload.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(payload.date_of_birth) }
+      : {}),
     type,
     status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
@@ -620,6 +641,9 @@ export const updateRoleUserWithApi = async (
     phone_number: (payload.phone_number ?? "").trim(),
     ...(genderForApiPayload(payload.gender)
       ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
+    ...(dobForApiPayload(payload.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(payload.date_of_birth) }
       : {}),
     status: sanitizeStatus(payload.status),
     is_active: updateStatusPayloadValue(payload.status),
@@ -762,6 +786,9 @@ export const createStaffUserWithApi = async (
     ...(genderForApiPayload(payload.gender)
       ? { gender: genderForApiPayload(payload.gender) }
       : {}),
+    ...(dobForApiPayload(payload.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(payload.date_of_birth) }
+      : {}),
     type: WEB_MANAGEMENT_USER_TYPE.STAFF,
     status: (payload.status ?? "active").toLowerCase(),
     is_from_web: true,
@@ -818,6 +845,9 @@ export const updateStaffUserWithApi = async (
     phone_number: (payload.phone_number ?? "").trim(),
     ...(genderForApiPayload(payload.gender)
       ? { gender: genderForApiPayload(payload.gender) }
+      : {}),
+    ...(dobForApiPayload(payload.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(payload.date_of_birth) }
       : {}),
     status: sanitizeStatus(payload.status),
     is_active: updateStatusPayloadValue(payload.status),

@@ -82,6 +82,14 @@ const EmployeeDetailsDialog: React.FC<EmployeeDetailsDialogProps> & {
                     title="Gender"
                     value={formatGenderLabel(userDetails?.gender)}
                   />
+                  <DetailsRow
+                    title="Date of Birth"
+                    value={
+                      userDetails?.date_of_birth
+                        ? formatDate(String(userDetails.date_of_birth))
+                        : "-"
+                    }
+                  />
                   <DetailsRow title="Email ID" value={userDetails?.email} />
                   <DetailsRow
                     title="Phone No"

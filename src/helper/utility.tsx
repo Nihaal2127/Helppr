@@ -172,6 +172,74 @@ export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
   );
 };
 
+/** Two-column personal block: name/DOB, gender/email, phone/registered, optional last service. */
+export function PersonalAccountDetailsGrid({
+  nameLabel,
+  name,
+  dateOfBirth,
+  genderLabel,
+  email,
+  phone,
+  registeredDate,
+  lastServiceDate,
+}: {
+  nameLabel: string;
+  name?: string | null;
+  dateOfBirth?: string | null;
+  genderLabel?: string;
+  email?: string | null;
+  phone?: string | null;
+  registeredDate?: string | null;
+  lastServiceDate?: string | null;
+}) {
+  const dobRaw = String(dateOfBirth ?? "").trim();
+  const dobDisplay = dobRaw ? formatDate(dobRaw) : "—";
+  const regRaw = String(registeredDate ?? "").trim();
+  const regDisplay = regRaw ? formatDate(regRaw) : "—";
+  const lastRaw = String(lastServiceDate ?? "").trim();
+  const showLastService =
+    Boolean(lastRaw) && !Number.isNaN(new Date(lastRaw).getTime());
+
+  return (
+    <div className="w-100">
+      <Row className="g-0">
+        <Col xs={12} md={6}>
+          <DetailsRow title={nameLabel} value={name ?? "—"} />
+        </Col>
+        <Col xs={12} md={6}>
+          <DetailsRow title="Date of Birth" value={dobDisplay} />
+        </Col>
+      </Row>
+      <Row className="g-0">
+        <Col xs={12} md={6}>
+          <DetailsRow title="Gender" value={genderLabel ?? "—"} />
+        </Col>
+        <Col xs={12} md={6}>
+          <DetailsRow title="Email" value={email ?? "—"} />
+        </Col>
+      </Row>
+      <Row className="g-0">
+        <Col xs={12} md={6}>
+          <DetailsRow title="Phone Number" value={phone ?? "—"} />
+        </Col>
+        <Col xs={12} md={6}>
+          <DetailsRow title="Registered Date" value={regDisplay} />
+        </Col>
+      </Row>
+      {showLastService ? (
+        <Row className="g-0">
+          <Col xs={12} md={6}>
+            <DetailsRow
+              title="Last Service Date"
+              value={formatDate(lastRaw)}
+            />
+          </Col>
+        </Row>
+      ) : null}
+    </div>
+  );
+}
+
 /** Full-width label + value without `custom-personal-row` (long schedule / address text). */
 export function WideLabelValueBlock({
   label,
@@ -468,7 +536,7 @@ export const DetailsRowLinkDocument = ({
               className="custom-document-delete mb-0"
               title="Replace document"
             >
-              ReUpload
+              Update
             </label>
           </>
         ) : hideAdd ? (

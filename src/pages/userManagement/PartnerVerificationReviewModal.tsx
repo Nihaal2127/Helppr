@@ -837,7 +837,7 @@ function PartnerVerificationReviewModalView({
                                 if (doc) addDocument(doc);
                               }}
                             >
-                              ReUpload
+                              Update
                             </label>
                           </>
                         )}

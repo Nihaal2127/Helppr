@@ -21,8 +21,8 @@ const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
   setValue,
 }) => {
   return (
-    <Row className="align-items-center">
-      <Col sm={4} className="mt-2">
+    <Row className="align-items-start">
+      <Col sm={4} className="d-flex align-items-start">
         <label className="custom-profile-lable">{label}</label>
       </Col>
       <Col>

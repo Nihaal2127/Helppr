@@ -11,7 +11,17 @@ import type { SingleValue } from "react-select";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import type { PartnerServiceApiRow } from "../../lib/partner/partnerCategoryServiceView";
-import { flattenPartnerBlocksForSave } from "../../components/partnerCatalogBlockUi";
+import {
+  flattenPartnerBlocksForSave,
+  emptyPartnerCatalogBlock,
+  emptyPartnerServiceRow,
+  newPartnerCatalogRowId,
+} from "../../components/partnerCatalogBlockUi";
+import type {
+  PartnerCategoryBlock,
+  PartnerCatalogServiceLite,
+  PartnerServiceRow,
+} from "../../components/partnerCatalogBlockUi";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchService } from "../../services/servicesService";
 import { createOrUpdateUser } from "../../services/userService";
@@ -30,33 +40,30 @@ type ServiceLite = {
   category_name?: string;
 };
 
-export type PartnerServiceRow = {
-  id: string;
-  serviceId: string;
-  description: string;
-  price: string;
-};
-
-export type PartnerCategoryBlock = {
-  id: string;
-  categoryId: string;
-  serviceRows: PartnerServiceRow[];
-};
-
-function newId(): string {
-  return `pcl-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+function resolveActiveFlag(value: unknown, defaultActive = true): boolean {
+  if (value === undefined || value === null) return defaultActive;
+  return value === true || String(value).toLowerCase() === "true";
 }
 
-function emptyServiceRow(): PartnerServiceRow {
-  return { id: newId(), serviceId: "", description: "", price: "" };
+function categoryActiveFromUser(
+  user: UserModel,
+  categoryId: string,
+  initialCategoryIds: string[]
+): boolean {
+  const idx = initialCategoryIds.findIndex((id) => String(id) === String(categoryId));
+  const flags = (user as { category_is_active?: boolean[] }).category_is_active;
+  if (idx >= 0 && Array.isArray(flags) && flags[idx] !== undefined) {
+    return flags[idx] !== false;
+  }
+  return true;
 }
 
-function emptyBlock(initialCategoryId: string): PartnerCategoryBlock {
-  return {
-    id: newId(),
-    categoryId: initialCategoryId,
-    serviceRows: [emptyServiceRow()],
-  };
+function serviceActiveFromUser(user: UserModel, flatIndex: number): boolean {
+  const flags = (user as { service_is_active?: boolean[] }).service_is_active;
+  if (Array.isArray(flags) && flags[flatIndex] !== undefined) {
+    return flags[flatIndex] !== false;
+  }
+  return true;
 }
 
 /** Same react-select look as `CustomFormSelect` (portal menu for modals). */
@@ -188,7 +195,7 @@ function buildBlocksFromInitial(
   initialCategoryIds: string[]
 ): PartnerCategoryBlock[] {
   if (serviceIds.length === 0) {
-    return [emptyBlock(initialCategoryIds[0] ?? "")];
+    return [emptyPartnerCatalogBlock(initialCategoryIds[0] ?? "")];
   }
 
   const blocks: PartnerCategoryBlock[] = [];
@@ -198,7 +205,7 @@ function buildBlocksFromInitial(
     const svc = allServices.find((s) => String(s._id) === String(sid));
     const cid = svc ? String(svc.category_id) : initialCategoryIds[0] ?? "";
     const row: PartnerServiceRow = {
-      id: newId(),
+      id: newPartnerCatalogRowId(),
       serviceId: String(sid),
       description: String(user.service_descriptions?.[flatIndex] ?? ""),
       price:
@@ -206,6 +213,7 @@ function buildBlocksFromInitial(
         user.service_prices?.[flatIndex] !== null
           ? String(user.service_prices[flatIndex])
           : "",
+      is_active: serviceActiveFromUser(user, flatIndex),
     };
     flatIndex++;
 
@@ -213,11 +221,18 @@ function buildBlocksFromInitial(
     if (last && String(last.categoryId) === String(cid) && cid) {
       last.serviceRows.push(row);
     } else {
-      blocks.push({ id: newId(), categoryId: cid, serviceRows: [row] });
+      blocks.push({
+        id: newPartnerCatalogRowId(),
+        categoryId: cid,
+        is_active: categoryActiveFromUser(user, cid, initialCategoryIds),
+        serviceRows: [row],
+      });
     }
   }
 
-  return blocks.length > 0 ? blocks : [emptyBlock(initialCategoryIds[0] ?? "")];
+  return blocks.length > 0
+    ? blocks
+    : [emptyPartnerCatalogBlock(initialCategoryIds[0] ?? "")];
 }
 
 function partnerServiceRefId(
@@ -238,24 +253,37 @@ function buildBlocksFromPartnerServices(
     const cid = partnerServiceRefId(ps.category_id);
     const sid = partnerServiceRefId(ps.service_id);
     const row: PartnerServiceRow = {
-      id: newId(),
+      id: newPartnerCatalogRowId(),
       serviceId: sid,
       description: String(ps.description ?? "").trim(),
       price:
         ps.price != null && ps.price !== ""
           ? String(ps.price)
           : "",
+      is_active: resolveActiveFlag(
+        (ps as { is_active?: unknown }).is_active,
+        true
+      ),
     };
 
     const last = blocks[blocks.length - 1];
     if (last && String(last.categoryId) === String(cid) && cid) {
       last.serviceRows.push(row);
     } else {
-      blocks.push({ id: newId(), categoryId: cid, serviceRows: [row] });
+      blocks.push({
+        id: newPartnerCatalogRowId(),
+        categoryId: cid,
+        is_active: resolveActiveFlag(
+          (ps as { category_is_active?: unknown }).category_is_active ??
+            (ps as { is_active?: unknown }).is_active,
+          true
+        ),
+        serviceRows: [row],
+      });
     }
   }
 
-  return blocks.length > 0 ? blocks : [emptyBlock("")];
+  return blocks.length > 0 ? blocks : [emptyPartnerCatalogBlock("")];
 }
 
 function EditPartnerCategoriesServicesDialogView({
@@ -413,7 +441,7 @@ function EditPartnerCategoriesServicesDialogView({
   ]);
 
   const addCategoryBlock = useCallback(() => {
-    setBlocks((prev) => [...prev, emptyBlock("")]);
+    setBlocks((prev) => [...prev, emptyPartnerCatalogBlock("")]);
   }, []);
 
   const removeCategoryBlock = useCallback((blockId: string) => {
@@ -446,7 +474,10 @@ function EditPartnerCategoriesServicesDialogView({
     setBlocks((prev) =>
       prev.map((b) =>
         b.id === blockId
-          ? { ...b, serviceRows: [...b.serviceRows, emptyServiceRow()] }
+          ? {
+              ...b,
+              serviceRows: [...b.serviceRows, emptyPartnerServiceRow()],
+            }
           : b
       )
     );
@@ -501,7 +532,10 @@ function EditPartnerCategoriesServicesDialogView({
       return;
     }
 
-    const catalogFlat = flattenPartnerBlocksForSave(blocks, allServices);
+    const catalogFlat = flattenPartnerBlocksForSave(
+      blocks,
+      allServices as PartnerCatalogServiceLite[]
+    );
     if (!catalogFlat.ok) {
       showErrorAlert(catalogFlat.message);
       return;
@@ -525,6 +559,8 @@ function EditPartnerCategoriesServicesDialogView({
       service_names: catalogFlat.service_names,
       service_descriptions: catalogFlat.service_descriptions,
       service_prices: catalogFlat.service_prices,
+      category_is_active: catalogFlat.category_is_active,
+      service_is_active: catalogFlat.service_is_active,
       "partner-services": catalogFlat.partner_services,
       ...(user.profile_url && { profile_url: user.profile_url }),
     };

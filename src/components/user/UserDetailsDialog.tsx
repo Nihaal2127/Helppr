@@ -15,7 +15,11 @@ import { fetchAreaViewOptionsByCity } from "../../services/areaService";
 import type { AreaViewSelectOption } from "../../services/areaService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
-import { DetailsRow, formatDate } from "../../helper/utility";
+import {
+  DetailsRow,
+  formatDate,
+  PersonalAccountDetailsGrid,
+} from "../../helper/utility";
 import { formatGenderLabel } from "../../lib/user/genderOptions";
 import ServiceDetailsDialog from "./ServiceDetailsDialog";
 import UserAddressReadOnlyCards from "./UserAddressReadOnlyCards";
@@ -26,6 +30,8 @@ import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { openDialog } from "../../lib/global/DialogManager";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { openConfirmDialog } from "../CustomConfirmDialog";
+import deleteIcon from "../../assets/icons/delete_red.svg";
 
 type UserDetailsDialogProps = {
   userId: string;
@@ -41,6 +47,8 @@ type UserAddressEntry = {
   pincode: string;
   address: string;
   address_status: "true" | "false";
+  /** Original API row (when `user.address` is an array). */
+  apiRow?: Record<string, unknown>;
 };
 
 const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
@@ -223,6 +231,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
       };
 
       let payload: Record<string, unknown>;
+      let normalized: UserAddressEntry[] = [];
       const existingAddresses = getNormalizedAddresses(userDetails);
       if (viewAddrMode === "edit") {
         const editIndex =
@@ -239,28 +248,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
             address_status: isEdited ? values.addressStatus : x.address_status,
           };
         });
-        const normalized = enforceSingleActiveAddress(nextAddresses, editIndex);
+        normalized = enforceSingleActiveAddress(
+          nextAddresses,
+          values.addressStatus === "true" ? editIndex : undefined
+        );
 
-        payload = {
-          ...common,
-          add_new_address: "false",
-          // Keep root block aligned with `normalized[0]` (same row as address / city / area / pincode).
-          address_status: normalized[0]?.address_status ?? "false",
-          address: normalized[0]?.address ?? "",
-          state_id: normalized[0]?.state_id ?? "",
-          city_id: normalized[0]?.city_id ?? "",
-          area_id: normalized[0]?.area_id ?? "",
-          pincode: normalized[0]?.pincode ?? "",
-          extra_addresses: normalized.slice(1).map((x) => ({
-            _id: x._id,
-            state_id: x.state_id,
-            city_id: x.city_id,
-            area_id: x.area_id,
-            pincode: x.pincode,
-            address: x.address,
-            address_status: x.address_status,
-          })),
-        };
+        payload = buildAddressUpdatePayload(userDetails, normalized, common, {
+          addNew: false,
+        });
       } else {
         const nextAddresses = [
           ...existingAddresses,
@@ -273,39 +268,24 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
             address_status: values.addressStatus,
           } as UserAddressEntry,
         ];
-        const normalized = enforceSingleActiveAddress(
+        const newIndex = nextAddresses.length - 1;
+        normalized = enforceSingleActiveAddress(
           nextAddresses,
-          nextAddresses.length - 1
+          values.addressStatus === "true" ? newIndex : undefined
         );
 
-        payload = {
-          ...common,
-          add_new_address: "true",
-          address_status: values.addressStatus,
-          address: values.line.trim(),
-          state_id: values.stateId,
-          city_id: values.cityId,
-          area_id: values.areaId,
-          pincode: pin,
-          contact_name: userDetails.name ?? "",
-          contact_number: userDetails.phone_number ?? "",
-          // Compatibility for environments where UI still expects merged address list after save.
-          extra_addresses: normalized.slice(1).map((x) => ({
-            _id: x._id,
-            state_id: x.state_id,
-            city_id: x.city_id,
-            area_id: x.area_id,
-            pincode: x.pincode,
-            address: x.address,
-            address_status: x.address_status,
-          })),
-        };
+        payload = buildAddressUpdatePayload(userDetails, normalized, common, {
+          addNew: true,
+        });
       }
 
       const ok = await createOrUpdateUser(payload, true, userDetails._id);
       if (ok) {
         showSuccessAlert(
           viewAddrMode === "edit" ? "Address updated." : "Address added."
+        );
+        setUserDetails((prev) =>
+          prev ? mergeUserWithAddresses(prev, normalized) : prev
         );
         const refreshed = await fetchUserById(userId);
         if (refreshed.response && refreshed.user) {
@@ -318,6 +298,64 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
       return false;
     },
     [userDetails, viewAddrMode, editingAddressIndex, userId, onRefreshData]
+  );
+
+  const handleDeleteAddress = useCallback(
+    (index: number) => {
+      if (!userDetails?._id) return;
+      const addresses = getNormalizedAddresses(userDetails);
+      const target = addresses[index];
+      if (!target) return;
+      const addressLabel =
+        String(target.address ?? "").trim() || `Address ${index + 1}`;
+
+      openConfirmDialog(
+        `Are you sure to delete ${addressLabel}?`,
+        "Yes",
+        "Cancel",
+        () => {
+          void (async () => {
+            const nextAddresses = addresses.filter((_, idx) => idx !== index);
+            const normalized = enforceSingleActiveAddress(nextAddresses);
+            const common: Record<string, unknown> = {
+              type: userDetails.type,
+              is_from_web: userDetails.is_from_web,
+              registration_type: 1,
+              created_by_id: getLocalStorage(AppConstant.createdById),
+              name: userDetails.name ?? "",
+              email: userDetails.email ?? "",
+              phone_number: userDetails.phone_number ?? "",
+              is_active: userDetails.is_active,
+              ...(userDetails.profile_url
+                ? { profile_url: userDetails.profile_url }
+                : {}),
+              contact_name: userDetails.name ?? "",
+              contact_number: userDetails.phone_number ?? "",
+            };
+
+            const payload = buildAddressUpdatePayload(
+              userDetails,
+              normalized,
+              common,
+              { addNew: false }
+            );
+
+            const ok = await createOrUpdateUser(payload, true, userDetails._id);
+            if (!ok) {
+              showErrorAlert("Could not delete address. Please try again.");
+              return;
+            }
+            showSuccessAlert("Address deleted.");
+            setUserDetails((prev) =>
+              prev ? mergeUserWithAddresses(prev, normalized) : prev
+            );
+            onRefreshData();
+          })();
+        },
+        deleteIcon
+      );
+    },
+    [userDetails, onRefreshData]
   );
 
   const viewAddressInitial = useMemo((): UserViewAddressFormValues | null => {
@@ -395,69 +433,16 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
               className="custom-personal-details"
               style={{ flexWrap: "wrap" }}
             >
-              <Col className="custom-helper-column">
-                <DetailsRow title="User Name" value={userDetails?.name} />
-                <DetailsRow
-                  title="Gender"
-                  value={formatGenderLabel(userDetails?.gender)}
-                />
-                <DetailsRow
-                  title="Phone No"
-                  value={userDetails?.phone_number}
-                />
-                <DetailsRow
-                  title="Registered Date"
-                  value={formatDate(
-                    userDetails?.created_at ? userDetails?.created_at : ""
-                  )}
-                />
-              </Col>
-              <Col className="custom-helper-column">
-                <div>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Email ID
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {userDetails?.email === undefined ||
-                      userDetails?.email === "" ||
-                      userDetails?.email === null
-                        ? "-"
-                        : userDetails.email}
-                    </div>
-                  </Row>
-                  <Row className="row custom-personal-row gx-0 align-items-start">
-                    <div className="col-md-4 custom-personal-row-title">
-                      Last Service Date
-                    </div>
-                    <div
-                      className="col-md-8"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {formatDate(
-                        userDetails?.last_service_date
-                          ? userDetails.last_service_date
-                          : ""
-                      )}
-                    </div>
-                  </Row>
-                </div>
-              </Col>
+              <PersonalAccountDetailsGrid
+                nameLabel="User Name"
+                name={userDetails?.name}
+                dateOfBirth={userDetails?.date_of_birth}
+                genderLabel={formatGenderLabel(userDetails?.gender)}
+                email={userDetails?.email}
+                phone={userDetails?.phone_number}
+                registeredDate={userDetails?.created_at}
+                lastServiceDate={userDetails?.last_service_date}
+              />
             </div>
             <img
               src={editIcon}
@@ -498,6 +483,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                 cityOptions={viewCities}
                 areaOptions={viewAreas}
                 onEdit={(index) => void openViewAddressModal("edit", index)}
+                onDelete={handleDeleteAddress}
               />
             </section>
           ) : null}
@@ -635,14 +621,28 @@ UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
 
 export default UserDetailsDialog;
 
+function isAddressActive(value: unknown): boolean {
+  return value === true || String(value ?? "").toLowerCase() === "true";
+}
+
+function normalizeAddressStatus(value: unknown): "true" | "false" {
+  return isAddressActive(value) ? "true" : "false";
+}
+
+function addressStatusToBoolean(status: unknown): boolean {
+  return isAddressActive(status);
+}
+
+function getRawAddressArray(user: UserModel): Record<string, unknown>[] {
+  const raw = (user as unknown as { address?: unknown }).address;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => ({ ...(item as Record<string, unknown>) }));
+}
+
 function getNormalizedAddresses(user: UserModel | undefined): UserAddressEntry[] {
   if (!user) return [];
 
   const toText = (value: unknown) => String(value ?? "").trim();
-  const normalizeAddressStatus = (value: unknown): "true" | "false" =>
-    value === true || String(value ?? "").toLowerCase() === "true"
-      ? "true"
-      : "false";
 
   const rootAddressFromFields: UserAddressEntry = {
     state_id: toText(user.state_id),
@@ -650,7 +650,9 @@ function getNormalizedAddresses(user: UserModel | undefined): UserAddressEntry[]
     area_id: toText((user as { area_id?: unknown }).area_id),
     pincode: sanitizeIndianPincodeInput(toText(user.pincode)),
     address: toText(user.address),
-    address_status: "true",
+    address_status: normalizeAddressStatus(
+      (user as { address_status?: unknown }).address_status
+    ),
   };
 
   const rawAddress = (user as unknown as { address?: unknown }).address;
@@ -668,6 +670,7 @@ function getNormalizedAddresses(user: UserModel | undefined): UserAddressEntry[]
         pincode: sanitizeIndianPincodeInput(toText(row?.pincode)),
         address: toText(row?.address),
         address_status: normalizeAddressStatus(row?.address_status),
+        apiRow: row,
       } as UserAddressEntry;
     })
     .filter((x) => x.state_id || x.city_id || x.pincode || x.address);
@@ -698,39 +701,195 @@ function getNormalizedAddresses(user: UserModel | undefined): UserAddressEntry[]
     address_status: x.address_status === "true" ? "true" : "false",
   }));
 
-  const hasActive = combined.some((x) => x.address_status === "true");
-  const normalized: UserAddressEntry[] = combined.map((x, idx) => ({
-    ...x,
-    address_status: hasActive ? x.address_status : idx === 0 ? "true" : "false",
-  }));
-  return enforceSingleActiveAddress(normalized);
+  return enforceSingleActiveAddress(combined);
 }
 
+function mapAddressEntryToApiPayload(
+  entry: UserAddressEntry,
+  user: UserModel,
+  rawRows: Record<string, unknown>[]
+): Record<string, unknown> {
+  const match =
+    entry.apiRow ??
+    rawRows.find((r) => String(r._id ?? "") === String(entry._id ?? ""));
+  const active = addressStatusToBoolean(entry.address_status);
+
+  return {
+    ...(match ?? {}),
+    ...(entry._id ? { _id: entry._id } : {}),
+    state_id: entry.state_id,
+    city_id: entry.city_id,
+    area_id: entry.area_id ?? "",
+    pincode: entry.pincode,
+    address: entry.address,
+    address_status: active,
+    contact_name: String(match?.contact_name ?? user.name ?? "").trim(),
+    contact_number: String(match?.contact_number ?? user.phone_number ?? "").trim(),
+    landmark: String(match?.landmark ?? "").trim(),
+  };
+}
+
+function shouldSendAddressAsArray(
+  user: UserModel,
+  normalized: UserAddressEntry[]
+): boolean {
+  if (getRawAddressArray(user).length > 0) return true;
+  return normalized.length > 1;
+}
+
+function buildAddressUpdatePayload(
+  user: UserModel,
+  normalized: UserAddressEntry[],
+  common: Record<string, unknown>,
+  options: { addNew: boolean }
+): Record<string, unknown> {
+  const rawRows = getRawAddressArray(user);
+
+  if (normalized.length === 0) {
+    if (shouldSendAddressAsArray(user, normalized)) {
+      return {
+        ...common,
+        add_new_address: "false",
+        address: [],
+        extra_addresses: [],
+      };
+    }
+    return {
+      ...common,
+      add_new_address: "false",
+      address_status: false,
+      address: "",
+      state_id: "",
+      city_id: "",
+      area_id: "",
+      pincode: "",
+      extra_addresses: [],
+    };
+  }
+
+  if (shouldSendAddressAsArray(user, normalized)) {
+    return {
+      ...common,
+      add_new_address: options.addNew ? "true" : "false",
+      address: normalized.map((entry) =>
+        mapAddressEntryToApiPayload(entry, user, rawRows)
+      ),
+      extra_addresses: [],
+    };
+  }
+
+  const root = normalized[0];
+  return {
+    ...common,
+    add_new_address: options.addNew ? "true" : "false",
+    address_status: addressStatusToBoolean(root?.address_status),
+    address: root?.address ?? "",
+    state_id: root?.state_id ?? "",
+    city_id: root?.city_id ?? "",
+    area_id: root?.area_id ?? "",
+    pincode: root?.pincode ?? "",
+    extra_addresses: normalized.slice(1).map((entry) => ({
+      ...(entry._id ? { _id: entry._id } : {}),
+      state_id: entry.state_id,
+      city_id: entry.city_id,
+      area_id: entry.area_id,
+      pincode: entry.pincode,
+      address: entry.address,
+      address_status: addressStatusToBoolean(entry.address_status),
+    })),
+  };
+}
+
+function mergeUserWithAddresses(
+  user: UserModel,
+  addresses: UserAddressEntry[]
+): UserModel {
+  const rawAddress = (user as unknown as { address?: unknown }).address;
+  const extraSlice = addresses.slice(1).map((x) => ({
+    _id: x._id || undefined,
+    state_id: x.state_id,
+    city_id: x.city_id,
+    area_id: x.area_id,
+    pincode: x.pincode,
+    address: x.address,
+    address_status: addressStatusToBoolean(x.address_status),
+  }));
+
+  if (Array.isArray(rawAddress)) {
+    if (addresses.length === 0) {
+      return {
+        ...user,
+        address: "",
+        state_id: "",
+        city_id: "",
+        area_id: "",
+        pincode: "",
+        extra_addresses: [],
+      };
+    }
+    return {
+      ...user,
+      address: addresses.map((x) => ({
+        _id: x._id || undefined,
+        state_id: x.state_id,
+        city_id: x.city_id,
+        area_id: x.area_id,
+        pincode: x.pincode,
+        address: x.address,
+        address_status: x.address_status,
+      })) as unknown as string,
+      state_id: addresses[0]?.state_id ?? "",
+      city_id: addresses[0]?.city_id ?? "",
+      area_id: addresses[0]?.area_id ?? "",
+      pincode: addresses[0]?.pincode ?? "",
+      extra_addresses: [],
+    };
+  }
+
+  if (addresses.length === 0) {
+    return {
+      ...user,
+      address: "",
+      state_id: "",
+      city_id: "",
+      area_id: "",
+      pincode: "",
+      extra_addresses: [],
+    };
+  }
+
+  const root = addresses[0];
+  return {
+    ...user,
+    address: root.address,
+    state_id: root.state_id,
+    city_id: root.city_id,
+    area_id: root.area_id,
+    pincode: root.pincode,
+    extra_addresses: extraSlice,
+  };
+}
+
+/** Exactly one address may be active; optional `forceActiveIndex` when user sets Active on save. */
 function enforceSingleActiveAddress(
   addresses: UserAddressEntry[],
-  preferredIndex?: number
+  forceActiveIndex?: number
 ): UserAddressEntry[] {
   if (!addresses.length) return addresses;
 
-  const safePreferred =
-    typeof preferredIndex === "number" &&
-    preferredIndex >= 0 &&
-    preferredIndex < addresses.length
-      ? preferredIndex
-      : -1;
-
   let activeIndex = -1;
   if (
-    safePreferred >= 0 &&
-    String(addresses[safePreferred]?.address_status) === "true"
+    typeof forceActiveIndex === "number" &&
+    forceActiveIndex >= 0 &&
+    forceActiveIndex < addresses.length
   ) {
-    activeIndex = safePreferred;
+    activeIndex = forceActiveIndex;
   } else {
-    activeIndex = addresses.findIndex(
-      (item) => String(item.address_status) === "true"
+    activeIndex = addresses.findIndex((item) =>
+      isAddressActive(item.address_status)
     );
+    if (activeIndex < 0) activeIndex = 0;
   }
-  if (activeIndex < 0) activeIndex = 0;
 
   return addresses.map((item, index) => ({
     ...item,

@@ -133,6 +133,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
     initial?.areaId,
     initial?.postal,
     initial?.line,
+    initial?.addressStatus,
     reset,
     onFetchCities,
     onFetchAreas,

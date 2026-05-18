@@ -19,11 +19,13 @@ export type PartnerServiceRow = {
   serviceId: string;
   description: string;
   price: string;
+  is_active: boolean;
 };
 
 export type PartnerCategoryBlock = {
   id: string;
   categoryId: string;
+  is_active: boolean;
   serviceRows: PartnerServiceRow[];
 };
 
@@ -37,6 +39,7 @@ export function emptyPartnerServiceRow(): PartnerServiceRow {
     serviceId: "",
     description: "",
     price: "",
+    is_active: true,
   };
 }
 
@@ -46,8 +49,51 @@ export function emptyPartnerCatalogBlock(
   return {
     id: newPartnerCatalogRowId(),
     categoryId: initialCategoryId,
+    is_active: true,
     serviceRows: [emptyPartnerServiceRow()],
   };
+}
+
+type PartnerCatalogStatusToggleProps = {
+  instanceId: string;
+  value: boolean;
+  onChange: (active: boolean) => void;
+  label?: string;
+  disabled?: boolean;
+};
+
+export function PartnerCatalogStatusToggle({
+  instanceId,
+  value,
+  onChange,
+  label = "Status",
+  disabled = false,
+}: PartnerCatalogStatusToggleProps) {
+  return (
+    <Form.Group controlId={instanceId}>
+      <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+      <div className="d-flex flex-wrap gap-3">
+        <Form.Check
+          type="radio"
+          id={`${instanceId}-active`}
+          name={instanceId}
+          label="Active"
+          checked={value}
+          disabled={disabled}
+          onChange={() => onChange(true)}
+        />
+        <Form.Check
+          type="radio"
+          id={`${instanceId}-inactive`}
+          name={instanceId}
+          label="Inactive"
+          checked={!value}
+          disabled={disabled}
+          onChange={() => onChange(false)}
+        />
+      </div>
+    </Form.Group>
+  );
 }
 
 const partnerModalSelectStyles = {
@@ -191,11 +237,13 @@ export type PartnerServiceNestedItem = {
   service_id: string | number;
   description: string;
   price: number;
+  is_active: boolean;
 };
 
 /** One category block in `partner_services` (multipart JSON string). */
 export type PartnerServicesCategoryPayload = {
   category_id: string | number;
+  is_active: boolean;
   services: PartnerServiceNestedItem[];
 };
 
@@ -206,6 +254,10 @@ export type PartnerCatalogFlattenOk = {
   service_names: string[];
   service_descriptions: string[];
   service_prices: string[];
+  /** Parallel to `category_ids` — category active flags for API. */
+  category_is_active: boolean[];
+  /** Parallel to `service_ids` — service active flags for API. */
+  service_is_active: boolean[];
   /** Grouped by `category_id`; sent as JSON in multipart `partner_services`. */
   partner_services: PartnerServicesCategoryPayload[];
 };
@@ -268,29 +320,51 @@ export function flattenPartnerBlocksForSave(
     (x) => allServices.find((s) => String(s._id) === x.serviceId)?.name ?? ""
   );
 
+  const blockByCategoryId = new Map<string, PartnerCategoryBlock>();
+  for (const b of blocks) {
+    const cid = String(b.categoryId ?? "").trim();
+    if (cid) blockByCategoryId.set(cid, b);
+  }
+
   const categoryOrder: string[] = [];
   const servicesByCategory = new Map<string, PartnerServiceNestedItem[]>();
+  const category_is_active: boolean[] = [];
+  const service_is_active: boolean[] = [];
 
   for (const x of meaningful) {
     const cid = String(x.categoryId);
+    const block = blockByCategoryId.get(cid);
+    const categoryActive = block?.is_active !== false;
+    const row = (block?.serviceRows ?? []).find(
+      (r) => String(r.serviceId) === String(x.serviceId)
+    );
+    const serviceActive = categoryActive && row?.is_active !== false;
     const priceNum =
       Number(String(x.price ?? "").replace(/[^\d.]/g, "")) || 0;
     const item: PartnerServiceNestedItem = {
       service_id: partnerApiJsonId(x.serviceId),
       description: x.description.trim(),
       price: priceNum,
+      is_active: serviceActive,
     };
     if (!servicesByCategory.has(cid)) {
       servicesByCategory.set(cid, []);
       categoryOrder.push(cid);
+      category_is_active.push(categoryActive);
     }
     servicesByCategory.get(cid)!.push(item);
+    service_is_active.push(serviceActive);
   }
 
   const partner_services: PartnerServicesCategoryPayload[] = categoryOrder.map(
-    (cid) => ({
+    (cid, idx) => ({
       category_id: partnerApiJsonId(cid),
-      services: servicesByCategory.get(cid) ?? [],
+      is_active: category_is_active[idx] ?? true,
+      services: (servicesByCategory.get(cid) ?? []).map((svc) => ({
+        ...svc,
+        is_active:
+          (category_is_active[idx] ?? true) && svc.is_active !== false,
+      })),
     })
   );
 
@@ -301,6 +375,8 @@ export function flattenPartnerBlocksForSave(
     service_names,
     service_descriptions,
     service_prices,
+    category_is_active,
+    service_is_active,
     partner_services,
   };
 }

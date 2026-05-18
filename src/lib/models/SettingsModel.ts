@@ -30,6 +30,7 @@ export interface RoleSettingsModel {
   email?: string;
   phone_number?: string;
   gender?: string;
+  date_of_birth?: string;
   /** Profile image path or URL after upload (mock). */
   profile_url?: string;
   status: ActiveStatus;
@@ -45,6 +46,7 @@ export interface StaffSettingsModel {
   email?: string;
   phone_number?: string;
   gender?: string;
+  date_of_birth?: string;
   profile_url?: string;
   status: ActiveStatus;
   createdDate: string;

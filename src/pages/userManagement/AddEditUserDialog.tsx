@@ -19,7 +19,6 @@ import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreasByCityForForm } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
-import type { UserMultipartUploads } from "../../services/userService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { fetchCategoryDropDown, fetchCategory } from "../../services/categoryService";
 import {
@@ -50,7 +49,6 @@ import {
   PARTNER_CREATE_DOCUMENT_FIELDS,
   PARTNER_CREATE_DOCUMENT_SLOTS,
 } from "../../lib/partner/partnerFormDocuments";
-import type { PartnerCreateDocumentKey } from "../../lib/partner/partnerFormDocuments";
 import { openDialog } from "../../lib/global/DialogManager";
 import {
   sanitizeIndianPincodeInput,
@@ -66,14 +64,19 @@ import {
   partnerCatalogControlStyle,
   partnerCatalogOutlineAddBtn,
   partnerCatalogOutlineDeleteBtn,
+  PartnerCatalogStatusToggle,
 } from "../../components/partnerCatalogBlockUi";
+import type { UserMultipartUploads } from "../../services/userService";
+import type { PartnerCreateDocumentKey } from "../../lib/partner/partnerFormDocuments";
 import type {
   PartnerCategoryBlock,
   PartnerCatalogServiceLite,
   PartnerServiceRow,
   PartnerCatalogFlattenOk,
 } from "../../components/partnerCatalogBlockUi";
+
 const PARTNER_ROLE = 2;
+const FRANCHISE_EMPLOYEE_ROLE = 3;
 const USER_ROLE = 4;
 
 /** Local guard — keeps catalog UI safe without an extra module export (avoids dev HMR load issues). */
@@ -86,10 +89,15 @@ function ensurePartnerCatalogBlocks(
   return blocks.map((b) => ({
     id: String(b?.id ?? "").trim() || newPartnerCatalogRowId(),
     categoryId: String(b?.categoryId ?? ""),
-    serviceRows:
+    is_active: b?.is_active !== false,
+    serviceRows: (
       Array.isArray(b?.serviceRows) && b.serviceRows.length > 0
         ? b.serviceRows
-        : [emptyPartnerServiceRow()],
+        : [emptyPartnerServiceRow()]
+    ).map((r) => ({
+      ...r,
+      is_active: r?.is_active !== false,
+    })),
   }));
 }
 
@@ -215,6 +223,7 @@ function AddEditUserDialogView({
   const isAddPartner = role === PARTNER_ROLE && !isEditable;
   const isPartnerEdit = role === PARTNER_ROLE && isEditable;
   const isUserUpdate = role === USER_ROLE && isEditable;
+  const isFranchiseEmployeeRole = role === FRANCHISE_EMPLOYEE_ROLE;
 
   const {
     register,
@@ -773,6 +782,23 @@ function AddEditUserDialogView({
     });
   }, []);
 
+  const updateBlockActive = useCallback((blockId: string, is_active: boolean) => {
+    setPartnerCatalogBlocks((prev) =>
+      ensurePartnerCatalogBlocks(prev).map((b) =>
+        b.id === blockId
+          ? {
+              ...b,
+              is_active,
+              serviceRows: (b.serviceRows ?? []).map((r) => ({
+                ...r,
+                is_active: is_active ? r.is_active !== false : false,
+              })),
+            }
+          : b
+      )
+    );
+  }, []);
+
   const updateBlockCategory = useCallback(
     (blockId: string, categoryId: string) => {
       setPartnerCatalogBlocks((prev) =>
@@ -1071,6 +1097,12 @@ function AddEditUserDialogView({
         date_of_birth: toYmdString(data.date_of_birth) ?? "",
         experience: String(data.experience ?? "").trim(),
       }),
+      ...(role === USER_ROLE && {
+        date_of_birth: toYmdString(data.date_of_birth) ?? "",
+      }),
+      ...(isFranchiseEmployeeRole && {
+        date_of_birth: toYmdString(data.date_of_birth) ?? "",
+      }),
       phone_number: data.phone_number,
       address: isUserUpdate
         ? normalizeAddressValue(user?.address)
@@ -1107,6 +1139,8 @@ function AddEditUserDialogView({
               service_names: partnerCatalogFlat.service_names,
               service_descriptions: partnerCatalogFlat.service_descriptions,
               service_prices: partnerCatalogFlat.service_prices,
+              category_is_active: partnerCatalogFlat.category_is_active,
+              service_is_active: partnerCatalogFlat.service_is_active,
               "partner-services": partnerCatalogFlat.partner_services,
             }
           : isPartnerEdit
@@ -1275,10 +1309,29 @@ function AddEditUserDialogView({
         dialogClassName="custom-big-modal"
         enforceFocus={!(isAddPartner || isPartnerEdit)}
       >
-        <Modal.Header className="py-3 px-4 border-bottom-0">
-          <Modal.Title as="h5" className="custom-modal-title">
+        <Modal.Header className="py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2">
+          <Modal.Title as="h5" className="custom-modal-title me-auto mb-0">
             {isEditable ? "Update" : "Add"} {getRoleLabel(role)}
           </Modal.Title>
+          {isAddPartner && isSuperAdminOrStaff ? (
+            <div style={{ minWidth: "220px", maxWidth: "300px", flex: "1 1 220px" }}>
+              <CustomTextFieldSelect
+                label="Franchise"
+                controlId="add_partner_franchise_id"
+                options={franchiseDropdownOptions}
+                register={register}
+                fieldName="add_partner_franchise_id"
+                error={(errors as any).add_partner_franchise_id}
+                defaultValue={String(watchedPartnerFranchiseId ?? "")}
+                setValue={setValue as (name: string, value: unknown) => void}
+                menuPortal
+                placeholder="Select franchise"
+                includeEmptyOption
+                emptyOptionLabel="Select franchise"
+                noRowBottomMargin
+              />
+            </div>
+          ) : null}
           <CustomCloseButton onClose={onClose} />
         </Modal.Header>
         <Modal.Body className="px-4 pb-4 pt-0">
@@ -1317,18 +1370,6 @@ function AddEditUserDialogView({
                     />
                   </Col>
                   <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Email"
-                      controlId="email"
-                      placeholder="Enter Email"
-                      register={register}
-                      error={errors.email}
-                      validation={{ required: "Email is required" }}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
                     <CustomTextFieldDatePicket
                       label="Date of Birth"
                       controlId="date_of_birth"
@@ -1350,14 +1391,30 @@ function AddEditUserDialogView({
                       error={errors.date_of_birth}
                     />
                   </Col>
+                </Row>
+                <Row className="g-3 mb-2">
+                  <Col xs={12} md={6}>
+                    <CustomTextFieldRadio
+                      label="Gender"
+                      name="gender"
+                      options={[
+                        { value: "male", label: "Male" },
+                        { value: "female", label: "Female" },
+                        { value: "others", label: "Others" },
+                      ]}
+                      defaultValue={String(watch("gender") ?? "male")}
+                      isEditable={true}
+                      setValue={setValue}
+                    />
+                  </Col>
                   <Col xs={12} md={6}>
                     <CustomTextField
-                      label="Experience"
-                      controlId="experience"
-                      placeholder="Years of experience"
+                      label="Email"
+                      controlId="email"
+                      placeholder="Enter Email"
                       register={register}
-                      error={errors.experience}
-                      validation={{ required: "Experience is required" }}
+                      error={errors.email}
+                      validation={{ required: "Email is required" }}
                     />
                   </Col>
                 </Row>
@@ -1373,31 +1430,13 @@ function AddEditUserDialogView({
                     />
                   </Col>
                   <Col xs={12} md={6}>
-                    <CustomTextFieldRadio
-                      label="Gender"
-                      name="gender"
-                      options={[
-                        { value: "male", label: "Male" },
-                        { value: "female", label: "Female" },
-                        { value: "others", label: "Others" },
-                      ]}
-                      defaultValue={String(watch("gender") ?? "male")}
-                      isEditable={true}
-                      setValue={setValue}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={12}>
                     <CustomTextField
-                      label="Address"
-                      controlId="address"
-                      placeholder="Enter Address"
+                      label="Experience"
+                      controlId="experience"
+                      placeholder="Years of experience"
                       register={register}
-                      error={errors.address}
-                      validation={{ required: "Address is required" }}
-                      as="textarea"
-                      rows={4}
+                      error={errors.experience}
+                      validation={{ required: "Experience is required" }}
                     />
                   </Col>
                 </Row>
@@ -1475,6 +1514,20 @@ function AddEditUserDialogView({
                       menuPortal
                       placeholder="Select pincode"
                       isDisabled={!String(watch("area_id") ?? "").trim()}
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-2 mb-2">
+                  <Col xs={12}>
+                    <CustomTextField
+                      label="Address"
+                      controlId="address"
+                      placeholder="Enter Address"
+                      register={register}
+                      error={errors.address}
+                      validation={{ required: "Address is required" }}
+                      as="textarea"
+                      rows={2}
                     />
                   </Col>
                 </Row>
@@ -1636,7 +1689,7 @@ function AddEditUserDialogView({
                 </section>
               </>
             ) : (
-              <Row>
+              <div className="d-flex flex-column gap-3">
                 <CustomTextField
                   label="Name"
                   controlId="name"
@@ -1652,6 +1705,28 @@ function AddEditUserDialogView({
                     })
                   }
                 />
+                {role === USER_ROLE || isFranchiseEmployeeRole ? (
+                  <CustomTextFieldDatePicket
+                    label="Date of Birth"
+                    controlId="date_of_birth"
+                    selectedDate={toYmdString(dateOfBirthStr)}
+                    birthDatePicker
+                    onChange={(date) => {
+                      const value = date
+                        ? date.toISOString().slice(0, 10)
+                        : "";
+                      setValue("date_of_birth", value, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                    }}
+                    register={register}
+                    setValue={setValue}
+                    placeholderText="Select date of birth"
+                    validation={{ required: "Date of birth is required" }}
+                    error={errors.date_of_birth}
+                  />
+                ) : null}
                 <CustomTextField
                   label="Email"
                   controlId="email"
@@ -1903,7 +1978,7 @@ function AddEditUserDialogView({
                     }}
                   />
                 </div>
-              </Row>
+              </div>
             )}
 
             {isAddPartner ? (
@@ -1913,36 +1988,13 @@ function AddEditUserDialogView({
                   style={{ padding: "10px" }}
                 >
                   <h3 className="mb-2">Categories and services</h3>
-                  {isSuperAdminOrStaff ? (
-                    <Row className="g-3 mb-3">
-                      <Col xs={12} md={6}>
-                        <CustomTextFieldSelect
-                          label="Franchise"
-                          controlId="add_partner_franchise_id"
-                          options={franchiseDropdownOptions}
-                          register={register}
-                          fieldName="add_partner_franchise_id"
-                          error={(errors as any).add_partner_franchise_id}
-                          defaultValue={String(
-                            watchedPartnerFranchiseId ?? ""
-                          )}
-                          setValue={setValue as (name: string, value: unknown) => void}
-                          menuPortal
-                          placeholder="Select franchise"
-                          includeEmptyOption
-                          emptyOptionLabel="Select franchise"
-                          noRowBottomMargin
-                        />
-                      </Col>
-                    </Row>
-                  ) : null}
-                  {/* {addPartnerCatalogLocked ? (
+                  {addPartnerCatalogLocked ? (
                     <p className="text-muted small mb-3">
                       {isSuperAdminOrStaff
-                        ? "Select a franchise above to enable category and service fields."
+                        ? "Select a franchise in the header to enable category and service fields."
                         : "Unable to resolve your franchise for the catalogue. Please contact support."}
                     </p>
-                  ) : null} */}
+                  ) : null}
                   {safePartnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}
@@ -1954,7 +2006,7 @@ function AddEditUserDialogView({
                       }}
                     >
                       <Row className="g-3 align-items-end mb-3">
-                        <Col xs={12} md>
+                        <Col xs={12} md={5} lg={4}>
                           <PartnerSingleSelect
                             instanceId={`${block.id}-category`}
                             label="Category"
@@ -1965,6 +2017,16 @@ function AddEditUserDialogView({
                             onChange={(cid: string) =>
                               updateBlockCategory(block.id, cid)
                             }
+                          />
+                        </Col>
+                        <Col xs={12} md={4} lg={3}>
+                          <PartnerCatalogStatusToggle
+                            instanceId={`${block.id}-category-status`}
+                            value={block.is_active !== false}
+                            onChange={(active) =>
+                              updateBlockActive(block.id, active)
+                            }
+                            disabled={addPartnerCatalogLocked}
                           />
                         </Col>
                         <Col
@@ -2001,12 +2063,16 @@ function AddEditUserDialogView({
                         </Col>
                       </Row>
 
-                      {(block.serviceRows ?? []).map((row) => (
+                      {(block.serviceRows ?? []).map((row) => {
+                        const categoryActive = block.is_active !== false;
+                        const serviceActive =
+                          categoryActive && row.is_active !== false;
+                        return (
                         <Row
                           key={row.id}
                           className="g-3 align-items-start mb-2"
                         >
-                          <Col xs={12} md={3} lg={3}>
+                          <Col xs={12} md={3} lg={2}>
                             <PartnerSingleSelect
                               instanceId={`${block.id}-${row.id}-service`}
                               label="Service"
@@ -2041,7 +2107,7 @@ function AddEditUserDialogView({
                               }}
                             />
                           </Col>
-                          <Col xs={12} md={5} lg={6}>
+                          <Col xs={12} md={4} lg={4}>
                             <Form.Group
                               controlId={`desc-${block.id}-${row.id}`}
                             >
@@ -2067,6 +2133,22 @@ function AddEditUserDialogView({
                                 }
                               />
                             </Form.Group>
+                          </Col>
+                          <Col xs={12} md={2} lg={2}>
+                            <PartnerCatalogStatusToggle
+                              instanceId={`${block.id}-${row.id}-service-status`}
+                              label="Status"
+                              value={serviceActive}
+                              disabled={
+                                addPartnerCatalogLocked || !categoryActive
+                              }
+                              onChange={(active) => {
+                                if (!categoryActive) return;
+                                updateServiceRow(block.id, row.id, {
+                                  is_active: active,
+                                });
+                              }}
+                            />
                           </Col>
                           <Col xs={12} md={2} lg={2}>
                             <Form.Group
@@ -2176,7 +2258,8 @@ function AddEditUserDialogView({
                             ) : null}
                           </Col>
                         </Row>
-                      ))}
+                      );
+                      })}
                     </div>
                   ))}
                 </section>
