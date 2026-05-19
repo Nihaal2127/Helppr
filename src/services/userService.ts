@@ -9,6 +9,7 @@ import {
 } from "../lib/global/localStorageHelper";
 import { AppConstant } from "../lib/global/AppConstant";
 import { PARTNER_VERIFICATION } from "../lib/partner/partnerVerification";
+import { buildFullUserUpdatePayload } from "../lib/user/buildFullUserUpdatePayload";
 import { mapAccessibleScreenSlugsToMenuKeys } from "../lib/layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../lib/layout/menuItems";
 import { UserRole } from "../lib/global/AppConstant";
@@ -631,25 +632,45 @@ function resolveUserMultipartUploads(
   return uploads;
 }
 
+export type CreateOrUpdateUserOptions = {
+  suppressSuccessAlert?: boolean;
+};
+
 export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,
   id?: string,
-  uploads?: UserMultipartUploads | File | null
+  uploads?: UserMultipartUploads | File | null,
+  options?: CreateOrUpdateUserOptions
 ): Promise<boolean> => {
   const path = isEditable ? ApiPaths.UPDATE_USER(id!) : ApiPaths.CREATE_USER;
   const method = isEditable ? "PUT" : "POST";
+
+  let mergedPayload: Record<string, unknown> =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? { ...payload }
+      : { ...(payload as Record<string, unknown>) };
+
+  if (isEditable && id) {
+    const { response, user } = await fetchUserById(id);
+    if (response && user) {
+      mergedPayload = buildFullUserUpdatePayload(
+        user,
+        mergedPayload as Record<string, unknown>
+      );
+    }
+  }
 
   const { image, partnerDocumentFiles } = resolveUserMultipartUploads(uploads);
   const docFileEntries = Object.entries(partnerDocumentFiles ?? {}).filter(
     (entry): entry is [string, File] => entry[1] instanceof File
   );
   const shouldSendMultipart = Boolean(image) || docFileEntries.length > 0;
-  let bodyToSend: any = payload;
+  let bodyToSend: any = mergedPayload;
 
   if (shouldSendMultipart) {
     const formData = new FormData();
-    Object.entries(payload ?? {}).forEach(([key, value]) => {
+    Object.entries(mergedPayload ?? {}).forEach(([key, value]) => {
       if (value === undefined || value === null) return;
       if (typeof value === "object") {
         formData.append(key, JSON.stringify(value));
@@ -665,7 +686,7 @@ export const createOrUpdateUser = async (
     }
     if (
       !isEditable &&
-      Number(payload?.type) === 2 &&
+      Number(mergedPayload?.type) === 2 &&
       !formData.has("partner_documents")
     ) {
       formData.append("partner_documents", "{}");
@@ -677,7 +698,10 @@ export const createOrUpdateUser = async (
     path,
     method,
     bodyToSend,
-    shouldSendMultipart
+    shouldSendMultipart,
+    false,
+    false,
+    Boolean(options?.suppressSuccessAlert)
   );
   if (response.success) {
     return true;

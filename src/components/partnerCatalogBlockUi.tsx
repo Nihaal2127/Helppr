@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Form } from "react-bootstrap";
 import Select from "react-select";
 import type { SingleValue } from "react-select";
+import type { PartnerServiceApiRow } from "../lib/partner/partnerCategoryServiceView";
 
 export type PartnerSelectOption = { value: string; label: string };
 
@@ -231,6 +232,104 @@ export function partnerApiJsonId(id: string): string | number {
     if (Number.isSafeInteger(n)) return n;
   }
   return t;
+}
+
+function partnerServiceRefId(
+  ref: string | { _id?: string; name?: string } | null | undefined
+): string {
+  if (ref == null) return "";
+  if (typeof ref === "object") return String(ref._id ?? "").trim();
+  return String(ref).trim();
+}
+
+function resolvePartnerActiveFlag(
+  value: unknown,
+  defaultValue: boolean
+): boolean {
+  if (value === undefined || value === null) return defaultValue;
+  if (typeof value === "boolean") return value;
+  return String(value).toLowerCase() === "true";
+}
+
+/**
+ * Converts GET `partner_services` rows (populated refs) or save-format blocks
+ * into the nested shape expected by `PUT /user/update` (`partner-services`).
+ */
+export function normalizePartnerServicesForUpdate(
+  raw: unknown
+): PartnerServicesCategoryPayload[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+
+  const first = raw[0] as Record<string, unknown>;
+  if (Array.isArray(first?.services)) {
+    const grouped = (raw as Record<string, unknown>[])
+      .map((cat) => {
+        const cid = partnerServiceRefId(
+          cat.category_id as PartnerServiceApiRow["category_id"]
+        );
+        const catActive = resolvePartnerActiveFlag(cat.is_active, true);
+        const services = (cat.services as Record<string, unknown>[])
+          .map((svc) => {
+            const sid = partnerServiceRefId(
+              svc.service_id as PartnerServiceApiRow["service_id"]
+            );
+            if (!sid) return null;
+            return {
+              service_id: partnerApiJsonId(sid),
+              description: String(svc.description ?? "").trim(),
+              price:
+                Number(String(svc.price ?? "").replace(/[^\d.]/g, "")) || 0,
+              is_active:
+                catActive && resolvePartnerActiveFlag(svc.is_active, true),
+            };
+          })
+          .filter((x): x is PartnerServiceNestedItem => x != null);
+        if (!cid || services.length === 0) return null;
+        return {
+          category_id: partnerApiJsonId(cid),
+          is_active: catActive,
+          services,
+        };
+      })
+      .filter((x): x is PartnerServicesCategoryPayload => x != null);
+    return grouped.length > 0 ? grouped : undefined;
+  }
+
+  const blocks: PartnerServicesCategoryPayload[] = [];
+  const categoryIndex = new Map<string, number>();
+
+  for (const ps of raw as PartnerServiceApiRow[]) {
+    const cid = partnerServiceRefId(ps.category_id);
+    const sid = partnerServiceRefId(ps.service_id);
+    if (!cid || !sid) continue;
+
+    const rowRecord = ps as Record<string, unknown>;
+    const categoryActive = resolvePartnerActiveFlag(
+      rowRecord.category_is_active ?? rowRecord.is_active,
+      true
+    );
+    const serviceActive = resolvePartnerActiveFlag(rowRecord.is_active, true);
+    const item: PartnerServiceNestedItem = {
+      service_id: partnerApiJsonId(sid),
+      description: String(ps.description ?? "").trim(),
+      price: Number(String(ps.price ?? "").replace(/[^\d.]/g, "")) || 0,
+      is_active: categoryActive && serviceActive,
+    };
+
+    const idx = categoryIndex.get(cid);
+    if (idx !== undefined) {
+      blocks[idx].services.push(item);
+    } else {
+      categoryIndex.set(cid, blocks.length);
+      blocks.push({
+        category_id: partnerApiJsonId(cid),
+        is_active: categoryActive,
+        services: [item],
+      });
+    }
+  }
+
+  return blocks.length > 0 ? blocks : undefined;
 }
 
 export type PartnerServiceNestedItem = {

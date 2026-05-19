@@ -15,6 +15,7 @@ import { genderForApiPayload } from "../lib/user/genderOptions";
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import {
+  createOrUpdateUser,
   createWebManagementUser,
   fetchUserById,
   menuKeysFromUserAccess,
@@ -657,33 +658,13 @@ export const updateRoleUserWithApi = async (
     body.accessible_screens = availablePages;
   }
 
-  const shouldSendMultipart = Boolean(imageFile);
-  let requestPayload: Record<string, unknown> | FormData = body;
-  if (shouldSendMultipart) {
-    const formData = new FormData();
-    Object.entries(body).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
-      if (typeof value === "object") {
-        formData.append(key, JSON.stringify(value));
-        return;
-      }
-      formData.append(key, String(value));
-    });
-    formData.append("image", imageFile as File);
-    requestPayload = formData;
-  }
-
-  const res = await apiRequest(
-    ApiPaths.UPDATE_USER(userId),
-    "PUT",
-    requestPayload,
-    shouldSendMultipart,
-    false,
-    false,
-    Boolean(options?.suppressSuccessAlert)
+  return createOrUpdateUser(
+    body,
+    true,
+    userId,
+    imageFile ? { image: imageFile } : undefined,
+    { suppressSuccessAlert: Boolean(options?.suppressSuccessAlert) }
   );
-  if (!res.success) return false;
-  return true;
 };
 
 /**
@@ -856,30 +837,12 @@ export const updateStaffUserWithApi = async (
     accessible_screens: pages,
   };
 
-  const shouldSendMultipart = Boolean(imageFile);
-  let requestPayload: Record<string, unknown> | FormData = body;
-  if (shouldSendMultipart) {
-    const formData = new FormData();
-    Object.entries(body).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
-      if (typeof value === "object") {
-        formData.append(key, JSON.stringify(value));
-        return;
-      }
-      formData.append(key, String(value));
-    });
-    formData.append("image", imageFile as File);
-    requestPayload = formData;
-  }
-
-  const res = await apiRequest(
-    ApiPaths.UPDATE_USER(userId),
-    "PUT",
-    requestPayload,
-    shouldSendMultipart
+  return createOrUpdateUser(
+    body,
+    true,
+    userId,
+    imageFile ? { image: imageFile } : undefined
   );
-  if (!res.success) return false;
-  return true;
 };
 
 export const getExpenseCategories = (): ExpenseCategoryModel[] => [

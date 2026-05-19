@@ -7,6 +7,7 @@ import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import { apiDocumentId } from "../helper/utility";
 import {
+  createOrUpdateUser,
   createWebManagementUser,
   fetchUser,
   fetchUserById,
@@ -1996,16 +1997,9 @@ export async function updateFranchiseEmployee(
     chat: isActive ? Boolean(input.chat_enabled) : false,
   };
 
-  const res = await apiRequest(
-    ApiPaths.UPDATE_USER(userId),
-    "PUT",
-    body,
-    false,
-    false,
-    false,
-    true
-  );
-  return Boolean(res.success);
+  return createOrUpdateUser(body, true, userId, undefined, {
+    suppressSuccessAlert: true,
+  });
 }
 
 export async function voidFranchiseEmployee(id: string): Promise<boolean> {
