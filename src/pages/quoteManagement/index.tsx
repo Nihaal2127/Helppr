@@ -19,7 +19,6 @@ import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { useForm, UseFormRegister } from "react-hook-form";
 import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../../lib/types/quoteTypes";
-import { toQuoteViewData } from "../../lib/quote/quoteViewMapper";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import {
@@ -57,22 +56,19 @@ import {
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import { getCount } from "../../services/getCountService";
-import { formatQuoteScheduleForTable } from "../../lib/quote/quoteScheduleDisplay";
-import {
-  buildFranchisePincodeSetFromRelatedCatalog,
-  collectFranchiseAreaIds,
-  normalizePincodeDigits,
-} from "../../lib/quote/quoteFranchisePins";
-import { setQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import {
   buildAddressLocationLookupsFromCustomers,
-  parseCatalogAddressRecord,
-} from "../../lib/quote/quoteAddressFormat";
-import {
+  buildFranchisePincodeSetFromRelatedCatalog,
+  collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
-} from "../../lib/quote/quotePriceBreakdown";
+  formatQuoteScheduleForTable,
+  normalizePincodeDigits,
+  parseCatalogAddressRecord,
+  QUOTE_MODAL_LAYOUT,
+  setQuoteFranchiseCatalogSnapshot,
+  toQuoteViewData,
+} from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
-import { QUOTE_MODAL_LAYOUT } from "../../lib/quote/quoteModalLayout";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>

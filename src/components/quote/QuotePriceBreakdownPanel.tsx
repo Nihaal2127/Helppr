@@ -1,9 +1,11 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
-import { formatQuoteRupees } from "../../lib/quote/quotePriceBreakdown";
-import type { QuotePriceBreakdown } from "../../lib/quote/quotePriceBreakdown";
+import {
+  formatQuoteRupees,
+  QUOTE_SECTION_TITLE_CLASS,
+} from "../../lib/quote/quoteHelpers";
+import type { QuotePriceBreakdown } from "../../lib/quote/quoteHelpers";
 import { AppConstant } from "../../lib/global/AppConstant";
-import { QUOTE_SECTION_TITLE_CLASS } from "../../lib/quote/quoteModalLayout";
 
 type QuotePriceBreakdownPanelProps = {
   breakdown: QuotePriceBreakdown;

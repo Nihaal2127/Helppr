@@ -26,6 +26,10 @@ const RULES_UNSORTED: Rule[] = [
   },
   { prefix: "/financial-partner-payments", res: { type: 5 } },
   {
+    prefix: "/financial-order-payments",
+    res: { type: "financial-order-payments" },
+  },
+  {
     prefix: "/order-management",
     res: { type: "order-management" },
   },

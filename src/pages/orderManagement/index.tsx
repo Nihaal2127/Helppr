@@ -8,6 +8,7 @@ import React, {
 import { Button, Form } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
+import { OrderModel, OrderStatusEnum } from "../../lib/order/orderTypes";
 import { textUnderlineCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import {
@@ -18,10 +19,8 @@ import {
 } from "../../services/orderService";
 import type { OrderTabKey } from "../../services/orderService";
 import { exportData } from "../../services/exportService";
-import { OrderModel } from "../../lib/order/OrderModel";
 import { showOrderInfoDialog } from "../../components/order";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
-import { OrderStatusEnum } from "../../lib/order/OrderStatusEnum";
 import { UserDetailsDialog } from "../../components/user";
 import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import CustomActionColumn from "../../components/CustomActionColumn";
@@ -33,7 +32,7 @@ import {
   getCustomerPaymentStatusLabel,
   getOrderPartnerDisplayName,
   getPartnerPaymentStatusLabel,
-} from "../../lib/order/orderDisplayHelpers";
+} from "../../lib/order/orderHelpers";
 import { getCount } from "../../services/getCountService";
 import {
   FRANCHISE_HEADER_ALL,

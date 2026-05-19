@@ -444,6 +444,7 @@ export const fetchPartnerDropDown = async (
 };
 
 export type UserListFilters = {
+  search?: string;
   keyword?: string;
   status?: string;
   is_blocked?: "true" | "false";
@@ -493,15 +494,16 @@ export const fetchUser = async (
 
   const franchiseIdQuery = franchiseIdForUserGetAll(filters.franchise_id);
 
+  const searchText = (filters.search ?? filters.keyword)?.trim();
   const params = new URLSearchParams({
     type: String(type),
     page: String(page),
     limit: String(pageSize),
-    ...(filters.keyword && { name: filters.keyword }),
-    ...(filters.keyword && { keyword: filters.keyword }),
-    ...(filters.keyword && { search: filters.keyword }),
-    ...(filters.keyword && { user_name: filters.keyword }),
-    ...(filters.keyword && { partner_name: filters.keyword }),
+    ...(searchText && { name: searchText }),
+    ...(searchText && { keyword: searchText }),
+    ...(searchText && { search: searchText }),
+    ...(searchText && { user_name: searchText }),
+    ...(searchText && { partner_name: searchText }),
     ...(filters.is_verified !== undefined &&
       filters.is_verified !== "" && {
         is_verified: String(filters.is_verified),

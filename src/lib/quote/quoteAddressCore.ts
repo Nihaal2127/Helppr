@@ -1,6 +1,14 @@
-/** Shared address display helpers (Add Quote + Quote edit / view). */
+/**
+ * Pure address helpers (no React, no quoteService).
+ * Kept separate so quoteService can import without circular dependency on quoteHelpers.
+ */
 
-import { normalizePincodeDigits } from "./quoteFranchisePins";
+/** Normalize to digits only (Indian PIN is 6 digits). */
+export function normalizePincodeDigits(raw: unknown): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (d.length >= 6) return d.slice(0, 6);
+  return d;
+}
 
 function strTrim(v: unknown): string {
   if (v == null) return "";

@@ -10,7 +10,7 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
 import { deleteOrder, fetchOrder } from "../../../lib/order/orderService";
-import { OrderModel } from "../../../lib/order/OrderModel";
+import { OrderModel } from "../../../lib/order/orderTypes";
 import { showSuccessAlert } from "../../../lib/global/alertHelper";
 import { formatDate } from "../../../helper/utility";
 import AddEditRefund, {

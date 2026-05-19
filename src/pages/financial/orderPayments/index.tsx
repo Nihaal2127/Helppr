@@ -13,7 +13,6 @@ import { FinancialSubPageBackButton } from "../../../components/FinancialSubPage
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
-import CustomActionColumn from "../../../components/CustomActionColumn";
 import {
   formatDate,
   priceCell,
@@ -25,19 +24,22 @@ import {
   useFranchiseHeaderForm,
 } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import CustomTable from "../../../components/CustomTable";
-import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import {
-  enrichFinancialRowsWithOrderNames,
-  fetchAllFinancialRowsMatching,
   fetchFinancial,
   FinancialListFilters,
 } from "../../../services/financialService";
+import { getCount } from "../../../services/getCountService";
 import { FinancialModel } from "../../../lib/models/FinancialModel";
-import { deleteOrder } from "../../../lib/order/orderService";
 import { showOrderInfoDialog } from "../../../components/order";
 import { UserDetailsDialog } from "../../../components/user";
 import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
+import {
+  CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS,
+  PARTNER_PAYMENT_STATUS_FILTER_OPTIONS,
+  customerPaymentStatusLabelFromSlug,
+  partnerPaymentStatusLabelFromSlug,
+} from "../../../lib/financial/paymentStatus";
 
 /** Live `GET /order_service/getAll` (set true only for offline UI work). */
 const USE_MOCK_ORDER_PAYMENTS = false;
@@ -48,11 +50,12 @@ const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
     order_id: "ord-1001",
     order_unique_id: "ORD-1001",
     user_id: "user-1",
-    user_info: { name: "Arjun Sharma" },
+    user_name: "Arjun Sharma",
     partner_id: "partner-1",
-    partner_info: { name: "Rahul Service Pro" },
+    partner_name: "Rahul Service Pro",
     category_id: "cat-1",
     service_status: 3,
+    order_status: "completed",
     payment_mode_id: 1,
     service_id: "svc-1",
     service_date: "2026-04-20",
@@ -87,11 +90,12 @@ const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
     order_id: "ord-1002",
     order_unique_id: "ORD-1002",
     user_id: "user-2",
-    user_info: { name: "Nisha Verma" },
+    user_name: "Nisha Verma",
     partner_id: "partner-2",
-    partner_info: { name: "Mech Experts" },
+    partner_name: "Mech Experts",
     category_id: "cat-2",
     service_status: 2,
+    order_status: "in_progress",
     payment_mode_id: 1,
     service_id: "svc-2",
     service_date: "2026-04-22",
@@ -126,11 +130,12 @@ const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
     order_id: "ord-1003",
     order_unique_id: "ORD-1003",
     user_id: "user-3",
-    user_info: { name: "Sanjay Kumar" },
+    user_name: "Sanjay Kumar",
     partner_id: "partner-3",
-    partner_info: { name: "QuickFix Crew" },
+    partner_name: "QuickFix Crew",
     category_id: "cat-3",
     service_status: 3,
+    order_status: "completed",
     payment_mode_id: 1,
     service_id: "svc-3",
     service_date: "2026-04-24",
@@ -167,41 +172,51 @@ function applyMockFilters(
   filters: FinancialListFilters
 ): FinancialModel[] {
   return rows.filter((r) => {
+    if (filters.order_status) {
+      const rowStatus =
+        r.order_status?.trim().toLowerCase() ??
+        (Number(r.service_status) === 3
+          ? "completed"
+          : Number(r.service_status) === 2
+            ? "in_progress"
+            : "");
+      if (rowStatus !== filters.order_status) return false;
+    }
+    const customerSlug =
+      r.customer_payment_status?.trim().toLowerCase() ??
+      ((Number(r.customer_pending_amount) || 0) <= 0
+        ? "paid"
+        : (Number(r.customer_paid_amount) || 0) > 0
+          ? "partially_paid"
+          : "unpaid");
+    const partnerSlug =
+      r.partner_payment_status?.trim().toLowerCase() ??
+      ((Number(r.pending_to_partner) || 0) <= 0
+        ? "paid"
+        : (Number(r.paid_to_partner) || 0) > 0
+          ? "partially_paid"
+          : "unpaid");
     if (
-      filters.service_status &&
-      String(r.service_status) !== String(filters.service_status)
+      filters.customer_payment_status &&
+      customerSlug !== filters.customer_payment_status
     )
       return false;
     if (
-      filters.customer_payment_status === "paid" &&
-      (Number(r.customer_pending_amount) || 0) > 0
-    )
-      return false;
-    if (
-      filters.customer_payment_status === "pending" &&
-      (Number(r.customer_pending_amount) || 0) <= 0
-    )
-      return false;
-    if (
-      filters.partner_payment_status === "paid" &&
-      (Number(r.pending_to_partner) || 0) > 0
-    )
-      return false;
-    if (
-      filters.partner_payment_status === "pending" &&
-      (Number(r.pending_to_partner) || 0) <= 0
+      filters.partner_payment_status &&
+      partnerSlug !== filters.partner_payment_status
     )
       return false;
     if (filters.from_date && (r.service_date ?? "") < filters.from_date)
       return false;
     if (filters.to_date && (r.service_date ?? "") > filters.to_date)
       return false;
-    if (filters.keyword) {
-      const k = filters.keyword.toLowerCase();
+    const searchQ = (filters.search ?? filters.keyword)?.trim();
+    if (searchQ) {
+      const k = searchQ.toLowerCase();
       const hay = [
         r.order_unique_id ?? "",
-        r.user_info?.name ?? "",
-        r.partner_info?.name ?? "",
+        r.user_name ?? "",
+        r.partner_name ?? "",
         r.service_name ?? "",
       ]
         .join(" ")
@@ -214,35 +229,21 @@ function applyMockFilters(
 
 const ORDER_STATUS_OPTIONS = [
   { value: "", label: "All" },
-  { value: "3", label: "Completed" },
-  { value: "2", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "in_progress", label: "In progress" },
 ] as const;
 
-const PARTNER_PAYMENT_STATUS_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "paid", label: "Paid" },
-  { value: "pending", label: "Pending" },
-  { value: "partially_paid", label: "Partially paid" },
-] as const;
-
-const CUSTOMER_PAYMENT_STATUS_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "paid", label: "Paid" },
-  { value: "pending", label: "Pending" },
-  { value: "partially_paid", label: "Partially paid" },
-  { value: "refunded", label: "Refunded" },
-  { value: "partially_refunded", label: "Partially refunded" },
-] as const;
-
-function serviceLineOrderStatusLabel(serviceStatus: number): string {
-  if (serviceStatus === 3) return "Completed";
-  if (serviceStatus === 2) return "In progress";
-  if (!serviceStatus) return "—";
-  return String(serviceStatus);
+function serviceLineOrderStatusLabel(row: FinancialModel): string {
+  const slug = row.order_status?.trim().toLowerCase();
+  if (slug === "completed") return "Completed";
+  if (slug === "in_progress") return "In progress";
+  if (Number(row.service_status) === 3) return "Completed";
+  if (Number(row.service_status) === 2) return "In progress";
+  return "—";
 }
 
 function buildListFilters(p: {
-  keyword?: string;
+  search?: string;
   sort?: string;
   orderStatus: string;
   customerPaymentScope: string;
@@ -253,9 +254,9 @@ function buildListFilters(p: {
 }): FinancialListFilters {
   const fid = String(p.franchiseId ?? "").trim();
   const out: FinancialListFilters = {
-    ...(p.keyword ? { keyword: p.keyword } : {}),
+    ...(p.search ? { search: p.search } : {}),
     ...(p.sort ? { sort: p.sort } : {}),
-    ...(p.orderStatus ? { service_status: p.orderStatus } : {}),
+    ...(p.orderStatus ? { order_status: p.orderStatus } : {}),
     ...(p.fromDate ? { from_date: p.fromDate } : {}),
     ...(p.toDate ? { to_date: p.toDate } : {}),
     ...(fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : {}),
@@ -322,7 +323,7 @@ const OrderPayments = () => {
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
 
   const listParamsRef = useRef<{
-    keyword?: string;
+    search?: string;
     orderStatus: string;
     customerPaymentScope: string;
     partnerPaymentScope: string;
@@ -372,10 +373,14 @@ const OrderPayments = () => {
         totalUserPending += Number(r.customer_pending_amount) || 0;
       }
       setSummary({
-        completedOrders: scoped.filter((r) => Number(r.service_status) === 3)
-          .length,
-        inProgressOrders: scoped.filter((r) => Number(r.service_status) === 2)
-          .length,
+        completedOrders: scoped.filter(
+          (r) =>
+            r.order_status === "completed" || Number(r.service_status) === 3
+        ).length,
+        inProgressOrders: scoped.filter(
+          (r) =>
+            r.order_status === "in_progress" || Number(r.service_status) === 2
+        ).length,
         totalPartnerPending: Math.round(totalPartnerPending * 100) / 100,
         totalUserPending: Math.round(totalUserPending * 100) / 100,
       });
@@ -383,44 +388,34 @@ const OrderPayments = () => {
     }
     let cancelled = false;
     (async () => {
-      const scope = dateScopeFilters;
-      const [completedRes, inProgRes, allRows] = await Promise.all([
-        fetchFinancial(
-          1,
-          1,
-          { ...scope, service_status: "3" },
-          { skipLoader: true }
-        ),
-        fetchFinancial(
-          1,
-          1,
-          { ...scope, service_status: "2" },
-          { skipLoader: true }
-        ),
-        fetchAllFinancialRowsMatching(scope, 250, { skipEnrich: true }),
-      ]);
-      if (cancelled) return;
-      let totalPartnerPending = 128000;
-      let totalUserPending = 135000;
-      if (allRows) {
-        for (const r of allRows) {
-          totalPartnerPending += Number(r.pending_to_partner) || 0;
-          totalUserPending += Number(r.customer_pending_amount) || 0;
+      const fid = headerFranchiseId.trim();
+      const { responseCount, countModel } = await getCount(
+        "financial-order-payments",
+        {
+          ...(fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : {}),
+          ...(fromDate ? { from_date: fromDate } : {}),
+          ...(toDate ? { to_date: toDate } : {}),
         }
-      }
+      );
+      if (cancelled) return;
+      if (!responseCount || !countModel) return;
       setSummary({
-        completedOrders: completedRes.response
-          ? completedRes.totalItems ?? 0
-          : 0,
-        inProgressOrders: inProgRes.response ? inProgRes.totalItems ?? 0 : 0,
-        totalPartnerPending: Math.round(totalPartnerPending * 100) / 100,
-        totalUserPending: Math.round(totalUserPending * 100) / 100,
+        completedOrders: Number(countModel.total_completed_orders) || 0,
+        inProgressOrders: Number(countModel.total_in_progress_orders) || 0,
+        totalPartnerPending:
+          Math.round(
+            (Number(countModel.total_partner_pending_amount) || 0) * 100
+          ) / 100,
+        totalUserPending:
+          Math.round(
+            (Number(countModel.total_user_pending_amount) || 0) * 100
+          ) / 100,
       });
     })();
     return () => {
       cancelled = true;
     };
-  }, [dateScopeFilters]);
+  }, [dateScopeFilters, fromDate, toDate, headerFranchiseId]);
 
   const runFetch = useCallback(
     async (page: number, size: number) => {
@@ -428,7 +423,7 @@ const OrderPayments = () => {
       fetchRef.current = true;
       const p = listParamsRef.current;
       const merged = buildListFilters({
-        keyword: p.keyword,
+        search: p.search,
         orderStatus: p.orderStatus,
         customerPaymentScope: p.customerPaymentScope,
         partnerPaymentScope: p.partnerPaymentScope,
@@ -451,8 +446,7 @@ const OrderPayments = () => {
         totalPages: tp,
       } = await fetchFinancial(page, size, merged, undefined, sortBy);
       if (response) {
-        const withNames = await enrichFinancialRowsWithOrderNames(financials);
-        setFinancialList(withNames);
+        setFinancialList(financials);
         setTotalPages(tp);
       }
       fetchRef.current = false;
@@ -469,31 +463,8 @@ const OrderPayments = () => {
     setFilterEpoch((e) => e + 1);
   }, []);
 
-  const handleVoidOrder = useCallback(
-    async (order: FinancialModel) => {
-      const orderId = order.order_id ?? order._id;
-      const display =
-        order.order_unique_id ?? order.order_id ?? order._id ?? "-";
-
-      openConfirmDialog(
-        `Are you sure you want to void this order (${display})?`,
-        "Void",
-        "Cancel",
-        async () => {
-          // Avoid blocking future fetches due to any in-flight guard.
-          fetchRef.current = false;
-          const ok = await deleteOrder(String(orderId));
-          if (ok) {
-            bumpFilters();
-          }
-        }
-      );
-    },
-    [bumpFilters]
-  );
-
   const handleSearch = (value: string) => {
-    listParamsRef.current.keyword = value;
+    listParamsRef.current.search = value;
     setKeywordActive(!!value.trim());
     setCurrentPage(1);
     setFilterEpoch((e) => e + 1);
@@ -539,7 +510,7 @@ const OrderPayments = () => {
           label="Partner Payment Status"
           controlId="Partner payment status"
           register={headerRegister as unknown as UseFormRegister<any>}
-          options={[...PARTNER_PAYMENT_STATUS_OPTIONS]}
+          options={[...PARTNER_PAYMENT_STATUS_FILTER_OPTIONS]}
           fieldName="partner_payment_status_filter"
           defaultValue={partnerPaymentScope}
           setValue={
@@ -564,7 +535,7 @@ const OrderPayments = () => {
           label="Customer Payment Status"
           controlId="Customer payment status"
           register={headerRegister as unknown as UseFormRegister<any>}
-          options={[...CUSTOMER_PAYMENT_STATUS_OPTIONS]}
+          options={[...CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS]}
           fieldName="customer_payment_status_filter"
           defaultValue={customerPaymentScope}
           setValue={
@@ -608,7 +579,7 @@ const OrderPayments = () => {
             setAppliedSearchKeyword("");
             setSortBy([]);
             listParamsRef.current = {
-              keyword: undefined,
+              search: undefined,
               orderStatus: "",
               customerPaymentScope: "",
               partnerPaymentScope: "",
@@ -637,7 +608,6 @@ const OrderPayments = () => {
       {
         Header: "Order ID",
         accessor: "order_unique_id",
-        sort: true,
         Cell: textUnderlineCell("order_unique_id", (row) => {
           showOrderInfoDialog(row.order_id, () => {});
         }),
@@ -647,7 +617,7 @@ const OrderPayments = () => {
         accessor: "user_name",
         sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const label = row.original.user_info?.name || "-";
+          const label = row.original.user_name?.trim() || "-";
           return (
             <span
               style={{
@@ -670,7 +640,7 @@ const OrderPayments = () => {
         accessor: "partner_name",
         sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const label = row.original.partner_info?.name ?? "-";
+          const label = row.original.partner_name?.trim() || "-";
           return (
             <span
               style={{
@@ -689,11 +659,10 @@ const OrderPayments = () => {
           );
         },
       },
-      { Header: "Service Name", accessor: "service_name" },
+      { Header: "Service Name", accessor: "service_name", sort: true },
       {
         Header: "Service Date",
         accessor: "service_date",
-        sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) =>
           formatDate(
             row.original.service_date ? row.original.service_date : ""
@@ -702,7 +671,6 @@ const OrderPayments = () => {
       {
         Header: "Total Amount",
         accessor: "total_price",
-        sort: true,
         Cell: priceCell("total_price"),
       },
       {
@@ -782,23 +750,43 @@ const OrderPayments = () => {
         Cell: priceCell("pending_to_partner"),
       },
       {
-        Header: "Order status",
-        accessor: "service_status",
-        Cell: ({ row }: { row: { original: FinancialModel } }) =>
-          serviceLineOrderStatusLabel(row.original.service_status),
+        Header: "Customer Payment Status",
+        accessor: "customer_payment_status",
+        Cell: ({ row }: { row: { original: FinancialModel } }) => {
+          const slug = row.original.customer_payment_status;
+          const label = slug
+            ? customerPaymentStatusLabelFromSlug(slug)
+            : "";
+          if (label) return label;
+          const pending = Number(row.original.customer_pending_amount) || 0;
+          const paid = Number(row.original.customer_paid_amount) || 0;
+          if (pending <= 0 && paid > 0) return "Paid";
+          if (paid > 0 && pending > 0) return "Partially paid";
+          return "Unpaid";
+        },
       },
       {
-        Header: "Action",
-        accessor: "action",
-        Cell: ({ row }: { row: { original: FinancialModel } }) => (
-          <CustomActionColumn
-            row={row}
-            onDelete={() => handleVoidOrder(row.original)}
-          />
-        ),
+        Header: "Partner Payment Status",
+        accessor: "partner_payment_status",
+        Cell: ({ row }: { row: { original: FinancialModel } }) => {
+          const slug = row.original.partner_payment_status;
+          const label = slug ? partnerPaymentStatusLabelFromSlug(slug) : "";
+          if (label) return label;
+          const pending = Number(row.original.pending_to_partner) || 0;
+          const paid = Number(row.original.paid_to_partner) || 0;
+          if (pending <= 0 && paid > 0) return "Paid";
+          if (paid > 0 && pending > 0) return "Partially paid";
+          return "Unpaid";
+        },
+      },
+      {
+        Header: "Order status",
+        accessor: "order_status",
+        Cell: ({ row }: { row: { original: FinancialModel } }) =>
+          serviceLineOrderStatusLabel(row.original),
       },
     ],
-    [currentPage, pageSize, navigate, handleVoidOrder]
+    [currentPage, pageSize, navigate]
   );
 
   return (

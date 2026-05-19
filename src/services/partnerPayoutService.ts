@@ -13,7 +13,8 @@ export type PartnerWalletPayoutHistoryRow = {
 export type PartnerWalletPayoutPayload = {
   partner_id: string;
   amount: number;
-  payment_method: "cash" | "razorpay";
+  /** Single field: `cash` or Razorpay rail (`upi`, `imps`, `neft`, …). */
+  payment_method: string;
   description?: string;
 };
 

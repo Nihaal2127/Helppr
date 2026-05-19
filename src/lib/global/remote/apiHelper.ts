@@ -5,7 +5,8 @@ import { AppConstant } from "../AppConstant";
 import { clearLocalStorage } from "../localStorageHelper";
 import { isMockAuthSession } from "../authSessionHelper";
 import { ApiPaths } from "./apiPaths";
-import { getNavigate, showLog } from "../../../helper/utility";
+import { getNavigate } from "../../../helper/navigation";
+import { showLog } from "../../../helper/logger";
 import { closeAllModals } from "../DialogManager";
 
 export const apiRequest = async (

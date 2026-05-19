@@ -1,0 +1,1092 @@
+/**
+ * Quote UI helpers: view mapping, franchise pins, addresses, schedule, pricing.
+ * Address pure helpers live in quoteAddressCore (quoteService imports that file directly).
+ */
+import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../types/quoteTypes";
+import { AppConstant } from "../global/AppConstant";
+import { extractMinDepositTypeKey } from "../service/serviceMinDepositDisplay";
+import type { ServiceDropDownOption } from "../../services/servicesService";
+import {
+  buildAddressLocationLookupsFromCustomers,
+  formatQuoteServiceAddressLines,
+  normalizePincodeDigits,
+  parseCatalogAddressRecord,
+} from "./quoteAddressCore";
+import type { QuoteAddressFieldFallback } from "./quoteAddressCore";
+import type { FranchiseRelatedCatalogRecord } from "../../services/quoteService";
+
+/** --- Price breakdown --- */
+
+export type QuotePriceBreakdown = {
+  base: number;
+  commissionPct: number;
+  commissionAmount: number;
+  subtotalBeforeTax: number;
+  taxPct: number;
+  taxAmount: number;
+  grandTotal: number;
+  minDepositTitle: string;
+  minDepositAmount: number;
+  minDepositNote: string;
+};
+
+function roundQuoteMoney(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+export function formatQuoteRupees(amount: number): string {
+  const rounded = Math.round((amount + Number.EPSILON) * 100) / 100;
+  const s = rounded.toFixed(2).replace(/\.00$/, "");
+  return `${AppConstant.currencySymbol}${s}`;
+}
+
+export function computeQuotePriceBreakdown(
+  servicePrice: string | number | undefined | null,
+  opt: ServiceDropDownOption | undefined
+): QuotePriceBreakdown | null {
+  const base = Number.parseFloat(String(servicePrice ?? "").trim());
+  if (!Number.isFinite(base) || base < 0) return null;
+  const taxPct = Math.max(0, Number(opt?.tax ?? 0) || 0);
+  const commissionPct = Math.max(0, Number(opt?.commission ?? 0) || 0);
+  const commissionAmount = roundQuoteMoney(base * (commissionPct / 100));
+  const subtotalBeforeTax = roundQuoteMoney(base + commissionAmount);
+  const taxAmount = roundQuoteMoney(subtotalBeforeTax * (taxPct / 100));
+  const grandTotal = roundQuoteMoney(subtotalBeforeTax + taxAmount);
+
+  const typeKey = extractMinDepositTypeKey(
+    String(opt?.min_deposit_type ?? opt?.payment_type ?? "")
+  );
+  let minDepositAmount = 0;
+  let minDepositTitle = "Minimum deposit";
+  let minDepositNote = "";
+
+  if (typeKey === "per_consultancy") {
+    const flat = Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? 0);
+    minDepositAmount = Number.isFinite(flat) ? roundQuoteMoney(flat) : 0;
+    minDepositNote = "(fixed amount for this billing type)";
+  } else {
+    let pct =
+      Number(opt?.min_deposit_value ?? opt?.minimum_deposit ?? NaN) || 0;
+    if (!Number.isFinite(pct) || pct <= 0) {
+      const rawType = String(opt?.min_deposit_type ?? opt?.payment_type ?? "");
+      const m = rawType.match(/\(\s*([\d.]+)\s*%?\s*\)/);
+      if (m) pct = Number(m[1]) || 0;
+    }
+    pct = Math.max(0, pct);
+    minDepositAmount = roundQuoteMoney(grandTotal * (pct / 100));
+    minDepositNote =
+      pct > 0
+        ? `(${pct}${AppConstant.percentageSymbol} of total incl. tax)`
+        : "";
+  }
+
+  return {
+    base,
+    commissionPct,
+    commissionAmount,
+    subtotalBeforeTax,
+    taxPct,
+    taxAmount,
+    grandTotal,
+    minDepositTitle,
+    minDepositAmount,
+    minDepositNote,
+  };
+}
+
+/** --- View --- */
+
+/** Shared quote view shape (modal + list mapping). */
+export type QuoteViewData = {
+  /** Quote document Mongo id (used on quote API paths as the path segment id). */
+  _id?: string;
+  quote_id: string;
+  status: string;
+  requested_services: string;
+  requested_partner: string;
+  user_name: string;
+  user_id?: string;
+  phone_number?: string;
+  user_email?: string;
+  user_city?: string;
+  profile_url?: string | null;
+  partner_profile_url?: string | null;
+  employee_profile_url?: string | null;
+  category_id?: string;
+  category_name?: string;
+  requested_date: string;
+  requested_time: string;
+  door_no: string;
+  street: string;
+  city: string;
+  area?: string;
+  landmark?: string;
+  state?: string;
+  address_line?: string;
+  pincode?: string;
+  service_id?: string;
+  partner_id?: string;
+  /** Accepted (and similar) quote view */
+  partner_name?: string;
+  partner_user_id?: string;
+  partner_phone?: string;
+  partner_city?: string;
+  partner_email?: string;
+  franchise_id?: string;
+  franchise_name?: string;
+  address_id?: string;
+  /** Employee shown in quote view */
+  employee_id?: string;
+  employee_name?: string;
+  employee_phone?: string;
+  employee_email?: string;
+  service_price?: number;
+  scheduled_date?: string;
+  scheduled_time_from?: string;
+  scheduled_time_to?: string;
+  /** Success (completed order) quote view */
+  order_id?: string;
+  order_status?: string;
+  services_summary?: string;
+  final_price?: number;
+  payment_method?: string;
+  payment_status?: string;
+  payment_reference?: string;
+  payment_date?: string;
+  description?: string;
+};
+
+/** Section headings in quote view (Quote details, Customer, Amount breakdown, etc.). */
+export const QUOTE_SECTION_TITLE_CLASS = "quote-section-title fw-bold mb-3";
+
+/** Shared width (1040px) + 90vh cap with scrollable body for quote add / edit / view modals. */
+export const QUOTE_MODAL_LAYOUT = {
+  centered: true,
+  size: "xl" as const,
+  scrollable: true,
+  dialogClassName: "add-quote-modal-dialog modal-vh-90",
+  contentClassName: "add-quote-modal-content",
+} as const;
+
+/** Calendar date `YYYY-MM-DD` for quote / order schedule fields. */
+export function toIsoCalendarDate(date: Date | null): string | null {
+  if (!date) return null;
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function startOfTodayLocal(): Date {
+  return startOfLocalDay(new Date());
+}
+
+export function parseIsoDateOnly(iso: string): Date | null {
+  const t = String(iso ?? "").trim();
+  if (!t) return null;
+  const parts = t.split("-");
+  if (parts.length !== 3) return null;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!y || !m || !day) return null;
+  const d = new Date(y, m - 1, day);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function isCalendarDateNotBeforeToday(iso: string): boolean {
+  const d = parseIsoDateOnly(iso);
+  if (!d) return false;
+  return startOfLocalDay(d) >= startOfTodayLocal();
+}
+
+export function compareIsoDateOnlyAsc(aIso: string, bIso: string): number | null {
+  const a = parseIsoDateOnly(aIso);
+  const b = parseIsoDateOnly(bIso);
+  if (!a || !b) return null;
+  return startOfLocalDay(a).getTime() - startOfLocalDay(b).getTime();
+}
+
+export function minutesFromScheduleTimeStorage(st: string): number | null {
+  const t = String(st ?? "").trim();
+  if (!t) return null;
+  const m = t.match(/T(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
+export function isScheduleEndAfterStartSameDay(
+  start: string,
+  end: string
+): boolean {
+  const a = minutesFromScheduleTimeStorage(start);
+  const b = minutesFromScheduleTimeStorage(end);
+  if (a == null || b == null) return false;
+  return b > a;
+}
+
+export const quoteScheduleTimePickerAllowAllHours = (): boolean => true;
+
+function coalesceText(fresh?: string, keep?: string): string {
+  const next = String(fresh ?? "").trim();
+  if (next) return next;
+  return String(keep ?? "").trim();
+}
+
+/** Keep list / prior view values when a detail fetch returns sparse fields. */
+export function mergeQuoteViewData(
+  fresh: QuoteViewData,
+  keep: QuoteViewData
+): QuoteViewData {
+  const merged: QuoteViewData = { ...keep, ...fresh };
+  return {
+    ...merged,
+    quote_id: coalesceText(fresh.quote_id, keep.quote_id) || merged.quote_id,
+    status: coalesceText(fresh.status, keep.status) || merged.status,
+    requested_services: coalesceText(
+      fresh.requested_services,
+      keep.requested_services
+    ),
+    services_summary:
+      coalesceText(fresh.services_summary, keep.services_summary) || undefined,
+    requested_partner: coalesceText(
+      fresh.requested_partner,
+      keep.requested_partner
+    ),
+    category_name: coalesceText(fresh.category_name, keep.category_name) || undefined,
+    description: coalesceText(fresh.description, keep.description) || undefined,
+    requested_date: coalesceText(fresh.requested_date, keep.requested_date),
+    requested_time: coalesceText(fresh.requested_time, keep.requested_time),
+    scheduled_date:
+      coalesceText(fresh.scheduled_date, keep.scheduled_date) || undefined,
+    scheduled_time_from:
+      coalesceText(fresh.scheduled_time_from, keep.scheduled_time_from) ||
+      undefined,
+    scheduled_time_to:
+      coalesceText(fresh.scheduled_time_to, keep.scheduled_time_to) || undefined,
+    user_name: coalesceText(fresh.user_name, keep.user_name),
+    user_email: coalesceText(fresh.user_email, keep.user_email) || undefined,
+    phone_number: coalesceText(fresh.phone_number, keep.phone_number) || undefined,
+    partner_name: coalesceText(fresh.partner_name, keep.partner_name) || undefined,
+    partner_email:
+      coalesceText(fresh.partner_email, keep.partner_email) || undefined,
+    partner_phone:
+      coalesceText(fresh.partner_phone, keep.partner_phone) || undefined,
+    partner_city: coalesceText(fresh.partner_city, keep.partner_city) || undefined,
+    employee_name:
+      coalesceText(fresh.employee_name, keep.employee_name) || undefined,
+    employee_email:
+      coalesceText(fresh.employee_email, keep.employee_email) || undefined,
+    employee_phone:
+      coalesceText(fresh.employee_phone, keep.employee_phone) || undefined,
+    city: coalesceText(fresh.city, keep.city),
+    area: coalesceText(fresh.area, keep.area) || undefined,
+    state: coalesceText(fresh.state, keep.state) || undefined,
+    pincode: coalesceText(fresh.pincode, keep.pincode) || undefined,
+    address_line:
+      coalesceText(fresh.address_line, keep.address_line) ||
+      coalesceText(fresh.street, keep.street) ||
+      undefined,
+    street: coalesceText(fresh.street, keep.street),
+    service_price:
+      fresh.service_price != null && Number.isFinite(fresh.service_price)
+        ? fresh.service_price
+        : keep.service_price,
+  };
+}
+
+export function toQuoteViewData(row: QuoteRow): QuoteViewData {
+  return {
+    _id: row._id,
+    quote_id: row.quote_id,
+    status: row.status,
+    requested_services: row.requested_services,
+    requested_partner: row.requested_partner,
+    employee_id: row.employee_id,
+    employee_name: row.employee_name,
+    employee_phone: row.employee_phone,
+    employee_email: row.employee_email,
+    user_name: row.user_name,
+    user_id: row.user_id,
+    phone_number: row.phone_number,
+    user_email: row.user_email,
+    user_city: row.user_city ?? row.city,
+    profile_url: row.profile_url,
+    partner_profile_url: row.partner_profile_url,
+    employee_profile_url: row.employee_profile_url,
+    category_id: row.category_id,
+    category_name: row.category_name,
+    requested_date: row.requested_date,
+    requested_time: row.requested_time,
+    door_no: row.door_no,
+    street: row.street,
+    city: row.city,
+    area: row.area,
+    landmark: row.landmark,
+    state: row.state,
+    address_line: row.address_line,
+    pincode: row.pincode,
+    service_id: row.service_id,
+    partner_id: row.partner_id,
+    partner_name: row.partner_name,
+    partner_user_id: row.partner_user_id,
+    partner_phone: row.partner_phone,
+    partner_city: row.partner_city,
+    partner_email: row.partner_email,
+    franchise_id: row.franchise_id,
+    franchise_name: row.franchise_name,
+    address_id: row.address_id,
+    service_price: row.service_price,
+    scheduled_date: row.scheduled_date,
+    scheduled_time_from: row.service_from_time,
+    scheduled_time_to: row.service_to_time,
+    order_id: row.order_id,
+    order_status: row.order_status,
+    services_summary: row.services ?? row.requested_services,
+    payment_method: row.payment_method,
+    payment_status: row.payment_status,
+    payment_reference: row.payment_reference,
+    payment_date: row.payment_date,
+    description: row.description,
+  };
+}
+
+export type QuoteFranchiseCatalogSnapshot = {
+  partnerRecords: Record<string, unknown>[];
+  employeeRows: Record<string, unknown>[];
+};
+
+let snapshot: QuoteFranchiseCatalogSnapshot | null = null;
+
+export function setQuoteFranchiseCatalogSnapshot(
+  next: QuoteFranchiseCatalogSnapshot | null
+): void {
+  snapshot = next;
+}
+
+export function getQuoteFranchiseCatalogSnapshot(): QuoteFranchiseCatalogSnapshot | null {
+  return snapshot;
+}
+
+function str(v: unknown): string {
+  if (v == null) return "";
+  const s = String(v).trim();
+  return s === "undefined" || s === "null" ? "" : s;
+}
+
+function asObjectRecords(v: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x) => x != null && typeof x === "object") as Record<
+    string,
+    unknown
+  >[];
+}
+
+export function collectPincodesFromAreaRecord(
+  area: Record<string, unknown> | null | undefined
+): string[] {
+  if (!area) return [];
+  const out: string[] = [];
+  const single = str(area.pincode ?? area.postal_code ?? area.postcode);
+  if (single) out.push(single);
+  const rawList =
+    area.pincodes ??
+    area.pin_codes ??
+    area.postal_codes ??
+    area.serviceable_pincodes;
+  if (Array.isArray(rawList)) {
+    for (const x of rawList) {
+      if (x == null) continue;
+      if (typeof x === "string" || typeof x === "number") {
+        const s = str(x);
+        if (s) out.push(s);
+        continue;
+      }
+      if (typeof x === "object") {
+        const o = x as Record<string, unknown>;
+        const p = str(o.pincode ?? o.code ?? o.postal_code ?? o._id);
+        if (p) out.push(p);
+      }
+    }
+  }
+  const joined = str(area.pincode_list ?? area.pincodes_csv);
+  if (joined && joined.includes(",")) {
+    for (const part of joined.split(",")) {
+      const p = str(part);
+      if (p) out.push(p);
+    }
+  }
+  return out;
+}
+
+/** `franchise.area_id` may be a string, array of ids, or array of objects with `_id`. */
+export function collectFranchiseAreaIds(
+  franchise: Record<string, unknown> | null | undefined
+): string[] {
+  if (!franchise) return [];
+  const raw = franchise.area_id ?? franchise.area_ids ?? franchise.areas;
+  const ids: string[] = [];
+  if (Array.isArray(raw)) {
+    for (const x of raw) {
+      if (x == null) continue;
+      if (typeof x === "string" || typeof x === "number") {
+        const id = str(x);
+        if (id) ids.push(id);
+        continue;
+      }
+      if (typeof x === "object") {
+        const o = x as Record<string, unknown>;
+        const id = str(o._id ?? o.id ?? o.area_id);
+        if (id) ids.push(id);
+      }
+    }
+    return Array.from(new Set(ids));
+  }
+  const one = str(raw);
+  return one ? [one] : [];
+}
+
+function collectPincodesFromFranchiseRecord(
+  franchise: Record<string, unknown> | null | undefined
+): string[] {
+  if (!franchise) return [];
+  const out: string[] = [];
+  const single = str(
+    franchise.pincode ?? franchise.postcode ?? franchise.postal_code
+  );
+  if (single) out.push(single);
+  const raw = franchise.pincodes ?? franchise.serviceable_pincodes;
+  if (Array.isArray(raw)) {
+    for (const x of raw) out.push(str(x));
+  }
+  return out.filter(Boolean);
+}
+
+function addNormalizedPins(target: Set<string>, rawPins: string[]): void {
+  for (const p of rawPins) {
+    const n = normalizePincodeDigits(p);
+    if (n.length === 6) target.add(n);
+  }
+}
+
+/**
+ * Postcodes served by the franchise using **only** `related-catalog` JSON (no GET /area/get).
+ * Sources: `franchise.pincode` / `pincodes`, optional `record.areas` / `franchise_areas`,
+ * and `franchise.area_id` when entries are full objects with `pincodes` (not plain id strings).
+ */
+export function buildFranchisePincodeSetFromRelatedCatalog(
+  record: FranchiseRelatedCatalogRecord | null | undefined
+): Set<string> {
+  const out = new Set<string>();
+  if (!record) return out;
+  const rec = record as Record<string, unknown>;
+  const fr = record.franchise as Record<string, unknown> | undefined;
+
+  addNormalizedPins(out, collectPincodesFromFranchiseRecord(fr));
+
+  for (const a of asObjectRecords(rec.areas)) {
+    addNormalizedPins(out, collectPincodesFromAreaRecord(a));
+  }
+  for (const a of asObjectRecords(rec.franchise_areas)) {
+    addNormalizedPins(out, collectPincodesFromAreaRecord(a));
+  }
+
+  const rawArea = fr?.area_id ?? fr?.area_ids ?? fr?.areas;
+  if (Array.isArray(rawArea)) {
+    for (const x of rawArea) {
+      if (x != null && typeof x === "object") {
+        addNormalizedPins(out, collectPincodesFromAreaRecord(x as Record<string, unknown>));
+      }
+    }
+  }
+
+  return out;
+}
+
+/** --- Address panel (React) --- */
+
+export type QuoteAddressRowUi = {
+  id: string;
+  summary: string;
+  selectable: boolean;
+  contactName: string;
+  stateName: string;
+  cityName: string;
+  areaName: string;
+  streetAddress: string;
+  landmark: string;
+  pincode: string;
+};
+
+export type QuoteAddressUiState = {
+  ready: boolean;
+  rows: QuoteAddressRowUi[];
+  error: string;
+};
+
+export function formatQuoteAddressRowAsServiceLine(
+  row: QuoteAddressRowUi
+): string {
+  const parts = [
+    row.streetAddress,
+    row.landmark,
+    row.areaName,
+    row.pincode,
+    row.cityName,
+    row.stateName,
+  ]
+    .map((s) => String(s ?? "").trim())
+    .filter(Boolean);
+  return parts.join(", ");
+}
+
+const emptyUi = (): QuoteAddressUiState => ({
+  ready: false,
+  rows: [],
+  error: "",
+});
+
+/**
+ * Add Quote / Edit Quote: customer address cards + franchise area / pin rules.
+ * When `preferredAddressId` matches a selectable saved address, it is selected by default.
+ */
+export function useQuoteCustomerAddressPanel(args: {
+  userId: string;
+  quoteCustomerRecords: Record<string, unknown>[];
+  franchiseQuotePinSet: Set<string>;
+  franchiseQuoteAreaIdSet: Set<string>;
+  franchisePinsLoadDone: boolean;
+  preferredAddressId?: string;
+  /** Hydrated quote address from GET /quote/get — fills gaps when catalog rows omit city/state names. */
+  quoteAddressFallback?: QuoteAddressFieldFallback;
+}): {
+  addressUi: QuoteAddressUiState;
+  selectedAddressId: string;
+  setSelectedAddressId: Dispatch<SetStateAction<string>>;
+} {
+  const {
+    userId,
+    quoteCustomerRecords,
+    franchiseQuotePinSet,
+    franchiseQuoteAreaIdSet,
+    franchisePinsLoadDone,
+    preferredAddressId,
+    quoteAddressFallback,
+  } = args;
+
+  const [addressUi, setAddressUi] = useState<QuoteAddressUiState>(emptyUi);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+
+  const locationLookups = useMemo(
+    () => buildAddressLocationLookupsFromCustomers(quoteCustomerRecords),
+    [quoteCustomerRecords]
+  );
+
+  useEffect(() => {
+    const uid = String(userId ?? "").trim();
+    if (!uid) {
+      setSelectedAddressId("");
+      setAddressUi(emptyUi());
+      return;
+    }
+    if (!franchisePinsLoadDone) {
+      setSelectedAddressId("");
+      setAddressUi({ ready: false, rows: [], error: "" });
+      return;
+    }
+
+    const customer =
+      quoteCustomerRecords.find(
+        (c) => String(c._id ?? c.id ?? "").trim() === uid
+      ) ?? null;
+    if (!customer) {
+      setSelectedAddressId("");
+      setAddressUi({
+        ready: true,
+        rows: [],
+        error:
+          "This customer is not in the franchise list from the catalog. Pick another user or refresh.",
+      });
+      return;
+    }
+
+    const addrs = (customer.addresses ?? customer.user_addresses) as
+      | unknown[]
+      | undefined;
+    const parsed = Array.isArray(addrs)
+      ? addrs
+          .filter((a) => a != null && typeof a === "object")
+          .map((a) =>
+            parseCatalogAddressRecord(
+              a as Record<string, unknown>,
+              locationLookups,
+              quoteAddressFallback
+            )
+          )
+          .filter((r): r is NonNullable<typeof r> => r != null)
+      : [];
+
+    if (!parsed.length) {
+      setSelectedAddressId("");
+      setAddressUi({ ready: true, rows: [], error: "" });
+      return;
+    }
+
+    const areaRules = franchiseQuoteAreaIdSet;
+    const hasAreaRules = areaRules.size > 0;
+    const pinRules = franchiseQuotePinSet;
+    const hasPinRules = pinRules.size > 0;
+
+    const rows: QuoteAddressRowUi[] = parsed.map((r) => {
+      let selectable = true;
+      if (hasAreaRules) {
+        selectable = Boolean(r.areaId && areaRules.has(r.areaId));
+      } else if (hasPinRules) {
+        selectable = Boolean(
+          r.pinNorm.length === 6 && pinRules.has(r.pinNorm)
+        );
+      }
+      return {
+        id: r.id,
+        summary: r.summary,
+        selectable,
+        contactName: r.contactName,
+        stateName: r.stateName,
+        cityName: r.cityName,
+        areaName: r.areaName,
+        streetAddress: r.streetAddress,
+        landmark: r.landmark,
+        pincode: r.pincode,
+      };
+    });
+
+    const preferred = String(preferredAddressId ?? "").trim();
+    const preferredRow =
+      preferred && rows.find((r) => r.id === preferred && r.selectable);
+
+    if (!hasAreaRules && !hasPinRules) {
+      setSelectedAddressId(preferredRow ? preferred : parsed[0].id);
+      setAddressUi({ ready: true, rows, error: "" });
+      return;
+    }
+
+    const firstSelectable = rows.find((r) => r.selectable);
+    if (!firstSelectable) {
+      setSelectedAddressId("");
+      setAddressUi({
+        ready: true,
+        rows,
+        error: hasAreaRules
+          ? "This customer does not have an address in this franchise's service areas (no matching area)."
+          : "This customer does not have an address in this franchise's service area (no matching postcode).",
+      });
+      return;
+    }
+
+    setSelectedAddressId(preferredRow ? preferred : firstSelectable.id);
+    setAddressUi({ ready: true, rows, error: "" });
+  }, [
+    userId,
+    quoteCustomerRecords,
+    franchiseQuotePinSet,
+    franchiseQuoteAreaIdSet,
+    franchisePinsLoadDone,
+    preferredAddressId,
+    quoteAddressFallback,
+    locationLookups,
+  ]);
+
+  return { addressUi, selectedAddressId, setSelectedAddressId };
+}
+
+function normalizeQuoteApiStatusLocal(raw: unknown): string {
+  const strVal = (v: unknown) => {
+    if (v == null) return "";
+    const s = String(v).trim();
+    return s === "undefined" || s === "null" ? "" : s;
+  };
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const byNumber: Record<number, string> = {
+      1: "new",
+      2: "pending",
+      3: "accepted",
+      4: "success",
+      5: "failed",
+    };
+    const mapped = byNumber[raw];
+    if (mapped) return mapped;
+  }
+  const s = strVal(raw).toLowerCase();
+  const map: Record<string, string> = {
+    new: "new",
+    pending: "pending",
+    accepted: "accepted",
+    approved: "accepted",
+    success: "success",
+    converted: "success",
+    failed: "failed",
+    rejected: "failed",
+    cancelled: "failed",
+    canceled: "failed",
+    expired: "failed",
+    "1": "new",
+    "2": "pending",
+    "3": "accepted",
+    "4": "success",
+    "5": "failed",
+  };
+  return map[s] || s;
+}
+/** --- Schedule --- */
+
+/** e.g. `12 Apr 2026` */
+function formatDayDdMmmYyyy(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const mon = d.toLocaleString("en-GB", { month: "short" });
+  const yr = d.getFullYear();
+  return `${day} ${mon} ${yr}`;
+}
+
+/** Parses `10:30 AM` or 24h `17:00` → Date on 2000-01-01 for formatting */
+function parseTimeToSameDayDate(t: string): Date | null {
+  const trimmed = t.trim();
+  const m12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m12) {
+    let h = parseInt(m12[1], 10);
+    const min = parseInt(m12[2], 10);
+    const ap = m12[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return new Date(2000, 0, 1, h, min, 0, 0);
+  }
+  const m24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m24) return null;
+  const h = parseInt(m24[1], 10);
+  const min = parseInt(m24[2], 10);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return new Date(2000, 0, 1, h, min, 0, 0);
+}
+
+/**
+ * 12h time for display.
+ * `padHour` true → e.g. `05:00 PM` (range lines); false → e.g. `4:30 PM` (single-day line).
+ */
+function formatTimeAmPm(t: string, padHour = false): string {
+  const trimmed = (t ?? "").trim();
+  if (!trimmed) return "";
+  const d = parseTimeToSameDayDate(trimmed);
+  if (!d) return trimmed;
+  return d.toLocaleTimeString("en-US", {
+    hour: padHour ? "2-digit" : "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function splitHumanTimeRange(t?: string): [string, string] {
+  const s = (t ?? "").trim();
+  if (!s || s === "-") return ["", ""];
+  const parts = s.split(/\s+to\s+/i);
+  if (parts.length >= 2) return [parts[0].trim(), parts[1].trim()];
+  return [s, ""];
+}
+
+function splitDateParts(raw?: string): string[] {
+  if (!raw?.trim()) return [];
+  const trimmed = raw.trim();
+  const parts = trimmed.includes(" to ")
+    ? trimmed.split(/\s+to\s+/i).map((p) => p.trim())
+    : trimmed.split(/\s+[–—-]\s+/).map((p) => p.trim());
+  return parts.filter(Boolean);
+}
+
+function buildSingleDayLine(
+  dateIso: string,
+  timeFrom: string,
+  timeTo: string
+): string {
+  const dStr = formatDayDdMmmYyyy(dateIso);
+  if (!dStr) return "-";
+
+  const fa = timeFrom.trim() ? formatTimeAmPm(timeFrom, false) : "";
+  const fb = timeTo.trim() ? formatTimeAmPm(timeTo, false) : "";
+
+  if (fa && fb) return `${dStr}, ${fa} to ${fb}`;
+  if (fa) return `${dStr}, ${fa}`;
+  return dStr;
+}
+
+function buildRangeLines(
+  fromDateIso: string,
+  toDateIso: string,
+  timeFrom: string,
+  timeTo: string
+): string {
+  const d1 = formatDayDdMmmYyyy(fromDateIso);
+  const d2 = formatDayDdMmmYyyy(toDateIso);
+  if (!d1 || !d2) return "-";
+
+  const tf = timeFrom.trim();
+  const tt = timeTo.trim();
+  const f1 = tf ? formatTimeAmPm(tf, true) : "";
+  const f2 = tt ? formatTimeAmPm(tt, true) : "";
+
+  if (tf && !tt) {
+    return `From: ${d1}, ${f1}\nTo: ${d2}`;
+  }
+
+  const left = f1 ? `${d1}, ${f1}` : d1;
+  const right = f2 ? `${d2}, ${f2}` : d2;
+  return `From: ${left}\nTo: ${right}`;
+}
+
+/** New / pending / failed rows: requested_date + requested_time */
+export function formatQuoteRequestedSchedule(row: {
+  requested_date?: string;
+  requested_time?: string;
+}): string {
+  const parts = splitDateParts(row.requested_date);
+  if (parts.length === 0) return "-";
+
+  const [tFrom, tTo] = splitHumanTimeRange(row.requested_time);
+
+  if (parts.length === 1) {
+    return buildSingleDayLine(parts[0], tFrom, tTo);
+  }
+
+  return buildRangeLines(parts[0], parts[1], tFrom, tTo);
+}
+
+/** Accepted / success rows: scheduled_date + service time window */
+export function formatQuoteScheduledDisplay(row: {
+  scheduled_date?: string;
+  service_from_time?: string;
+  service_to_time?: string;
+}): string {
+  const parts = splitDateParts(row.scheduled_date);
+  if (parts.length === 0) return "-";
+
+  const from = (row.service_from_time ?? "").trim();
+  const to = (row.service_to_time ?? "").trim();
+
+  if (parts.length === 1) {
+    return buildSingleDayLine(parts[0], from, to);
+  }
+
+  return buildRangeLines(parts[0], parts[1], from, to);
+}
+
+export function formatQuoteScheduleForTable(
+  row: QuoteRow,
+  tab: QuoteTabKey
+): string {
+  if (tab === "success" || tab === "accepted") {
+    const scheduled = formatQuoteScheduledDisplay({
+      scheduled_date: row.scheduled_date,
+      service_from_time: row.service_from_time,
+      service_to_time: row.service_to_time,
+    });
+    if (scheduled !== "-") return scheduled;
+  }
+  return formatQuoteRequestedSchedule({
+    requested_date: row.requested_date,
+    requested_time: row.requested_time,
+  });
+}
+
+export function formatQuoteScheduleForView(row: {
+  status: string;
+  requested_date: string;
+  requested_time: string;
+  scheduled_date?: string;
+  scheduled_time_from?: string;
+  scheduled_time_to?: string;
+}): string {
+  const key = String(row.status ?? "").toLowerCase();
+  if (key === "success" || key === "accepted") {
+    const scheduled = formatQuoteScheduledDisplay({
+      scheduled_date: row.scheduled_date,
+      service_from_time: row.scheduled_time_from,
+      service_to_time: row.scheduled_time_to,
+    });
+    if (scheduled !== "-") return scheduled;
+  }
+  return formatQuoteRequestedSchedule({
+    requested_date: row.requested_date,
+    requested_time: row.requested_time,
+  });
+}
+
+export function formatServiceAddressLines(q: {
+  door_no?: string;
+  street?: string;
+  area?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}): string {
+  return formatQuoteServiceAddressLines(q);
+}
+
+export type EditQuoteFormValues = AddQuoteFormValues & {
+  quote_status: string;
+};
+
+function parseTimeAmPmToDate(t: string): Date | null {
+  const trimmed = t.trim();
+  const m12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m12) return null;
+  let h = parseInt(m12[1], 10);
+  const min = parseInt(m12[2], 10);
+  const ap = m12[3].toUpperCase();
+  if (ap === "PM" && h !== 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return new Date(2000, 0, 1, h, min, 0, 0);
+}
+
+function timeStorageFromDate(date: Date | null): string {
+  return date
+    ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(
+        date.getMinutes()
+      ).padStart(2, "0")}:00`
+    : "";
+}
+
+/** `HH:mm` / `HH:mm:ss` or `h:mm AM` → CustomTimePicker storage string. */
+export function workTimeToTimeStorage(raw: string | undefined): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const m24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (m24) {
+    const h = Math.min(23, parseInt(m24[1], 10));
+    const min = Math.min(59, parseInt(m24[2], 10));
+    return `2000-01-01T${String(h).padStart(2, "0")}:${String(
+      min
+    ).padStart(2, "0")}:00`;
+  }
+  const d = parseTimeAmPmToDate(s);
+  return d ? timeStorageFromDate(d) : "";
+}
+
+function ymdChunk(isoish: string): string {
+  const x = isoish.trim();
+  if (!x) return "";
+  if (x.length >= 10 && x[4] === "-") return x.slice(0, 10);
+  const d = new Date(x);
+  if (Number.isNaN(d.getTime())) return x;
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
+  const statusKey = normalizeQuoteApiStatusLocal(row.status) || "new";
+  const useScheduled = statusKey === "accepted" || statusKey === "success";
+
+  let requested_date = "";
+  let requested_date_to = "";
+  let requested_time_from = "";
+  let requested_time_to = "";
+
+  if (useScheduled) {
+    const sched = String(row.scheduled_date ?? "").trim();
+    if (sched) {
+      requested_date = ymdChunk(sched);
+      requested_time_from = workTimeToTimeStorage(row.service_from_time);
+      requested_time_to = workTimeToTimeStorage(row.service_to_time);
+    } else {
+      // GET /quote/get often has from_date + work_* only (no scheduled_date).
+      const fromYmd = row.from_date ? ymdChunk(row.from_date) : "";
+      const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
+      requested_date = fromYmd;
+      requested_date_to = toYmd && toYmd !== fromYmd ? toYmd : "";
+      requested_time_from = workTimeToTimeStorage(row.work_start_time);
+      requested_time_to = workTimeToTimeStorage(row.work_end_time);
+    }
+  } else {
+    const fromYmd = row.from_date
+      ? ymdChunk(row.from_date)
+      : "";
+    const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
+
+    if (fromYmd) {
+      requested_date = fromYmd;
+      requested_date_to =
+        toYmd && toYmd !== fromYmd ? toYmd : "";
+    } else {
+      const dateRaw = String(row.requested_date ?? "").trim();
+      const dateParts = dateRaw
+        ? dateRaw.split(/\s+to\s+/i).map((p) => p.trim()).filter(Boolean)
+        : [];
+      requested_date = dateParts[0] ? ymdChunk(dateParts[0]) : "";
+      requested_date_to =
+        dateParts.length > 1 ? ymdChunk(dateParts[1]) : "";
+    }
+
+    if (row.work_start_time || row.work_end_time) {
+      requested_time_from = workTimeToTimeStorage(row.work_start_time);
+      requested_time_to = workTimeToTimeStorage(row.work_end_time);
+    } else {
+      const [a, b] = splitHumanTimeRange(row.requested_time);
+      requested_time_from = workTimeToTimeStorage(a);
+      requested_time_to = workTimeToTimeStorage(b);
+    }
+  }
+
+  const partnerVal = String(
+    row.partner_id ?? row.partner_user_id ?? ""
+  ).trim();
+
+  return {
+    franchise_id: String(row.franchise_id ?? "").trim(),
+    user_id: String(row.user_id ?? "").trim(),
+    user_name: String(row.user_name ?? "").trim(),
+    requested_services: String(row.service_id ?? "").trim(),
+    requested_partner: partnerVal,
+    employee_id: String(row.employee_id ?? "").trim(),
+    category_id: String(row.category_id ?? "").trim(),
+    requested_date,
+    requested_date_to,
+    requested_time: "",
+    requested_time_from,
+    requested_time_to,
+    service_price:
+      row.service_price != null && Number.isFinite(row.service_price)
+        ? String(row.service_price)
+        : "",
+    description: String(row.description ?? "").trim(),
+    quote_status: statusKey || "new",
+  };
+}
+
+export {
+  buildAddressLocationLookupsFromCustomers,
+  displayStateName,
+  formatAddressLineFromRecord,
+  formatQuoteServiceAddressLines,
+  normalizePincodeDigits,
+  parseCatalogAddressRecord,
+  refIdFromField,
+  stripKnownAddressParts,
+} from "./quoteAddressCore";
+
+export type {
+  AddressLocationLookups,
+  ParsedCatalogAddressRow,
+  QuoteAddressFieldFallback,
+  QuoteServiceAddressInput,
+} from "./quoteAddressCore";

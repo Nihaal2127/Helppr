@@ -1,7 +1,7 @@
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { FinancialModel } from "../lib/models/FinancialModel";
-import { OrderModel } from "../lib/order/OrderModel";
+import { OrderModel } from "../lib/order/orderTypes";
 import { showLog } from "../helper/utility";
 import { fetchOrderById } from "./orderService";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
@@ -56,7 +56,12 @@ export async function enrichFinancialRowsWithOrderNames(
 }
 
 export type FinancialListFilters = {
+  /** Table search — sent as `search` query param (same as order/quote lists). */
+  search?: string;
+  /** @deprecated use `search` */
   keyword?: string;
+  /** `completed` | `in_progress` */
+  order_status?: string;
   service_status?: string;
   user_id?: string;
   partner_id?: string;
@@ -93,11 +98,12 @@ export const fetchFinancial = async (
       ? fidRaw
       : "";
 
+  const searchText = (filters.search ?? filters.keyword)?.trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
-    /* order_service/getAll: align with order list (`keyword`); keep `name` for backends that only read it */
-    ...(filters.keyword && { keyword: filters.keyword, name: filters.keyword }),
+    ...(searchText && { search: searchText }),
+    ...(filters.order_status && { order_status: filters.order_status }),
     ...(filters.service_status && { service_status: filters.service_status }),
     ...(filters.user_id && { user_id: filters.user_id }),
     ...(filters.partner_id && { partner_id: filters.partner_id }),

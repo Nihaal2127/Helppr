@@ -2,18 +2,19 @@ import type { ReactNode } from "react";
 import { Row, Col } from "react-bootstrap";
 import { VerificationStatusEnum } from "../lib/global/VerificationStatusEnum";
 import { RoleEnum } from "../lib/global/RoleEnum";
-import { OrderStatusEnum } from "../lib/order/OrderStatusEnum";
-import { NavigateFunction } from "react-router-dom";
 import { ResolveStatusEnum } from "../lib/global/ResolveStatusEnum";
 import { AppConstant } from "../lib/global/AppConstant";
 
-let navigate: NavigateFunction;
+export { getNavigate, setNavigate } from "./navigation";
 
-export const setNavigate = (nav: NavigateFunction) => {
-  navigate = nav;
-};
-
-export const getNavigate = () => navigate;
+/** Order status labels for `DetailsOrderStatusRow` (kept here to avoid utility ↔ orderTypes cycle). */
+const ORDER_STATUS_LABELS = new Map<number, { label: string }>([
+  [1, { label: "Pending" }],
+  [2, { label: "In Progress" }],
+  [3, { label: "Completed" }],
+  [4, { label: "Cancelled" }],
+  [5, { label: "Refunded" }],
+]);
 
 export const capitalizeString = (str: string) =>
   str.replace(/\b\w/g, (char) => char.toUpperCase());
@@ -351,7 +352,7 @@ export const DetailsOrderStatusRow = ({
   title: string;
   value: number | undefined | null;
 }) => {
-  const status = OrderStatusEnum.get(value ?? -1)?.label || "-";
+  const status = ORDER_STATUS_LABELS.get(value ?? -1)?.label || "-";
 
   let color = "";
 

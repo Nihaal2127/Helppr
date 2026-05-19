@@ -15,6 +15,8 @@ export interface FinancialModel {
   partner_info?: Partial<UserModel> | null;
   category_id: string | null;
   service_status: number | 0;
+  /** `completed` | `in_progress` — preferred over numeric `service_status` */
+  order_status?: string | null;
   payment_mode_id: number | 0;
   service_id: string | null;
   service_date: string | null;
@@ -38,6 +40,10 @@ export interface FinancialModel {
   total_service_amount?: number | null;
   paid_to_partner?: number | null;
   pending_to_partner?: number | null;
+  /** Server-computed slug: paid | unpaid | partially_paid | refund | partially_refund | completed */
+  customer_payment_status?: string | null;
+  /** Server-computed slug: paid | unpaid | partially_paid | completed */
+  partner_payment_status?: string | null;
   is_paid: boolean | false;
   cancellation_reasone: string | null;
   rating: number | 0;

@@ -25,7 +25,7 @@ import { franchiseIdForApiQuery } from "../lib/franchise/headerFranchisePreferen
 import {
   displayStateName,
   stripKnownAddressParts,
-} from "../lib/quote/quoteAddressFormat";
+} from "../lib/quote/quoteAddressCore";
 
 export type OptionType = { value: string; label: string };
 

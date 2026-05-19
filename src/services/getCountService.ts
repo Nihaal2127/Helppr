@@ -7,6 +7,8 @@ import { franchiseIdForUserGetAll } from "../lib/franchise/headerFranchisePrefer
 /** Optional fields merged into `POST /getCount` after `type` (when super admin / staff scope dashboards by franchise). */
 export type GetCountExtra = {
   franchise_id?: string;
+  from_date?: string;
+  to_date?: string;
 };
 
 export const getCount = async (
@@ -25,6 +27,12 @@ export const getCount = async (
     const franchiseIdQuery = franchiseIdForUserGetAll(extra?.franchise_id);
     if (franchiseIdQuery) {
       payload.franchise_id = franchiseIdQuery;
+    }
+    if (extra?.from_date?.trim()) {
+      payload.from_date = extra.from_date.trim();
+    }
+    if (extra?.to_date?.trim()) {
+      payload.to_date = extra.to_date.trim();
     }
     const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);
     if (response.success) {

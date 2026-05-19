@@ -3,10 +3,18 @@ import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import QuoteInfoFieldRow from "../../components/quote/QuoteInfoFieldRow";
 import { openDialog } from "../../lib/global/DialogManager";
-import type { QuoteViewData } from "../../lib/quote/quoteViewTypes";
 import type { QuoteRow } from "../../lib/types/quoteTypes";
-import { formatQuoteScheduleForView } from "../../lib/quote/quoteScheduleDisplay";
-import { displayStateName } from "../../lib/quote/quoteAddressFormat";
+import {
+  computeQuotePriceBreakdown,
+  displayStateName,
+  formatQuoteRupees,
+  formatQuoteScheduleForView,
+  mergeQuoteViewData,
+  QUOTE_MODAL_LAYOUT,
+  QUOTE_SECTION_TITLE_CLASS,
+  toQuoteViewData,
+} from "../../lib/quote/quoteHelpers";
+import type { QuoteViewData } from "../../lib/quote/quoteHelpers";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import {
   convertQuoteToOrder,
@@ -14,21 +22,9 @@ import {
 } from "../../services/quoteService";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
-import {
-  mergeQuoteViewData,
-  toQuoteViewData,
-} from "../../lib/quote/quoteViewMapper";
-import {
-  computeQuotePriceBreakdown,
-  formatQuoteRupees,
-} from "../../lib/quote/quotePriceBreakdown";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
 import QuoteInfoPersonSection from "../../components/quote/QuoteInfoPersonSection";
 import editIcon from "../../assets/icons/edit_red.svg";
-import {
-  QUOTE_MODAL_LAYOUT,
-  QUOTE_SECTION_TITLE_CLASS,
-} from "../../lib/quote/quoteModalLayout";
 
 export type { QuoteViewData };
 

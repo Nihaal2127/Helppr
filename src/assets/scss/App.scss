@@ -1579,7 +1579,7 @@ body:has(.modal.show ~ .modal.show) {
   // }
 }
 
-/* Quote add / edit / view — shared width + 90vh scroll (see quoteModalLayout.ts) */
+/* Quote add / edit / view — shared width + 90vh scroll (see quoteHelpers.ts) */
 .modal-dialog.add-quote-modal-dialog {
   max-width: min(1040px, 96vw);
   width: 100%;

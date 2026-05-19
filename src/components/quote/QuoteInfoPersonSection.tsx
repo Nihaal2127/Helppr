@@ -3,7 +3,7 @@ import { Row, Col } from "react-bootstrap";
 import { AppConstant } from "../../lib/global/AppConstant";
 import profileIcon from "../../assets/icons/profile.svg";
 import QuoteInfoFieldRow from "./QuoteInfoFieldRow";
-import { QUOTE_SECTION_TITLE_CLASS } from "../../lib/quote/quoteModalLayout";
+import { QUOTE_SECTION_TITLE_CLASS } from "../../lib/quote/quoteHelpers";
 
 export type QuoteInfoPersonRole = "customer" | "partner" | "employee";
 

@@ -11,7 +11,7 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
-import { PaymentEnum } from "../../lib/order/PaymentEnum";
+import { PaymentEnum } from "../../lib/order/orderTypes";
 import { DetailsRow, capitalizeString, formatDate } from "../../helper/utility";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";

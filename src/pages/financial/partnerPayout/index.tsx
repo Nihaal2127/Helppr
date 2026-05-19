@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Col, Row } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -14,6 +14,7 @@ import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
+import { FRANCHISE_HEADER_ALL } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import {
   formatDate,
   priceCell,
@@ -23,6 +24,11 @@ import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { PartnerDetailsDialog } from "../../../components/partner";
 import AddPayoutDialog from "./AddPayoutDialog";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
+import {
+  patchPartnerPayoutSearchParams,
+  readPartnerPayoutListUrl,
+  sortToUrl,
+} from "../../../lib/financial/partnerPayoutUrl";
 
 const WALLET_STATUS_OPTIONS = [
   { value: "all", label: "All" },
@@ -32,92 +38,102 @@ const WALLET_STATUS_OPTIONS = [
 
 const PartnerPayout = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
-    franchise_id: string;
-  }>({
-    defaultValues: franchiseHeaderFormDefaults(),
-  });
+  const { register: headerRegister, setValue: setHeaderValue, watch } =
+    useForm<{ franchise_id: string }>({
+      defaultValues: franchiseHeaderFormDefaults(),
+    });
 
-  const [partnerList, setPartnerList] = useState<UserModel[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
-  const fetchRef = useRef(false);
-  const [walletStatus, setWalletStatus] = useState("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [utilitySearchKey, setUtilitySearchKey] = useState(0);
-  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState("");
-  const [keywordActive, setKeywordActive] = useState(false);
-  const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const listRef = useRef({ walletStatus: "all", fromDate: "", toDate: "" });
-  const keywordRef = useRef("");
-
-  useEffect(() => {
-    listRef.current = { walletStatus, fromDate, toDate };
-  }, [walletStatus, fromDate, toDate]);
-
-  const fetchData = useCallback(
-    async (filters: { keyword?: string; status?: string }) => {
-      if (fetchRef.current) return;
-      fetchRef.current = true;
-      const w = listRef.current;
-      const {
-        response,
-        users,
-        totalPages: tp,
-      } = await fetchUser(
-        false,
-        2,
-        currentPage,
-        pageSize,
-        {
-          keyword: filters.keyword ?? keywordRef.current,
-          status: "true",
-          wallet_status: w.walletStatus,
-          ...(w.fromDate ? { from_date: w.fromDate } : {}),
-          ...(w.toDate ? { to_date: w.toDate } : {}),
-        },
-        sortBy
-      );
-      if (response) {
-        setPartnerList(users);
-        setTotalPages(tp);
-      }
-      fetchRef.current = false;
-    },
-    [currentPage, pageSize, sortBy]
+  const url = useMemo(
+    () => readPartnerPayoutListUrl(searchParams),
+    [searchParams]
   );
 
-  useEffect(() => {
-    void fetchData({});
-  }, [currentPage, pageSize, walletStatus, fromDate, toDate, fetchData]);
+  const patchUrl = useCallback(
+    (updates: Record<string, string | number | undefined | null>) => {
+      setSearchParams(
+        (prev) => patchPartnerPayoutSearchParams(prev, updates),
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
-  const handleFilterChange = async (filters: {
-    keyword?: string;
-    status?: string;
-  }) => {
-    setCurrentPage(1);
-    setTotalPages(0);
-    if (Object.keys(filters).length === 0) {
-      fetchRef.current = false;
-    } else {
-      await fetchData(filters);
+  const headerFranchiseId = String(watch("franchise_id") ?? FRANCHISE_HEADER_ALL);
+
+  useEffect(() => {
+    const fid = url.franchiseId;
+    if (fid && fid !== headerFranchiseId) {
+      setHeaderValue("franchise_id", fid, { shouldValidate: false });
     }
-  };
+  }, [url.franchiseId, headerFranchiseId, setHeaderValue]);
+
+  useEffect(() => {
+    const next =
+      headerFranchiseId && headerFranchiseId !== FRANCHISE_HEADER_ALL
+        ? headerFranchiseId
+        : undefined;
+    const cur = url.franchiseId || undefined;
+    if (next !== cur) {
+      patchUrl({ franchise_id: next, page: 1 });
+    }
+  }, [headerFranchiseId, url.franchiseId, patchUrl]);
+
+  const [partnerList, setPartnerList] = React.useState<UserModel[]>([]);
+  const [totalPages, setTotalPages] = React.useState(0);
+  const fetchRef = useRef(false);
+
+  const fetchData = useCallback(async () => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    const fid =
+      url.franchiseId && url.franchiseId !== FRANCHISE_HEADER_ALL
+        ? url.franchiseId
+        : undefined;
+    const {
+      response,
+      users,
+      totalPages: tp,
+    } = await fetchUser(
+      false,
+      2,
+      url.page,
+      url.limit,
+      {
+        search: url.search,
+        keyword: url.search,
+        status: "true",
+        wallet_status: url.walletStatus,
+        ...(url.fromDate ? { from_date: url.fromDate } : {}),
+        ...(url.toDate ? { to_date: url.toDate } : {}),
+        ...(fid ? { franchise_id: fid } : {}),
+      },
+      url.sortBy
+    );
+    if (response) {
+      setPartnerList(users);
+      setTotalPages(tp);
+    }
+    fetchRef.current = false;
+  }, [url]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   const handleServerSortChange = useCallback(
-    (next: { id: string; desc: boolean }[]) => {
-      setSortBy(next);
-      setCurrentPage(1);
+    (next: ServerTableSortBy) => {
+      patchUrl({ ...sortToUrl(next), page: 1 });
     },
-    []
+    [patchUrl]
   );
 
-  const bumpWalletFilters = () => {
-    setCurrentPage(1);
-  };
+  const filtersActive =
+    url.walletStatus !== "all" ||
+    !!url.fromDate ||
+    !!url.toDate ||
+    !!url.search;
 
   const handleVoidPartnerPayout = useCallback(
     (partner: UserModel) => {
@@ -129,7 +145,7 @@ const PartnerPayout = () => {
         "Cancel",
         async () => {
           fetchRef.current = false;
-          await fetchData({});
+          await fetchData();
         }
       );
     },
@@ -145,7 +161,7 @@ const PartnerPayout = () => {
           register={headerRegister as unknown as UseFormRegister<any>}
           options={[...WALLET_STATUS_OPTIONS]}
           fieldName="wallet_status_filter"
-          defaultValue={walletStatus}
+          defaultValue={url.walletStatus}
           setValue={
             setHeaderValue as (
               name: string,
@@ -156,9 +172,7 @@ const PartnerPayout = () => {
           asCol={false}
           noBottomMargin
           onChange={(e) => {
-            setWalletStatus(e.target.value);
-            listRef.current.walletStatus = e.target.value;
-            bumpWalletFilters();
+            patchUrl({ wallet_status: e.target.value, page: 1 });
           }}
         />
       </Col>
@@ -167,12 +181,10 @@ const PartnerPayout = () => {
         <CustomDatePicker
           label="From Date"
           controlId="from_date_filter"
-          selectedDate={fromDate || null}
+          selectedDate={url.fromDate || null}
           onChange={(date) => {
             const value = date ? date.toISOString().slice(0, 10) : "";
-            setFromDate(value);
-            listRef.current.fromDate = value;
-            bumpWalletFilters();
+            patchUrl({ from_date: value || undefined, page: 1 });
           }}
           register={headerRegister as unknown as UseFormRegister<any>}
           setValue={setHeaderValue as (name: string, value: any) => void}
@@ -187,12 +199,10 @@ const PartnerPayout = () => {
         <CustomDatePicker
           label="To Date"
           controlId="to_date_filter"
-          selectedDate={toDate || null}
+          selectedDate={url.toDate || null}
           onChange={(date) => {
             const value = date ? date.toISOString().slice(0, 10) : "";
-            setToDate(value);
-            listRef.current.toDate = value;
-            bumpWalletFilters();
+            patchUrl({ to_date: value || undefined, page: 1 });
           }}
           register={headerRegister as unknown as UseFormRegister<any>}
           setValue={setHeaderValue as (name: string, value: any) => void}
@@ -209,21 +219,17 @@ const PartnerPayout = () => {
           size="sm"
           className="custom-btn-secondary partner-payout-clear-btn px-3"
           type="button"
-          disabled={
-            walletStatus === "all" && !fromDate && !toDate && !keywordActive
-          }
+          disabled={!filtersActive}
           onClick={() => {
-            setWalletStatus("all");
-            setFromDate("");
-            setToDate("");
-            setKeywordActive(false);
-            keywordRef.current = "";
-            listRef.current = { walletStatus: "all", fromDate: "", toDate: "" };
-            setSortBy([]);
-            setUtilitySearchKey((k) => k + 1);
-            setCurrentPage(1);
-            fetchRef.current = false;
-            void fetchData({});
+            patchUrl({
+              search: undefined,
+              wallet_status: undefined,
+              from_date: undefined,
+              to_date: undefined,
+              sort_by: undefined,
+              sort_order: undefined,
+              page: 1,
+            });
           }}
         >
           Clear
@@ -238,7 +244,7 @@ const PartnerPayout = () => {
         Header: "SR No",
         accessor: "serial_no",
         Cell: ({ row }: { row: { index: number } }) =>
-          (currentPage - 1) * pageSize + row.index + 1,
+          (url.page - 1) * url.limit + row.index + 1,
       },
       {
         Header: "Partner ID",
@@ -298,7 +304,7 @@ const PartnerPayout = () => {
         ),
       },
     ],
-    [currentPage, pageSize, navigate, handleVoidPartnerPayout]
+    [url.page, url.limit, navigate, handleVoidPartnerPayout]
   );
 
   return (
@@ -314,7 +320,8 @@ const PartnerPayout = () => {
             className="custom-btn-secondary w-auto btn btn-primary"
             onClick={() =>
               AddPayoutDialog.show(() => {
-                void fetchData({});
+                fetchRef.current = false;
+                void fetchData();
               })
             }
           >
@@ -324,17 +331,14 @@ const PartnerPayout = () => {
       />
 
       <CustomUtilityBox
-        key={utilitySearchKey}
+        key={`${url.search}-${url.walletStatus}-${url.fromDate}-${url.toDate}`}
         searchOnlyToolbar
         title="Partner Payout"
         searchHint="Search partner name or ID…"
         onSearch={(value) => {
-          setKeywordActive(!!value.trim());
-          keywordRef.current = value;
-          setAppliedSearchKeyword(value);
-          void handleFilterChange({ keyword: value });
+          patchUrl({ search: value.trim() || undefined, page: 1 });
         }}
-        syncKeyword={appliedSearchKeyword}
+        syncKeyword={url.search}
       />
 
       {filterControls}
@@ -342,16 +346,15 @@ const PartnerPayout = () => {
       <CustomTable
         columns={partnerColumns}
         data={partnerList}
-        pageSize={pageSize}
-        currentPage={currentPage}
+        pageSize={url.limit}
+        currentPage={url.page}
         totalPages={totalPages}
-        onPageChange={(page: number) => setCurrentPage(page)}
+        onPageChange={(page: number) => patchUrl({ page })}
         onLimitChange={(ps: number) => {
-          setPageSize(ps);
-          setCurrentPage(1);
+          patchUrl({ limit: ps, page: 1 });
         }}
         manualSortBy
-        sortBy={sortBy}
+        sortBy={url.sortBy}
         onSortChange={handleServerSortChange}
         theadClass="table-light"
       />

@@ -1,14 +1,26 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { Modal, Button, Form, Table, Row, Col } from "react-bootstrap";
+/**
+ * Order view / edit modals (info dialog): partner, user, employee, status, payment.
+ */
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import { useForm } from "react-hook-form";
+import { Modal, Button, Row, Col, Form, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { OrderModel } from "../../lib/order/OrderModel";
-import { createOrUpdateOrder } from "../../lib/order/orderService";
-import { AppConstant } from "../../lib/global/AppConstant";
+import { updateOrderService, createOrUpdateOrder } from "../../lib/order/orderService";
+import { fetchPartnerDropDown, fetchUserDropDown, APP_USER_TYPE } from "../../services/userService";
+import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
+import CustomFormSelect from "../../components/CustomFormSelect";
 import { openDialog } from "../../lib/global/DialogManager";
+import { OrderModel, OrderStatusEnum } from "../../lib/order/orderTypes";
+import { UserModel } from "../../lib/models/UserModel";
+import { AppConstant } from "../../lib/global/AppConstant";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { CustomFormInput } from "../../components/CustomFormInput";
-import CustomFormSelect from "../../components/CustomFormSelect";
-import { useForm } from "react-hook-form";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type {
@@ -16,7 +28,7 @@ import type {
   OrderPaymentExtV1,
   OtherChargeRow,
   PartnerPaymentRow,
-} from "../../lib/order/orderPaymentStorage";
+} from "../../lib/order/orderHelpers";
 import {
   mergePaymentExtension,
   computeTaxCommissionAmounts,
@@ -27,14 +39,638 @@ import {
   getServiceTaxCommissionPercents,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
-} from "../../lib/order/orderPaymentStorage";
-import {
   getPrimaryServiceItem,
   orderRefundAmount,
   orderRefundBreakdown,
   partnerPaymentsEditLocked,
   resolveOrderOfferBreakdown,
-} from "../../lib/order/orderDisplayHelpers";
+  getCustomerPaymentStatusLabel,
+  getPartnerPaymentStatusLabel,
+} from "../../lib/order/orderHelpers";
+
+
+/** --- AssignPartnerDialog --- */
+
+type AssignPartnerDialogProps = {
+  serviceId: string;
+  selectedServiceId: string;
+  onClose: () => void;
+  onRefreshData: () => void;
+};
+
+const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
+  show: (
+    serviceId: string,
+    selectedServiceId: string,
+    onRefreshData: () => void
+  ) => void;
+} = ({ serviceId, selectedServiceId, onClose, onRefreshData }) => {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm();
+
+  const [partners, setPartner] = useState<{ value: string; label: string }[]>(
+    []
+  );
+  const fetchRef = useRef(false);
+
+  const fetchPartnerFromApi = useCallback(async () => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    try {
+      const { partners } = await fetchPartnerDropDown(serviceId);
+      setPartner(
+        partners.map((partner: any) => ({
+          value: partner.partner_id,
+          label: partner.partner_name,
+        }))
+      );
+    } finally {
+      fetchRef.current = false;
+    }
+  }, [serviceId]);
+
+  useEffect(() => {
+    void fetchPartnerFromApi();
+  }, [fetchPartnerFromApi]);
+
+  const onSubmitEvent = async (data: any) => {
+    const payload = {
+      partner_id: data.partner_id,
+    };
+
+    const responseUser = await updateOrderService(payload, selectedServiceId);
+
+    if (responseUser) {
+      onClose && onClose();
+      onRefreshData();
+    }
+  };
+
+  return (
+    <>
+      <Modal
+        show={true}
+        onHide={onClose}
+        centered
+        dialogClassName="custom-big-modal"
+      >
+        <Modal.Header className="py-3 px-4 border-bottom-0">
+          <Modal.Title as="h5" className="custom-modal-title">
+            Reassign Partner
+          </Modal.Title>
+          <CustomCloseButton onClose={onClose} />
+        </Modal.Header>
+        <Modal.Body className="px-4 pb-4 pt-0">
+          <form
+            noValidate
+            name="assign-partner-form"
+            id="assign-partner-form"
+            onSubmit={handleSubmit(onSubmitEvent)}
+          >
+            <Row>
+              <CustomTextFieldSelect
+                label="Partner"
+                controlId="Partner"
+                options={partners}
+                register={register}
+                fieldName="partner_id"
+                error={errors.partner_id}
+                requiredMessage="Please select partner"
+                setValue={setValue as (name: string, value: any) => void}
+              />
+            </Row>
+            <Row className="mt-4">
+              <Col
+                xs={12}
+                className="text-center d-flex justify-content-end gap-3"
+              >
+                <Button type="submit" className="custom-btn-primary">
+                  Assign
+                </Button>
+                <Button
+                  type="button"
+                  className="custom-btn-secondary"
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+              </Col>
+            </Row>
+          </form>
+        </Modal.Body>
+      </Modal>
+    </>
+  );
+};
+
+AssignPartnerDialog.show = (
+  serviceId: string,
+  selectedServiceId: string,
+  onRefreshData: () => void
+) => {
+  openDialog("assign-partner-modal", (close) => (
+    <AssignPartnerDialog
+      serviceId={serviceId}
+      selectedServiceId={selectedServiceId}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
+  ));
+};
+
+/** --- EditOrderDialog --- */
+
+type EditOrderDialogProps = {
+  orderDetails: OrderModel;
+  onClose: () => void;
+  onRefreshData: () => void;
+};
+
+const EditOrderDialog: React.FC<EditOrderDialogProps> & {
+  show: (orderDetails: OrderModel, onRefreshData: () => void) => void;
+} = ({ orderDetails, onClose, onRefreshData }) => {
+  const customerPaymentLabelOptions = [
+    { value: "Paid", label: "Paid" },
+    { value: "Unpaid", label: "Unpaid" },
+    { value: "Partially paid", label: "Partially paid" },
+    { value: "Refund", label: "Refund" },
+    { value: "Partially Refund", label: "Partially Refund" },
+    { value: "Completed", label: "Completed" },
+  ];
+  const partnerPaymentLabelOptions = [
+    { value: "Paid", label: "Paid" },
+    { value: "Unpaid", label: "Unpaid" },
+    { value: "Partially paid", label: "Partially paid" },
+    { value: "Completed", label: "Completed" },
+  ];
+
+  const { register, handleSubmit, setValue } = useForm<
+    OrderModel & {
+      customer_payment_status: string;
+      partner_payment_status: string;
+    }
+  >({
+    defaultValues: {
+      is_paid: orderDetails.is_paid ?? false,
+      payment_mode_id: orderDetails.payment_mode_id ?? "2",
+      order_status: orderDetails.order_status,
+      customer_payment_status: getCustomerPaymentStatusLabel(orderDetails),
+      partner_payment_status: getPartnerPaymentStatusLabel(orderDetails),
+    },
+  });
+
+  const statuses: { value: string; label: string }[] = Array.from(
+    OrderStatusEnum.entries()
+  )
+    .filter(([key]) => key !== 5)
+    .map(([key, value]) => ({
+      value: key.toString(),
+      label: key === 1 ? "Refunded" : value.label,
+    }));
+
+  const onSubmitEvent = async (
+    data: OrderModel & {
+      customer_payment_status: string;
+      partner_payment_status: string;
+    }
+  ) => {
+    const paymentModeId = Number(
+      data.payment_mode_id ?? orderDetails.payment_mode_id ?? 2
+    );
+    const isPaidFromStatus = paymentModeId === 1 || paymentModeId === 3; // Paid / Partially paid
+    const customerPay = (data.customer_payment_status || "").trim();
+    const partnerPay = (data.partner_payment_status || "").trim();
+    const is_paid =
+      customerPay === "Paid" || (customerPay !== "Unpaid" && isPaidFromStatus);
+
+    const payload = {
+      order_status: Number(data.order_status),
+      is_paid,
+      payment_mode_id: paymentModeId,
+      customer_payment_status: customerPay,
+      partner_payment_status: partnerPay,
+    };
+
+    const responseUser = await createOrUpdateOrder(
+      payload,
+      true,
+      orderDetails._id
+    );
+
+    if (responseUser) {
+      onClose && onClose();
+      onRefreshData();
+    }
+  };
+
+  return (
+    <>
+      <Modal
+        show={true}
+        onHide={onClose}
+        centered
+        dialogClassName="custom-big-modal"
+      >
+        <Modal.Header className="py-3 px-4 border-bottom-0">
+          <Modal.Title as="h5" className="custom-modal-title">
+            Update Order
+          </Modal.Title>
+          <CustomCloseButton onClose={onClose} />
+        </Modal.Header>
+        <Modal.Body className="px-4 pb-4 pt-0">
+          <form
+            noValidate
+            name="assign-partner-form"
+            id="assign-partner-form"
+            onSubmit={handleSubmit(onSubmitEvent)}
+          >
+            <Row className="g-3">
+              <Col xs={12}>
+                <CustomTextFieldSelect
+                  label="Order Status"
+                  controlId="order_status"
+                  options={statuses}
+                  register={register}
+                  fieldName="order_status"
+                  error="order_status"
+                  requiredMessage="Please select order Status"
+                  defaultValue={
+                    orderDetails?.order_status
+                      ? String(orderDetails?.order_status)
+                      : "1"
+                  }
+                  setValue={setValue as (name: string, value: any) => void}
+                />
+              </Col>
+              <Col xs={12}>
+                <CustomTextFieldSelect
+                  label="Customer Payment Status"
+                  controlId="Customer Payment Status"
+                  options={customerPaymentLabelOptions}
+                  register={register}
+                  fieldName="customer_payment_status"
+                  error="customer_payment_status"
+                  requiredMessage="Please select customer payment status"
+                  defaultValue={getCustomerPaymentStatusLabel(orderDetails)}
+                  setValue={setValue as (name: string, value: any) => void}
+                />
+              </Col>
+              <Col xs={12}>
+                <CustomTextFieldSelect
+                  label="Partner Payment Status"
+                  controlId="partner Payment Status"
+                  options={partnerPaymentLabelOptions}
+                  register={register}
+                  fieldName="partner_payment_status"
+                  error="partner_payment_status"
+                  requiredMessage="Please select partner payment status"
+                  defaultValue={getPartnerPaymentStatusLabel(orderDetails)}
+                  setValue={setValue as (name: string, value: any) => void}
+                />
+              </Col>
+              {/* <Col xs={12} md={6}>
+                                <CustomTextFieldSelect
+                                    label="Payment model"
+                                    controlId="payment_mode_id"
+                                    options={paymentStatusOptions}
+                                    register={register}
+                                    fieldName="payment_mode_id"
+                                    requiredMessage="Please select payment mode"
+                                    defaultValue={
+                                        orderDetails?.payment_mode_id
+                                            ? String(orderDetails.payment_mode_id)
+                                            : "2"
+                                    }
+                                    setValue={setValue as (name: string, value: any) => void}
+                                />
+                            </Col> */}
+            </Row>
+            <Row className="mt-4">
+              <Col
+                xs={12}
+                className="text-center d-flex justify-content-end gap-3"
+              >
+                <Button type="submit" className="custom-btn-primary">
+                  Update
+                </Button>
+                <Button
+                  type="button"
+                  className="custom-btn-secondary"
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+              </Col>
+            </Row>
+          </form>
+        </Modal.Body>
+      </Modal>
+    </>
+  );
+};
+
+EditOrderDialog.show = (
+  orderDetails: OrderModel,
+  onRefreshData: () => void
+) => {
+  openDialog("edit-order-modal", (close) => (
+    <EditOrderDialog
+      orderDetails={orderDetails}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
+  ));
+};
+
+/** --- EditOrderUserDialog --- */
+
+/** End-user / customer list (same as create order flow). */
+const CUSTOMER_USER_TYPE = 4;
+
+type EditOrderUserDialogProps = {
+  orderDetails: OrderModel;
+  onClose: () => void;
+  onRefreshData: () => void;
+};
+
+const EditOrderUserDialog: React.FC<EditOrderUserDialogProps> & {
+  show: (orderDetails: OrderModel, onRefreshData: () => void) => void;
+} = ({ orderDetails, onClose, onRefreshData }) => {
+  const currentUserId =
+    orderDetails.user_info?._id ?? orderDetails.user_id ?? "";
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<{ user_id: string }>({
+    defaultValues: {
+      user_id: currentUserId,
+    },
+  });
+  const [users, setUsers] = useState<{ value: string; label: string }[]>([]);
+  const [userRecords, setUserRecords] = useState<UserModel[]>([]);
+  const fetchRef = useRef(false);
+
+  const loadUsers = useCallback(async () => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    try {
+      const { users: list } = await fetchUserDropDown(CUSTOMER_USER_TYPE);
+      const uid = orderDetails.user_info?._id ?? orderDetails.user_id ?? "";
+      let records = [...list];
+      if (uid && !list.some((u) => u._id === uid) && orderDetails.user_info) {
+        records = [orderDetails.user_info as UserModel, ...list];
+      }
+      setUserRecords(records);
+      const mapped = records.map((u) => ({
+        value: u._id,
+        label: (u.name && String(u.name).trim()) || u.user_id || "Unnamed user",
+      }));
+      setUsers(mapped);
+    } finally {
+      fetchRef.current = false;
+    }
+  }, [orderDetails.user_id, orderDetails.user_info]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
+
+  const onSubmit = async (data: { user_id: string }) => {
+    const selected = userRecords.find((u) => u._id === data.user_id);
+    if (!selected) {
+      return;
+    }
+    const payload = {
+      user_id: selected._id,
+      user_unique_id: selected.user_id,
+      order_status: orderDetails.order_status,
+      is_paid: orderDetails.is_paid,
+      payment_mode_id: Number(orderDetails.payment_mode_id ?? 2),
+      address: selected.address ?? orderDetails.address,
+      name: selected.name,
+      email: selected.email,
+      contact: selected.phone_number,
+    };
+    const ok = await createOrUpdateOrder(payload, true, orderDetails._id);
+    if (ok) {
+      onClose?.();
+      onRefreshData();
+    }
+  };
+
+  return (
+    <Modal
+      show
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+      enforceFocus={false}
+    >
+      <Modal.Header className="py-3 px-4 border-bottom-0">
+        <Modal.Title as="h5" className="custom-modal-title">
+          Change order user
+        </Modal.Title>
+        <CustomCloseButton onClose={onClose} />
+      </Modal.Header>
+      <Modal.Body className="px-4 pb-4 pt-0">
+        <form noValidate onSubmit={handleSubmit(onSubmit)}>
+          <Row>
+            <CustomTextFieldSelect
+              label="User"
+              controlId="user_id"
+              options={users}
+              register={register}
+              fieldName="user_id"
+              error={errors.user_id as unknown as string}
+              requiredMessage="Please select a user"
+              defaultValue={currentUserId}
+              setValue={setValue as (name: string, value: any) => void}
+              placeholder="Select user"
+              menuPortal
+            />
+          </Row>
+          <Row className="mt-4">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
+              <Button type="submit" className="custom-btn-primary">
+                Save
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+            </Col>
+          </Row>
+        </form>
+      </Modal.Body>
+    </Modal>
+  );
+};
+
+EditOrderUserDialog.show = (
+  orderDetails: OrderModel,
+  onRefreshData: () => void
+) => {
+  openDialog("edit-order-user-modal", (close) => (
+    <EditOrderUserDialog
+      orderDetails={orderDetails}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
+  ));
+};
+
+/** --- EditOrderEmployeeDialog --- */
+
+const EMPLOYEE_USER_TYPE = APP_USER_TYPE.FRANCHISE_EMPLOYEE;
+
+type EditOrderEmployeeDialogProps = {
+  orderDetails: OrderModel;
+  onClose: () => void;
+  onRefreshData: () => void;
+};
+
+const EditOrderEmployeeDialog: React.FC<EditOrderEmployeeDialogProps> & {
+  show: (orderDetails: OrderModel, onRefreshData: () => void) => void;
+} = ({ orderDetails, onClose, onRefreshData }) => {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<{ created_by_id: string }>({
+    defaultValues: {
+      created_by_id: orderDetails.created_by_id ?? "",
+    },
+  });
+  const [employees, setEmployees] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const fetchRef = useRef(false);
+
+  const loadEmployees = useCallback(async () => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    try {
+      const { users } = await fetchUserDropDown(EMPLOYEE_USER_TYPE);
+      const mapped = users.map((u) => ({
+        value: u._id,
+        label: (u.name && String(u.name).trim()) || u.user_id || "Unnamed",
+      }));
+      const currentId = orderDetails.created_by_id ?? "";
+      if (currentId && !mapped.some((o) => o.value === currentId)) {
+        mapped.unshift({
+          value: currentId,
+          label:
+            (orderDetails.created_by_name &&
+              String(orderDetails.created_by_name).trim()) ||
+            "Current assignee",
+        });
+      }
+      setEmployees(mapped);
+    } finally {
+      fetchRef.current = false;
+    }
+  }, [orderDetails.created_by_id, orderDetails.created_by_name]);
+
+  useEffect(() => {
+    void loadEmployees();
+  }, [loadEmployees]);
+
+  const onSubmit = async (data: { created_by_id: string }) => {
+    const payload = {
+      order_status: orderDetails.order_status,
+      is_paid: orderDetails.is_paid,
+      payment_mode_id: Number(orderDetails.payment_mode_id ?? 2),
+      created_by_id: data.created_by_id,
+    };
+    const ok = await createOrUpdateOrder(payload, true, orderDetails._id);
+    if (ok) {
+      onClose?.();
+      onRefreshData();
+    }
+  };
+
+  return (
+    <Modal
+      show
+      onHide={onClose}
+      centered
+      dialogClassName="custom-big-modal"
+      enforceFocus={false}
+    >
+      <Modal.Header className="py-3 px-4 border-bottom-0">
+        <Modal.Title as="h5" className="custom-modal-title">
+          Change employee
+        </Modal.Title>
+        <CustomCloseButton onClose={onClose} />
+      </Modal.Header>
+      <Modal.Body className="px-4 pb-4 pt-0">
+        <form noValidate onSubmit={handleSubmit(onSubmit)}>
+          <Row>
+            <CustomTextFieldSelect
+              label="Employee"
+              controlId="created_by_id"
+              options={employees}
+              register={register}
+              fieldName="created_by_id"
+              error={errors.created_by_id as unknown as string}
+              requiredMessage="Please select an employee"
+              defaultValue={orderDetails.created_by_id ?? ""}
+              setValue={setValue as (name: string, value: any) => void}
+              placeholder="Select employee"
+              menuPortal
+            />
+          </Row>
+          <Row className="mt-4">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
+            >
+              <Button type="submit" className="custom-btn-primary">
+                Save
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+            </Col>
+          </Row>
+        </form>
+      </Modal.Body>
+    </Modal>
+  );
+};
+
+EditOrderEmployeeDialog.show = (
+  orderDetails: OrderModel,
+  onRefreshData: () => void
+) => {
+  openDialog("edit-order-employee-modal", (close) => (
+    <EditOrderEmployeeDialog
+      orderDetails={orderDetails}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
+  ));
+};
+
+/** --- OrderPaymentEditModal --- */
 
 const PAY_TYPES = ["COD", "Razor pay", "UPI", "Online", "Cash", "—"].map(
   (t) => ({ value: t, label: t })
@@ -1223,4 +1859,11 @@ export function showOrderPaymentEditModal(
 
 OrderPaymentEditModal.show = showOrderPaymentEditModal;
 
+export {
+  AssignPartnerDialog,
+  EditOrderDialog,
+  EditOrderEmployeeDialog,
+  EditOrderUserDialog,
+  OrderPaymentEditModal,
+};
 export default OrderPaymentEditModal;

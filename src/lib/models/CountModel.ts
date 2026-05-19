@@ -79,4 +79,10 @@ export interface CountModel {
   order_completed?: number;
   order_cancelled?: number;
   order_refunded?: number;
+
+  /** `POST /getCount` `{ "type": "financial-order-payments" }` */
+  total_completed_orders?: number;
+  total_in_progress_orders?: number;
+  total_partner_pending_amount?: number;
+  total_user_pending_amount?: number;
 }

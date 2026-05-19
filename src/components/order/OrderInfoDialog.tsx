@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { Modal, Row, Col, Table } from "react-bootstrap";
 import CustomCloseButton from "../CustomCloseButton";
-import { OrderModel } from "../../lib/order/OrderModel";
+import { OrderModel } from "../../lib/order/orderTypes";
 import {
   DetailsRow,
   formatDate,
@@ -17,11 +17,13 @@ import {
 import { fetchOrderById } from "../../lib/order/orderService";
 import { AppConstant } from "../../lib/global/AppConstant";
 import profileIcon from "../../assets/icons/profile.svg";
-import AssignPartnerDialog from "../../pages/orderManagement/AssignPartnerDialog";
-import EditOrderDialog from "../../pages/orderManagement/EditOrderDialog";
-import EditOrderEmployeeDialog from "../../pages/orderManagement/EditOrderEmployeeDialog";
-import EditOrderUserDialog from "../../pages/orderManagement/EditOrderUserDialog";
-import OrderPaymentEditModal from "../../pages/orderManagement/OrderPaymentEditModal";
+import {
+  AssignPartnerDialog,
+  EditOrderDialog,
+  EditOrderEmployeeDialog,
+  EditOrderUserDialog,
+  OrderPaymentEditModal,
+} from "../../pages/orderManagement/orderInfoModals";
 import { openDialog } from "../../lib/global/DialogManager";
 import {
   formatServiceScheduleLine,
@@ -34,7 +36,7 @@ import {
   orderRefundBreakdown,
   resolveOrderOfferBreakdown,
   serviceNamesJoined,
-} from "../../lib/order/orderDisplayHelpers";
+} from "../../lib/order/orderHelpers";
 import {
   computeTaxCommissionAmounts,
   customerPaidBalanceHeadline,
@@ -42,8 +44,8 @@ import {
   otherChargesTotal,
   partnerPaidBalanceHeadline,
   resolvePaymentExtension,
-} from "../../lib/order/orderPaymentStorage";
-import { applyOrderPaymentPreviewDummy } from "../../lib/order/orderPaymentPreviewDummy";
+} from "../../lib/order/orderHelpers";
+import { applyOrderPaymentPreviewDummy } from "../../lib/order/orderHelpers";
 
 type OrderInfoDialogProps = {
   orderId: string;

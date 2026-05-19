@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Spinner, Row, Col, Button, Card } from "react-bootstrap";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import { ROUTES } from "../../../routes/Routes";
@@ -19,6 +19,11 @@ import {
   fetchAllPartnerWalletPayoutHistory,
   PartnerWalletPayoutHistoryRow,
 } from "../../../services/partnerPayoutService";
+import { partnerPayoutPaymentMethodLabel } from "../../../lib/financial/partnerPayoutPayment";
+import {
+  patchPartnerPayoutSearchParams,
+  readPartnerPayoutLedgerUrl,
+} from "../../../lib/financial/partnerPayoutUrl";
 
 type WalletLedgerEntry = {
   id: string;
@@ -27,6 +32,8 @@ type WalletLedgerEntry = {
   txType: "credit" | "debit";
   orderIdDisplay: string;
   description: string;
+  /** Debit: cash, upi, imps, … — credit: null */
+  payment_method: string | null;
   amount: number;
   orderId?: string | null;
 };
@@ -61,8 +68,8 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       dateLabel: ledgerDateLabel(base),
       txType: "debit",
       orderIdDisplay: "—",
-      description:
-        "Wallet payout · razorpay. Partner withdrawal — ref UTR DEMO998877",
+      description: "Partner withdrawal — ref UTR DEMO998877",
+      payment_method: "upi",
       amount: 3200,
       orderId: null,
     },
@@ -73,6 +80,7 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       txType: "credit",
       orderIdDisplay: "11",
       description: "Home cleaning · Deep home cleaning (4 BHK)",
+      payment_method: null,
       amount: 2100,
       orderId: null,
     },
@@ -83,6 +91,7 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       txType: "credit",
       orderIdDisplay: "1042",
       description: "Upholstery · Sofa & carpet shampoo",
+      payment_method: null,
       amount: 950,
       orderId: null,
     },
@@ -92,8 +101,8 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       dateLabel: ledgerDateLabel(base - day * 3 + 3600000 * 16),
       txType: "debit",
       orderIdDisplay: "—",
-      description:
-        "Wallet payout · cash. Counter settlement — branch Indiranagar",
+      description: "Counter settlement — branch Indiranagar",
+      payment_method: "cash",
       amount: 1500,
       orderId: null,
     },
@@ -104,6 +113,7 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       txType: "credit",
       orderIdDisplay: "110",
       description: "Appliance · AC service (3 units)",
+      payment_method: null,
       amount: 840,
       orderId: null,
     },
@@ -114,6 +124,7 @@ function buildWalletLedgerDemoEntries(): WalletLedgerEntry[] {
       txType: "credit",
       orderIdDisplay: "99",
       description: "Restoration · Bathroom restoration package",
+      payment_method: null,
       amount: 4320,
       orderId: null,
     },
@@ -137,17 +148,33 @@ function PartnerPayoutDetailsBackButton() {
 
 function ShowPartnerPayout() {
   const { register, setValue } = useForm();
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const url = useMemo(
+    () => readPartnerPayoutLedgerUrl(searchParams),
+    [searchParams]
+  );
+
   const partnerId = useMemo(() => {
-    const raw = new URLSearchParams(location.search).get("id");
-    const trimmed = raw?.trim();
-    if (!trimmed) return null;
+    const raw = url.partnerId;
+    if (!raw) return null;
     try {
-      return decodeURIComponent(trimmed);
+      return decodeURIComponent(raw);
     } catch {
-      return trimmed;
+      return raw;
     }
-  }, [location.search]);
+  }, [url.partnerId]);
+
+  const patchUrl = useCallback(
+    (updates: Record<string, string | number | undefined | null>) => {
+      setSearchParams(
+        (prev) => patchPartnerPayoutSearchParams(prev, updates),
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
   const [partnerSummary, setPartnerSummary] = useState<UserModel | null>(null);
   const [partnerLoading, setPartnerLoading] = useState(true);
 
@@ -158,19 +185,6 @@ function ShowPartnerPayout() {
     PartnerWalletPayoutHistoryRow[]
   >([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [ledgerPage, setLedgerPage] = useState(1);
-  const [ledgerPageSize, setLedgerPageSize] = useState(10);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [keyword, setKeyword] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "credit" | "debit">(
-    "all"
-  );
-  const [utilitySearchKey, setUtilitySearchKey] = useState(0);
-
-  useEffect(() => {
-    setLedgerPage(1);
-  }, [fromDate, toDate, keyword, typeFilter]);
 
   useEffect(() => {
     if (!partnerId) {
@@ -229,7 +243,6 @@ function ShowPartnerPayout() {
         });
         setMergedOrderLines(merged);
         setPayoutRowsAll(payouts);
-        setLedgerPage(1);
       } finally {
         if (!cancelled) setLedgerLoading(false);
       }
@@ -283,6 +296,7 @@ function ShowPartnerPayout() {
           description: descParts.length
             ? descParts.join(" · ")
             : "Service earning",
+          payment_method: null,
           amount: earning,
           orderId: row.order_id,
         });
@@ -292,7 +306,7 @@ function ShowPartnerPayout() {
       const t = new Date(p.created_at || 0).getTime();
       const amt = Number(p.amount) || 0;
       if (amt <= 0) continue;
-      const method = String(p.payment_method || "—").replace(/_/g, " ");
+      const methodSlug = String(p.payment_method ?? "").trim().toLowerCase();
       const descExtra = p.description?.trim() || "Admin payout to partner";
       out.push({
         id: `payout-${p._id}`,
@@ -300,7 +314,8 @@ function ShowPartnerPayout() {
         dateLabel: ledgerDateLabel(t, p.created_at || null),
         txType: "debit",
         orderIdDisplay: "—",
-        description: `Wallet payout · ${method}. ${descExtra}`,
+        description: descExtra,
+        payment_method: methodSlug || null,
         amount: amt,
         orderId: null,
       });
@@ -317,30 +332,34 @@ function ShowPartnerPayout() {
 
   const filteredLedgerEntries = useMemo(() => {
     let list = ledgerEntries;
-    if (fromDate) {
-      const t0 = startOfDayMs(fromDate);
+    if (url.fromDate) {
+      const t0 = startOfDayMs(url.fromDate);
       list = list.filter((e) => e.sortTime >= t0);
     }
-    if (toDate) {
-      const t1 = endOfDayMs(toDate);
+    if (url.toDate) {
+      const t1 = endOfDayMs(url.toDate);
       list = list.filter((e) => e.sortTime <= t1);
     }
-    if (typeFilter !== "all") {
-      list = list.filter((e) => e.txType === typeFilter);
+    if (url.transactionType !== "all") {
+      list = list.filter((e) => e.txType === url.transactionType);
     }
-    const needle = keyword.trim().toLowerCase();
+    const needle = url.search.toLowerCase();
     if (needle) {
       list = list.filter((e) => {
         const disp = e.orderIdDisplay.toLowerCase();
         const oid = (e.orderId || "").toLowerCase();
         const desc = e.description.toLowerCase();
+        const pay = partnerPayoutPaymentMethodLabel(e.payment_method).toLowerCase();
         return (
-          disp.includes(needle) || oid.includes(needle) || desc.includes(needle)
+          disp.includes(needle) ||
+          oid.includes(needle) ||
+          desc.includes(needle) ||
+          pay.includes(needle)
         );
       });
     }
     return list;
-  }, [ledgerEntries, fromDate, toDate, typeFilter, keyword]);
+  }, [ledgerEntries, url]);
 
   const sortedFilteredLedger = useMemo(() => {
     return [...filteredLedgerEntries].sort((a, b) => b.sortTime - a.sortTime);
@@ -348,18 +367,16 @@ function ShowPartnerPayout() {
 
   const ledgerTotalPages = useMemo(
     () =>
-      Math.max(1, Math.ceil(sortedFilteredLedger.length / ledgerPageSize) || 1),
-    [sortedFilteredLedger.length, ledgerPageSize]
+      Math.max(1, Math.ceil(sortedFilteredLedger.length / url.limit) || 1),
+    [sortedFilteredLedger.length, url.limit]
   );
 
-  useEffect(() => {
-    setLedgerPage((p) => Math.min(p, ledgerTotalPages));
-  }, [ledgerTotalPages]);
+  const ledgerPage = Math.min(url.page, ledgerTotalPages);
 
   const ledgerSlice = useMemo(() => {
-    const start = (ledgerPage - 1) * ledgerPageSize;
-    return sortedFilteredLedger.slice(start, start + ledgerPageSize);
-  }, [sortedFilteredLedger, ledgerPage, ledgerPageSize]);
+    const start = (ledgerPage - 1) * url.limit;
+    return sortedFilteredLedger.slice(start, start + url.limit);
+  }, [sortedFilteredLedger, ledgerPage, url.limit]);
 
   const walletTxColumns = useMemo(
     () => [
@@ -368,7 +385,7 @@ function ShowPartnerPayout() {
         id: "sr",
         accessor: "id",
         Cell: ({ row }: { row: { index: number } }) =>
-          (ledgerPage - 1) * ledgerPageSize + row.index + 1,
+          (ledgerPage - 1) * url.limit + row.index + 1,
       },
       {
         Header: "Date",
@@ -387,7 +404,7 @@ function ShowPartnerPayout() {
                   : "wallet-tx-table__type-debit"
               }
             >
-              {isCredit ? "Credit" : "Debit"}
+              {isCredit ? "CREDIT" : "DEBIT"}
             </span>
           );
         },
@@ -422,6 +439,15 @@ function ShowPartnerPayout() {
         ),
       },
       {
+        Header: "Payment method",
+        accessor: "payment_method",
+        Cell: ({ row }: { row: { original: WalletLedgerEntry } }) => {
+          const tx = row.original;
+          if (tx.txType !== "debit" || !tx.payment_method) return "—";
+          return partnerPayoutPaymentMethodLabel(tx.payment_method);
+        },
+      },
+      {
         Header: "Amount",
         accessor: "amount",
         className: "text-end",
@@ -442,8 +468,14 @@ function ShowPartnerPayout() {
         },
       },
     ],
-    [ledgerPage, ledgerPageSize]
+    [ledgerPage, url.limit]
   );
+
+  const ledgerFiltersActive =
+    !!url.fromDate ||
+    !!url.toDate ||
+    !!url.search ||
+    url.transactionType !== "all";
 
   const filterControls = (
     <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-2 mt-2 mb-2 align-items-end">
@@ -451,10 +483,11 @@ function ShowPartnerPayout() {
         <CustomDatePicker
           label="From Date"
           controlId="from_date_filter"
-          selectedDate={fromDate || null}
-          onChange={(date) =>
-            setFromDate(date ? date.toISOString().slice(0, 10) : "")
-          }
+          selectedDate={url.fromDate || null}
+          onChange={(date) => {
+            const value = date ? date.toISOString().slice(0, 10) : "";
+            patchUrl({ from_date: value || undefined, page: 1 });
+          }}
           register={register as unknown as UseFormRegister<any>}
           setValue={setValue as (name: string, value: any) => void}
           asCol={false}
@@ -467,10 +500,11 @@ function ShowPartnerPayout() {
         <CustomDatePicker
           label="To Date"
           controlId="to_date_filter"
-          selectedDate={toDate || null}
-          onChange={(date) =>
-            setToDate(date ? date.toISOString().slice(0, 10) : "")
-          }
+          selectedDate={url.toDate || null}
+          onChange={(date) => {
+            const value = date ? date.toISOString().slice(0, 10) : "";
+            patchUrl({ to_date: value || undefined, page: 1 });
+          }}
           register={register as unknown as UseFormRegister<any>}
           setValue={setValue as (name: string, value: any) => void}
           asCol={false}
@@ -490,7 +524,7 @@ function ShowPartnerPayout() {
             { value: "debit", label: "Debit" },
           ]}
           fieldName="transaction_type_filter"
-          defaultValue={typeFilter}
+          defaultValue={url.transactionType}
           setValue={
             setValue as (
               name: string,
@@ -501,7 +535,10 @@ function ShowPartnerPayout() {
           asCol={false}
           noBottomMargin
           onChange={(e) =>
-            setTypeFilter(e.target.value as "all" | "credit" | "debit")
+            patchUrl({
+              transaction_type: e.target.value,
+              page: 1,
+            })
           }
         />
       </Col>
@@ -510,16 +547,15 @@ function ShowPartnerPayout() {
           variant="outline-secondary"
           size="sm"
           className="custom-btn-secondary partner-payout-clear-btn px-3"
-          disabled={
-            !fromDate && !toDate && !keyword.trim() && typeFilter === "all"
-          }
+          disabled={!ledgerFiltersActive}
           onClick={() => {
-            setFromDate("");
-            setToDate("");
-            setKeyword("");
-            setTypeFilter("all");
-            setUtilitySearchKey((k) => k + 1);
-            setLedgerPage(1);
+            patchUrl({
+              from_date: undefined,
+              to_date: undefined,
+              search: undefined,
+              transaction_type: undefined,
+              page: 1,
+            });
           }}
         >
           Clear
@@ -587,15 +623,14 @@ function ShowPartnerPayout() {
           ) : null}
 
           <CustomUtilityBox
-            key={utilitySearchKey}
+            key={`${url.search}-${url.fromDate}-${url.toDate}-${url.transactionType}`}
             searchOnlyToolbar
             title="Wallet transactions"
             searchHint="Order ID or description…"
             onSearch={(value) => {
-              setKeyword(value.trim());
-              setLedgerPage(1);
+              patchUrl({ search: value.trim() || undefined, page: 1 });
             }}
-            syncKeyword={keyword}
+            syncKeyword={url.search}
             onDownloadClick={() => {}}
             onSortClick={() => {}}
             onMoreClick={() => {}}
@@ -618,13 +653,12 @@ function ShowPartnerPayout() {
             <CustomTable
               columns={walletTxColumns}
               data={ledgerSlice}
-              pageSize={ledgerPageSize}
+              pageSize={url.limit}
               currentPage={ledgerPage}
               totalPages={ledgerTotalPages}
-              onPageChange={(page: number) => setLedgerPage(page)}
+              onPageChange={(page: number) => patchUrl({ page })}
               onLimitChange={(ps: number) => {
-                setLedgerPageSize(ps);
-                setLedgerPage(1);
+                patchUrl({ limit: ps, page: 1 });
               }}
               theadClass="table-light"
               tableClass="wallet-tx-react-table"

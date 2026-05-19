@@ -1,5 +1,5 @@
 import { AppConstant } from "../global/AppConstant";
-import { PaymentEnum } from "../order/PaymentEnum";
+import { PaymentEnum } from "../order/orderTypes";
 import { formatDate } from "../../helper/utility";
 import { ExpenseModel } from "../models/ExpenseModel";
 

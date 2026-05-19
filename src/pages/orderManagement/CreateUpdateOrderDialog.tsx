@@ -5,10 +5,11 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useForm } from "react-hook-form";
-import { Modal, Button, Row, Col, Form, Table } from "react-bootstrap";
+import { useForm, UseFormUnregister, UseFormSetValue, UseFormRegister } from "react-hook-form";
+import { Modal, Button, Row, Col, Form, Table, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { OrderModel } from "../../lib/order/OrderModel";
+import { OrderModel, OrderItemModel, orderPaymentModeSelectOptions } from "../../lib/order/orderTypes";
+import type { ServiceAddressCard, AddressCityDropdownRow } from "../../lib/order/orderTypes";
 import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { createOrUpdateOrder } from "../../lib/order/orderService";
@@ -19,7 +20,6 @@ import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMob
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
-import ServiceItemForm from "./ServiceItemForm";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import CustomFormSelect from "../../components/CustomFormSelect";
@@ -28,35 +28,1436 @@ import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
 import { getOffers } from "../../services/settingsService";
 import { UserModel } from "../../lib/models/UserModel";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
-import { AppConstant } from "../../lib/global/AppConstant";
-import { orderPaymentModeSelectOptions } from "../../lib/order/PaymentEnum";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   nationalDigitsWithoutIndia91,
   sanitizeIndiaNationalPhoneInput,
   fullPhoneFromIndiaNational,
 } from "../../lib/user/userFormValidation";
-import { OrderItemModel } from "../../lib/order/OrderItemModel";
 import { TaxOtherChargesModel } from "../../lib/models/TaxOtherChargesModel";
 import { openDialog } from "../../lib/global/DialogManager";
 import type {
   CustomerPaymentRow,
   OrderPaymentExtV1,
   PartnerPaymentRow,
-} from "../../lib/order/orderPaymentStorage";
+} from "../../lib/order/orderHelpers";
 import {
   mergePaymentExtension,
   sumCustomerAmounts,
   sumPartnerAmounts,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
-} from "../../lib/order/orderPaymentStorage";
-import {
   resolveOrderOfferBreakdown,
   computeCreateOrderOfferDiscountRupees,
   splitOfferContributionAmounts,
-} from "../../lib/order/orderDisplayHelpers";
-import { serializeServiceAddressCards } from "./ServiceAddressCardsPanel";
+} from "../../lib/order/orderHelpers";
+import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
+import type { CustomerSavedAddressPreview } from "../../lib/user/userAddressPreview";
+import { fetchServiceDropDown } from "../../services/servicesService";
+import { fetchPartnerDropDown } from "../../services/userService";
+import addIcon from "../../assets/icons/add.svg";
+import { fetchFranchiseDropDown } from "../../services/franchiseService";
+import {
+  fetchFranchiseRelatedCatalog,
+  mapRelatedCatalogToQuoteOptions,
+  getPartnerActiveServiceProvidingRow,
+  getPartnerAvailableCategoryIdSet,
+  getPartnerCategoryIdsFromProviding,
+  getPartnerProvidingServiceIdSet,
+  getQuoteScheduleModeFromServiceOption,
+  deriveQuoteScheduleMetrics,
+  buildQuoteSchedulePricePreview,
+  computeAutoQuotePriceFromPartner,
+  resolveFranchiseIdForQuoteForm,
+} from "../../services/quoteService";
+import type { OptionType } from "../../services/quoteService";
+import type { ServiceDropDownOption } from "../../services/servicesService";
+import { normalizeServiceCategoryRef } from "../../services/servicesService";
+import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
+import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import {
+  buildFranchisePincodeSetFromRelatedCatalog,
+  collectFranchiseAreaIds,
+  compareIsoDateOnlyAsc,
+  formatQuoteAddressRowAsServiceLine,
+  isCalendarDateNotBeforeToday,
+  isScheduleEndAfterStartSameDay,
+  minutesFromScheduleTimeStorage,
+  parseIsoDateOnly,
+  QUOTE_MODAL_LAYOUT,
+  quoteScheduleTimePickerAllowAllHours,
+  setQuoteFranchiseCatalogSnapshot,
+  startOfLocalDay,
+  startOfTodayLocal,
+  toIsoCalendarDate,
+  useQuoteCustomerAddressPanel,
+} from "../../lib/quote/quoteHelpers";
+
+
+/** --- Service address cards --- */
+
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const sanId = (id: string) => String(id).replace(/[^a-zA-Z0-9_]/g, "_");
+const fieldState = (cardId: string) => `addrCard_${sanId(cardId)}_state`;
+const fieldCity = (cardId: string) => `addrCard_${sanId(cardId)}_city`;
+
+/** Clear react-hook-form keys for removed/replaced address cards (dynamic `addrCard_*` fields). */
+export function unregisterServiceAddressCardFields(
+  unregister: UseFormUnregister<any> | undefined,
+  cardIds: readonly string[]
+) {
+  if (!unregister) return;
+  for (const id of cardIds) {
+    unregister(fieldState(id));
+    unregister(fieldCity(id));
+  }
+}
+
+export function getServiceAddressCardFieldNames(cardId: string) {
+  return { stateField: fieldState(cardId), cityField: fieldCity(cardId) };
+}
+
+const miniCardBase: React.CSSProperties = {
+  borderRadius: "10px",
+  padding: "12px 14px",
+  backgroundColor: "var(--bg-color)",
+  height: "100%",
+};
+
+const savedCardShell: React.CSSProperties = {
+  ...miniCardBase,
+  border: "1px dashed var(--primary-color)",
+  boxShadow: "none",
+};
+
+const stackLabel: React.CSSProperties = {
+  fontSize: "16px",
+  fontWeight: 600,
+  color: "var(--content-txt-color, #6c757d)",
+  marginBottom: "4px",
+};
+
+const stackValue: React.CSSProperties = {
+  fontSize: "15px",
+  fontWeight: 500,
+  fontFamily: "Inter, sans-serif",
+  color: "var(--txt-color)",
+  wordBreak: "break-word",
+};
+
+/** Primary / focus colors for “active address” checkbox — aligned with `CustomFormSwitch` theme. */
+const SERVICE_ADDR_CHECKBOX_THEME_CSS = `
+.service-addr-active-check .form-check-input {
+  cursor: pointer;
+  border-color: var(--primary-color) !important;
+  background-color: var(--bg-color) !important;
+}
+.service-addr-active-check .form-check-input:checked {
+  background-color: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+}
+.service-addr-active-check .form-check-input:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 0.1rem rgba(155, 12, 12, 1) !important;
+}
+`;
+
+export function serializeServiceAddressCards(
+  cards: ServiceAddressCard[] | undefined
+): string {
+  if (!cards?.length) return "";
+  const sorted = [...cards].sort((a, b) => {
+    if (!!a.isActive === !!b.isActive) return 0;
+    return a.isActive ? -1 : 1;
+  });
+  return sorted
+    .map((c) => {
+      const parts = [
+        c.line?.trim(),
+        c.postal?.trim(),
+        c.cityLabel?.trim(),
+        c.stateLabel?.trim(),
+      ].filter(Boolean);
+      return parts.join(", ");
+    })
+    .filter(Boolean)
+    .join("\n---\n");
+}
+
+type ServiceAddressCardsPanelProps = {
+  cards: ServiceAddressCard[];
+  onChange: (next: ServiceAddressCard[]) => void;
+  register: UseFormRegister<any>;
+  setValue: UseFormSetValue<any>;
+  unregister?: UseFormUnregister<any>;
+  stateOptions: { value: string; label: string }[];
+  cityRows: AddressCityDropdownRow[];
+  /** Selected customer profile address(es) — read-only context above editable service cards. */
+  customerSavedAddresses?: CustomerSavedAddressPreview[];
+};
+
+const ServiceAddressCardsPanel: React.FC<ServiceAddressCardsPanelProps> = ({
+  cards,
+  onChange,
+  register,
+  setValue,
+  unregister,
+  stateOptions,
+  cityRows,
+  customerSavedAddresses,
+}) => {
+  const patchCard = (id: string, patch: Partial<ServiceAddressCard>) => {
+    onChange(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  };
+
+  const setExclusiveActive = (id: string) => {
+    onChange(cards.map((c) => ({ ...c, isActive: c.id === id })));
+  };
+
+  const clearActiveAndPickFirst = (exceptId: string) => {
+    const others = cards.filter((c) => c.id !== exceptId);
+    const pick = others[0]?.id;
+    if (!pick) {
+      onChange(cards.map((c) => ({ ...c, isActive: true })));
+      return;
+    }
+    onChange(cards.map((c) => ({ ...c, isActive: c.id === pick })));
+  };
+
+  const addCard = () => {
+    onChange([
+      ...cards,
+      {
+        id: newId(),
+        stateId: "",
+        cityId: "",
+        postal: "",
+        line: "",
+        stateLabel: "",
+        cityLabel: "",
+        isActive: false,
+      },
+    ]);
+  };
+
+  const removeCard = (id: string) => {
+    if (cards.length <= 1) return;
+    openConfirmDialog("Remove this address?", "Delete", "Cancel", () => {
+      unregister?.(fieldState(id));
+      unregister?.(fieldCity(id));
+      const next = cards.filter((c) => c.id !== id);
+      if (!next.some((c) => c.isActive)) {
+        onChange(next.map((c, i) => ({ ...c, isActive: i === 0 })));
+      } else {
+        onChange(next);
+      }
+    });
+  };
+
+  const cityOptionsForCard = (
+    stateId: string
+  ): { value: string; label: string }[] => {
+    if (!stateId?.trim()) {
+      return [{ value: "", label: "Select state first" }];
+    }
+    const filtered = cityRows.filter((r) => r.state_id === stateId);
+    if (!filtered.length) {
+      return [{ value: "", label: "No cities for state" }];
+    }
+    return [
+      { value: "", label: "Select city" },
+      ...filtered.map((r) => ({ value: r.value, label: r.label })),
+    ];
+  };
+
+  const rows: ServiceAddressCard[][] = [];
+  for (let i = 0; i < cards.length; i += 4) {
+    rows.push(cards.slice(i, i + 4));
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-top">
+      <style>{SERVICE_ADDR_CHECKBOX_THEME_CSS}</style>
+      {customerSavedAddresses?.length ? (
+        <div className="mb-3">
+          <div
+            className="fw-semibold mb-2"
+            style={{
+              fontSize: "13px",
+              color: "var(--content-txt-color, #6c757d)",
+            }}
+          >
+            Customer address on file
+          </div>
+          <Row className="g-3 mb-1">
+            {customerSavedAddresses.map((a, idx) => (
+              <Col key={`saved-${idx}`} xs={12} md={6} lg={3}>
+                <div style={savedCardShell}>
+                  <div
+                    className="fw-semibold mb-2"
+                    style={{ fontSize: "14px", color: "var(--primary-color)" }}
+                  >
+                    Saved address
+                  </div>
+                  <div className="mb-2">
+                    <div style={stackLabel}>State</div>
+                    <div style={stackValue}>{a.stateLabel}</div>
+                  </div>
+                  <div className="mb-2">
+                    <div style={stackLabel}>City</div>
+                    <div style={stackValue}>{a.cityLabel}</div>
+                  </div>
+                  <div className="mb-2">
+                    <div style={stackLabel}>Postal Code</div>
+                    <div style={stackValue}>{a.postal}</div>
+                  </div>
+                  <div className="mb-0">
+                    <div style={stackLabel}>Address</div>
+                    <div style={stackValue}>{a.line}</div>
+                  </div>
+                </div>
+              </Col>
+            ))}
+          </Row>
+        </div>
+      ) : null}
+      <Row className="align-items-center mb-2">
+        <Col>
+          <span className="custom-profile-lable">Service addresses</span>
+        </Col>
+        <Col xs="auto">
+          <span
+            style={{ color: "var(--primary-color)", cursor: "pointer" }}
+            className="p-0 text-decoration-none"
+            onClick={addCard}
+          >
+            + Add address
+          </span>
+        </Col>
+      </Row>
+      {rows.map((rowCards, rowIdx) => (
+        <Row key={rowIdx} className="mb-2">
+          {rowCards.map((card, colIdx) => {
+            const globalIdx = rowIdx * 4 + colIdx + 1;
+            const cityOpts = cityOptionsForCard(card.stateId);
+            const active = !!card.isActive;
+            const cardShell: React.CSSProperties = {
+              ...miniCardBase,
+              border: active
+                ? "1px solid var(--primary-color)"
+                : "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1))",
+              boxShadow: active ? "0 0 0 1px var(--primary-color)" : undefined,
+            };
+            return (
+              <Col key={card.id} xs={12} md={6} lg={3}>
+                <div style={cardShell}>
+                  <div className="d-flex justify-content-between align-items-center mb-2 gap-2">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <span
+                        className="fw-semibold"
+                        style={{ color: "var(--primary-color)" }}
+                      >
+                        Address {globalIdx}
+                      </span>
+                    </div>
+                    <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                      <Form.Check
+                        type="checkbox"
+                        id={`addr-active-${card.id}`}
+                        className="service-addr-active-check"
+                        checked={active}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          if (on) setExclusiveActive(card.id);
+                          else if (cards.length <= 1) {
+                            patchCard(card.id, { isActive: true });
+                          } else if (active) {
+                            clearActiveAndPickFirst(card.id);
+                          }
+                        }}
+                        title="Primary address"
+                        aria-label="Set as active address"
+                      />
+
+                      <i
+                        className="bi bi-trash text-danger"
+                        role="button"
+                        title="Delete"
+                        style={{ fontSize: "0.95rem" }}
+                        onClick={() => removeCard(card.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            removeCard(card.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        aria-label="Delete address"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-2">
+                    <CustomTextFieldSelect
+                      label="State"
+                      controlId={`addr-state-${card.id}`}
+                      options={stateOptions}
+                      register={register}
+                      fieldName={fieldState(card.id)}
+                      defaultValue={card.stateId}
+                      setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      labelSize={12}
+                      noRowBottomMargin
+                      noBottomMargin
+                      placeholder="Select state"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const label =
+                          stateOptions
+                            .find((o) => o.value === v)
+                            ?.label?.trim() ?? "";
+                        patchCard(card.id, {
+                          stateId: v,
+                          cityId: "",
+                          cityLabel: "",
+                          stateLabel: label,
+                        });
+                        setValue(fieldCity(card.id), "", {
+                          shouldValidate: false,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div
+                    className="mb-2"
+                    key={`city-wrap-${card.id}-${card.stateId}`}
+                  >
+                    <CustomTextFieldSelect
+                      label="City"
+                      controlId={`addr-city-${card.id}`}
+                      options={cityOpts}
+                      register={register}
+                      fieldName={fieldCity(card.id)}
+                      defaultValue={card.cityId}
+                      setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      labelSize={12}
+                      noRowBottomMargin
+                      noBottomMargin
+                      placeholder="Select city"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const label =
+                          cityOpts.find((o) => o.value === v)?.label?.trim() ??
+                          "";
+                        patchCard(card.id, { cityId: v, cityLabel: label });
+                      }}
+                    />
+                  </div>
+                  <div className="mb-2">
+                    <div className="d-block" style={stackLabel}>
+                      Postal Code
+                    </div>
+                    <Form.Control
+                      className="custom-form-input"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6-digit PIN"
+                      value={card.postal}
+                      onChange={(e) =>
+                        patchCard(card.id, {
+                          postal: sanitizeIndianPincodeInput(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="mb-0">
+                    <div className="d-block" style={stackLabel}>
+                      Address
+                    </div>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      className="custom-form-input"
+                      placeholder="Street, building, etc."
+                      value={card.line}
+                      onChange={(e) =>
+                        patchCard(card.id, { line: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </Col>
+            );
+          })}
+        </Row>
+      ))}
+    </div>
+  );
+};
+
+/** --- Service line item form --- */
+
+/** Digits and at most one decimal point (for text `type="text"` service price). */
+function sanitizeDecimalDigits(raw: string): string {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  const dotIdx = cleaned.indexOf(".");
+  if (dotIdx === -1) return cleaned;
+  return (
+    cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, "")
+  );
+}
+
+const newAddressCardId = () =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const defaultAddressCard = (isActive = true): ServiceAddressCard => ({
+  id: newAddressCardId(),
+  stateId: "",
+  cityId: "",
+  postal: "",
+  line: "",
+  stateLabel: "",
+  cityLabel: "",
+  isActive,
+});
+
+function customerHasAddressFields(user: UserModel): boolean {
+  return !!(
+    (user.state_id ?? "").trim() ||
+    (user.city_id ?? "").trim() ||
+    (user.pincode ?? "").trim() ||
+    (user.address ?? "").trim()
+  );
+}
+
+/** Primary card from profile + one blank card (create order / service locations). */
+function buildAddressCardsFromCustomer(
+  user: UserModel | undefined | null
+): ServiceAddressCard[] {
+  if (!user || !customerHasAddressFields(user)) {
+    return [defaultAddressCard(true)];
+  }
+  return [
+    {
+      id: newAddressCardId(),
+      stateId: (user.state_id ?? "").trim(),
+      cityId: (user.city_id ?? "").trim(),
+      postal: sanitizeIndianPincodeInput(String(user.pincode ?? "")),
+      line: (user.address ?? "").trim(),
+      stateLabel: (user.state_name ?? "").trim(),
+      cityLabel: (user.city_name ?? "").trim(),
+      isActive: true,
+    },
+    defaultAddressCard(false),
+  ];
+}
+
+function syncAddrSelectFieldsToForm(
+  setValue: (
+    name: string,
+    value: unknown,
+    opts?: { shouldValidate?: boolean }
+  ) => void,
+  cards: ServiceAddressCard[]
+) {
+  queueMicrotask(() => {
+    for (const c of cards) {
+      const { stateField, cityField } = getServiceAddressCardFieldNames(c.id);
+      setValue(stateField, c.stateId, { shouldValidate: false });
+      setValue(cityField, c.cityId, { shouldValidate: false });
+    }
+  });
+}
+
+const servicePriceFieldValidation = {
+  required: "Service price is required",
+  validate: (v: unknown): string | true => {
+    if (v === "" || v === null || v === undefined) {
+      return "Service price is required";
+    }
+    if (typeof v === "number") {
+      if (!Number.isFinite(v)) return "Enter a valid number";
+      if (v <= 0) return "Enter an amount greater than 0";
+      return true;
+    }
+    const raw = String(v).trim().replace(/,/g, "");
+    if (raw === "" || raw === ".") return "Service price is required";
+    const n = Number.parseFloat(raw);
+    if (!Number.isFinite(n)) return "Enter a valid number";
+    if (n <= 0) return "Enter an amount greater than 0";
+    return true;
+  },
+};
+
+type ServiceItemFormProps = {
+  taxDetails: TaxOtherChargesModel;
+  categoryId: string;
+  onChange: (items: OrderItemModel[]) => void;
+  register: any;
+  setValue: any;
+  getValues: any;
+  errors: any;
+  /** Add Order: compact layout; fees still derived from entered service price. */
+  compact?: boolean;
+  /** Create order: only one line item, no add/remove controls. */
+  singleServiceOnly?: boolean;
+  /** Render rows inside a parent section (no inner "Service" card chrome). */
+  embedded?: boolean;
+  /** Hide service date / time row (parent renders “Scheduled Date/Time”). */
+  omitSchedule?: boolean;
+  /** Multi-address card grid instead of a single textarea. */
+  useAddressCards?: boolean;
+  /** When `omitSchedule`, parent-owned date/time is merged from here (create order). */
+  scheduleMirror?: OrderItemModel[];
+  /** Create flow: states/cities from parent `fetchCityDropDown` (no extra fetches). */
+  addressStateOptions?: { value: string; label: string }[];
+  addressCityRows?: AddressCityDropdownRow[];
+  unregister?: UseFormUnregister<any>;
+  /** Create order: pre-fill first service address card(s) when a customer is chosen. */
+  serviceAddressSeedUser?: UserModel | null;
+};
+
+const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
+  taxDetails,
+  categoryId,
+  onChange,
+  register,
+  setValue,
+  getValues,
+  errors,
+  compact = false,
+  singleServiceOnly = false,
+  embedded = false,
+  omitSchedule = false,
+  useAddressCards = false,
+  scheduleMirror,
+  addressStateOptions,
+  addressCityRows,
+  unregister,
+  serviceAddressSeedUser,
+}) => {
+  const [services, setService] = useState<
+    { value: string; label: string; price?: number }[]
+  >([]);
+  const [partners, setPartner] = useState<{ value: string; label: string }[]>(
+    []
+  );
+  const prevCategoryRef = useRef<string | null>(null);
+  const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([
+    {
+      service_id: "",
+      service_price: 0,
+      partner_id: "",
+      service_address: "",
+      service_date: "",
+      service_from_time: "",
+      service_to_time: "",
+      sub_total: 0,
+      tax: 0,
+      user_paltform_fee: 0,
+      partner_commison_platform_fee: 0,
+      partner_earning: 0,
+      total_price: 0,
+      admin_earning: 0,
+      address_cards: [defaultAddressCard(true)],
+    },
+  ]);
+  const fetchRef = useRef(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const lastSeededUserIdRef = useRef<string>("");
+
+  useEffect(() => {
+    onChangeRef.current(serviceItems);
+  }, [serviceItems]);
+
+  /* eslint-disable react-hooks/exhaustive-deps -- mirror row 0 schedule; granular deps avoid parent object churn */
+  useEffect(() => {
+    if (!omitSchedule || !scheduleMirror?.length) return;
+    const m0 = scheduleMirror[0];
+    setServiceItems((prev) => {
+      if (!prev.length) return prev;
+      const s0 = prev[0];
+      const same =
+        (m0.service_date || "") === (s0.service_date || "") &&
+        (m0.service_from_time || "") === (s0.service_from_time || "") &&
+        (m0.service_to_time || "") === (s0.service_to_time || "");
+      if (same) return prev;
+      return [
+        {
+          ...s0,
+          service_date: m0.service_date ?? s0.service_date,
+          service_from_time: m0.service_from_time ?? s0.service_from_time,
+          service_to_time: m0.service_to_time ?? s0.service_to_time,
+        },
+        ...prev.slice(1),
+      ];
+    });
+  }, [
+    omitSchedule,
+    scheduleMirror?.[0]?.service_date,
+    scheduleMirror?.[0]?.service_from_time,
+    scheduleMirror?.[0]?.service_to_time,
+  ]);
+  /* eslint-enable react-hooks/exhaustive-deps */
+
+  useEffect(() => {
+    if (!singleServiceOnly || !useAddressCards) return;
+    const uid = (serviceAddressSeedUser?._id ?? "").trim();
+    if (!uid) {
+      if (lastSeededUserIdRef.current !== "") {
+        lastSeededUserIdRef.current = "";
+        setServiceItems((prev) => {
+          if (!prev.length) return prev;
+          const old = prev[0].address_cards ?? [];
+          unregisterServiceAddressCardFields(
+            unregister,
+            old.map((c) => c.id)
+          );
+          const next = [defaultAddressCard(true)];
+          syncAddrSelectFieldsToForm(setValue, next);
+          return [
+            {
+              ...prev[0],
+              address_cards: next,
+              service_address: serializeServiceAddressCards(next),
+            },
+            ...prev.slice(1),
+          ];
+        });
+      }
+      return;
+    }
+    if (lastSeededUserIdRef.current === uid) return;
+    lastSeededUserIdRef.current = uid;
+    const next = buildAddressCardsFromCustomer(serviceAddressSeedUser);
+    setServiceItems((prev) => {
+      if (!prev.length) return prev;
+      const old = prev[0].address_cards ?? [];
+      unregisterServiceAddressCardFields(
+        unregister,
+        old.map((c) => c.id)
+      );
+      return [
+        {
+          ...prev[0],
+          address_cards: next,
+          service_address: serializeServiceAddressCards(next),
+        },
+        ...prev.slice(1),
+      ];
+    });
+    syncAddrSelectFieldsToForm(setValue, next);
+  }, [
+    singleServiceOnly,
+    useAddressCards,
+    serviceAddressSeedUser?._id,
+    serviceAddressSeedUser,
+    setValue,
+    unregister,
+  ]);
+
+  useEffect(() => {
+    if (!singleServiceOnly || serviceItems.length <= 1) return;
+    setServiceItems((items) => [items[0]]);
+  }, [singleServiceOnly, serviceItems.length]);
+
+  useEffect(() => {
+    const cid = (categoryId ?? "").trim();
+    if (!cid) {
+      setService([]);
+      return;
+    }
+    void (async () => {
+      if (fetchRef.current) return;
+      fetchRef.current = true;
+      try {
+        const serviceOptions = await fetchServiceDropDown(cid);
+        setService(serviceOptions);
+      } finally {
+        fetchRef.current = false;
+      }
+    })();
+  }, [categoryId]);
+
+  useEffect(() => {
+    const next = categoryId ?? "";
+    if (prevCategoryRef.current === null) {
+      prevCategoryRef.current = next;
+      return;
+    }
+    if (prevCategoryRef.current === next) return;
+    if (prevCategoryRef.current === "" && next) {
+      prevCategoryRef.current = next;
+      return;
+    }
+    prevCategoryRef.current = next;
+
+    const nextAddrCards =
+      singleServiceOnly && useAddressCards
+        ? buildAddressCardsFromCustomer(serviceAddressSeedUser ?? undefined)
+        : [defaultAddressCard(true)];
+    setServiceItems((prev) =>
+      prev.map((item, idx) => {
+        setValue(`serviceItems.${idx}.service_id`, "");
+        setValue(`serviceItems.${idx}.partner_id`, "");
+        setValue(`serviceItems.${idx}.service_price`, 0, {
+          shouldValidate: true,
+        });
+        unregisterServiceAddressCardFields(
+          unregister,
+          item.address_cards?.map((c) => c.id) ?? []
+        );
+        const serialized = serializeServiceAddressCards(nextAddrCards);
+        return {
+          ...item,
+          service_id: "",
+          partner_id: "",
+          service_price: 0,
+          tax: 0,
+          sub_total: 0,
+          user_paltform_fee: 0,
+          total_price: 0,
+          partner_commison_platform_fee: 0,
+          partner_earning: 0,
+          admin_earning: 0,
+          address_cards: nextAddrCards,
+          service_address: serialized,
+        };
+      })
+    );
+    if (useAddressCards) {
+      syncAddrSelectFieldsToForm(setValue, nextAddrCards);
+    }
+    setPartner([]);
+  }, [
+    categoryId,
+    setValue,
+    singleServiceOnly,
+    useAddressCards,
+    serviceAddressSeedUser,
+    unregister,
+  ]);
+
+  const fetchPartnerFromApi = async (serviceId: string) => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    try {
+      const { partners } = await fetchPartnerDropDown(serviceId);
+      setPartner(
+        partners.map((partner: any) => ({
+          value: partner.partner_id,
+          label: partner.partner_name,
+        }))
+      );
+    } finally {
+      fetchRef.current = false;
+    }
+  };
+
+  const addServiceItem = () => {
+    setServiceItems((prevServiceItems) => [
+      ...prevServiceItems,
+      {
+        service_id: "",
+        service_price: 0,
+        partner_id: "",
+        service_address: "",
+        service_date: "",
+        service_from_time: "",
+        service_to_time: "",
+        sub_total: 0,
+        tax: 0,
+        user_paltform_fee: 0,
+        partner_commison_platform_fee: 0,
+        partner_earning: 0,
+        total_price: 0,
+        admin_earning: 0,
+        address_cards: [defaultAddressCard(true)],
+      },
+    ]);
+  };
+
+  const removeServiceItem = (index: number) => {
+    if (serviceItems.length > 1) {
+      setServiceItems(serviceItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleInputChange = (
+    index: number,
+    field: keyof OrderItemModel,
+    value: any
+  ) => {
+    setServiceItems((prevServiceItems) => {
+      const updatedServices = [...prevServiceItems];
+
+      if (field === "service_id") {
+        const selectedService = services.find(
+          (service) => service.value === value
+        );
+        const perHourPrice = selectedService?.price ?? 0;
+
+        fetchPartnerFromApi(selectedService?.value!);
+
+        updatedServices[index] = {
+          ...updatedServices[index],
+          service_id: value,
+          per_hour_price: perHourPrice,
+          service_price: 0,
+          ...calculateServiceDetails(0),
+        };
+        setValue(`serviceItems.${index}.service_id`, value);
+        setValue(`serviceItems.${index}.per_hour_price`, perHourPrice);
+        setValue(`serviceItems.${index}.service_price`, 0, {
+          shouldValidate: true,
+        });
+      } else if (field === "service_price") {
+        const raw = String(value ?? "")
+          .trim()
+          .replace(/,/g, "");
+        const n = raw === "" ? 0 : Number.parseFloat(raw);
+        const price = Number.isFinite(n) ? n : 0;
+        updatedServices[index] = {
+          ...updatedServices[index],
+          service_price: price,
+          ...calculateServiceDetails(price),
+        };
+        setValue(`serviceItems.${index}.service_price`, price, {
+          shouldValidate: true,
+        });
+      } else if (field === "service_from_time" || field === "service_to_time") {
+        updatedServices[index] = {
+          ...updatedServices[index],
+          [field]: value,
+        };
+        setValue(`serviceItems.${index}.${field}` as any, value);
+      } else if (field === "per_hour_price") {
+        const n = Number.parseFloat(String(value ?? "").trim());
+        const perHour = Number.isFinite(n) ? n : 0;
+        updatedServices[index] = {
+          ...updatedServices[index],
+          per_hour_price: perHour,
+        };
+        setValue(`serviceItems.${index}.per_hour_price`, value);
+      } else {
+        updatedServices[index] = {
+          ...updatedServices[index],
+          [field]: value,
+        };
+        setValue(`serviceItems.${index}.${field}` as any, value);
+      }
+      return updatedServices;
+    });
+  };
+
+  const calculateServiceDetails = (servicePrice: number) => {
+    const tax = servicePrice * (taxDetails.tax_for_customer / 100);
+    const subTotal = servicePrice - tax;
+    const userPlatformFee = servicePrice * (taxDetails.user_platform_fee / 100);
+    const totalPrice = servicePrice + userPlatformFee;
+    const partnerCommissionPlatformFee =
+      servicePrice *
+      ((taxDetails.partner_commision_fee + taxDetails.partner_platform_fee) /
+        100);
+    const partnerEarning = subTotal - partnerCommissionPlatformFee;
+    const adminEarning = userPlatformFee + partnerCommissionPlatformFee;
+
+    return {
+      tax: Math.round(tax),
+      sub_total: Math.round(subTotal),
+      user_paltform_fee: Math.round(userPlatformFee),
+      total_price: Math.round(totalPrice),
+      partner_commison_platform_fee: Math.round(partnerCommissionPlatformFee),
+      partner_earning: Math.round(partnerEarning),
+      admin_earning: Math.round(adminEarning),
+    };
+  };
+
+  const showAddRemoveRow = !singleServiceOnly && !embedded;
+  const categorySelected = !!(categoryId ?? "").trim();
+
+  const renderServicePriceControl = (index: number) => {
+    const priceFieldError = errors.serviceItems?.[index]?.service_price as
+      | { message?: string }
+      | undefined;
+    const invalid = !!priceFieldError;
+    const borderColor = invalid
+      ? "var(--bs-form-invalid-border-color, #dc3545)"
+      : "var(--primary-color)";
+    return (
+      <div className="d-flex flex-column">
+        <div
+          className="d-flex align-items-stretch"
+          style={{
+            border: `1px solid ${borderColor}`,
+            borderRadius: "8px",
+            overflow: "hidden",
+            backgroundColor: "var(--bg-color)",
+            minHeight: 35,
+          }}
+        >
+          <span
+            className="d-flex align-items-center justify-content-center flex-shrink-0"
+            style={{
+              borderRight: `1px solid ${borderColor}`,
+              color: "var(--primary-txt-color)",
+              fontWeight: 600,
+              fontFamily: "Inter",
+              fontSize: "14px",
+              fontVariantNumeric: "tabular-nums",
+              paddingLeft: "10px",
+              paddingRight: "10px",
+              minWidth: 40,
+              alignSelf: "stretch",
+            }}
+          >
+            {AppConstant.currencySymbol}
+          </span>
+          <div className="flex-grow-1 d-flex" style={{ minWidth: 0 }}>
+            <CustomFormInput
+              label=""
+              controlId={`serviceItems.${index}.service_price`}
+              placeholder="0.00"
+              register={register}
+              validation={servicePriceFieldValidation}
+              error={undefined}
+              asCol={false}
+              inputType="text"
+              value={
+                serviceItems[index].service_price ??
+                getValues(`serviceItems.${index}.service_price` as any)
+              }
+              onChange={(value) =>
+                handleInputChange(
+                  index,
+                  "service_price",
+                  sanitizeDecimalDigits(value)
+                )
+              }
+              inputStyle={{
+                border: "none",
+                borderRadius: 0,
+                boxShadow: "none",
+                marginBottom: 0,
+                minHeight: 35,
+                height: "100%",
+                width: "100%",
+              }}
+              inputClassName="shadow-none"
+            />
+          </div>
+        </div>
+        {invalid && priceFieldError?.message ? (
+          <div
+            className="invalid-feedback d-block"
+            style={{ marginTop: "0.25rem" }}
+          >
+            {priceFieldError.message}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const serviceFieldRows = (service: OrderItemModel, index: number) => (
+    <>
+      <Row className={embedded ? "mt-2" : "mt-3"}>
+        <Col xs={4}>
+          <CustomTextFieldSelect
+            label="Service"
+            controlId={`Service`}
+            options={categorySelected ? services : []}
+            register={register}
+            fieldName={`serviceItems.${index}.service_id`}
+            error={
+              (errors as Record<string, any>)?.serviceItems?.[index]?.service_id
+            }
+            requiredMessage="Please select service"
+            defaultValue={
+              service?.service_id
+                ? service?.service_id
+                : getValues(`serviceItems.${index}.service_id` as any)
+            }
+            setValue={setValue as (name: string, value: any) => void}
+            onChange={(e) => {
+              handleInputChange(index, "service_id", e.target.value);
+            }}
+            placeholder={
+              categorySelected ? "Select service" : "Select a category first"
+            }
+            menuPortal
+          />
+        </Col>
+        <Col xs={4}>
+          <CustomTextFieldSelect
+            label="Partner"
+            controlId={`Partner`}
+            options={partners}
+            register={register}
+            fieldName={`serviceItems.${index}.partner_id`}
+            error={
+              (errors as Record<string, any>)?.serviceItems?.[index]?.partner_id
+            }
+            requiredMessage="Please select partner"
+            defaultValue={
+              service?.partner_id
+                ? service?.partner_id
+                : getValues(`serviceItems.${index}.partner_id` as any)
+            }
+            setValue={setValue as (name: string, value: any) => void}
+            onChange={(e) => {
+              handleInputChange(index, "partner_id", e.target.value);
+            }}
+            placeholder={
+              serviceItems[index].service_id
+                ? "Select partner"
+                : "Select a service first"
+            }
+            menuPortal
+          />
+        </Col>
+        <Col xs={4}>
+          <Row className="align-items-start mx-0">
+            <Col sm={4} className="d-flex align-items-start px-0">
+              <label className="custom-profile-lable">Service Price</label>
+            </Col>
+            <Col className="ps-1 pe-0">{renderServicePriceControl(index)}</Col>
+          </Row>
+        </Col>
+      </Row>
+      {!compact && (
+        <Row className="mt-3">
+          <Col xs={4}>
+            <CustomTextField
+              label="Hours Price"
+              controlId={`serviceItems.${index}.per_hour_price`}
+              placeholder="Reference hourly rate"
+              register={register}
+              error={errors.serviceItems?.[index]?.per_hour_price}
+              inputType="number"
+              value={serviceItems[index].per_hour_price ?? ""}
+              onChange={(value) =>
+                handleInputChange(index, "per_hour_price", value)
+              }
+            />
+          </Col>
+        </Row>
+      )}
+      {!omitSchedule && (
+        <Row className="mt-3">
+          <Col xs={4}>
+            <CustomTextFieldDatePicket
+              label="Service Date"
+              controlId={`serviceItems.${index}.service_date`}
+              selectedDate={
+                serviceItems[index].service_date ??
+                getValues(`serviceItems.${index}.service_date` as any)
+              }
+              onChange={(date) =>
+                handleInputChange(
+                  index,
+                  "service_date",
+                  date?.toISOString() || ""
+                )
+              }
+              placeholderText="Select Date"
+              error={errors.serviceItems?.[index]?.service_date}
+              register={register}
+              validation={{ required: "Service date is required" }}
+              setValue={setValue}
+            />
+          </Col>
+          <Col xs={4}>
+            <CustomTextFieldTimePicket
+              label="From Time"
+              controlId={`serviceItems.${index}.service_from_time`}
+              selectedTime={
+                serviceItems[index].service_from_time ??
+                getValues(`serviceItems.${index}.service_from_time` as any)
+              }
+              onChange={(date) =>
+                handleInputChange(
+                  index,
+                  "service_from_time",
+                  date?.toISOString() || ""
+                )
+              }
+              placeholderText="Select Time"
+              error={errors.serviceItems?.[index]?.service_from_time}
+              register={register}
+              validation={{ required: "From time is required" }}
+              setValue={setValue}
+              filterTime={(time) => {
+                const hour = time.getHours();
+                return hour >= 8 && hour <= 23;
+              }}
+            />
+          </Col>
+          <Col xs={4}>
+            <CustomTextFieldTimePicket
+              label="To Time"
+              controlId={`serviceItems.${index}.service_to_time`}
+              selectedTime={
+                serviceItems[index].service_to_time ??
+                getValues(`serviceItems.${index}.service_to_time` as any)
+              }
+              onChange={(date) =>
+                handleInputChange(
+                  index,
+                  "service_to_time",
+                  date?.toISOString() || ""
+                )
+              }
+              placeholderText="Select Time"
+              error={errors.serviceItems?.[index]?.service_to_time}
+              register={register}
+              validation={{ required: "To time is required" }}
+              setValue={setValue}
+              filterTime={(time) => {
+                const hour = time.getHours();
+                return hour >= 8 && hour <= 23;
+              }}
+            />
+          </Col>
+        </Row>
+      )}
+      {useAddressCards && addressStateOptions && addressCityRows ? (
+        <ServiceAddressCardsPanel
+          cards={
+            serviceItems[index].address_cards?.length
+              ? serviceItems[index].address_cards!
+              : [defaultAddressCard(true)]
+          }
+          onChange={(next) => {
+            setServiceItems((prev) =>
+              prev.map((it, i) =>
+                i === index
+                  ? {
+                      ...it,
+                      address_cards: next,
+                      service_address: serializeServiceAddressCards(next),
+                    }
+                  : it
+              )
+            );
+          }}
+          register={register}
+          setValue={setValue}
+          unregister={unregister}
+          stateOptions={addressStateOptions}
+          cityRows={addressCityRows}
+        />
+      ) : null}
+      {!useAddressCards && (
+        <Row className="mt-3">
+          <Col xs={12}>
+            <CustomTextField
+              label="Service address"
+              controlId={`serviceItems.${index}.service_address`}
+              placeholder="Enter service address"
+              register={register}
+              error={
+                (errors as Record<string, any>)?.serviceItems?.[index]
+                  ?.service_address
+              }
+              validation={{ required: "Service address is required" }}
+              onChange={(value) =>
+                handleInputChange(index, "service_address", value)
+              }
+              as="textarea"
+              rows={4}
+              labelSize={2}
+            />
+          </Col>
+        </Row>
+      )}
+      <Row>
+        {!compact && (
+          <>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Sub Total"
+                controlId={`serviceItems.${index}.sub_total`}
+                placeholder="Enter Sub Total"
+                register={register}
+                value={serviceItems[index].sub_total}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.sub_total
+                }
+                validation={{ required: "Sub total is required" }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Tax"
+                controlId={`serviceItems.${index}.tax`}
+                placeholder="Enter Tax"
+                register={register}
+                value={serviceItems[index].tax}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]?.tax
+                }
+                validation={{ required: "Tax is required" }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="User Platform Fee"
+                controlId={`serviceItems.${index}.user_paltform_fee`}
+                placeholder="Enter User Platform Fee"
+                register={register}
+                value={serviceItems[index].user_paltform_fee}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.user_paltform_fee
+                }
+                validation={{ required: "User platform fee is required" }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Partner Commison Platform Fee"
+                controlId={`serviceItems.${index}.partner_commison_platform_fee`}
+                placeholder="Enter Partner Commison Platform Fee"
+                register={register}
+                value={serviceItems[index].partner_commison_platform_fee}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.partner_commison_platform_fee
+                }
+                validation={{
+                  required: "Partner commison platform fee is required",
+                }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Partner Earning"
+                controlId={`serviceItems.${index}.partner_earning`}
+                placeholder="Enter Partner Earning"
+                register={register}
+                value={serviceItems[index].partner_earning}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.partner_earning
+                }
+                validation={{ required: "Partner earning is required" }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Total Price"
+                controlId={`serviceItems.${index}.total_price`}
+                placeholder="Enter Total Price"
+                register={register}
+                value={serviceItems[index].total_price}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.total_price
+                }
+                validation={{ required: "Total price is required" }}
+                isEditable={false}
+              />
+            </Col>
+            <Col xs={3} className="mt-3">
+              <CustomTextField
+                label="Admin Earning"
+                controlId={`serviceItems.${index}.admin_earning`}
+                placeholder="Enter Admin Earning"
+                register={register}
+                value={serviceItems[index].admin_earning}
+                error={
+                  (errors as Record<string, any>)?.serviceItems?.[index]
+                    ?.admin_earning
+                }
+                validation={{ required: "Admin earning is required" }}
+                isEditable={false}
+              />
+            </Col>
+          </>
+        )}
+      </Row>
+    </>
+  );
+
+  return (
+    <>
+      {serviceItems.map((service, index) =>
+        embedded ? (
+          <React.Fragment key={index}>
+            {serviceFieldRows(service, index)}
+          </React.Fragment>
+        ) : (
+          <section
+            key={index}
+            className="custom-other-details mt-3"
+            style={{ padding: "10px" }}
+          >
+            {showAddRemoveRow && (
+              <Row className="d-flex justify-content-between align-items-center">
+                <Col>
+                  <h3 className="mb-0">Service</h3>
+                </Col>
+                <Col className="text-end">
+                  {index > 0 && (
+                    <label
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeServiceItem(index);
+                      }}
+                      className="custom-document-delete"
+                    >
+                      Remove
+                    </label>
+                  )}
+                  <Button
+                    style={{
+                      height: "26px",
+                      borderRadius: "4px",
+                      backgroundColor: "var(--bg-color)",
+                      color: "var(--primary-color)",
+                      fontFamily: "Inter",
+                      fontSize: "14px",
+                      fontWeight: "normal",
+                      border: "1px solid var(--primary-txt-color)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "0 10px",
+                      margin: "0px 10px",
+                    }}
+                    onClick={() => addServiceItem()}
+                  >
+                    <img
+                      src={addIcon}
+                      alt="Add"
+                      style={{ height: "14px", width: "14px" }}
+                    />
+                    Add
+                  </Button>
+                </Col>
+              </Row>
+            )}
+            {serviceFieldRows(service, index)}
+          </section>
+        )
+      )}
+    </>
+  );
+};
+
+/** --- Create / update order --- */
 
 /** Align create-order payment UI with `OrderPaymentEditModal` tokens. */
 const FONT_BODY = "0.9375rem";
@@ -192,6 +1593,23 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   } = useForm<any>();
   /** Avoid `useWatch` + `useForm<any>()` — TS2589 deep instantiation on `control`. */
   const offerIdWatch = watch("offer_id") as string | undefined;
+  const createFranchiseIdWatch = watch("franchise_id") as string | undefined;
+  const createCustomerIdWatch = watch("customer_user_id") as string | undefined;
+  const createPartnerIdWatch = watch("requested_partner") as string | undefined;
+  const createCategoryIdWatch = watch("category_id") as string | undefined;
+  const createServiceIdWatch = watch("requested_services") as string | undefined;
+  const createServicePriceWatch = watch("create_service_price") as
+    | string
+    | undefined;
+
+  const currentUserRole = getLocalStorage(AppConstant.userRole);
+  const isSuperAdminOrStaff =
+    currentUserRole === UserRole.ADMIN ||
+    currentUserRole === UserRole.STAFF;
+  const sessionFranchiseIdForOrderCatalog = useMemo(() => {
+    if (isSuperAdminOrStaff) return "";
+    return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
+  }, [isSuperAdminOrStaff]);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   /** Payment summary: long offer breakdown hidden until user expands (reset when offer changes). */
   const [showOfferPaymentBreakdown, setShowOfferPaymentBreakdown] =
@@ -244,6 +1662,42 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     { value: string; label: string }[]
   >([]);
 
+  const [franchiseOptionsForOrder, setFranchiseOptionsForOrder] = useState<
+    OptionType[]
+  >([]);
+  const [quoteCatalogServices, setQuoteCatalogServices] = useState<
+    ServiceDropDownOption[]
+  >([]);
+  const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
+    OptionType[]
+  >([]);
+  const [quoteEmployeeOptions, setQuoteEmployeeOptions] = useState<
+    OptionType[]
+  >([]);
+  const [catalogPartnerRecords, setCatalogPartnerRecords] = useState<
+    Record<string, unknown>[]
+  >([]);
+  const [quotePartnerOptions, setQuotePartnerOptions] = useState<OptionType[]>(
+    []
+  );
+  const [quoteCustomerRecords, setQuoteCustomerRecords] = useState<
+    Record<string, unknown>[]
+  >([]);
+  const [franchiseQuotePinSet, setFranchiseQuotePinSet] = useState<Set<string>>(
+    new Set()
+  );
+  const [franchiseQuoteAreaIdSet, setFranchiseQuoteAreaIdSet] = useState<
+    Set<string>
+  >(new Set());
+  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(true);
+  const orderCatalogLoadSeqRef = useRef(0);
+  const lastOrderCatalogFranchiseIdRef = useRef("");
+
+  const createOrderFieldsLocked =
+    isSuperAdminOrStaff &&
+    !isEditable &&
+    !String(createFranchiseIdWatch ?? "").trim();
+
   const [createPaymentExt, setCreatePaymentExt] = useState<OrderPaymentExtV1>(
     () => ({
       v: 1,
@@ -267,6 +1721,276 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   );
 
   const fetchRef = useRef(false);
+
+  const {
+    addressUi: createOrderAddressUi,
+    selectedAddressId: createOrderAddressId,
+    setSelectedAddressId: setCreateOrderAddressId,
+  } = useQuoteCustomerAddressPanel({
+    userId: String(createCustomerIdWatch ?? ""),
+    quoteCustomerRecords,
+    franchiseQuotePinSet,
+    franchiseQuoteAreaIdSet,
+    franchisePinsLoadDone,
+  });
+
+  const loadOrderCatalogForFranchise = useCallback(
+    async (franchiseId: string, opts?: { force?: boolean }) => {
+      const id = String(franchiseId ?? "").trim();
+      if (!id) {
+        lastOrderCatalogFranchiseIdRef.current = "";
+        orderCatalogLoadSeqRef.current += 1;
+        setQuoteCatalogServices([]);
+        setQuoteCategoryOptions([]);
+        setQuoteEmployeeOptions([]);
+        setCatalogPartnerRecords([]);
+        setQuotePartnerOptions([]);
+        setQuoteCustomerRecords([]);
+        setFranchiseQuotePinSet(new Set());
+        setFranchiseQuoteAreaIdSet(new Set());
+        setFranchisePinsLoadDone(true);
+        setQuoteFranchiseCatalogSnapshot(null);
+        return;
+      }
+      if (!opts?.force && id === lastOrderCatalogFranchiseIdRef.current) {
+        return;
+      }
+      lastOrderCatalogFranchiseIdRef.current = id;
+      const seq = (orderCatalogLoadSeqRef.current += 1);
+      setFranchisePinsLoadDone(false);
+      const { success, record } = await fetchFranchiseRelatedCatalog(id);
+      if (seq !== orderCatalogLoadSeqRef.current) return;
+      if (!success || !record) {
+        setQuoteCatalogServices([]);
+        setQuoteCategoryOptions([]);
+        setQuoteEmployeeOptions([]);
+        setCatalogPartnerRecords([]);
+        setQuotePartnerOptions([]);
+        setQuoteCustomerRecords([]);
+        setFranchiseQuotePinSet(new Set());
+        setFranchiseQuoteAreaIdSet(new Set());
+        setFranchisePinsLoadDone(true);
+        setQuoteFranchiseCatalogSnapshot(null);
+        return;
+      }
+      const mapped = mapRelatedCatalogToQuoteOptions(record);
+      setQuoteCategoryOptions(mapped.quoteCategoryOptions);
+      setQuoteCatalogServices(mapped.quoteCatalogServices);
+      setQuoteEmployeeOptions(mapped.quoteEmployeeOptions);
+      setQuoteCustomerRecords(mapped.quoteCustomerRecords);
+      setCatalogPartnerRecords(mapped.quotePartnerRecords);
+      setQuoteFranchiseCatalogSnapshot({
+        partnerRecords: mapped.quotePartnerRecords,
+        employeeRows: mapped.quoteEmployeeRecords,
+      });
+      const fr = record.franchise as Record<string, unknown> | undefined;
+      const areaIds = collectFranchiseAreaIds(fr);
+      const pinSet = buildFranchisePincodeSetFromRelatedCatalog(record);
+      if (seq !== orderCatalogLoadSeqRef.current) return;
+      setFranchiseQuoteAreaIdSet(new Set(areaIds));
+      setFranchiseQuotePinSet(pinSet);
+      setFranchisePinsLoadDone(true);
+    },
+    []
+  );
+
+  const resetCreateOrderCatalogSelections = useCallback(() => {
+    setValue("customer_user_id", "", { shouldValidate: false });
+    setValue("category_id", "", { shouldValidate: false });
+    setValue("requested_services", "", { shouldValidate: false });
+    setValue("requested_partner", "", { shouldValidate: false });
+    setValue("created_by_id", "", { shouldValidate: false });
+    setValue("create_service_price", "", { shouldValidate: false });
+    setCreateOrderAddressId("");
+    setSelectedUser(undefined);
+    setSelectedCategory("");
+  }, [setValue, setCreateOrderAddressId]);
+
+  const createOrderPartnerSelected = Boolean(
+    String(createPartnerIdWatch ?? "").trim()
+  );
+  const createOrderServiceId = String(createServiceIdWatch ?? "").trim();
+  const hasCreateOrderServiceSelected = Boolean(createOrderServiceId);
+
+  const selectedPartnerCatalogRecord = useMemo(() => {
+    const pid = String(createPartnerIdWatch ?? "").trim();
+    if (!pid) return null;
+    return (
+      catalogPartnerRecords.find(
+        (p) =>
+          String(p.partner_id ?? p._id ?? p.user_id ?? p.id ?? "").trim() ===
+          pid
+      ) ?? null
+    );
+  }, [createPartnerIdWatch, catalogPartnerRecords]);
+
+  const quoteCatalogServicesForPartner = useMemo(() => {
+    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
+    if (!allow) return quoteCatalogServices;
+    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
+  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+
+  const quoteCategoryOptionsForPartner = useMemo(() => {
+    const partnerCatIds = getPartnerAvailableCategoryIdSet(
+      selectedPartnerCatalogRecord
+    );
+    const catIdsFromProviding = getPartnerCategoryIdsFromProviding(
+      selectedPartnerCatalogRecord
+    );
+    const catIdsFromServices = new Set(
+      quoteCatalogServicesForPartner
+        .map((o) => normalizeServiceCategoryRef(o.category_id))
+        .filter(Boolean)
+    );
+    catIdsFromProviding.forEach((id) => {
+      catIdsFromServices.add(id);
+    });
+    let base =
+      catIdsFromServices.size === 0
+        ? quoteCategoryOptions
+        : quoteCategoryOptions.filter((c) =>
+            catIdsFromServices.has(String(c.value))
+          );
+    if (partnerCatIds && partnerCatIds.size > 0) {
+      const narrowed = base.filter((c) => partnerCatIds.has(String(c.value)));
+      if (narrowed.length > 0) {
+        base = narrowed;
+      }
+    }
+    return base;
+  }, [
+    quoteCategoryOptions,
+    quoteCatalogServicesForPartner,
+    selectedPartnerCatalogRecord,
+  ]);
+
+  const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
+    const cid = String(createCategoryIdWatch ?? "").trim();
+    const quoteServiceOptionsForCategory = !cid
+      ? []
+      : quoteCatalogServicesForPartner.filter((o) => {
+          const ref = normalizeServiceCategoryRef(o.category_id);
+          return ref === cid;
+        });
+    const sid = String(createServiceIdWatch ?? "").trim();
+    const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
+    return {
+      quoteServiceOptionsForCategory,
+      scheduleMode: getQuoteScheduleModeFromServiceOption({
+        payment_type: opt?.payment_type,
+        label: opt?.label ?? "",
+      }),
+    };
+  }, [
+    createCategoryIdWatch,
+    createServiceIdWatch,
+    quoteCatalogServicesForPartner,
+  ]);
+
+  const createCatalogUserOptions = useMemo<OptionType[]>(
+    () =>
+      quoteCustomerRecords.map((c) => {
+        const value = String(c._id ?? c.id ?? "").trim();
+        const label = String(
+          c.name ?? c.user_name ?? c.phone_number ?? value
+        ).trim();
+        return { value, label: label || value };
+      }),
+    [quoteCustomerRecords]
+  );
+
+  const selectedCreateServiceOption = useMemo(
+    () =>
+      quoteServiceOptionsForCategory.find((o) => o.value === createOrderServiceId),
+    [quoteServiceOptionsForCategory, createOrderServiceId]
+  );
+
+  const isCreateOrderScheduleComplete = useMemo(() => {
+    if (!hasCreateOrderServiceSelected) return false;
+    const d = String(serviceItems[0]?.service_date ?? "").trim();
+    const dTo = String(getValues("service_date_to") ?? "").trim();
+    const tFrom = String(serviceItems[0]?.service_from_time ?? "").trim();
+    const tTo = String(serviceItems[0]?.service_to_time ?? "").trim();
+    if (scheduleMode === "range") {
+      return Boolean(d && dTo && tFrom && tTo);
+    }
+    return Boolean(d && tFrom && tTo);
+  }, [
+    hasCreateOrderServiceSelected,
+    scheduleMode,
+    serviceItems,
+    getValues,
+  ]);
+
+  const createOrderSchedulePricePreview = useMemo(() => {
+    if (!isCreateOrderScheduleComplete || !createOrderPartnerSelected) {
+      return null;
+    }
+    const sid = createOrderServiceId;
+    if (!sid) return null;
+    const row = getPartnerActiveServiceProvidingRow(
+      selectedPartnerCatalogRecord,
+      sid
+    );
+    const metrics = deriveQuoteScheduleMetrics({
+      scheduleMode,
+      requested_date: String(serviceItems[0]?.service_date ?? ""),
+      requested_date_to: String(getValues("service_date_to") ?? ""),
+      requested_time: "",
+      requested_time_from: String(serviceItems[0]?.service_from_time ?? ""),
+      requested_time_to: String(serviceItems[0]?.service_to_time ?? ""),
+    });
+    if (!metrics || !row) return null;
+    return buildQuoteSchedulePricePreview(
+      row,
+      metrics,
+      AppConstant.currencySymbol
+    );
+  }, [
+    isCreateOrderScheduleComplete,
+    createOrderPartnerSelected,
+    createOrderServiceId,
+    serviceItems,
+    getValues,
+    scheduleMode,
+    selectedPartnerCatalogRecord,
+  ]);
+
+  const createOrderScheduleTimeIntervals = useMemo(() => {
+    const raw = String(selectedCreateServiceOption?.payment_type ?? "").trim();
+    const key = extractMinDepositTypeKey(raw);
+    if (key === "per_hour") return 60;
+    if (key === "per_consultancy") return 30;
+    return 30;
+  }, [selectedCreateServiceOption?.payment_type]);
+
+  const createOrderEndTimeFilter = useCallback(
+    (time: Date) => {
+      const startStr = String(serviceItems[0]?.service_from_time ?? "").trim();
+      if (!startStr) return true;
+      const startM = minutesFromScheduleTimeStorage(startStr);
+      if (startM == null) return true;
+      const cand = time.getHours() * 60 + time.getMinutes();
+      return cand > startM;
+    },
+    [serviceItems]
+  );
+
+  const createOrderScheduleFromDateFilter = useCallback((date: Date) => {
+    return startOfLocalDay(date) >= startOfTodayLocal();
+  }, []);
+
+  const createOrderScheduleToDateFilter = useCallback(
+    (date: Date) => {
+      if (startOfLocalDay(date) < startOfTodayLocal()) return false;
+      const fromIso = String(serviceItems[0]?.service_date ?? "").trim();
+      if (!fromIso) return true;
+      const from = parseIsoDateOnly(fromIso);
+      if (!from) return true;
+      return startOfLocalDay(date) >= startOfLocalDay(from);
+    },
+    [serviceItems]
+  );
 
   const fetchCategoryFromApi = async (cityId: string) => {
     if (fetchRef.current) return;
@@ -324,14 +2048,41 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   useEffect(() => {
     if (isEditable) return;
-    void (async () => {
-      const categoryOptions = await fetchCategoryDropDown();
-      setCategory(categoryOptions);
-    })();
     setValue("comments", "");
     setValue("offer_id", "");
     setValue("customer_user_id", "");
     setValue("city_id", "");
+    setValue("franchise_id", "");
+    setValue("requested_partner", "");
+    setValue("requested_services", "");
+    setValue("category_id", "");
+    setValue("create_service_price", "");
+    setSelectedCategory("");
+    setSelectedUser(undefined);
+    setServiceItems([
+      {
+        service_id: "",
+        service_price: 0,
+        partner_id: "",
+        service_address: "",
+        service_date: "",
+        service_from_time: "",
+        service_to_time: "",
+        sub_total: 0,
+        tax: 0,
+        user_paltform_fee: 0,
+        partner_commison_platform_fee: 0,
+        partner_earning: 0,
+        total_price: 0,
+        admin_earning: 0,
+      } as OrderItemModel,
+    ]);
+    if (isSuperAdminOrStaff) {
+      void fetchFranchiseDropDown().then(setFranchiseOptionsForOrder);
+    } else {
+      const fid = String(sessionFranchiseIdForOrderCatalog ?? "").trim();
+      if (fid) void loadOrderCatalogForFranchise(fid);
+    }
     setCreatePaymentExt({
       v: 1,
       serviceAmount: 0,
@@ -353,6 +2104,185 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- create-mode field reset; setValue is stable from react-hook-form
   }, [isEditable]);
+
+  useEffect(() => {
+    return () => {
+      setQuoteFranchiseCatalogSnapshot(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isEditable) return;
+    const opts = catalogPartnerRecords.map((p) => {
+      const value = String(
+        p.partner_id ?? p._id ?? p.user_id ?? p.id ?? ""
+      ).trim();
+      const label = String(
+        p.partner_name ?? p.name ?? p.user_name ?? value
+      ).trim();
+      return { value, label: label || value };
+    });
+    setQuotePartnerOptions(opts.filter((o) => o.value));
+  }, [catalogPartnerRecords, isEditable]);
+
+  useEffect(() => {
+    if (isEditable) return;
+    setCustomerUserOptions(createCatalogUserOptions);
+  }, [createCatalogUserOptions, isEditable]);
+
+  useEffect(() => {
+    if (isEditable) return;
+    const uid = String(createCustomerIdWatch ?? "").trim();
+    if (!uid) {
+      setSelectedUser(undefined);
+      return;
+    }
+    const c =
+      quoteCustomerRecords.find(
+        (r) => String(r._id ?? r.id ?? "").trim() === uid
+      ) ?? null;
+    if (!c) {
+      setSelectedUser(undefined);
+      return;
+    }
+    setSelectedUser({
+      _id: uid,
+      user_id: String(c.user_id ?? c.user_unique_id ?? "").trim(),
+      name: String(c.name ?? c.user_name ?? "").trim(),
+      email: String(c.email ?? "").trim(),
+      phone_number: String(c.phone_number ?? c.contact ?? "").trim(),
+      city_id: String(c.city_id ?? "").trim(),
+      address: String(c.address ?? "").trim(),
+    } as UserModel);
+  }, [createCustomerIdWatch, quoteCustomerRecords, isEditable]);
+
+  const calculateCreateServiceDetails = useCallback(
+    (servicePrice: number) => {
+      if (!taxDetails) {
+        return {
+          tax: 0,
+          sub_total: 0,
+          user_paltform_fee: 0,
+          total_price: 0,
+          partner_commison_platform_fee: 0,
+          partner_earning: 0,
+          admin_earning: 0,
+        };
+      }
+      const tax = servicePrice * (taxDetails.tax_for_customer / 100);
+      const subTotal = servicePrice - tax;
+      const userPlatformFee =
+        servicePrice * (taxDetails.user_platform_fee / 100);
+      const totalPrice = servicePrice + userPlatformFee;
+      const partnerCommissionPlatformFee =
+        servicePrice *
+        ((taxDetails.partner_commision_fee + taxDetails.partner_platform_fee) /
+          100);
+      const partnerEarning = subTotal - partnerCommissionPlatformFee;
+      const adminEarning = userPlatformFee + partnerCommissionPlatformFee;
+      return {
+        tax: Math.round(tax),
+        sub_total: Math.round(subTotal),
+        user_paltform_fee: Math.round(userPlatformFee),
+        total_price: Math.round(totalPrice),
+        partner_commison_platform_fee: Math.round(partnerCommissionPlatformFee),
+        partner_earning: Math.round(partnerEarning),
+        admin_earning: Math.round(adminEarning),
+      };
+    },
+    [taxDetails]
+  );
+
+  useEffect(() => {
+    if (isEditable || !taxDetails) return;
+    const partnerId = String(createPartnerIdWatch ?? "").trim();
+    const serviceId = String(createServiceIdWatch ?? "").trim();
+    const raw = String(createServicePriceWatch ?? "").trim().replace(/,/g, "");
+    const servicePrice =
+      raw === "" || raw === "."
+        ? 0
+        : Number.isFinite(Number.parseFloat(raw))
+        ? Number.parseFloat(raw)
+        : 0;
+    const addrRow = createOrderAddressUi.rows.find(
+      (r) => r.id === createOrderAddressId
+    );
+    const addrLine = addrRow
+      ? formatQuoteAddressRowAsServiceLine(addrRow)
+      : "";
+    setSelectedCategory(String(createCategoryIdWatch ?? ""));
+    setServiceItems((prev) => {
+      const base: OrderItemModel =
+        prev[0] ??
+        ({
+          service_id: "",
+          service_price: 0,
+          partner_id: "",
+          service_address: "",
+          service_date: "",
+          service_from_time: "",
+          service_to_time: "",
+          sub_total: 0,
+          tax: 0,
+          user_paltform_fee: 0,
+          partner_commison_platform_fee: 0,
+          partner_earning: 0,
+          total_price: 0,
+          admin_earning: 0,
+        } as OrderItemModel);
+      const next0 = {
+        ...base,
+        partner_id: partnerId,
+        service_id: serviceId,
+        service_price: servicePrice,
+        service_address: addrLine,
+        ...calculateCreateServiceDetails(servicePrice),
+      };
+      return prev.length ? [next0, ...prev.slice(1)] : [next0];
+    });
+  }, [
+    isEditable,
+    taxDetails,
+    createPartnerIdWatch,
+    createServiceIdWatch,
+    createCategoryIdWatch,
+    createServicePriceWatch,
+    createOrderAddressId,
+    createOrderAddressUi.rows,
+    calculateCreateServiceDetails,
+  ]);
+
+  useEffect(() => {
+    if (isEditable) return;
+    if (!isCreateOrderScheduleComplete || !createOrderPartnerSelected) return;
+    const sid = createOrderServiceId;
+    if (!sid) return;
+    const row = getPartnerActiveServiceProvidingRow(
+      selectedPartnerCatalogRecord,
+      sid
+    );
+    const metrics = deriveQuoteScheduleMetrics({
+      scheduleMode,
+      requested_date: String(serviceItems[0]?.service_date ?? ""),
+      requested_date_to: String(getValues("service_date_to") ?? ""),
+      requested_time: "",
+      requested_time_from: String(serviceItems[0]?.service_from_time ?? ""),
+      requested_time_to: String(serviceItems[0]?.service_to_time ?? ""),
+    });
+    if (!metrics) return;
+    const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
+    setValue("create_service_price", String(n), { shouldValidate: false });
+  }, [
+    isEditable,
+    isCreateOrderScheduleComplete,
+    createOrderPartnerSelected,
+    createOrderServiceId,
+    serviceItems,
+    getValues,
+    scheduleMode,
+    selectedPartnerCatalogRecord,
+    setValue,
+  ]);
 
   useEffect(() => {
     const offers = getOffers().filter(
@@ -600,9 +2530,17 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   const patchCreateScheduleField = useCallback(
     (
-      field: "service_date" | "service_from_time" | "service_to_time",
+      field:
+        | "service_date"
+        | "service_date_to"
+        | "service_from_time"
+        | "service_to_time",
       value: string
     ) => {
+      if (field === "service_date_to") {
+        setValue("service_date_to", value, { shouldValidate: true });
+        return;
+      }
       setServiceItems((prev) => {
         const base: OrderItemModel =
           prev[0] ??
@@ -633,6 +2571,24 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     [setValue]
   );
 
+  const handleCreateOrderFranchiseChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextId = String(e.target.value ?? "").trim();
+      setValue("franchise_id", e.target.value, { shouldValidate: true });
+      resetCreateOrderCatalogSelections();
+      lastOrderCatalogFranchiseIdRef.current = "";
+      if (isSuperAdminOrStaff && nextId) {
+        void loadOrderCatalogForFranchise(nextId, { force: true });
+      }
+    },
+    [
+      isSuperAdminOrStaff,
+      loadOrderCatalogForFranchise,
+      resetCreateOrderCatalogSelections,
+      setValue,
+    ]
+  );
+
   const taxPctLabel = taxDetails ? Number(taxDetails.tax_for_customer) || 0 : 0;
   const commissionPctLabel = taxDetails
     ? (Number(taxDetails.partner_commision_fee) || 0) +
@@ -641,11 +2597,88 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   const onSubmitEvent = async (data: any) => {
     if (!isEditable) {
-      const addrText = serializeServiceAddressCards(
-        serviceItems[0]?.address_cards
+      const franchiseId = resolveFranchiseIdForQuoteForm(data.franchise_id);
+      if (
+        !franchiseId &&
+        (currentUserRole === UserRole.FRANCHISE_ADMIN ||
+          currentUserRole === UserRole.EMPLOYEE)
+      ) {
+        showErrorAlert("Franchise is not set for this session.");
+        return;
+      }
+      if (!franchiseId && isSuperAdminOrStaff) {
+        showErrorAlert("Please select a franchise.");
+        return;
+      }
+      if (String(data.customer_user_id ?? "").trim() && !createOrderAddressUi.ready) {
+        showErrorAlert(
+          "Still loading address options for this franchise. Please wait a moment."
+        );
+        return;
+      }
+      if (createOrderAddressUi.error) {
+        showErrorAlert(createOrderAddressUi.error);
+        return;
+      }
+      if (!createOrderAddressId.trim()) {
+        if (!createOrderAddressUi.rows.length) {
+          showErrorAlert(
+            "No saved address on file for this customer. Add an address to the user profile before creating an order."
+          );
+        } else {
+          showErrorAlert(
+            "Select a customer address for this order. Addresses outside this franchise's service area cannot be used."
+          );
+        }
+        return;
+      }
+      if (!String(data.requested_partner ?? "").trim()) {
+        showErrorAlert("Please select a partner before category and service.");
+        return;
+      }
+      if (!String(data.requested_services ?? "").trim()) {
+        showErrorAlert("Please select a service.");
+        return;
+      }
+      const price = Number.parseFloat(
+        String(data.create_service_price ?? "").trim()
       );
-      if (!addrText.trim()) {
-        showErrorAlert("Please add at least one service address with details.");
+      if (Number.isNaN(price) || price <= 0) {
+        showErrorAlert("Enter a valid service price.");
+        return;
+      }
+      const schedDate = String(serviceItems[0]?.service_date ?? "").trim();
+      const schedTo = String(data.service_date_to ?? "").trim();
+      const tFrom = String(serviceItems[0]?.service_from_time ?? "").trim();
+      const tTo = String(serviceItems[0]?.service_to_time ?? "").trim();
+      if (scheduleMode === "range") {
+        if (!schedDate || !schedTo || !tFrom || !tTo) {
+          showErrorAlert("Please complete the schedule (dates and times).");
+          return;
+        }
+      } else if (!schedDate || !tFrom || !tTo) {
+        showErrorAlert("Please complete the schedule (date and times).");
+        return;
+      }
+      if (!isCalendarDateNotBeforeToday(schedDate)) {
+        showErrorAlert("Schedule date must be today or a future date.");
+        return;
+      }
+      if (scheduleMode === "range" && !isCalendarDateNotBeforeToday(schedTo)) {
+        showErrorAlert("End date must be today or a future date.");
+        return;
+      }
+      if (scheduleMode === "range") {
+        const cmp = compareIsoDateOnlyAsc(schedDate, schedTo);
+        if (cmp != null && cmp > 0) {
+          showErrorAlert("End date must be on or after the start date.");
+          return;
+        }
+      }
+      if (!isScheduleEndAfterStartSameDay(tFrom, tTo)) {
+        showErrorAlert(
+          "End time must be after start time on the same day (use a later time, not earlier in the morning than the start)."
+        );
         return;
       }
     }
@@ -751,7 +2784,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   return (
     <>
-      <Modal show={true} onHide={onClose} centered>
+      <Modal
+        show={true}
+        onHide={onClose}
+        {...(isEditable ? { centered: true } : QUOTE_MODAL_LAYOUT)}
+        enforceFocus={false}
+      >
         <div className="custom-order-model-detail">
           <Modal.Header className="py-3 px-4 border-bottom-0">
             <Modal.Title as="h5" className="custom-modal-title">
@@ -760,12 +2798,17 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             <CustomCloseButton onClose={onClose} />
           </Modal.Header>
           <Modal.Body
-            className="px-4 pb-4 pt-0"
-            style={{
-              maxHeight: "70vh",
-              overflowY: "auto",
-              fontSize: !isEditable ? FONT_BODY : undefined,
-            }}
+            className={
+              isEditable ? "px-4 pb-4 pt-0" : "add-quote-modal-body pt-0"
+            }
+            style={
+              isEditable
+                ? {
+                    maxHeight: "70vh",
+                    overflowY: "auto",
+                  }
+                : undefined
+            }
           >
             <form
               noValidate
@@ -773,212 +2816,580 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
               id="order-form"
               onSubmit={handleSubmit(onSubmitEvent)}
             >
-              {!isEditable ? (
+                            {!isEditable ? (
                 <>
-                  <section
-                    className="custom-other-details mt-2"
-                    style={sectionShell}
-                  >
-                    <Row className="align-items-center mb-3 pb-2 border-bottom">
-                      <Col>
-                        <h3 className="mb-0">Order information</h3>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col xs={12} md={4} className="mt-2">
-                        <CustomTextFieldSelect
-                          label="User"
-                          controlId="User"
-                          options={customerUserOptions}
-                          register={register}
-                          fieldName="customer_user_id"
-                          error={errors.customer_user_id}
-                          requiredMessage="Please select user"
-                          defaultValue={getValues("customer_user_id")}
-                          setValue={
-                            setValue as (name: string, value: any) => void
-                          }
-                          onChange={(e) => {
-                            const id = e.target.value;
-                            const u = customerUsers.find((cu) => cu._id === id);
-                            setSelectedUser(u);
-                            setValue(
-                              "user_phone_number",
-                              nationalDigitsWithoutIndia91(u?.phone_number ?? "")
-                            );
-                            if (u?.city_id) {
-                              setValue("city_id", u.city_id);
-                              void fetchCategoryFromApi(u.city_id);
-                            } else {
-                              setValue("city_id", "");
+                  <section className="custom-other-details add-quote-form-section">
+                    <div>
+                      <Row className="gy-3 gx-md-4 align-items-start">
+                        {isSuperAdminOrStaff ? (
+                          <Col xs={12} md={6}>
+                            <Row className="align-items-start">
+                              <Col sm={4} className="d-flex align-items-start">
+                                <label
+                                  htmlFor="create-order-franchise"
+                                  className="custom-profile-lable"
+                                >
+                                  Franchise
+                                </label>
+                              </Col>
+                              <Col>
+                                <Form.Select
+                                  id="create-order-franchise"
+                                  className="form-select custom-form-input"
+                                  value={String(createFranchiseIdWatch ?? "")}
+                                  onChange={handleCreateOrderFranchiseChange}
+                                  style={{
+                                    boxShadow: "none",
+                                    borderRadius: "8px",
+                                    borderColor: "var(--primary-color)",
+                                    fontSize: "14px",
+                                    fontWeight: "normal",
+                                    width: "100%",
+                                    height: "35px",
+                                    lineHeight: "18px",
+                                    backgroundColor: "var(--bg-color)",
+                                    fontFamily: "'Inter'",
+                                    color: "var(--content-txt-color)",
+                                  }}
+                                >
+                                  <option value="">Select franchise…</option>
+                                  {franchiseOptionsForOrder.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </Form.Select>
+                              </Col>
+                            </Row>
+                          </Col>
+                        ) : null}
+                        <Col xs={12} md={6}>
+                          <CustomTextFieldSelect
+                            label="User Name"
+                            controlId="create-order-user"
+                            asCol={false}
+                            options={createCatalogUserOptions}
+                            register={register}
+                            fieldName="customer_user_id"
+                            error={errors.customer_user_id}
+                            requiredMessage="Please select a user"
+                            defaultValue={getValues("customer_user_id")}
+                            setValue={
+                              setValue as (name: string, value: any) => void
                             }
-                          }}
-                          menuPortal
-                        />
-                      </Col>
-                      <Col xs={12} md={4} className="mt-2">
-                        <CustomTextFieldSelect
-                          label="Category"
-                          controlId="Category"
-                          options={categories}
-                          register={register}
-                          fieldName="category_id"
-                          error={errors.category_id}
-                          requiredMessage="Please select category"
-                          defaultValue={getValues("category_id")}
-                          setValue={
-                            setValue as (name: string, value: any) => void
-                          }
-                          onChange={(e) => setSelectedCategory(e.target.value)}
-                          menuPortal
-                        />
-                      </Col>
-                      <Col xs={12} md={4} className="mt-2">
-                        <CustomTextFieldSelect
-                          label="Employee"
-                          controlId="Employee"
-                          options={employeeOptions}
-                          register={register}
-                          fieldName="created_by_id"
-                          error={errors.created_by_id}
-                          requiredMessage={
-                            employeeOptions.length > 0
-                              ? "Please select employee"
-                              : undefined
-                          }
-                          defaultValue={
-                            getLocalStorage(AppConstant.createdById) ?? ""
-                          }
-                          setValue={
-                            setValue as (name: string, value: any) => void
-                          }
-                          menuPortal
-                        />
-                      </Col>
-                    </Row>
-                    {taxDetails && (
-                      <ServiceItemForm
-                        taxDetails={taxDetails}
-                        categoryId={selectedCategory}
-                        onChange={setServiceItems}
-                        register={register}
-                        setValue={setValue}
-                        getValues={getValues}
-                        errors={errors}
-                        compact
-                        embedded
-                        singleServiceOnly
-                        omitSchedule
-                        useAddressCards
-                        scheduleMirror={serviceItems}
-                        addressStateOptions={addressStateOptions}
-                        addressCityRows={addressCityRows}
-                        unregister={unregister}
-                        serviceAddressSeedUser={selectedUser}
-                      />
-                    )}
-                    <Row className="align-items-end"></Row>
+                            placeholder="Search user"
+                            menuPortal
+                            isClearable
+                            isDisabled={createOrderFieldsLocked}
+                          />
+                        </Col>
+                        {!isSuperAdminOrStaff ? (
+                          <Col xs={12} md={6}>
+                            <CustomTextFieldSelect
+                              label="Employee"
+                              controlId="create-order-employee"
+                              asCol={false}
+                              options={quoteEmployeeOptions}
+                              register={register}
+                              fieldName="created_by_id"
+                              error={errors.created_by_id}
+                              defaultValue={getValues("created_by_id")}
+                              setValue={
+                                setValue as (name: string, value: any) => void
+                              }
+                              placeholder="Select employee"
+                              menuPortal
+                              isClearable
+                              isDisabled={createOrderFieldsLocked}
+                            />
+                          </Col>
+                        ) : null}
+                      </Row>
+
+                      {String(createCustomerIdWatch ?? "").trim() ? (
+                        <Row className="mt-4">
+                          <Col xs={12}>
+                            <label
+                              className="custom-profile-lable d-block"
+                              style={{ fontWeight: 600, marginBottom: "1.125rem" }}
+                            >
+                              Customer addresses
+                            </label>
+                            {!createOrderAddressUi.ready ? (
+                              <div className="small text-muted">
+                                Loading address options…
+                              </div>
+                            ) : (
+                              <>
+                                {createOrderAddressUi.error ? (
+                                  <div className="small text-danger mb-2">
+                                    {createOrderAddressUi.error}
+                                  </div>
+                                ) : null}
+                                {createOrderAddressUi.rows.length ? (
+                                  <div className="add-quote-address-cards-grid mb-5">
+                                    {createOrderAddressUi.rows.map((row) => {
+                                      const selected =
+                                        createOrderAddressId === row.id &&
+                                        row.selectable;
+                                      const areaMode =
+                                        franchiseQuoteAreaIdSet.size > 0;
+                                      const addressFallback =
+                                        !row.stateName &&
+                                        !row.cityName &&
+                                        !row.areaName &&
+                                        !row.streetAddress
+                                          ? row.summary
+                                          : "";
+                                      const pairCandidates: [string, string][] =
+                                        [
+                                          ["State", row.stateName],
+                                          ["City", row.cityName],
+                                          ["Area", row.areaName],
+                                          [
+                                            "Address",
+                                            row.streetAddress || addressFallback,
+                                          ],
+                                          ["Landmark", row.landmark],
+                                          ["Pin code", row.pincode],
+                                        ];
+                                      const pairs = pairCandidates.filter(
+                                        (p): p is [string, string] =>
+                                          Boolean(String(p[1] ?? "").trim())
+                                      );
+                                      return (
+                                        <div
+                                          key={row.id}
+                                          className={`add-quote-address-card-wrap p-2 ${
+                                            !row.selectable
+                                              ? "add-quote-address-card-wrap--muted"
+                                              : ""
+                                          }`}
+                                          style={{
+                                            border: selected
+                                              ? "2px solid var(--primary-color)"
+                                              : `1px solid ${
+                                                  row.selectable
+                                                    ? "rgba(0, 0, 0, 0.1)"
+                                                    : "rgba(0, 0, 0, 0.08)"
+                                                }`,
+                                            backgroundColor: row.selectable
+                                              ? "var(--bg-color)"
+                                              : "rgba(0, 0, 0, 0.02)",
+                                            boxShadow: selected
+                                              ? "0 10px 28px rgba(0, 0, 0, 0.09)"
+                                              : "0 2px 12px rgba(0, 0, 0, 0.05)",
+                                            transform: selected
+                                              ? "translateY(-2px)"
+                                              : undefined,
+                                          }}
+                                        >
+                                          <Form.Check
+                                            type="radio"
+                                            name="create-order-address"
+                                            id={`create-order-addr-${row.id}`}
+                                            disabled={!row.selectable}
+                                            checked={
+                                              createOrderAddressId === row.id &&
+                                              row.selectable
+                                            }
+                                            onChange={() => {
+                                              if (row.selectable) {
+                                                setCreateOrderAddressId(row.id);
+                                              }
+                                            }}
+                                            className="add-quote-address-card-check"
+                                            label={
+                                              <div className="add-quote-address-card-inner">
+                                                <div className="add-quote-address-card-header">
+                                                  <span className="add-quote-address-card-name">
+                                                    {row.contactName}
+                                                  </span>
+                                                  <span
+                                                    className={`add-quote-address-card-badge ${
+                                                      row.selectable
+                                                        ? "add-quote-address-card-badge--ok"
+                                                        : "add-quote-address-card-badge--no"
+                                                    }`}
+                                                  >
+                                                    {row.selectable
+                                                      ? "Available"
+                                                      : areaMode
+                                                      ? "Outside area"
+                                                      : "Not in service list"}
+                                                  </span>
+                                                </div>
+                                                <div className="add-quote-address-card-grid">
+                                                  {pairs.map(([lbl, val]) => (
+                                                    <div key={lbl}>
+                                                      <span className="add-quote-address-card-grid-label">
+                                                        {lbl}
+                                                      </span>
+                                                      <span className="add-quote-address-card-grid-value">
+                                                        {val}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                                {!row.selectable ? (
+                                                  <div className="add-quote-address-card-footnote">
+                                                    {areaMode
+                                                      ? "Outside this franchise's service areas."
+                                                      : "Postcode not in this franchise's service list."}
+                                                  </div>
+                                                ) : null}
+                                              </div>
+                                            }
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="small text-warning">
+                                    No saved address on file for this customer.
+                                    Add an address to the user profile before
+                                    creating an order.
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </Col>
+                        </Row>
+                      ) : null}
+
+                      <Row className="gy-3 gx-md-4 align-items-start">
+                        {isSuperAdminOrStaff ? (
+                          <Col xs={12} md={6}>
+                            <CustomTextFieldSelect
+                              label="Employee"
+                              controlId="create-order-employee-sa"
+                              asCol={false}
+                              options={quoteEmployeeOptions}
+                              register={register}
+                              fieldName="created_by_id"
+                              error={errors.created_by_id}
+                              defaultValue={getValues("created_by_id")}
+                              setValue={
+                                setValue as (name: string, value: any) => void
+                              }
+                              placeholder="Select employee"
+                              menuPortal
+                              isClearable
+                              isDisabled={createOrderFieldsLocked}
+                            />
+                          </Col>
+                        ) : null}
+                        <Col xs={12} md={6}>
+                          <CustomTextFieldSelect
+                            label="Requested Partner"
+                            controlId="create-order-partner"
+                            asCol={false}
+                            options={quotePartnerOptions}
+                            register={register}
+                            fieldName="requested_partner"
+                            error={errors.requested_partner}
+                            requiredMessage="Please select a partner"
+                            defaultValue={getValues("requested_partner")}
+                            setValue={(name: string, value: any) => {
+                              setValue(name, value, { shouldValidate: true });
+                              if (name === "requested_partner") {
+                                setValue("category_id", "");
+                                setValue("requested_services", "");
+                                patchCreateScheduleField("service_date", "");
+                                patchCreateScheduleField("service_date_to", "");
+                                patchCreateScheduleField("service_from_time", "");
+                                patchCreateScheduleField("service_to_time", "");
+                                setValue("create_service_price", "");
+                              }
+                            }}
+                            placeholder="Select partner"
+                            menuPortal
+                            isClearable
+                            isDisabled={createOrderFieldsLocked}
+                          />
+                        </Col>
+                        <Col xs={12} md={6}>
+                          <CustomTextFieldSelect
+                            label="Category"
+                            controlId="create-order-category"
+                            asCol={false}
+                            options={quoteCategoryOptionsForPartner}
+                            register={register}
+                            fieldName="category_id"
+                            error={errors.category_id}
+                            requiredMessage="Please select a category"
+                            defaultValue={getValues("category_id")}
+                            isClearable
+                            setValue={(name: string, value: any) => {
+                              setValue(name, value, { shouldValidate: true });
+                              if (name === "category_id") {
+                                setValue("requested_services", "");
+                                patchCreateScheduleField("service_date", "");
+                                patchCreateScheduleField("service_date_to", "");
+                                patchCreateScheduleField("service_from_time", "");
+                                patchCreateScheduleField("service_to_time", "");
+                                setValue("create_service_price", "");
+                              }
+                            }}
+                            placeholder={
+                              createOrderPartnerSelected
+                                ? "Select category"
+                                : "Select partner first"
+                            }
+                            menuPortal
+                            isDisabled={
+                              createOrderFieldsLocked ||
+                              !createOrderPartnerSelected
+                            }
+                          />
+                        </Col>
+                        <Col xs={12} md={6}>
+                          <CustomTextFieldSelect
+                            key={`create-order-svc-${createCategoryIdWatch || "none"}`}
+                            label="Requested Services"
+                            controlId="create-order-service"
+                            asCol={false}
+                            options={quoteServiceOptionsForCategory}
+                            register={register}
+                            fieldName="requested_services"
+                            error={errors.requested_services}
+                            requiredMessage={
+                              createCategoryIdWatch && createOrderPartnerSelected
+                                ? "Please select a service"
+                                : undefined
+                            }
+                            defaultValue={getValues("requested_services")}
+                            setValue={(name: string, value: any) => {
+                              setValue(name, value, { shouldValidate: true });
+                              if (name === "requested_services") {
+                                patchCreateScheduleField("service_date", "");
+                                patchCreateScheduleField("service_date_to", "");
+                                patchCreateScheduleField("service_from_time", "");
+                                patchCreateScheduleField("service_to_time", "");
+                                setValue("create_service_price", "");
+                              }
+                            }}
+                            placeholder={
+                              !createOrderPartnerSelected
+                                ? "Select partner first"
+                                : !String(createCategoryIdWatch ?? "").trim()
+                                ? "Select category first"
+                                : "Select service"
+                            }
+                            menuPortal
+                            isClearable
+                            isDisabled={
+                              createOrderFieldsLocked ||
+                              !createOrderPartnerSelected ||
+                              !String(createCategoryIdWatch ?? "").trim()
+                            }
+                          />
+                        </Col>
+                      </Row>
+
+                      {hasCreateOrderServiceSelected ? (
+                        <>
+                          <Row className="mt-4 mb-2">
+                            <Col xs={12}>
+                              <label
+                                style={{
+                                  fontSize: "17px",
+                                  fontWeight: "600",
+                                  color: "var(--primary-color)",
+                                }}
+                                className="d-block mb-0"
+                              >
+                                Schedule
+                              </label>
+                            </Col>
+                          </Row>
+                          <div className="add-quote-schedule-panel">
+                            <Row className="gy-3 gx-md-4">
+                              {scheduleMode === "range" ? (
+                                <>
+                                  <Col xs={12} md={3}>
+                                    <CustomTextFieldDatePicket
+                                      label="From date"
+                                      controlId="create-order-from-date"
+                                      selectedDate={
+                                        serviceItems[0]?.service_date || null
+                                      }
+                                      onChange={(date) => {
+                                        patchCreateScheduleField(
+                                          "service_date",
+                                          toIsoCalendarDate(date) ?? ""
+                                        );
+                                      }}
+                                      register={register}
+                                      setValue={setValue}
+                                      asCol={false}
+                                      labelSize={12}
+                                      placeholderText="From date"
+                                      filterDate={createOrderScheduleFromDateFilter}
+                                    />
+                                  </Col>
+                                  <Col xs={12} md={3}>
+                                    <CustomTextFieldDatePicket
+                                      label="To date"
+                                      controlId="create-order-to-date"
+                                      selectedDate={
+                                        getValues("service_date_to") || null
+                                      }
+                                      onChange={(date) => {
+                                        patchCreateScheduleField(
+                                          "service_date_to",
+                                          toIsoCalendarDate(date) ?? ""
+                                        );
+                                      }}
+                                      register={register}
+                                      setValue={setValue}
+                                      asCol={false}
+                                      labelSize={12}
+                                      placeholderText="To date"
+                                      filterDate={createOrderScheduleToDateFilter}
+                                    />
+                                  </Col>
+                                </>
+                              ) : (
+                                <Col xs={12} md={3}>
+                                  <CustomTextFieldDatePicket
+                                    label="Date"
+                                    controlId="create-order-date"
+                                    selectedDate={
+                                      serviceItems[0]?.service_date || null
+                                    }
+                                    onChange={(date) => {
+                                      patchCreateScheduleField(
+                                        "service_date",
+                                        toIsoCalendarDate(date) ?? ""
+                                      );
+                                    }}
+                                    register={register}
+                                    setValue={setValue}
+                                    asCol={false}
+                                    labelSize={12}
+                                    placeholderText="Date"
+                                    filterDate={createOrderScheduleFromDateFilter}
+                                  />
+                                </Col>
+                              )}
+                              <Col xs={12} md={3}>
+                                <CustomTextFieldTimePicket
+                                  label="Start time"
+                                  controlId="create-order-time-from"
+                                  selectedTime={
+                                    serviceItems[0]?.service_from_time || null
+                                  }
+                                  onChange={(date) => {
+                                    const next = date
+                                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
+                                      : "";
+                                    patchCreateScheduleField(
+                                      "service_from_time",
+                                      next
+                                    );
+                                  }}
+                                  register={register}
+                                  setValue={setValue}
+                                  asCol={false}
+                                  labelSize={12}
+                                  placeholderText="Start time"
+                                  filterTime={quoteScheduleTimePickerAllowAllHours}
+                                  timeIntervals={createOrderScheduleTimeIntervals}
+                                />
+                              </Col>
+                              <Col xs={12} md={3}>
+                                <CustomTextFieldTimePicket
+                                  label="End time"
+                                  controlId="create-order-time-to"
+                                  selectedTime={
+                                    serviceItems[0]?.service_to_time || null
+                                  }
+                                  onChange={(date) => {
+                                    const next = date
+                                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
+                                      : "";
+                                    patchCreateScheduleField(
+                                      "service_to_time",
+                                      next
+                                    );
+                                  }}
+                                  register={register}
+                                  setValue={setValue}
+                                  asCol={false}
+                                  labelSize={12}
+                                  placeholderText="End time"
+                                  filterTime={createOrderEndTimeFilter}
+                                  timeIntervals={createOrderScheduleTimeIntervals}
+                                />
+                              </Col>
+                            </Row>
+                            {createOrderSchedulePricePreview ? (
+                              <div className="add-quote-schedule-preview">
+                                <span className="add-quote-schedule-preview-badge">
+                                  {createOrderSchedulePricePreview.billingLabel}
+                                </span>
+                                <div className="add-quote-schedule-preview-line">
+                                  {createOrderSchedulePricePreview.primaryLine}
+                                </div>
+                                {createOrderSchedulePricePreview.secondaryLine ? (
+                                  <div className="add-quote-schedule-preview-sub">
+                                    {
+                                      createOrderSchedulePricePreview.secondaryLine
+                                    }
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                          {isCreateOrderScheduleComplete ? (
+                            <div className="add-quote-price-section mt-4 pt-3 border-top">
+                              <Row className="g-3 align-items-start mb-0">
+                                <Col xs={12} md={6} lg={5}>
+                                  <Form.Group controlId="create_service_price">
+                                    <Form.Label className="fw-medium mb-1">
+                                      Service Price
+                                    </Form.Label>
+                                    <InputGroup>
+                                      <InputGroup.Text
+                                        className="custom-form-input text-muted"
+                                        style={{
+                                          ...partnerCatalogControlStyle,
+                                          borderTopRightRadius: 0,
+                                          borderBottomRightRadius: 0,
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {AppConstant.currencySymbol}
+                                      </InputGroup.Text>
+                                      <Form.Control
+                                        type="text"
+                                        inputMode="decimal"
+                                        disabled={createOrderFieldsLocked}
+                                        className="custom-form-input border-start-0"
+                                        style={{
+                                          ...partnerCatalogControlStyle,
+                                          borderLeft: 0,
+                                          borderTopLeftRadius: 0,
+                                          borderBottomLeftRadius: 0,
+                                        }}
+                                        placeholder="e.g. 499"
+                                        {...register("create_service_price")}
+                                      />
+                                    </InputGroup>
+                                  </Form.Group>
+                                </Col>
+                              </Row>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
                   </section>
 
-                  {taxDetails ? (
-                    <section
-                      className="custom-other-details mt-3"
-                      style={sectionShell}
-                    >
-                      <Row className="align-items-center mb-3 pb-2 border-bottom">
-                        <Col>
-                          <h3 className="mb-0">Scheduled Date/Time</h3>
-                        </Col>
-                      </Row>
-                      <Row className="mt-1">
-                        <Col xs={12} md={4}>
-                          <CustomTextFieldDatePicket
-                            label="Service Date"
-                            controlId="serviceItems.0.service_date"
-                            selectedDate={
-                              serviceItems[0]?.service_date ??
-                              getValues("serviceItems.0.service_date" as any)
-                            }
-                            onChange={(date) =>
-                              patchCreateScheduleField(
-                                "service_date",
-                                date?.toISOString() || ""
-                              )
-                            }
-                            placeholderText="Select Date"
-                            error={
-                              (errors as Record<string, any>)?.serviceItems?.[0]
-                                ?.service_date
-                            }
-                            register={register}
-                            validation={{
-                              required: "Service date is required",
-                            }}
-                            setValue={setValue}
-                          />
-                        </Col>
-                        <Col xs={12} md={4}>
-                          <CustomTextFieldTimePicket
-                            label="From Time"
-                            controlId="serviceItems.0.service_from_time"
-                            selectedTime={
-                              serviceItems[0]?.service_from_time ??
-                              getValues(
-                                "serviceItems.0.service_from_time" as any
-                              )
-                            }
-                            onChange={(date) =>
-                              patchCreateScheduleField(
-                                "service_from_time",
-                                date?.toISOString() || ""
-                              )
-                            }
-                            placeholderText="Select Time"
-                            error={
-                              (errors as Record<string, any>)?.serviceItems?.[0]
-                                ?.service_from_time
-                            }
-                            register={register}
-                            validation={{ required: "From time is required" }}
-                            setValue={setValue}
-                            filterTime={(time) => {
-                              const hour = time.getHours();
-                              return hour >= 8 && hour <= 23;
-                            }}
-                          />
-                        </Col>
-                        <Col xs={12} md={4}>
-                          <CustomTextFieldTimePicket
-                            label="To Time"
-                            controlId="serviceItems.0.service_to_time"
-                            selectedTime={
-                              serviceItems[0]?.service_to_time ??
-                              getValues("serviceItems.0.service_to_time" as any)
-                            }
-                            onChange={(date) =>
-                              patchCreateScheduleField(
-                                "service_to_time",
-                                date?.toISOString() || ""
-                              )
-                            }
-                            placeholderText="Select Time"
-                            error={
-                              (errors as Record<string, any>)?.serviceItems?.[0]
-                                ?.service_to_time
-                            }
-                            register={register}
-                            validation={{ required: "To time is required" }}
-                            setValue={setValue}
-                            filterTime={(time) => {
-                              const hour = time.getHours();
-                              return hour >= 8 && hour <= 23;
-                            }}
-                          />
-                        </Col>
-                      </Row>
-                    </section>
-                  ) : null}
-
+                  {hasCreateOrderServiceSelected &&
+                  isCreateOrderScheduleComplete ? (
                   <section
                     className="custom-other-details mt-3"
                     style={sectionShell}
@@ -1765,6 +4176,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                       </div>
                     </div>
                   </section>
+                  ) : null}
                 </>
               ) : (
                 <>

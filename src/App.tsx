@@ -7,7 +7,7 @@ import { useViewport } from "./lib/global/useViewPort";
 import { ROUTES } from "./routes/Routes";
 import { ToastContainer } from "react-toastify";
 import { requestPermission } from "./services/firebaseMessagingService";
-import { setNavigate } from "./helper/utility";
+import { setNavigate } from "./helper/navigation";
 import Sidebar from "./layout/Sidebar";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";

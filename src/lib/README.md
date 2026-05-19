@@ -21,8 +21,11 @@ Cross-cutting code only (no `constant/` or `helper/` subfolders anymore):
 | Folder | Contents (examples) |
 |--------|---------------------|
 | **`lib/dashboard/`** | `dashboardModel`, `dashboardService` |
-| **`lib/order/`** | `orderService`, `OrderModel`, `OrderItemModel`, `PaymentEnum`, `OrderStatusEnum`, order payment / PDF / display helpers |
-| **`lib/quote/`** | Quote UI logic, mappers, hooks |
+| **`lib/order/orderTypes.ts`** | `OrderModel`, `OrderItemModel`, `PaymentEnum`, `OrderStatusEnum` |
+| **`lib/order/orderHelpers.ts`** | Display, payment extension storage, preview helpers |
+| **`lib/order/orderService.ts`** | API re-exports, invoice PDF, `downloadInvoice` |
+| **`lib/quote/quoteHelpers.ts`** | Quote UI logic, mappers, hooks, pricing |
+| **`lib/quote/quoteAddressCore.ts`** | Pure address helpers (used by quoteService + quoteHelpers) |
 | **`lib/franchise/`** | `headerFranchisePreference`, `franchiseCatalog` |
 | **`lib/user/`** | `pincodeValidation`, `userFormValidation`, `userAddressPreview`, `ServiceStatusEnum` |
 | **`lib/partner/`** | `partnerVerification`, `partnerCategoryServiceView` |
@@ -35,4 +38,4 @@ API services (`userService`, `franchiseService`, …) currently live under **`sr
 
 ## Imports
 
-Use explicit paths, e.g. `../../lib/global/AppConstant`, `../../lib/layout/menuItems`, `../../lib/types/quoteTypes`, `../../lib/order/PaymentEnum`, `../../lib/franchise/headerFranchisePreference`.
+Use explicit paths, e.g. `../../lib/global/AppConstant`, `../../lib/layout/menuItems`, `../../lib/types/quoteTypes`, `../../lib/order/orderTypes`, `../../lib/franchise/headerFranchisePreference`.

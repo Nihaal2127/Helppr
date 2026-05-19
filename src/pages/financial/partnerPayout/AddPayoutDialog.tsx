@@ -8,6 +8,8 @@ import { openDialog } from "../../../lib/global/DialogManager";
 import { fetchUser } from "../../../services/userService";
 import { fetchAllFinancialRowsMatching } from "../../../services/financialService";
 import { submitPartnerWalletPayout } from "../../../services/partnerPayoutService";
+import { PARTNER_PAYOUT_PAYMENT_METHODS } from "../../../lib/financial/partnerPayoutPayment";
+import type { PartnerPayoutPaymentMethod } from "../../../lib/financial/partnerPayoutPayment";
 import { FinancialModel } from "../../../lib/models/FinancialModel";
 import { UserModel } from "../../../lib/models/UserModel";
 import { AppConstant } from "../../../lib/global/AppConstant";
@@ -28,9 +30,8 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   const [loadingPartners, setLoadingPartners] = useState(true);
   const [loadingPending, setLoadingPending] = useState(false);
   const [amount, setAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "razorpay">(
-    "cash"
-  );
+  const [paymentMethod, setPaymentMethod] =
+    useState<PartnerPayoutPaymentMethod>("cash");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -151,10 +152,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
     value: p._id,
     label: `${p.user_id ?? p._id}${p.name ? ` — ${p.name}` : ""}`,
   }));
-  const paymentMethodOptions = [
-    { value: "cash", label: "Cash" },
-    { value: "razorpay", label: "Razorpay" },
-  ];
+  const paymentMethodOptions = [...PARTNER_PAYOUT_PAYMENT_METHODS];
 
   return (
     <Modal show size="lg" onHide={onClose} centered scrollable>
@@ -322,7 +320,7 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                         menuPortal
                         onChange={(e) =>
                           setPaymentMethod(
-                            e.target.value as "cash" | "razorpay"
+                            e.target.value as PartnerPayoutPaymentMethod
                           )
                         }
                       />

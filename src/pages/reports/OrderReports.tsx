@@ -3,7 +3,7 @@ import { Row, Col, Button, Form } from "react-bootstrap";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { useForm, UseFormRegister } from "react-hook-form";
-import { OrderStatusEnum } from "../../lib/order/OrderStatusEnum";
+import { OrderStatusEnum } from "../../lib/order/orderTypes";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import { fetchUserDropDown } from "../../services/userService";
@@ -37,17 +37,19 @@ const QUOTE_STATUS_OPTIONS: OptionType[] = [
 const PARTNER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
   allOption,
   { value: "paid", label: "Paid" },
-  { value: "pending", label: "Pending" },
+  { value: "unpaid", label: "Unpaid" },
   { value: "partially_paid", label: "Partially paid" },
+  { value: "completed", label: "Completed" },
 ];
 
 const CUSTOMER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
   allOption,
   { value: "paid", label: "Paid" },
-  { value: "pending", label: "Pending" },
+  { value: "unpaid", label: "Unpaid" },
   { value: "partially_paid", label: "Partially paid" },
-  { value: "refunded", label: "Refunded" },
-  { value: "partially_refunded", label: "Partially refunded" },
+  { value: "refund", label: "Refund" },
+  { value: "partially_refund", label: "Partially Refund" },
+  { value: "completed", label: "Completed" },
 ];
 
 const OrderReportsPage = () => {

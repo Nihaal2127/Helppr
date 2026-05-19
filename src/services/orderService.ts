@@ -1,7 +1,7 @@
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
-import { OrderModel } from "../lib/order/OrderModel";
-import { showLog } from "../helper/utility";
+import { OrderModel } from "../lib/order/orderTypes";
+import { showLog } from "../helper/logger";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 

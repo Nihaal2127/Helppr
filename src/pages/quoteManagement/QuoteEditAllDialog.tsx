@@ -33,19 +33,18 @@ import {
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import type { AddQuoteFormValues, QuoteRow } from "../../lib/types/quoteTypes";
-import { setQuoteFranchiseCatalogSnapshot } from "../../lib/quote/quoteFranchiseCatalogStore";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
-} from "../../lib/quote/quoteFranchisePins";
-import { seedEditQuoteFormFromRow } from "../../lib/quote/quoteEditFormSeed";
-import type { EditQuoteFormValues } from "../../lib/quote/quoteEditFormSeed";
-import { useQuoteCustomerAddressPanel } from "../../lib/quote/useQuoteCustomerAddressPanel";
-import type { QuoteAddressRowUi } from "../../lib/quote/useQuoteCustomerAddressPanel";
-import { computeQuotePriceBreakdown } from "../../lib/quote/quotePriceBreakdown";
+  computeQuotePriceBreakdown,
+  QUOTE_MODAL_LAYOUT,
+  seedEditQuoteFormFromRow,
+  setQuoteFranchiseCatalogSnapshot,
+  useQuoteCustomerAddressPanel,
+} from "../../lib/quote/quoteHelpers";
+import type { EditQuoteFormValues, QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
-import { QUOTE_MODAL_LAYOUT } from "../../lib/quote/quoteModalLayout";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
