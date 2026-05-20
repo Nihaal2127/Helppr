@@ -178,19 +178,10 @@ const CustomTable = (props: CustomTableProps) => {
   return (
     <>
       <div
-        style={{
-          border: "1px solid var(--txtfld-border)",
-          borderRadius: "10px",
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          ...(needsHorizontalScroll
-            ? {
-                overflowX: "auto",
-                WebkitOverflowScrolling: "touch",
-              }
-            : {}),
-        }}
+        className={classNames(
+          "custom-table-wrapper",
+          needsHorizontalScroll && "custom-table-wrapper--scroll"
+        )}
       >
         <table
           {...dataTable.getTableProps()}

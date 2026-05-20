@@ -282,7 +282,7 @@ const Dashboard = () => {
 
   return (
     <>
-      <div className="main-page-content">
+      <div className="main-page-content dashboard-page">
         <CustomHeader
           title="Dashboard"
           register={register}
@@ -328,8 +328,8 @@ const Dashboard = () => {
                 )}
               </h3>
             </div>
-            <div className="d-flex flex-wrap align-items-center gap-2">
-              <div style={{ minWidth: 200, maxWidth: 260 }}>
+            <div className="d-flex flex-wrap align-items-center gap-2 dashboard-date-range-controls">
+              <div className="dashboard-date-range-select">
                 <CustomFormSelect
                   label=""
                   controlId="Date Range"
@@ -362,8 +362,8 @@ const Dashboard = () => {
             </div>
           </div>
           {dateRangeType === "CUSTOM_RANGE" && (
-            <div className="d-flex flex-wrap gap-3">
-              <div style={{ minWidth: 180, maxWidth: 260 }}>
+            <div className="d-flex flex-wrap gap-2 dashboard-date-range-controls pt-2">
+              <div className="dashboard-date-range-picker">
                 <CustomDatePicker
                   controlId="service_date_from"
                   selectedDate={customFromDate}
@@ -379,7 +379,7 @@ const Dashboard = () => {
                   filterDate={() => true}
                 />
               </div>
-              <div style={{ minWidth: 180, maxWidth: 260 }}>
+              <div className="dashboard-date-range-picker">
                 <CustomDatePicker
                   controlId="service_date_to"
                   selectedDate={customToDate}
@@ -475,8 +475,8 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <Row>
-          <Col sm={6}>
+        <Row className="dashboard-stats-row">
+          <Col xs={12} lg={6}>
             <div className="custom-dashboard-card">
               <h3 className="custom-dashboard-title">Services</h3>
               <div className="d-flex gap-2">
@@ -498,7 +498,7 @@ const Dashboard = () => {
               </div>
             </div>
           </Col>
-          <Col sm={6}>
+          <Col xs={12} lg={6}>
             <div className="custom-dashboard-card">
               <h3 className="custom-dashboard-title">Partners</h3>
               <div className="d-flex gap-2">
@@ -549,8 +549,8 @@ const Dashboard = () => {
                     </Col>
                 </Row> */}
 
-        <Row className="">
-          <Col sm={6}>
+        <Row className="dashboard-charts-row">
+          <Col xs={12} lg={6}>
             <div className="custom-dashboard-card">
               <h3 className="custom-dashboard-title">Payments Overview</h3>
               <div style={{ height: 220 }}>
@@ -564,7 +564,7 @@ const Dashboard = () => {
                             */}
             </div>
           </Col>
-          <Col sm={6}>
+          <Col xs={12} lg={6}>
             <div className="custom-dashboard-card">
               <h3 className="custom-dashboard-title">Orders vs Quotes</h3>
               <div

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Row, Col } from "react-bootstrap";
+import { useSidebar } from "../context/SidebarContext";
 import CustomFormSelect from "../components/CustomFormSelect";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../routes/Routes";
@@ -45,6 +47,8 @@ const CustomHeader = ({
   hideFranchiseDropdown = false,
 }: CustomHeaderProps) => {
   const navigate = useNavigate();
+  const sidebar = useSidebar();
+  const isMobileTopBar = sidebar?.isMobileLayout ?? false;
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isAdminUser = currentUserRole === UserRole.ADMIN;
   const isStaffUser = currentUserRole === UserRole.STAFF;
@@ -68,6 +72,9 @@ const CustomHeader = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
   const notificationRef = useRef<HTMLDivElement | null>(null);
+  const [mobileTopBarSlot, setMobileTopBarSlot] = useState<HTMLElement | null>(
+    null
+  );
 
   const handleChange = (e: any) => {
     const raw = e.target.value as string;
@@ -177,131 +184,162 @@ const CustomHeader = ({
     };
   }, [isFranchiseAdminOrEmployee]);
 
-  return (
-    <Row className="g-0 p-0 mb-4 align-items-center">
-      <Col sm={6} className="p-0 m-0">
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          {titlePrefix}
-          <h4 className="m-0 p-0 d-flex align-items-center flex-wrap gap-2">
-            <span>{title}</span>
-            {franchiseTitleName ? (
-              <span
-                className="fw-normal"
-                style={{ fontSize: "1rem", color: "var(--primary-new-txt-color)"}}
-              >
-                - {franchiseTitleName}
-              </span>
-            ) : null}
-          </h4>
+  useEffect(() => {
+    if (!isMobileTopBar) {
+      setMobileTopBarSlot(null);
+      return;
+    }
+    setMobileTopBarSlot(
+      document.getElementById("app-mobile-top-bar-actions")
+    );
+  }, [isMobileTopBar]);
+
+  const headerToolbar = (
+    <>
+      {rightActions}
+      {shouldShowFranchiseDropdown && register && setValue && (
+        <div className="custom-page-header__franchise">
+          <CustomFormSelect
+            label=""
+            controlId="Franchise"
+            options={franchiseList}
+            register={register}
+            fieldName="franchise_id"
+            defaultValue={selectedFranchise}
+            setValue={setValue}
+            onChange={handleChange}
+            clearResetsTo="all"
+            asCol={false}
+            noBottomMargin
+          />
         </div>
-      </Col>
-      <Col
-        sm={6}
-        className="d-flex justify-content-end align-items-center gap-3 p-0 m-0"
-      >
-        {rightActions}
-        {shouldShowFranchiseDropdown && register && setValue && (
-          <div style={{ minWidth: 220, maxWidth: 260, zIndex: 10 }}>
-            <CustomFormSelect
-              label=""
-              controlId="Franchise"
-              options={franchiseList}
-              register={register}
-              fieldName="franchise_id"
-              defaultValue={selectedFranchise}
-              setValue={setValue}
-              onChange={handleChange}
-              clearResetsTo="all"
-              asCol={false}
-              noBottomMargin
-            />
-          </div>
-        )}
-        <div ref={notificationRef} className="position-relative">
-          <button
-            type="button"
-            className="btn p-0 border-0 bg-transparent position-relative"
-            aria-label="Notifications"
-            onClick={() => setIsNotificationOpen((prev) => !prev)}
-          >
-            <i className="bi bi-bell-fill fs-4" style={{ color: "#dc3545" }} />
-            {unreadCount > 0 && (
-              <span className="custom-notification-badge">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </button>
+      )}
+      <div ref={notificationRef} className="position-relative">
+        <button
+          type="button"
+          className="btn p-0 border-0 bg-transparent position-relative"
+          aria-label="Notifications"
+          onClick={() => setIsNotificationOpen((prev) => !prev)}
+        >
+          <i className="bi bi-bell-fill fs-4" style={{ color: "#dc3545" }} />
+          {unreadCount > 0 && (
+            <span className="custom-notification-badge">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
 
-          {isNotificationOpen && (
-            <div className="custom-notification-dropdown">
-              <div className="custom-notification-header">
-                <span>Notifications</span>
-                <button
-                  type="button"
-                  className="btn btn-link p-0"
-                  onClick={() => {
-                    markAllNotificationsAsRead();
-                    refreshNotifications();
-                  }}
-                >
-                  Mark all read
-                </button>
-              </div>
-
-              <div className="custom-notification-list">
-                {recentNotifications.length === 0 ? (
-                  <div className="custom-notification-empty">
-                    No notifications
-                  </div>
-                ) : (
-                  recentNotifications.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`custom-notification-item ${
-                        item.status === "unread" ? "is-unread" : ""
-                      }`}
-                      onClick={() => {
-                        markNotificationAsRead(item.id);
-                        refreshNotifications();
-                        setIsNotificationOpen(false);
-                        navigate(ROUTES.NOTIFICATIONS.path);
-                      }}
-                    >
-                      <div className="custom-notification-item-title-row">
-                        <span className="custom-notification-item-title">
-                          {item.title}
-                        </span>
-                        {item.status === "unread" && (
-                          <span className="custom-notification-dot" />
-                        )}
-                      </div>
-                      <div className="custom-notification-item-message">
-                        {item.message}
-                      </div>
-                      <div className="custom-notification-item-time">
-                        {formatDate(item.createdAt)}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
+        {isNotificationOpen && (
+          <div className="custom-notification-dropdown">
+            <div className="custom-notification-header">
+              <span>Notifications</span>
               <button
                 type="button"
-                className="custom-notification-view-all"
+                className="btn btn-link p-0"
                 onClick={() => {
-                  setIsNotificationOpen(false);
-                  navigate(ROUTES.NOTIFICATIONS.path);
+                  markAllNotificationsAsRead();
+                  refreshNotifications();
                 }}
               >
-                View all notifications
+                Mark all read
               </button>
             </div>
-          )}
-        </div>
-      </Col>
-    </Row>
+
+            <div className="custom-notification-list">
+              {recentNotifications.length === 0 ? (
+                <div className="custom-notification-empty">
+                  No notifications
+                </div>
+              ) : (
+                recentNotifications.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`custom-notification-item ${
+                      item.status === "unread" ? "is-unread" : ""
+                    }`}
+                    onClick={() => {
+                      markNotificationAsRead(item.id);
+                      refreshNotifications();
+                      setIsNotificationOpen(false);
+                      navigate(ROUTES.NOTIFICATIONS.path);
+                    }}
+                  >
+                    <div className="custom-notification-item-title-row">
+                      <span className="custom-notification-item-title">
+                        {item.title}
+                      </span>
+                      {item.status === "unread" && (
+                        <span className="custom-notification-dot" />
+                      )}
+                    </div>
+                    <div className="custom-notification-item-message">
+                      {item.message}
+                    </div>
+                    <div className="custom-notification-item-time">
+                      {formatDate(item.createdAt)}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="custom-notification-view-all"
+              onClick={() => {
+                setIsNotificationOpen(false);
+                navigate(ROUTES.NOTIFICATIONS.path);
+              }}
+            >
+              View all notifications
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {isMobileTopBar &&
+        mobileTopBarSlot &&
+        createPortal(
+          <div className="custom-page-header__toolbar">{headerToolbar}</div>,
+          mobileTopBarSlot
+        )}
+
+      <Row className="g-0 p-0 mb-4 align-items-center custom-page-header">
+        <Col
+          sm={6}
+          className="p-0 m-0 custom-page-header__title"
+        >
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            {titlePrefix}
+            <h4 className="m-0 p-0 d-flex align-items-center flex-wrap gap-2">
+              <span>{title}</span>
+              {franchiseTitleName ? (
+                <span
+                  className="fw-normal"
+                  style={{
+                    fontSize: "1rem",
+                    color: "var(--primary-new-txt-color)",
+                  }}
+                >
+                  - {franchiseTitleName}
+                </span>
+              ) : null}
+            </h4>
+          </div>
+        </Col>
+        <Col
+          sm={6}
+          className="d-none d-lg-flex justify-content-end align-items-center gap-3 p-0 m-0 custom-page-header__actions"
+        >
+          {headerToolbar}
+        </Col>
+      </Row>
+    </>
   );
 };
 
