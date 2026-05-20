@@ -11,6 +11,17 @@ export type GetCountExtra = {
   to_date?: string;
 };
 
+/** Builds `POST /getCount?franchise_id=…` query string (same scoping as `GET …/getAll?franchise_id=`). */
+function buildGetCountEndpoint(extra?: GetCountExtra): string {
+  const params = new URLSearchParams();
+  const franchiseIdQuery = franchiseIdForUserGetAll(extra?.franchise_id);
+  if (franchiseIdQuery) params.set("franchise_id", franchiseIdQuery);
+  if (extra?.from_date?.trim()) params.set("from_date", extra.from_date.trim());
+  if (extra?.to_date?.trim()) params.set("to_date", extra.to_date.trim());
+  const qs = params.toString();
+  return qs ? `${ApiPaths.GET_COUNT}?${qs}` : ApiPaths.GET_COUNT;
+}
+
 export const getCount = async (
   /**
    * Required by the API (`POST /getCount` returns 400 if `type` is missing).
@@ -34,7 +45,7 @@ export const getCount = async (
     if (extra?.to_date?.trim()) {
       payload.to_date = extra.to_date.trim();
     }
-    const response = await apiRequest(ApiPaths.GET_COUNT, "POST", payload);
+    const response = await apiRequest(buildGetCountEndpoint(extra), "POST", payload);
     if (response.success) {
       const d = response.data as Record<string, unknown> | undefined;
       const inner =

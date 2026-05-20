@@ -11,13 +11,10 @@ import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import {
-  applyQuoteHeaderPatch,
   buildQuoteSchedulePricePreview,
   computeAutoQuotePriceFromPartner,
-  convertQuoteToOrder,
   deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
-  fetchQuoteDetailById,
   buildPartnerCategoryOptionsFromProviding,
   buildPartnerServiceOptionsFromProviding,
   buildQuoteCategoryOptionsForPartner,
@@ -26,26 +23,40 @@ import {
   getQuoteScheduleModeFromServiceOption,
   mapRelatedCatalogToQuoteOptions,
   mergeQuoteServiceFeesForBreakdown,
-  normalizeQuoteApiStatus,
-  resolveFranchiseIdForQuoteForm,
-  updateQuote,
 } from "../../services/quoteService";
+import { fetchOrderById } from "../../services/orderService";
+import { createOrUpdateOrder } from "../../lib/order/orders";
+import type { OrderModel } from "../../lib/order/orders";
+import { OrderStatusEnum } from "../../lib/order/orders";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import type { AddQuoteFormValues, QuoteRow } from "../../lib/types/quoteTypes";
+import type { AddQuoteFormValues } from "../../lib/types/quoteTypes";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
   QUOTE_MODAL_LAYOUT,
-  seedEditQuoteFormFromRow,
   setQuoteFranchiseCatalogSnapshot,
   useQuoteCustomerAddressPanel,
 } from "../../lib/quote/quoteHelpers";
-import type { EditQuoteFormValues, QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
-import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import type { QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
+import {
+  buildOrderEditAllUpdatePayload,
+  getOrderCategoryName,
+  getOrderPartnerDisplayName,
+  ORDER_CUSTOMER_PAYMENT_STATUS_OPTIONS,
+  ORDER_PARTNER_PAYMENT_STATUS_OPTIONS,
+  orderEditAllAddressLine,
+  resolveOrderEditFranchiseId,
+  resolveOrderOfferBreakdown,
+  seedEditOrderFormFromRow,
+  serviceNamesJoined,
+} from "../../lib/order/orders";
+import type { EditOrderFormValues } from "../../lib/order/orders";
+import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
+import { OrderPaymentEditModal } from "./orderInfoModals";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
@@ -109,35 +120,45 @@ function isScheduleEndAfterStartSameDay(start: string, end: string): boolean {
 
 const scheduleTimeAllowAll = (): boolean => true;
 
-type QuoteEditAllDialogProps = {
-  quoteMongoId: string;
+type OrderEditAllDialogProps = {
+  orderMongoId: string;
   onClose: () => void;
   onSaved?: () => void;
 };
 
-const STATUS_OPTIONS: OptionType[] = [
-  { value: "new", label: "New" },
-  { value: "pending", label: "Pending" },
-  { value: "accepted", label: "Accepted" },
-  { value: "success", label: "Success" },
-  { value: "failed", label: "Failed" },
-];
+const ORDER_STATUS_OPTIONS: OptionType[] = Array.from(
+  OrderStatusEnum.entries()
+).map(([id, v]) => ({ value: String(id), label: v.label }));
 
 function QuoteAddressPanelError({ message }: { message: string }) {
   return <p className="small text-danger mb-2">{message}</p>;
 }
 
-const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
-  show: (quoteMongoId: string, onSaved?: () => void) => void;
-} = ({ quoteMongoId, onClose, onSaved }) => {
+function mergeSelectOption(
+  options: OptionType[],
+  value: string | undefined | null,
+  label: string | undefined | null
+): OptionType[] {
+  const v = String(value ?? "").trim();
+  if (!v) return options;
+  if (options.some((o) => o.value === v)) return options;
+  const lab = String(label ?? "").trim() || v;
+  return [{ value: v, label: lab }, ...options];
+}
+
+const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
+  show: (orderMongoId: string, onSaved?: () => void) => void;
+} = ({ orderMongoId, onClose, onSaved }) => {
   const currentUserRole = String(getLocalStorage(AppConstant.userRole) ?? "");
   const isSuperAdminOrStaff =
     currentUserRole === UserRole.ADMIN ||
     currentUserRole === UserRole.STAFF;
 
-  const [quoteRow, setQuoteRow] = useState<QuoteRow | null>(null);
+  const [orderRow, setOrderRow] = useState<OrderModel | null>(null);
   const [loadError, setLoadError] = useState("");
   const [catalogBusy, setCatalogBusy] = useState(false);
+  const [formHydrated, setFormHydrated] = useState(false);
+  const [paymentEditorKey, setPaymentEditorKey] = useState(0);
 
   const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
     OptionType[]
@@ -169,7 +190,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(false);
 
   const catalogSeqRef = useRef(0);
-  const initialStatusKeyRef = useRef("");
+  const initialOrderStatusRef = useRef(0);
   const skipAutoPriceRef = useRef(true);
   const [apiServiceFees, setApiServiceFees] = useState<
     ServiceDropDownOption | undefined
@@ -183,7 +204,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     reset,
     getValues,
     formState: { errors, isSubmitted },
-  } = useForm<EditQuoteFormValues>({
+  } = useForm<EditOrderFormValues>({
     defaultValues: {
       franchise_id: "",
       user_id: "",
@@ -199,7 +220,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       requested_time_to: "",
       service_price: "",
       description: "",
-      quote_status: "new",
+      order_status: "1",
+      customer_payment_status: "Unpaid",
+      partner_payment_status: "Unpaid",
     },
   });
 
@@ -209,49 +232,52 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const partnerSelected = Boolean(String(form.requested_partner ?? "").trim());
 
   useEffect(() => {
+    setFormHydrated(false);
+  }, [orderMongoId]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadError("");
-      const { quote: row, serviceFees } = await fetchQuoteDetailById(
-        quoteMongoId
-      );
+      setFormHydrated(false);
+      const { order: row } = await fetchOrderById(orderMongoId);
       if (cancelled) return;
       if (!row) {
-        setLoadError("Could not load this quote.");
-        setQuoteRow(null);
+        setLoadError("Could not load this order.");
+        setOrderRow(null);
         setApiServiceFees(undefined);
         return;
       }
-      setQuoteRow(row);
-      setApiServiceFees(serviceFees);
-      initialStatusKeyRef.current =
-        normalizeQuoteApiStatus(row.status) || "new";
+      setOrderRow(row);
+      setApiServiceFees(undefined);
+      initialOrderStatusRef.current = row.order_status;
     })();
     return () => {
       cancelled = true;
     };
-  }, [quoteMongoId]);
+  }, [orderMongoId]);
 
-  const franchiseIdForCatalog = useMemo(() => {
-    if (!quoteRow) return "";
-    const fromRow = String(quoteRow.franchise_id ?? "").trim();
-    if (fromRow) return fromRow;
-    return resolveFranchiseIdForQuoteForm("");
-  }, [quoteRow]);
+  const franchiseIdForCatalog = useMemo(
+    () => (orderRow ? resolveOrderEditFranchiseId(orderRow) : ""),
+    [orderRow]
+  );
 
   useEffect(() => {
     if (!franchiseIdForCatalog) {
-      setQuoteCategoryOptions([]);
-      setQuoteCatalogServices([]);
-      setQuoteEmployeeOptions([]);
-      setCatalogPartnerRecords([]);
-      setQuotePartnerOptions([]);
-      setQuoteUserOptions([]);
-      setQuoteCustomerRecords([]);
-      setFranchiseQuotePinSet(new Set());
-      setFranchiseQuoteAreaIdSet(new Set());
+      if (!orderRow) {
+        setQuoteCategoryOptions([]);
+        setQuoteCatalogServices([]);
+        setQuoteEmployeeOptions([]);
+        setCatalogPartnerRecords([]);
+        setQuotePartnerOptions([]);
+        setQuoteUserOptions([]);
+        setQuoteCustomerRecords([]);
+        setFranchiseQuotePinSet(new Set());
+        setFranchiseQuoteAreaIdSet(new Set());
+        setQuoteFranchiseCatalogSnapshot(null);
+      }
       setFranchisePinsLoadDone(true);
-      setQuoteFranchiseCatalogSnapshot(null);
+      setCatalogBusy(false);
       return;
     }
     const seq = (catalogSeqRef.current += 1);
@@ -310,14 +336,15 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   }, [catalogPartnerRecords]);
 
   useEffect(() => {
-    if (!quoteRow || catalogBusy || !franchisePinsLoadDone) return;
+    if (!orderRow || catalogBusy || !franchisePinsLoadDone) return;
     skipAutoPriceRef.current = true;
-    reset(seedEditQuoteFormFromRow(quoteRow));
+    reset(seedEditOrderFormFromRow(orderRow));
+    setFormHydrated(true);
     const t = window.setTimeout(() => {
       skipAutoPriceRef.current = false;
     }, 0);
     return () => window.clearTimeout(t);
-  }, [quoteRow, catalogBusy, franchisePinsLoadDone, reset]);
+  }, [orderRow, catalogBusy, franchisePinsLoadDone, reset]);
 
   const clearScheduleAndPriceFields = useCallback(() => {
     setValue("requested_date", "", { shouldValidate: false });
@@ -328,29 +355,64 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   }, [setValue]);
 
   const applySelectFieldValue = useCallback(
-    (name: keyof EditQuoteFormValues, value: unknown) => {
-      setValue(name, value as EditQuoteFormValues[typeof name], {
+    (name: keyof EditOrderFormValues, value: unknown) => {
+      setValue(name, value as EditOrderFormValues[typeof name], {
         shouldValidate: isSubmitted,
       });
     },
     [isSubmitted, setValue]
   );
 
-  const quoteAddressFallback = useMemo(
-    () =>
-      quoteRow?.address_id
-        ? {
-            addressId: quoteRow.address_id,
-            state: quoteRow.state,
-            city: quoteRow.city,
-            area: quoteRow.area,
-            street: quoteRow.street ?? quoteRow.address_line,
-            landmark: quoteRow.landmark,
-            pincode: quoteRow.pincode,
-          }
-        : undefined,
-    [quoteRow]
-  );
+  const orderAddressFallback = useMemo(() => {
+    const order = orderRow;
+    if (!order) return undefined;
+    const rec = order as unknown as Record<string, unknown>;
+    const addrInfo =
+      rec.address_info &&
+      typeof rec.address_info === "object" &&
+      !Array.isArray(rec.address_info)
+        ? (rec.address_info as Record<string, unknown>)
+        : undefined;
+    const addressId =
+      typeof rec.address_id === "string"
+        ? String(rec.address_id).trim()
+        : String(addrInfo?._id ?? "").trim();
+    const pick = (v: unknown) => String(v ?? "").trim();
+    const state = pick(addrInfo?.state);
+    const city = pick(addrInfo?.city);
+    const area = pick(addrInfo?.area);
+    const pincode = pick(addrInfo?.pincode);
+    const street = pick(addrInfo?.address) || pick(order.address);
+
+    if (!addressId && !addrInfo) {
+      if (order.address?.trim()) {
+        return { addressId: "", street: order.address.trim() };
+      }
+      return undefined;
+    }
+
+    return {
+      addressId,
+      state: state || undefined,
+      city: city || undefined,
+      area: area || undefined,
+      street: street || undefined,
+      landmark: pick(addrInfo?.landmark) || undefined,
+      pincode: pincode || undefined,
+    };
+  }, [orderRow]);
+
+  const preferredOrderAddressId = useMemo(() => {
+    if (!orderRow) return "";
+    const rec = orderRow as unknown as Record<string, unknown>;
+    if (typeof rec.address_id === "string") return String(rec.address_id).trim();
+    const info = rec.address_info;
+    if (info && typeof info === "object" && !Array.isArray(info)) {
+      const id = (info as { _id?: unknown })._id;
+      return id != null ? String(id).trim() : "";
+    }
+    return "";
+  }, [orderRow]);
 
   const { addressUi, selectedAddressId, setSelectedAddressId } =
     useQuoteCustomerAddressPanel({
@@ -359,8 +421,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       franchiseQuotePinSet,
       franchiseQuoteAreaIdSet,
       franchisePinsLoadDone,
-      preferredAddressId: quoteRow?.address_id,
-      quoteAddressFallback,
+      preferredAddressId: preferredOrderAddressId,
+      quoteAddressFallback: orderAddressFallback,
     });
 
   const selectedPartnerCatalogRecord = useMemo(() => {
@@ -470,6 +532,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     [form.service_price, feeOptionForPreview]
   );
 
+  const editOfferBreakdown = useMemo(
+    () => (orderRow ? resolveOrderOfferBreakdown(orderRow) : null),
+    [orderRow]
+  );
+
   const schedulePricePreview = useMemo(() => {
     if (!isScheduleComplete || !partnerSelected) return null;
     const metrics = deriveQuoteScheduleMetrics({
@@ -572,42 +639,60 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     [form.requested_date]
   );
 
-  const userSelectOptions = useMemo<OptionType[]>(
-    () => quoteUserOptions.map((u) => ({ value: u.value, label: u.label })),
-    [quoteUserOptions]
+  const userSelectOptions = useMemo<OptionType[]>(() => {
+    const base = quoteUserOptions.map((u) => ({ value: u.value, label: u.label }));
+    if (!orderRow) return base;
+    return mergeSelectOption(
+      base,
+      orderRow.user_id,
+      orderRow.user_name ?? orderRow.user_info?.name
+    );
+  }, [quoteUserOptions, orderRow]);
+
+  const partnerSelectOptions = useMemo(
+    () =>
+      orderRow
+        ? mergeSelectOption(
+            quotePartnerOptions,
+            String(orderRow.partner_id ?? "").trim(),
+            getOrderPartnerDisplayName(orderRow)
+          )
+        : quotePartnerOptions,
+    [quotePartnerOptions, orderRow]
   );
 
-  const onSubmit = async (data: EditQuoteFormValues) => {
-    const id = String(quoteMongoId ?? "").trim();
+  const categorySelectOptions = useMemo(
+    () =>
+      orderRow
+        ? mergeSelectOption(
+            quoteCategoryOptionsForPartner,
+            String(orderRow.category_id ?? "").trim(),
+            getOrderCategoryName(orderRow)
+          )
+        : quoteCategoryOptionsForPartner,
+    [quoteCategoryOptionsForPartner, orderRow]
+  );
+
+  const serviceSelectOptions = useMemo(() => {
+    const base = quoteServiceOptionsForCategory;
+    if (!orderRow) return base;
+    const primary = orderRow.service_items?.[0];
+    const sid = String(
+      primary?.service_id ??
+        (orderRow as OrderModel & { service_id?: string }).service_id ??
+        ""
+    ).trim();
+    return mergeSelectOption(base, sid, serviceNamesJoined(orderRow));
+  }, [quoteServiceOptionsForCategory, orderRow]);
+
+  const onSubmit = async (data: EditOrderFormValues) => {
+    const id = String(orderMongoId ?? "").trim();
     if (!id) {
-      showErrorAlert("Missing quote id.");
+      showErrorAlert("Missing order id.");
       return;
     }
-
-    const nextStatus = normalizeQuoteApiStatus(data.quote_status);
-    const prev = initialStatusKeyRef.current;
-    const isConvertToOrder = nextStatus === "success" && prev !== "success";
-
-    if (isConvertToOrder) {
-      if (prev !== "accepted") {
-        showErrorAlert("Quote must be accepted before converting to an order.");
-        return;
-      }
-      const result = await convertQuoteToOrder(id);
-      if (!result.ok) {
-        showErrorAlert("Could not convert quote to order.");
-        return;
-      }
-      const orderLabel = result.orderUniqueId
-        ? ` Order ${result.orderUniqueId}.`
-        : "";
-      showSuccessAlert(
-        result.alreadyLinked
-          ? `Quote is already linked to an order.${orderLabel}`
-          : `Order created successfully.${orderLabel}`
-      );
-      onSaved?.();
-      onClose();
+    if (!orderRow) {
+      showErrorAlert("Order is not loaded.");
       return;
     }
 
@@ -627,16 +712,16 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       showErrorAlert(addressUi.error);
       return;
     }
-    if (!selectedAddressId.trim()) {
-      if (!addressUi.rows.length) {
-        showErrorAlert(
-          "No saved address on file for this customer. Add an address to the user profile before updating."
-        );
-      } else {
-        showErrorAlert(
-          "Select a customer address for this quote. Addresses outside this franchise's service area cannot be used."
-        );
-      }
+    if (addressUi.rows.length > 0 && !selectedAddressId.trim()) {
+      showErrorAlert(
+        "Select a customer address for this order. Addresses outside this franchise's service area cannot be used."
+      );
+      return;
+    }
+    if (!addressUi.rows.length && !String(orderRow.address ?? "").trim()) {
+      showErrorAlert(
+        "No saved address on file for this customer. Add an address to the user profile before updating."
+      );
       return;
     }
 
@@ -698,62 +783,32 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    const metrics = deriveQuoteScheduleMetrics({
+    const addressLine = orderEditAllAddressLine(
+      addressUi.rows,
+      selectedAddressId,
+      orderRow.address ?? ""
+    );
+
+    const payload = buildOrderEditAllUpdatePayload({
+      order: orderRow,
+      form: data,
       scheduleMode,
-      requested_date: data.requested_date,
-      requested_date_to: data.requested_date_to,
-      requested_time: data.requested_time,
-      requested_time_from: data.requested_time_from,
-      requested_time_to: data.requested_time_to,
+      servicePrice: price,
+      addressLine,
+      selectedAddressId,
     });
-    if (!metrics) {
+    if (!payload) {
       showErrorAlert("Invalid schedule.");
       return;
     }
 
-    const patch: Record<string, unknown> = {
-      category_id: String(data.category_id ?? "").trim(),
-      service_id: String(data.requested_services ?? "").trim(),
-      partner_id: String(data.requested_partner ?? "").trim() || undefined,
-      employee_id: String(data.employee_id ?? "").trim() || undefined,
-      address_id: selectedAddressId.trim(),
-      service_price: price,
-      from_date: metrics.from_date,
-      to_date: metrics.to_date,
-      work_start_time: metrics.work_start_time,
-      work_end_time: metrics.work_end_time,
-      work_hours_per_day: metrics.work_hours_per_day,
-      total_work_hours: metrics.total_work_hours,
-      quote_description: String(data.description ?? "").trim() || undefined,
-    };
-
-    let ok = await updateQuote(id, patch);
+    const ok = await createOrUpdateOrder(payload, true, id);
     if (!ok) {
-      showErrorAlert("Could not update quote.");
+      showErrorAlert("Could not update order.");
       return;
     }
 
-    if (nextStatus && nextStatus !== prev) {
-      ok = await applyQuoteHeaderPatch(id, { status: nextStatus });
-      if (!ok) {
-        const statusMsg =
-          nextStatus === "accepted"
-            ? "Quote was updated, but could not be accepted."
-            : nextStatus === "failed"
-            ? "Quote was updated, but status could not be changed."
-            : "Quote was updated, but status could not be changed.";
-        showErrorAlert(statusMsg);
-        onSaved?.();
-        onClose();
-        return;
-      }
-    }
-
-    const statusChangedToAccepted =
-      nextStatus === "accepted" && nextStatus !== prev;
-    showSuccessAlert(
-      statusChangedToAccepted ? "Quote accepted." : "Quote updated."
-    );
+    showSuccessAlert("Order updated.");
     onSaved?.();
     onClose();
   };
@@ -806,8 +861,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
         >
           <Form.Check
             type="radio"
-            name="edit-quote-address"
-            id={`edit-quote-addr-${row.id}`}
+            name="edit-order-address"
+            id={`edit-order-addr-${row.id}`}
             disabled={!row.selectable}
             checked={selectedAddressId === row.id && row.selectable}
             onChange={() => {
@@ -859,10 +914,20 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       );
     });
 
-  const lockedFields = catalogBusy || !quoteRow;
-  const quoteStatusKey = normalizeQuoteApiStatus(quoteRow?.status) || "new";
-  const isTerminalQuoteStatus =
-    quoteStatusKey === "success" || quoteStatusKey === "failed";
+  const lockedFields = catalogBusy || !orderRow;
+  const orderStatusNum = orderRow?.order_status ?? 0;
+  const isTerminalOrderStatus =
+    orderStatusNum === 3 || orderStatusNum === 4 || orderStatusNum === 5;
+
+  const refreshOrderAfterPaymentSave = useCallback(async () => {
+    const id = String(orderMongoId ?? "").trim();
+    if (!id) return;
+    const { order: row } = await fetchOrderById(id);
+    if (!row) return;
+    setOrderRow(row);
+    reset(seedEditOrderFormFromRow(row));
+    setPaymentEditorKey((k) => k + 1);
+  }, [orderMongoId, reset]);
 
   return (
     <Modal
@@ -873,18 +938,19 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
-          Edit quote
+          Edit order
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
       <Modal.Body className="add-quote-modal-body pt-0">
         {loadError ? (
           <div className="text-danger py-3">{loadError}</div>
-        ) : !quoteRow ? (
-          <div className="text-muted py-3">Loading quote…</div>
+        ) : !orderRow || !formHydrated ? (
+          <div className="text-muted py-3">Loading order…</div>
         ) : (
           <form
-            id="quote-edit-all-form"
+            key={`order-edit-all-${orderMongoId}`}
+            id="order-edit-all-form"
             noValidate
             onSubmit={handleSubmit(onSubmit)}
           >
@@ -893,7 +959,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                 <Col xs={12} md={6}>
                   <CustomTextFieldSelect
                     label="User"
-                    controlId="edit-quote-user"
+                    controlId="edit-order-user"
                     asCol={false}
                     options={userSelectOptions}
                     register={register as unknown as UseFormRegister<AddQuoteFormValues>}
@@ -912,7 +978,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="Employee"
-                      controlId="edit-quote-employee-super"
+                      controlId="edit-order-employee-super"
                       asCol={false}
                       options={quoteEmployeeOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
@@ -968,7 +1034,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     <Col xs={12} md={6}>
                       <CustomTextFieldSelect
                         label="Employee"
-                        controlId="edit-quote-employee"
+                        controlId="edit-order-employee"
                         asCol={false}
                         options={quoteEmployeeOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
@@ -985,9 +1051,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     <Col xs={12} md={6}>
                       <CustomTextFieldSelect
                         label="Partner"
-                        controlId="edit-quote-partner"
+                        controlId="edit-order-partner"
                         asCol={false}
-                        options={quotePartnerOptions}
+                        options={partnerSelectOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="requested_partner"
                         error={errors.requested_partner}
@@ -1007,7 +1073,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             return;
                           }
                           applySelectFieldValue(
-                            name as keyof EditQuoteFormValues,
+                            name as keyof EditOrderFormValues,
                             value
                           );
                         }}
@@ -1022,9 +1088,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     <Col xs={12} md={6}>
                       <CustomTextFieldSelect
                         label="Category"
-                        controlId="edit-quote-category"
+                        controlId="edit-order-category"
                         asCol={false}
-                        options={quoteCategoryOptionsForPartner}
+                        options={categorySelectOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="category_id"
                         error={errors.category_id}
@@ -1044,7 +1110,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             return;
                           }
                           applySelectFieldValue(
-                            name as keyof EditQuoteFormValues,
+                            name as keyof EditOrderFormValues,
                             value
                           );
                         }}
@@ -1057,11 +1123,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     </Col>
                     <Col xs={12} md={6}>
                       <CustomTextFieldSelect
-                        key={`edit-quote-svc-${form.category_id || "none"}`}
+                        key={`edit-order-svc-${form.category_id || "none"}`}
                         label="Service"
-                        controlId="edit-quote-service"
+                        controlId="edit-order-service"
                         asCol={false}
-                        options={quoteServiceOptionsForCategory}
+                        options={serviceSelectOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="requested_services"
                         error={errors.requested_services}
@@ -1081,7 +1147,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             return;
                           }
                           applySelectFieldValue(
-                            name as keyof EditQuoteFormValues,
+                            name as keyof EditOrderFormValues,
                             value
                           );
                         }}
@@ -1108,44 +1174,44 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="Partner"
-                      controlId="edit-quote-partner"
+                      controlId="edit-order-partner"
                       asCol={false}
-                      options={quotePartnerOptions}
-                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                      fieldName="requested_partner"
-                      error={errors.requested_partner}
-                      requiredMessage="Please select a partner"
-                      defaultValue={form.requested_partner}
-                      setValue={(name, value) => {
-                        if (name === "requested_partner") {
-                          const prev = getValues("requested_partner");
-                          applySelectFieldValue("requested_partner", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
-                            setValue("category_id", "", { shouldValidate: false });
-                            setValue("requested_services", "", {
-                              shouldValidate: false,
-                            });
-                            clearScheduleAndPriceFields();
+                        options={partnerSelectOptions}
+                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+                        fieldName="requested_partner"
+                        error={errors.requested_partner}
+                        requiredMessage="Please select a partner"
+                        defaultValue={form.requested_partner}
+                        setValue={(name, value) => {
+                          if (name === "requested_partner") {
+                            const prev = getValues("requested_partner");
+                            applySelectFieldValue("requested_partner", value);
+                            if (String(value ?? "") !== String(prev ?? "")) {
+                              setValue("category_id", "", { shouldValidate: false });
+                              setValue("requested_services", "", {
+                                shouldValidate: false,
+                              });
+                              clearScheduleAndPriceFields();
+                            }
+                            return;
                           }
-                          return;
-                        }
-                        applySelectFieldValue(
-                          name as keyof EditQuoteFormValues,
-                          value
-                        );
-                      }}
-                      placeholder="Select partner"
-                      menuPortal
-                      isClearable
-                      isDisabled={lockedFields}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="Category"
-                      controlId="edit-quote-category"
-                      asCol={false}
-                      options={quoteCategoryOptionsForPartner}
+                          applySelectFieldValue(
+                            name as keyof EditOrderFormValues,
+                            value
+                          );
+                        }}
+                        placeholder="Select partner"
+                        menuPortal
+                        isClearable
+                        isDisabled={lockedFields}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="Category"
+                        controlId="edit-order-category"
+                        asCol={false}
+                        options={categorySelectOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="category_id"
                       error={errors.category_id}
@@ -1165,7 +1231,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           return;
                         }
                         applySelectFieldValue(
-                          name as keyof EditQuoteFormValues,
+                          name as keyof EditOrderFormValues,
                           value
                         );
                       }}
@@ -1178,11 +1244,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   </Col>
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
-                      key={`edit-quote-svc-${form.category_id || "none"}`}
+                      key={`edit-order-svc-${form.category_id || "none"}`}
                       label="Service"
-                      controlId="edit-quote-service"
+                      controlId="edit-order-service"
                       asCol={false}
-                      options={quoteServiceOptionsForCategory}
+                      options={serviceSelectOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="requested_services"
                       error={errors.requested_services}
@@ -1202,7 +1268,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           return;
                         }
                         applySelectFieldValue(
-                          name as keyof EditQuoteFormValues,
+                          name as keyof EditOrderFormValues,
                           value
                         );
                       }}
@@ -1472,15 +1538,15 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       </Form.Group>
                     </Col>
                     <Col xs={12} md={6}>
-                      <Form.Group controlId="edit-quote-status" className="mb-0">
+                      <Form.Group controlId="edit-order-status" className="mb-0">
                         <Form.Label
-                          htmlFor="edit-quote-status"
+                          htmlFor="edit-order-status"
                           className="fw-medium mb-1"
                         >
-                          Quote status
+                          Order status
                         </Form.Label>
                         <Form.Select
-                          id="edit-quote-status"
+                          id="edit-order-status"
                           className="form-select custom-form-input"
                           style={{
                             borderRadius: "8px",
@@ -1488,10 +1554,72 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             height: "35px",
                             fontSize: "14px",
                           }}
-                          disabled={lockedFields || isTerminalQuoteStatus}
-                          {...register("quote_status")}
+                          disabled={lockedFields || isTerminalOrderStatus}
+                          {...register("order_status")}
                         >
-                          {STATUS_OPTIONS.map((o) => (
+                          {ORDER_STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Form.Group
+                        controlId="edit-order-customer-payment-status"
+                        className="mb-0"
+                      >
+                        <Form.Label
+                          htmlFor="edit-order-customer-payment-status"
+                          className="fw-medium mb-1"
+                        >
+                          User payment status
+                        </Form.Label>
+                        <Form.Select
+                          id="edit-order-customer-payment-status"
+                          className="form-select custom-form-input"
+                          style={{
+                            borderRadius: "8px",
+                            borderColor: "var(--primary-color)",
+                            height: "35px",
+                            fontSize: "14px",
+                          }}
+                          disabled={lockedFields || isTerminalOrderStatus}
+                          {...register("customer_payment_status")}
+                        >
+                          {ORDER_CUSTOMER_PAYMENT_STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Form.Group
+                        controlId="edit-order-partner-payment-status"
+                        className="mb-0"
+                      >
+                        <Form.Label
+                          htmlFor="edit-order-partner-payment-status"
+                          className="fw-medium mb-1"
+                        >
+                          Partner payment status
+                        </Form.Label>
+                        <Form.Select
+                          id="edit-order-partner-payment-status"
+                          className="form-select custom-form-input"
+                          style={{
+                            borderRadius: "8px",
+                            borderColor: "var(--primary-color)",
+                            height: "35px",
+                            fontSize: "14px",
+                          }}
+                          disabled={lockedFields || isTerminalOrderStatus}
+                          {...register("partner_payment_status")}
+                        >
+                          {ORDER_PARTNER_PAYMENT_STATUS_OPTIONS.map((o) => (
                             <option key={o.value} value={o.value}>
                               {o.label}
                             </option>
@@ -1507,7 +1635,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                 <Col xs={12}>
                   <Form.Group controlId="description" className="mb-0">
                     <Form.Label className="fw-medium mb-1">
-                      Quote description
+                      Order notes
                     </Form.Label>
                     <Form.Control
                       as="textarea"
@@ -1522,7 +1650,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         minHeight: "96px",
                         resize: "vertical",
                       }}
-                      placeholder="Optional notes for this quote"
+                      placeholder="Optional notes for this order"
                       {...register("description")}
                     />
                     {errors.description?.message ? (
@@ -1536,14 +1664,43 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
               {editPriceBreakdown && hasServiceSelected ? (
                 <div className="add-quote-breakdown-end mt-3">
-                  <QuotePriceBreakdownPanel breakdown={editPriceBreakdown} />
+                  <OrderAmountSummaryPanel
+                    serviceAmount={editPriceBreakdown.base}
+                    offerDiscount={editOfferBreakdown?.appliedDiscount ?? 0}
+                    taxPct={editPriceBreakdown.taxPct}
+                    taxAmount={editPriceBreakdown.taxAmount}
+                    commissionPct={editPriceBreakdown.commissionPct}
+                    commissionAmount={editPriceBreakdown.commissionAmount}
+                    offer={editOfferBreakdown ?? undefined}
+                    finalTotal={editPriceBreakdown.grandTotal}
+                  />
                 </div>
               ) : null}
             </section>
+
+            {!isTerminalOrderStatus ? (
+              <section className="custom-other-details add-quote-form-section mt-4">
+                <h6
+                  className="mb-3 pb-2 border-bottom"
+                  style={{ fontWeight: 600 }}
+                >
+                  Payments & charges
+                </h6>
+                <OrderPaymentEditModal
+                  key={`order-pay-edit-${orderMongoId}-${paymentEditorKey}`}
+                  embedded
+                  order={orderRow}
+                  onClose={() => {}}
+                  onSaved={() => {
+                    void refreshOrderAfterPaymentSave();
+                  }}
+                />
+              </section>
+            ) : null}
           </form>
         )}
       </Modal.Body>
-      {!loadError && quoteRow ? (
+      {!loadError && orderRow ? (
         <Modal.Footer className="add-quote-modal-footer border-top-0 justify-content-end">
           <Button
             type="button"
@@ -1554,7 +1711,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
           </Button>
           <Button
             type="submit"
-            form="quote-edit-all-form"
+            form="order-edit-all-form"
             className="custom-btn-primary"
             disabled={lockedFields}
           >
@@ -1566,14 +1723,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   );
 };
 
-QuoteEditAllDialog.show = (quoteMongoId: string, onSaved?: () => void) => {
-  openDialog("quote-edit-all-modal", (close) => (
-    <QuoteEditAllDialog
-      quoteMongoId={quoteMongoId}
+OrderEditAllDialog.show = (orderMongoId: string, onSaved?: () => void) => {
+  openDialog("order-edit-all-modal", (close) => (
+    <OrderEditAllDialog
+      orderMongoId={orderMongoId}
       onClose={close}
       onSaved={onSaved}
     />
   ));
 };
 
-export default QuoteEditAllDialog;
+export default OrderEditAllDialog;

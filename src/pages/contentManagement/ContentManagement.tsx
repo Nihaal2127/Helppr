@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { UseFormRegister } from "react-hook-form";
-import { Button } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomTable from "../../components/CustomTable";
-import CustomUtilityBox from "../../components/CustomUtilityBox";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { fetchContentList } from "../../services/contentManagementService";
 import type { ContentItem } from "../../services/contentManagementService";
@@ -28,10 +26,8 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
   const [data, setData] = useState<ContentModel[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [keyword, setKeyword] = useState("");
-  const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const [keyword] = useState("");
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
 
   const formatDateForDisplay = (value?: string) => {
@@ -74,7 +70,6 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
     );
     setTotalPages(result.totalPages || 1);
     setCurrentPage(result.currentPage || currentPage);
-    setTotalItems(result.totalItems ?? result.items.length);
   }, [currentPage, keyword, sortBy]);
 
   useEffect(() => {
@@ -88,11 +83,6 @@ const ContentManagement = ({ register, setValue }: ContentManagementProps) => {
       });
     },
     [navigate]
-  );
-
-  const clearFiltersDisabled = useMemo(
-    () => !keyword.trim() && sortBy.length === 0,
-    [keyword, sortBy]
   );
 
   const columns = useMemo(

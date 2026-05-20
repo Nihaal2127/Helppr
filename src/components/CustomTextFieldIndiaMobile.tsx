@@ -1,6 +1,7 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { CustomFormIndiaMobile } from "./CustomFormIndiaMobile";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomTextFieldIndiaMobileProps {
   label: string;
@@ -32,10 +33,13 @@ const CustomTextFieldIndiaMobile: React.FC<CustomTextFieldIndiaMobileProps> = ({
   onChange,
   autoComplete,
 }) => {
+  const showRequiredMark = isValidationRequired(validation);
   return (
     <Row className="align-items-start">
       <Col sm={labelSize} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+        <label className="custom-profile-lable">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </label>
       </Col>
       <Col>
         <CustomFormIndiaMobile

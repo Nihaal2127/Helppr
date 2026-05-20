@@ -1286,7 +1286,7 @@ function AddEditUserDialogView({
       subscription_end_date: "",
       add_partner_franchise_id: "",
     });
-  }, [isEditable, user?._id, isAddPartner, reset]);
+  }, [isEditable, user, isAddPartner, reset]);
 
   const subscriptionStartStr = watch("subscription_start_date");
   const subscriptionEndStr = watch("subscription_end_date");

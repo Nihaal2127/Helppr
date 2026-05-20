@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import { Eye, EyeOff } from "react-feather";
 import classNames from "classnames";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomFormInputProps {
   label: string;
@@ -52,6 +53,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
 
   const fieldRegistration = register(controlId, validation);
   const { onChange: rhfOnChange, ...fieldReg } = fieldRegistration;
+  const showRequiredMark = isValidationRequired(validation);
 
   const handleFieldChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -67,7 +69,9 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       controlId={controlId}
     >
       {label?.trim() && (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label className="fw-medium mb-1">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </Form.Label>
       )}
       <InputGroup className="mb-0">
         <Form.Control
@@ -137,7 +141,9 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
       controlId={controlId}
     >
       {label?.trim() && (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label className="fw-medium mb-1">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </Form.Label>
       )}
       <Form.Control
         className={classNames("custom-form-input", inputClassName)}

@@ -1,5 +1,4 @@
-import { AppConstant } from "../global/AppConstant";
-import { PaymentEnum } from "../order/orderTypes";
+import { formatCurrency, paymentMethodLabel } from "../global/paymentAndCurrency";
 import { formatDate } from "../../helper/utility";
 import { ExpenseModel } from "../models/ExpenseModel";
 
@@ -28,7 +27,7 @@ function money(v: number | string | null | undefined): string {
   if (v === undefined || v === null || v === "") return "-";
   const n = typeof v === "string" ? Number(v) : v;
   if (Number.isNaN(n)) return "-";
-  return `${AppConstant.currencySymbol}${n}`;
+  return formatCurrency(n);
 }
 
 function getExpenseId(row: ExpenseModel): string {
@@ -44,13 +43,12 @@ function getField(row: ExpenseModel, ...keys: string[]): any {
 }
 
 function getPaymentModeLabel(row: ExpenseModel): string {
-  const id = row.payment_mode_id ?? row.paymentModeId;
-  if (id !== undefined && id !== null && id !== "") {
-    const n = Number(id);
-    const mapped = Number.isNaN(n) ? undefined : PaymentEnum.get(n);
-    if (mapped?.label) return mapped.label;
-  }
-  return getField(row, "payment_mode", "paymentMode") || "-";
+  const label = paymentMethodLabel(
+    getField(row, "payment_mode", "paymentMode") ||
+      row.payment_mode_id ||
+      row.paymentModeId
+  );
+  return label === "—" ? "-" : label || "-";
 }
 
 function getPaymentDoneByLabel(row: ExpenseModel): string {

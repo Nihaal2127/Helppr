@@ -8,16 +8,13 @@ import React, {
 import { Modal, Col, Row, Carousel } from "react-bootstrap";
 import CustomCloseButton from "../CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
-import { BankAccountModel } from "../../lib/models/BankAccountModel";
 import { fetchUserById } from "../../services/userService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import addIcon from "../../assets/icons/add.svg";
-import deleteIcon from "../../assets/icons/delete_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import {
   DetailsRow,
   DetailsRowLink,
-  formatDate,
   DetailsRowLinkDocument,
   PersonalAccountDetailsGrid,
 } from "../../helper/utility";
@@ -27,12 +24,8 @@ import { DocumentModel } from "../../lib/models/DocumentModel";
 import { AppConstant } from "../../lib/global/AppConstant";
 import CustomUploadDialog from "../CustomUpload";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
-import {
-  updatePartnerDocument,
-  deletePartnerDocument,
-} from "../../services/partnerDocumentService";
+import { updatePartnerDocument } from "../../services/partnerDocumentService";
 import { showErrorAlert } from "../../lib/global/alertHelper";
-import { openConfirmDialog } from "../CustomConfirmDialog";
 import { CustomImagePreviewDialog } from "../CustomImagePreview";
 import { ServiceDetailsDialog } from "../user";
 import { openDialog } from "../../lib/global/DialogManager";
@@ -211,21 +204,6 @@ function PartnerDetailsDialogView({
         }
       }
     });
-  };
-
-  const deleteDocument = async (document: DocumentModel) => {
-    openConfirmDialog(
-      "Are you sure you want to delete document?",
-      "Delete",
-      "Cancel",
-      async () => {
-        const response = await deletePartnerDocument(document._id);
-        if (response) {
-          onRefreshuser();
-        }
-      },
-      deleteIcon
-    );
   };
 
   return (

@@ -1,6 +1,20 @@
 import React from "react";
 import eyeIcon from "../assets/icons/eye.svg";
 
+const ACTION_ICON_PX = 22;
+
+const tableActionIconStyle: React.CSSProperties = {
+  cursor: "pointer",
+  width: ACTION_ICON_PX,
+  height: ACTION_ICON_PX,
+  fontSize: ACTION_ICON_PX,
+  lineHeight: 1,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
 const CustomActionColumn = ({
   row,
   onEdit,
@@ -8,6 +22,7 @@ const CustomActionColumn = ({
   onChat,
   onView,
   onChangePassword,
+  onInvoiceDownload,
 }: {
   row: any;
   onEdit?: (partner: any) => void;
@@ -16,15 +31,17 @@ const CustomActionColumn = ({
   onView?: (partner: any) => void;
   /** When set, shows a key control to open the change-password flow (alongside edit when both are passed). */
   onChangePassword?: (partner: any) => void;
+  onInvoiceDownload?: (row: any) => void;
 }) => {
   return (
-    <>
+    <div className="d-inline-flex align-items-center gap-2">
       {onChat && (
         <i
-          className="bi bi-chat-left-dots fs-6 custom-table-action-chat me-2"
+          className="bi bi-chat-left-dots custom-table-action-chat"
           onClick={() => onChat(row)}
-          style={{ cursor: "pointer" }}
+          style={tableActionIconStyle}
           aria-label="Open chat"
+          role="button"
         />
       )}
       {onView && (
@@ -32,46 +49,57 @@ const CustomActionColumn = ({
           src={eyeIcon}
           alt="view"
           title="View details"
-          width={24}
-          height={24}
-          className="custom-table-action-view me-2"
+          width={ACTION_ICON_PX}
+          height={ACTION_ICON_PX}
+          className="custom-table-action-view"
           onClick={() => onView(row)}
-          style={{ cursor: "pointer" }}
+          style={{ cursor: "pointer", flexShrink: 0 }}
+        />
+      )}
+      {onInvoiceDownload && (
+        <i
+          className="bi bi-file-earmark-pdf custom-table-action-edit"
+          role="button"
+          tabIndex={0}
+          title="Download invoice"
+          aria-label="Download invoice"
+          onClick={() => onInvoiceDownload(row)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onInvoiceDownload(row);
+          }}
+          style={tableActionIconStyle}
         />
       )}
       {onChangePassword && (
         <i
-          className="bi bi-key-fill fs-6 custom-table-action-edit me-2"
+          className="bi bi-key-fill custom-table-action-edit"
           onClick={() => onChangePassword(row)}
-          style={{ cursor: "pointer" }}
+          style={tableActionIconStyle}
           aria-label="Change password"
           role="button"
         />
       )}
       {onEdit && (
         <i
-          className="bi bi-pencil-fill fs-6 custom-table-action-edit me-2"
+          className="bi bi-pencil-fill custom-table-action-edit"
           onClick={() => onEdit(row)}
-          style={{ cursor: "pointer" }}
+          style={tableActionIconStyle}
           aria-label="Edit"
+          role="button"
         />
       )}
-
       {onDelete && (
-        // <img
-        //   src={deleteIcon}
-        //   alt="delete"
-        //   className="custom-table-action-delete"
-        //   onClick={() => onDelete(row)}
-        // />
         <i
-          className="bi bi-ban fs-6 custom-table-action-delete"
+          className="bi bi-ban custom-table-action-delete"
           onClick={() => onDelete(row)}
-          style={{ cursor: "pointer" }}
-        ></i>
+          style={tableActionIconStyle}
+          aria-label="Void"
+          role="button"
+        />
       )}
-    </>
+    </div>
   );
 };
 
 export default CustomActionColumn;
+export { CustomActionColumn };

@@ -3,7 +3,7 @@ import { Row, Col, Button, Form } from "react-bootstrap";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { useForm, UseFormRegister } from "react-hook-form";
-import { OrderStatusEnum } from "../../lib/order/orderTypes";
+import { OrderStatusEnum } from "../../lib/order/orders";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import { fetchUserDropDown } from "../../services/userService";

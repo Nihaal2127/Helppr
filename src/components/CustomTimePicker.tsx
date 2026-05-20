@@ -3,6 +3,7 @@ import { Form, Col } from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomTimePickerProps {
   label?: string;
@@ -21,6 +22,8 @@ interface CustomTimePickerProps {
   setValue: UseFormSetValue<any>;
   groupClassName?: string;
   suppressHiddenRegister?: boolean;
+  /** Show required asterisk when validation does not include `required`. */
+  required?: boolean;
 }
 
 const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
@@ -39,7 +42,9 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   validation,
   groupClassName,
   suppressHiddenRegister = false,
+  required = false,
 }) => {
+  const showRequiredMark = required || isValidationRequired(validation);
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
 
@@ -62,7 +67,11 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
         controlId={groupControlId ?? controlId}
         className={groupClassName ?? "mb-3 w-100"}
       >
-        {label?.trim() ? <Form.Label>{label}</Form.Label> : null}
+        {label?.trim() ? (
+          <Form.Label>
+            <FieldLabelText label={label} required={showRequiredMark} />
+          </Form.Label>
+        ) : null}
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}

@@ -8,7 +8,7 @@ import React, {
 import { Button, Form } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { OrderModel, OrderStatusEnum } from "../../lib/order/orderTypes";
+import { OrderModel, OrderStatusEnum } from "../../lib/order/orders";
 import { textUnderlineCell, formatDate, priceCell } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import {
@@ -18,13 +18,11 @@ import {
   ORDER_TAB_KEYS,
 } from "../../services/orderService";
 import type { OrderTabKey } from "../../services/orderService";
-import { exportData } from "../../services/exportService";
 import { showOrderInfoDialog } from "../../components/order";
 import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
 import { UserDetailsDialog } from "../../components/user";
-import { ApiPaths } from "../../lib/global/remote/apiPaths";
-import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import OrderRowActions from "./OrderRowActions";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomDatePicker from "../../components/CustomDatePicker";
@@ -32,12 +30,10 @@ import {
   getCustomerPaymentStatusLabel,
   getOrderPartnerDisplayName,
   getPartnerPaymentStatusLabel,
-} from "../../lib/order/orderHelpers";
+} from "../../lib/order/orders";
 import { getCount } from "../../services/getCountService";
-import {
-  FRANCHISE_HEADER_ALL,
-  useFranchiseHeaderForm,
-} from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import type { GetCountExtra } from "../../services/getCountService";
+import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
@@ -72,13 +68,14 @@ const OrderManagement = () => {
   >({});
   const fetchRef = useRef(false);
 
-  const listFilters = useMemo(
-    () => ({
+  const listFilters = useMemo(() => {
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    return {
       from_date: fromDate,
       to_date: toDate,
-    }),
-    [fromDate, toDate]
-  );
+      ...(fid ? { franchise_id: fid } : {}),
+    };
+  }, [fromDate, toDate, headerFranchiseId]);
 
   const fetchData = useCallback(
     async (filters: { keyword?: string; status?: string; sort?: string }) => {
@@ -108,7 +105,13 @@ const OrderManagement = () => {
   /** Tab badges: `POST /getCount` `{ type: "order-management", franchise_id? }`; falls back to list totals if unmapped. */
   const reloadTabCounts = useCallback(async () => {
     const fid = franchiseIdForApiQuery(headerFranchiseId);
-    const scope = fid ? { franchise_id: fid } : undefined;
+    const scope: GetCountExtra | undefined = (() => {
+      const extra: GetCountExtra = {};
+      if (fid) extra.franchise_id = fid;
+      if (fromDate) extra.from_date = fromDate;
+      if (toDate) extra.to_date = toDate;
+      return Object.keys(extra).length > 0 ? extra : undefined;
+    })();
     const { responseCount, countModel } = await getCount(
       "order-management",
       scope
@@ -137,7 +140,7 @@ const OrderManagement = () => {
       next[key] = res.response ? res.totalCount : 0;
     });
     setOrderCountsByTab(next);
-  }, [headerFranchiseId, listFilters]);
+  }, [headerFranchiseId, fromDate, toDate, listFilters]);
 
   const bumpListsAndTabCounts = useCallback(async () => {
     await reloadTabCounts();
@@ -192,6 +195,12 @@ const OrderManagement = () => {
     },
     [bumpListsAndTabCounts]
   );
+
+  const handleOrderInvoiceDownload = useCallback((orderId: string) => {
+    void import("../../components/order/OrderInvoice").then(({ downloadOrderInvoice }) =>
+      downloadOrderInvoice(orderId)
+    );
+  }, []);
 
   const handleOrderVoid = useCallback(
     (orderId: string) => {
@@ -276,14 +285,22 @@ const OrderManagement = () => {
         Header: "Action",
         accessor: "action",
         Cell: ({ row }: { row: any }) => (
-          <CustomActionColumn
-            row={row}
-            onDelete={() => handleOrderVoid(row.original._id)}
+          <OrderRowActions
+            onView={() => orderShow(row.original._id)}
+            onInvoice={() => handleOrderInvoiceDownload(row.original._id)}
+            onVoid={() => handleOrderVoid(row.original._id)}
           />
         ),
       },
     ],
-    [currentPage, pageSize, handleOrderVoid, orderShow, userShow]
+    [
+      currentPage,
+      pageSize,
+      handleOrderVoid,
+      handleOrderInvoiceDownload,
+      orderShow,
+      userShow,
+    ]
   );
 
   return (
@@ -294,7 +311,7 @@ const OrderManagement = () => {
           rightActions={
             <button
               type="button"
-              className="custom-btn-secondary w-auto"
+              className="custom-btn-secondary custom-header-action-btn"
               onClick={() =>
                 CreateUpdateOrderDialog.show(false, null, () =>
                   bumpListsAndTabCounts()
@@ -333,6 +350,7 @@ const OrderManagement = () => {
           searchHint={"Search order ID"}
           toolsInlineRow
           hideMoreIcon
+          hideUtilityActions
           controlSlot={
             <>
               <div style={{ minWidth: "220px" }}>
@@ -402,23 +420,6 @@ const OrderManagement = () => {
               Clear
             </Button>
           }
-          onDownloadClick={async () => {
-            const fid = String(headerFranchiseId ?? "").trim();
-            await exportData(ApiPaths.EXPORT_ORDER, {
-              order_status: selectedStatus,
-              ...(fromDate && { from_date: fromDate }),
-              ...(toDate && { to_date: toDate }),
-              ...(fid &&
-                fid !== FRANCHISE_HEADER_ALL && { franchise_id: fid }),
-            });
-          }}
-          onSortClick={(value) => {
-            handleFilterChange({
-              sort: value,
-              status: selectedStatus.toString(),
-            });
-          }}
-          onMoreClick={() => {}}
           onSearch={(value) => handleFilterChange({ keyword: value })}
         />
 

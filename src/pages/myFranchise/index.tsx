@@ -148,9 +148,6 @@ function serviceNamesHoverFromList(names: (string | undefined)[]): React.ReactNo
   );
 }
 
-/** Same as `serviceNamesHoverFromList` — kept so stale HMR bundles do not throw. */
-const renderCategoryServicesNamesHover = serviceNamesHoverFromList;
-
 /** Service labels for a franchise catalogue category row (from `GET /category/get/:id`). */
 function categoryCatalogServiceNames(cat: CategoryRow): string[] {
   if (Array.isArray(cat.service_names) && cat.service_names.length) {

@@ -11,14 +11,32 @@ import React, {
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { updateOrderService, createOrUpdateOrder } from "../../lib/order/orderService";
+import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import {
+  buildOrderEmployeeUpdatePayload,
+  buildOrderHeaderPatchPayload,
+  buildOrderPaymentUpdatePayload,
+  buildOrderUserUpdatePayload,
+  canAddAnotherCustomerPayment,
+  canAddAnotherPartnerPayment,
+  createOrUpdateOrder,
+  isCustomerPaymentRowComplete,
+  isPartnerPaymentRowComplete,
+  roundMoney,
+  updateOrderService,
+} from "../../lib/order/orders";
 import { fetchPartnerDropDown, fetchUserDropDown, APP_USER_TYPE } from "../../services/userService";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { openDialog } from "../../lib/global/DialogManager";
-import { OrderModel, OrderStatusEnum } from "../../lib/order/orderTypes";
+import { OrderModel, OrderStatusEnum } from "../../lib/order/orders";
 import { UserModel } from "../../lib/models/UserModel";
 import { AppConstant } from "../../lib/global/AppConstant";
+import {
+  formatMoney2,
+  normalizePaymentMethod,
+  paymentMethodSelectOptions,
+} from "../../lib/global/paymentAndCurrency";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { showErrorAlert } from "../../lib/global/alertHelper";
@@ -28,9 +46,8 @@ import type {
   OrderPaymentExtV1,
   OtherChargeRow,
   PartnerPaymentRow,
-} from "../../lib/order/orderHelpers";
+} from "../../lib/order/orders";
 import {
-  mergePaymentExtension,
   computeTaxCommissionAmounts,
   otherChargesTotal,
   sumCustomerAmounts,
@@ -46,8 +63,8 @@ import {
   resolveOrderOfferBreakdown,
   getCustomerPaymentStatusLabel,
   getPartnerPaymentStatusLabel,
-} from "../../lib/order/orderHelpers";
-
+} from "../../lib/order/orders";
+import { QUOTE_MODAL_LAYOUT } from "../../lib/quote/quoteHelpers";
 
 /** --- AssignPartnerDialog --- */
 
@@ -115,8 +132,8 @@ const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
       <Modal
         show={true}
         onHide={onClose}
-        centered
-        dialogClassName="custom-big-modal"
+        {...QUOTE_MODAL_LAYOUT}
+        enforceFocus={false}
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title">
@@ -124,7 +141,7 @@ const AssignPartnerDialog: React.FC<AssignPartnerDialogProps> & {
           </Modal.Title>
           <CustomCloseButton onClose={onClose} />
         </Modal.Header>
-        <Modal.Body className="px-4 pb-4 pt-0">
+        <Modal.Body className="add-quote-modal-body pt-0">
           <form
             noValidate
             name="assign-partner-form"
@@ -238,22 +255,11 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
       partner_payment_status: string;
     }
   ) => {
-    const paymentModeId = Number(
-      data.payment_mode_id ?? orderDetails.payment_mode_id ?? 2
-    );
-    const isPaidFromStatus = paymentModeId === 1 || paymentModeId === 3; // Paid / Partially paid
-    const customerPay = (data.customer_payment_status || "").trim();
-    const partnerPay = (data.partner_payment_status || "").trim();
-    const is_paid =
-      customerPay === "Paid" || (customerPay !== "Unpaid" && isPaidFromStatus);
-
-    const payload = {
-      order_status: Number(data.order_status),
-      is_paid,
-      payment_mode_id: paymentModeId,
-      customer_payment_status: customerPay,
-      partner_payment_status: partnerPay,
-    };
+    const payload = buildOrderHeaderPatchPayload({
+      orderStatus: Number(data.order_status),
+      customerPaymentStatus: (data.customer_payment_status || "").trim(),
+      partnerPaymentStatus: (data.partner_payment_status || "").trim(),
+    });
 
     const responseUser = await createOrUpdateOrder(
       payload,
@@ -272,8 +278,8 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
       <Modal
         show={true}
         onHide={onClose}
-        centered
-        dialogClassName="custom-big-modal"
+        {...QUOTE_MODAL_LAYOUT}
+        enforceFocus={false}
       >
         <Modal.Header className="py-3 px-4 border-bottom-0">
           <Modal.Title as="h5" className="custom-modal-title">
@@ -281,7 +287,7 @@ const EditOrderDialog: React.FC<EditOrderDialogProps> & {
           </Modal.Title>
           <CustomCloseButton onClose={onClose} />
         </Modal.Header>
-        <Modal.Body className="px-4 pb-4 pt-0">
+        <Modal.Body className="add-quote-modal-body pt-0">
           <form
             noValidate
             name="assign-partner-form"
@@ -447,17 +453,7 @@ const EditOrderUserDialog: React.FC<EditOrderUserDialogProps> & {
     if (!selected) {
       return;
     }
-    const payload = {
-      user_id: selected._id,
-      user_unique_id: selected.user_id,
-      order_status: orderDetails.order_status,
-      is_paid: orderDetails.is_paid,
-      payment_mode_id: Number(orderDetails.payment_mode_id ?? 2),
-      address: selected.address ?? orderDetails.address,
-      name: selected.name,
-      email: selected.email,
-      contact: selected.phone_number,
-    };
+    const payload = buildOrderUserUpdatePayload(selected, orderDetails);
     const ok = await createOrUpdateOrder(payload, true, orderDetails._id);
     if (ok) {
       onClose?.();
@@ -469,8 +465,7 @@ const EditOrderUserDialog: React.FC<EditOrderUserDialogProps> & {
     <Modal
       show
       onHide={onClose}
-      centered
-      dialogClassName="custom-big-modal"
+      {...QUOTE_MODAL_LAYOUT}
       enforceFocus={false}
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -479,7 +474,7 @@ const EditOrderUserDialog: React.FC<EditOrderUserDialogProps> & {
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
-      <Modal.Body className="px-4 pb-4 pt-0">
+      <Modal.Body className="add-quote-modal-body pt-0">
         <form noValidate onSubmit={handleSubmit(onSubmit)}>
           <Row>
             <CustomTextFieldSelect
@@ -590,13 +585,11 @@ const EditOrderEmployeeDialog: React.FC<EditOrderEmployeeDialogProps> & {
   }, [loadEmployees]);
 
   const onSubmit = async (data: { created_by_id: string }) => {
-    const payload = {
-      order_status: orderDetails.order_status,
-      is_paid: orderDetails.is_paid,
-      payment_mode_id: Number(orderDetails.payment_mode_id ?? 2),
-      created_by_id: data.created_by_id,
-    };
-    const ok = await createOrUpdateOrder(payload, true, orderDetails._id);
+    const ok = await createOrUpdateOrder(
+      buildOrderEmployeeUpdatePayload(data.created_by_id),
+      true,
+      orderDetails._id
+    );
     if (ok) {
       onClose?.();
       onRefreshData();
@@ -607,8 +600,7 @@ const EditOrderEmployeeDialog: React.FC<EditOrderEmployeeDialogProps> & {
     <Modal
       show
       onHide={onClose}
-      centered
-      dialogClassName="custom-big-modal"
+      {...QUOTE_MODAL_LAYOUT}
       enforceFocus={false}
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
@@ -617,7 +609,7 @@ const EditOrderEmployeeDialog: React.FC<EditOrderEmployeeDialogProps> & {
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
-      <Modal.Body className="px-4 pb-4 pt-0">
+      <Modal.Body className="add-quote-modal-body pt-0">
         <form noValidate onSubmit={handleSubmit(onSubmit)}>
           <Row>
             <CustomTextFieldSelect
@@ -672,14 +664,14 @@ EditOrderEmployeeDialog.show = (
 
 /** --- OrderPaymentEditModal --- */
 
-const PAY_TYPES = ["COD", "Razor pay", "UPI", "Online", "Cash", "—"].map(
-  (t) => ({ value: t, label: t })
-);
+const PAYMENT_METHOD_OPTIONS = paymentMethodSelectOptions();
 
 type OrderPaymentEditModalProps = {
   order: OrderModel;
   onClose: () => void;
   onSaved: () => void;
+  /** When true, render inside parent modal (no nested dialog shell). */
+  embedded?: boolean;
 };
 
 const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -722,69 +714,9 @@ const tablePriceInputStyle: React.CSSProperties = {
   textAlign: "right",
 };
 
-const summaryRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
-  padding: "10px 0",
-  fontSize: FONT_BODY,
-  borderBottom: "1px solid var(--txtfld-border, rgba(0,0,0,0.08))",
-};
-
-const summaryLabel: React.CSSProperties = {
-  color: "var(--content-txt-color, #6c757d)",
-  fontWeight: 500,
-  minWidth: 0,
-};
-
-const summaryValue: React.CSSProperties = {
-  fontWeight: 600,
-  textAlign: "right",
-  ...moneyTabular,
-};
-
-/** Right column in summary rows (top-aligned with multi-line labels). */
-const summaryValueTop: React.CSSProperties = {
-  ...summaryValue,
-  alignSelf: "flex-start",
-};
-
-const summaryTotalWrap: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  paddingTop: "12px",
-  marginTop: "8px",
-  borderTop: "2px solid var(--txtfld-border, rgba(0,0,0,0.14))",
-};
-
-const summaryTotalLabel: React.CSSProperties = {
-  fontSize: FONT_TOTAL,
-  fontWeight: 700,
-  color: "var(--primary-txt-color, #1a1a1a)",
-};
-
-const summaryTotalValue: React.CSSProperties = {
-  fontSize: FONT_TOTAL,
-  fontWeight: 700,
-  textAlign: "right",
-  color: "var(--primary-color, #0d6efd)",
-  ...moneyTabular,
-};
-
-const offerSubline: React.CSSProperties = {
-  fontSize: FONT_LABEL,
-  fontWeight: 500,
-  color: "var(--content-txt-color, #6c757d)",
-  marginTop: "4px",
-  lineHeight: 1.35,
-};
-
 const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   show: (order: OrderModel, onSaved: () => void) => void;
-} = ({ order, onClose, onSaved }) => {
+} = ({ order, onClose, onSaved, embedded = false }) => {
   const primary = getPrimaryServiceItem(order);
   const partnerLock = partnerPaymentsEditLocked(order);
   const refundN = orderRefundAmount(order);
@@ -798,7 +730,21 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     );
     return { ...base, taxPercent: taxPct, commissionPercent: commissionPct };
   });
+  const [showCustomerPaymentAddHint, setShowCustomerPaymentAddHint] =
+    useState(false);
+  const [showPartnerPaymentAddHint, setShowPartnerPaymentAddHint] =
+    useState(false);
   const { register, setValue } = useForm<any>();
+
+  const paymentFieldRegister = useCallback(
+    (name: string) => ({
+      onChange: async () => {},
+      onBlur: async () => {},
+      name: String(name),
+      ref: () => {},
+    }),
+    []
+  ) as import("react-hook-form").UseFormRegister<any>;
 
   useEffect(() => {
     const base = resolvePaymentExtension(order, primary);
@@ -845,23 +791,6 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     () => Math.max(0, Number(order.discount_amount ?? 0)),
     [order.discount_amount]
   );
-  const showOfferTemplate = useMemo(() => {
-    const b = offerBreakdown;
-    return (
-      b.totalOfferValue > 0 ||
-      b.adminContribution > 0 ||
-      b.partnerContribution > 0
-    );
-  }, [offerBreakdown]);
-  const showOfferLine = useMemo(() => {
-    return offerBreakdown.appliedDiscount > 0 || showOfferTemplate;
-  }, [offerBreakdown, showOfferTemplate]);
-
-  const showRefundSummary = useMemo(() => {
-    const r = refundBreakdown;
-    return r.refundAmount > 0 || r.adminCommission > 0 || r.partnerWallet > 0;
-  }, [refundBreakdown]);
-
   const preAdjustTotal = useMemo(
     () =>
       Math.max(0, combinedServiceBase + taxAmount + commissionAmount - refundN),
@@ -938,8 +867,83 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     });
   }, [finalTotal, partnerDueTotal, partnerLock]);
 
-  const canAddCustomerPayment = customerPaidBal.balance > 0.009;
-  const canAddPartnerPayment = !partnerLock && partnerPaidBal.balance > 0.009;
+  const customerAddPaymentState = useMemo(
+    () =>
+      canAddAnotherCustomerPayment(
+        ext.customerPayments,
+        customerPaidBal.balance
+      ),
+    [ext.customerPayments, customerPaidBal.balance]
+  );
+  const partnerAddPaymentState = useMemo(
+    () =>
+      canAddAnotherPartnerPayment(
+        ext.partnerPayments,
+        partnerPaidBal.balance
+      ),
+    [ext.partnerPayments, partnerPaidBal.balance]
+  );
+  const canAddCustomerByBalance = customerPaidBal.balance > 0.009;
+  const canAddPartnerByBalance =
+    !partnerLock && partnerPaidBal.balance > 0.009;
+
+  useEffect(() => {
+    if (
+      showCustomerPaymentAddHint &&
+      ext.customerPayments.every(isCustomerPaymentRowComplete)
+    ) {
+      setShowCustomerPaymentAddHint(false);
+    }
+  }, [ext.customerPayments, showCustomerPaymentAddHint]);
+
+  useEffect(() => {
+    if (
+      showPartnerPaymentAddHint &&
+      ext.partnerPayments.every(isPartnerPaymentRowComplete)
+    ) {
+      setShowPartnerPaymentAddHint(false);
+    }
+  }, [ext.partnerPayments, showPartnerPaymentAddHint]);
+
+  const tryAddCustomerPayment = () => {
+    if (!customerAddPaymentState.allowed) {
+      if (customerAddPaymentState.reason) {
+        setShowCustomerPaymentAddHint(true);
+      }
+      return;
+    }
+    setShowCustomerPaymentAddHint(false);
+    setExt((e) => ({
+      ...e,
+      customerPayments: [
+        ...e.customerPayments,
+        {
+          id: nid(),
+          date: "",
+          amount: 0,
+          type: "cash",
+          description: "",
+        },
+      ],
+    }));
+  };
+
+  const tryAddPartnerPayment = () => {
+    if (!partnerAddPaymentState.allowed) {
+      if (partnerAddPaymentState.reason) {
+        setShowPartnerPaymentAddHint(true);
+      }
+      return;
+    }
+    setShowPartnerPaymentAddHint(false);
+    setExt((e) => ({
+      ...e,
+      partnerPayments: [
+        ...e.partnerPayments,
+        { id: nid(), date: "", amount: 0, description: "" },
+      ],
+    }));
+  };
 
   const mainServiceLabel =
     primary?.service_info?.name?.trim() || "Main service";
@@ -1024,6 +1028,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   };
 
   const save = async () => {
+    if (customerAddPaymentState.reason) {
+      setShowCustomerPaymentAddHint(true);
+      return;
+    }
+    if (partnerAddPaymentState.reason) {
+      setShowPartnerPaymentAddHint(true);
+      return;
+    }
     if (ext.serviceAmount < 0) {
       showErrorAlert("Service amount cannot be negative.");
       return;
@@ -1043,47 +1055,26 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
       return;
     }
 
-    const newComment = mergePaymentExtension(order.comment, ext);
     const ok = await createOrUpdateOrder(
-      {
-        order_status: order.order_status,
-        sub_total: ext.serviceAmount,
-        tax: taxAmount,
-        partner_commison_platform_fee: commissionAmount,
-        total_price: finalTotal,
-        is_paid: customerPaidBal.totalPaid >= finalTotal - 0.01,
-        payment_mode_id: Number(order.payment_mode_id ?? 2),
-        comment: newComment,
-      },
+      buildOrderPaymentUpdatePayload({
+        order,
+        ext,
+        totalServiceCharge: ext.serviceAmount,
+      }),
       true,
       order._id
     );
     if (ok) {
-      onClose();
+      if (!embedded) onClose();
       onSaved();
     }
   };
 
-  return (
-    <Modal
-      show
-      onHide={onClose}
-      centered
-      size="xl"
-      dialogClassName="custom-big-modal"
-      enforceFocus={false}
+  const paymentBody = (
+    <div
+      className={embedded ? undefined : "add-quote-modal-body pt-0"}
+      style={{ fontSize: FONT_BODY }}
     >
-      <div className="custom-order-model-detail">
-        <Modal.Header className="py-3 px-4 border-bottom-0">
-          <Modal.Title as="h5" className="custom-modal-title">
-            Edit order payments
-          </Modal.Title>
-          <CustomCloseButton onClose={onClose} />
-        </Modal.Header>
-        <Modal.Body
-          className="px-4 pb-4 pt-0"
-          style={{ maxHeight: "75vh", overflowY: "auto", fontSize: FONT_BODY }}
-        >
           {/* Services */}
           <section className="custom-other-details mt-2" style={sectionShell}>
             <Row className="align-items-center mb-3 pb-2 border-bottom">
@@ -1264,116 +1255,23 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
             </div>
           </section>
 
-          {/* Price summary */}
           <section className="custom-other-details mt-3" style={sectionShell}>
-            <Row className="align-items-center mb-3 pb-2 border-bottom">
-              <Col>
-                <h3 className="mb-0">Price summary</h3>
-              </Col>
-            </Row>
-            <div>
-              <div style={summaryRow}>
-                <span style={summaryLabel}>Total services price</span>
-                <span style={summaryValueTop}>
-                  {sym}
-                  {combinedServiceBase.toFixed(2)}
-                </span>
-              </div>
-              <div style={summaryRow}>
-                <span style={summaryLabel}>Tax ({taxPct}%)</span>
-                <span style={summaryValueTop}>
-                  {sym}
-                  {taxAmount.toFixed(2)}
-                </span>
-              </div>
-              <div style={summaryRow}>
-                <span style={summaryLabel}>Commission ({commissionPct}%)</span>
-                <span style={summaryValueTop}>
-                  {sym}
-                  {commissionAmount.toFixed(2)}
-                </span>
-              </div>
-              {showOfferLine ? (
-                <div style={summaryRow}>
-                  <div style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        ...summaryLabel,
-                        color: "var(--primary-txt-color, #1a1a1a)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Offer
-                    </span>
-                    {offerBreakdown.offerCode ? (
-                      <span
-                        className="ms-1 rounded-pill border px-2 py-0 align-middle"
-                        style={{ fontSize: FONT_LABEL, fontWeight: 600 }}
-                      >
-                        {offerBreakdown.offerCode}
-                      </span>
-                    ) : null}
-                    {showOfferTemplate ? (
-                      <div style={offerSubline}>
-                        ( Total offer value {sym}
-                        {offerBreakdown.totalOfferValue.toFixed(2)}
-                        {" · "}
-                        Admin {sym}
-                        {offerBreakdown.adminContribution.toFixed(2)}
-                        {" · "}
-                        Partner {sym}
-                        {offerBreakdown.partnerContribution.toFixed(2)})
-                      </div>
-                    ) : offerBreakdown.offerName?.trim() ? (
-                      <div style={offerSubline}>
-                        ({offerBreakdown.offerName.trim()})
-                      </div>
-                    ) : null}
-                  </div>
-                  <span style={{ ...summaryValueTop, color: "#198754" }}>
-                    {offerBreakdown.appliedDiscount > 0 ? "−" : ""}
-                    {sym}
-                    {offerBreakdown.appliedDiscount.toFixed(2)}
-                  </span>
-                </div>
-              ) : null}
-              {orderDiscount > 0 ? (
-                <div style={summaryRow}>
-                  <span style={summaryLabel}>Discount</span>
-                  <span style={{ ...summaryValueTop, color: "#198754" }}>
-                    −{sym}
-                    {orderDiscount.toFixed(2)}
-                  </span>
-                </div>
-              ) : null}
-              {refundN > 0 ? (
-                <div style={summaryRow}>
-                  <div style={{ minWidth: 0 }}>
-                    <span style={summaryLabel}>Refund</span>
-                    {showRefundSummary ? (
-                      <div style={offerSubline}>
-                        ( Admin Commission {sym}
-                        {refundBreakdown.adminCommission.toFixed(2)}
-                        {" · "}
-                        Partner Wallet {sym}
-                        {refundBreakdown.partnerWallet.toFixed(2)})
-                      </div>
-                    ) : null}
-                  </div>
-                  <span style={{ ...summaryValueTop, color: "#dc3545" }}>
-                    −{sym}
-                    {(refundBreakdown.refundAmount || refundN).toFixed(2)}
-                  </span>
-                </div>
-              ) : null}
-              <div style={summaryTotalWrap}>
-                <span style={summaryTotalLabel}>Final total</span>
-                <span style={summaryTotalValue}>
-                  {sym}
-                  {finalTotal.toFixed(2)}
-                </span>
-              </div>
-            </div>
+            <OrderAmountSummaryPanel
+              serviceAmount={ext.serviceAmount}
+              offerDiscount={offerBreakdown.appliedDiscount}
+              taxPct={taxPct}
+              taxAmount={taxAmount}
+              commissionPct={commissionPct}
+              commissionAmount={commissionAmount}
+              otherCharges={ext.otherCharges}
+              offer={offerBreakdown}
+              orderDiscount={orderDiscount}
+              refund={refundBreakdown}
+              refundTotal={refundN}
+              finalTotal={finalTotal}
+              finalTotalLabel="Final total"
+              style={{ marginTop: 0, padding: 0, border: "none", background: "transparent" }}
+            />
           </section>
 
           {/* Customer payments */}
@@ -1402,22 +1300,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 <Button
                   type="button"
                   className="custom-btn-secondary w-auto"
-                  disabled={!canAddCustomerPayment}
-                  onClick={() =>
-                    setExt((e) => ({
-                      ...e,
-                      customerPayments: [
-                        ...e.customerPayments,
-                        {
-                          id: nid(),
-                          date: "",
-                          amount: 0,
-                          type: "COD",
-                          description: "",
-                        },
-                      ],
-                    }))
-                  }
+                  disabled={!canAddCustomerByBalance}
+                  onClick={tryAddCustomerPayment}
                 >
                   Add User payment
                 </Button>
@@ -1427,7 +1311,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
               <Table
                 bordered
                 size="sm"
-                className="mb-0 align-middle"
+                className="mb-0 align-middle order-payment-table"
                 style={{ color: "var(--content-txt-color)", width: "100%" }}
               >
                 <colgroup>
@@ -1470,8 +1354,17 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   </tr>
                 </thead>
                 <tbody>
-                  {ext.customerPayments.map((row, idx) => (
-                    <tr key={row.id}>
+                  {ext.customerPayments.map((row, idx) => {
+                    const customerRowHighlight =
+                      showCustomerPaymentAddHint &&
+                      !isCustomerPaymentRowComplete(row);
+                    return (
+                    <tr
+                      key={row.id}
+                      className={
+                        customerRowHighlight ? "payment-row--invalid" : undefined
+                      }
+                    >
                       <td className="align-middle text-center fw-medium">
                         {idx + 1}
                       </td>
@@ -1489,11 +1382,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                               date: `${y}-${m}-${day}`,
                             });
                           }}
-                          register={register}
+                          register={paymentFieldRegister}
                           setValue={setValue}
                           asCol={false}
                           groupClassName="mb-0"
                           filterDate={() => true}
+                          suppressHiddenRegister
                         />
                       </td>
                       <td className="align-middle">
@@ -1501,7 +1395,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           label=""
                           controlId={`cust-pay-amt-${row.id}`}
                           placeholder="0.00"
-                          register={register}
+                          register={paymentFieldRegister}
                           asCol={false}
                           inputType="text"
                           inputClassName="text-end"
@@ -1540,10 +1434,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         <CustomFormSelect
                           label=""
                           controlId={`cust-pay-type-${row.id}`}
-                          register={register}
+                          register={paymentFieldRegister}
                           fieldName={`custPayType_${row.id}`}
-                          options={PAY_TYPES}
-                          defaultValue={row.type}
+                          options={PAYMENT_METHOD_OPTIONS}
+                          defaultValue={
+                            normalizePaymentMethod(row.type) || "cash"
+                          }
                           setValue={setValue}
                           asCol={false}
                           noBottomMargin
@@ -1587,7 +1483,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         />
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </Table>
             </div>
@@ -1639,16 +1536,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   <Button
                     type="button"
                     className="custom-btn-secondary w-auto"
-                    disabled={!canAddPartnerPayment}
-                    onClick={() =>
-                      setExt((e) => ({
-                        ...e,
-                        partnerPayments: [
-                          ...e.partnerPayments,
-                          { id: nid(), date: "", amount: 0, description: "" },
-                        ],
-                      }))
-                    }
+                    disabled={!canAddPartnerByBalance}
+                    onClick={tryAddPartnerPayment}
                   >
                     Add partner payment
                   </Button>
@@ -1659,7 +1548,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
               <Table
                 bordered
                 size="sm"
-                className="mb-0 align-middle"
+                className="mb-0 align-middle order-payment-table"
                 style={{ color: "var(--content-txt-color)", width: "100%" }}
               >
                 <colgroup>
@@ -1698,7 +1587,11 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   </tr>
                 </thead>
                 <tbody>
-                  {ext.partnerPayments.map((row, idx) => (
+                  {ext.partnerPayments.map((row, idx) => {
+                    const partnerRowIncomplete =
+                      showPartnerPaymentAddHint &&
+                      !isPartnerPaymentRowComplete(row);
+                    return (
                     <tr key={row.id}>
                       <td className="align-middle text-center fw-medium">
                         {idx + 1}
@@ -1715,11 +1608,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             const day = `${d.getDate()}`.padStart(2, "0");
                             updatePartner(row.id, { date: `${y}-${m}-${day}` });
                           }}
-                          register={register}
+                          register={paymentFieldRegister}
                           setValue={setValue}
                           asCol={false}
                           groupClassName="mb-0"
                           filterDate={() => true}
+                          suppressHiddenRegister
                         />
                       </td>
                       <td className="align-middle">
@@ -1727,7 +1621,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           label=""
                           controlId={`partner-pay-amt-${row.id}`}
                           placeholder="0.00"
-                          register={register}
+                          register={paymentFieldRegister}
                           asCol={false}
                           inputType="text"
                           inputClassName="text-end"
@@ -1799,7 +1693,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </Table>
             </div>
@@ -1824,26 +1719,49 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
           <Row className="mt-4">
             <Col
               xs={12}
-              className="text-center d-flex justify-content-end gap-3"
+              className={
+                embedded
+                  ? "d-flex justify-content-end"
+                  : "text-center d-flex justify-content-end gap-3"
+              }
             >
               <Button
                 type="button"
                 className="custom-btn-primary"
                 onClick={() => void save()}
               >
-                Save
+                {embedded ? "Save payments & charges" : "Save"}
               </Button>
-              <Button
-                type="button"
-                className="custom-btn-secondary"
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
+              {!embedded ? (
+                <Button
+                  type="button"
+                  className="custom-btn-secondary"
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+              ) : null}
             </Col>
           </Row>
-        </Modal.Body>
-      </div>
+    </div>
+  );
+
+  if (embedded) return paymentBody;
+
+  return (
+    <Modal
+      show
+      onHide={onClose}
+      {...QUOTE_MODAL_LAYOUT}
+      enforceFocus={false}
+    >
+      <Modal.Header className="py-3 px-4 border-bottom-0">
+        <Modal.Title as="h5" className="custom-modal-title">
+          Edit order payments
+        </Modal.Title>
+        <CustomCloseButton onClose={onClose} />
+      </Modal.Header>
+      <Modal.Body className="add-quote-modal-body pt-0">{paymentBody}</Modal.Body>
     </Modal>
   );
 };

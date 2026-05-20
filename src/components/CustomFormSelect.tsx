@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Col } from "react-bootstrap";
 import Select from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
+import { FieldLabelText } from "./RequiredFieldMark";
 
 interface CustomFormSelectProps {
   label: string;
@@ -300,7 +301,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
     >
       {label?.trim() && (
         <Form.Label htmlFor={selectInputId} className="fw-medium mb-1">
-          {label}
+          <FieldLabelText label={label} required={!!requiredMessage} />
         </Form.Label>
       )}
       <Select

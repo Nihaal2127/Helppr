@@ -243,18 +243,6 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     const chatOn = Boolean(
       employee.is_active && (employee.chat_enabled ?? true)
     );
-    const permissionsValue =
-      screenPermissionLabels.length > 0 ? (
-        <ul className="mb-0 ps-3 small" style={{ listStyleType: "disc" }}>
-          {screenPermissionLabels.map((label, i) => (
-            <li key={`${label}-${i}`} className="text-start">
-              {label}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        "—"
-      );
     return (
       <section
         className="custom-other-details modal-readonly-details"

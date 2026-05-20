@@ -13,10 +13,10 @@ import CustomTable from "../../components/CustomTable";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import CustomDatePicker from "../../components/CustomDatePicker";
-import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
+import { FieldLabelText } from "../../components/RequiredFieldMark";
 import { useForm, UseFormRegister } from "react-hook-form";
 import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../../lib/types/quoteTypes";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
@@ -32,9 +32,10 @@ import {
   fetchQuoteCounts,
   fetchQuotes,
   mapQuoteTabCountsFromRecord,
+  buildPartnerCategoryOptionsFromProviding,
+  buildPartnerServiceOptionsFromProviding,
+  buildQuoteCategoryOptionsForPartner,
   getPartnerActiveServiceProvidingRow,
-  getPartnerAvailableCategoryIdSet,
-  getPartnerCategoryIdsFromProviding,
   getPartnerProvidingServiceIdSet,
   getQuoteScheduleModeFromServiceOption,
   mapRelatedCatalogToQuoteOptions,
@@ -62,7 +63,6 @@ import {
   collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
   formatQuoteScheduleForTable,
-  normalizePincodeDigits,
   parseCatalogAddressRecord,
   QUOTE_MODAL_LAYOUT,
   setQuoteFranchiseCatalogSnapshot,
@@ -80,12 +80,6 @@ const toTimeStorageFromDate = (date: Date | null): string =>
 
 const timeStorageOrNull = (v: string | undefined | null): string | null =>
   v && String(v).trim() ? v : null;
-
-const strTrim = (v: unknown): string => {
-  if (v == null) return "";
-  const s = String(v).trim();
-  return s === "undefined" || s === "null" ? "" : s;
-};
 
 type AddQuoteAddressRowUi = {
   id: string;
@@ -419,43 +413,27 @@ const QuoteManagement = () => {
   }, [addQuote.requested_partner, catalogPartnerRecords]);
 
   const quoteCatalogServicesForPartner = useMemo(() => {
+    if (!selectedPartnerCatalogRecord) return [];
+    const fromPartner = buildPartnerServiceOptionsFromProviding(
+      selectedPartnerCatalogRecord
+    );
+    if (fromPartner.length > 0) return fromPartner;
     const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
     if (!allow) return quoteCatalogServices;
     return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
   }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
 
   const quoteCategoryOptionsForPartner = useMemo(() => {
-    const partnerCatIds = getPartnerAvailableCategoryIdSet(
+    if (!selectedPartnerCatalogRecord) return [];
+    const fromPartner = buildPartnerCategoryOptionsFromProviding(
       selectedPartnerCatalogRecord
     );
-    const catIdsFromProviding = getPartnerCategoryIdsFromProviding(
+    if (fromPartner.length > 0) return fromPartner;
+    return buildQuoteCategoryOptionsForPartner(
+      quoteCategoryOptions,
+      quoteCatalogServicesForPartner,
       selectedPartnerCatalogRecord
     );
-    const catIdsFromServices = new Set(
-      quoteCatalogServicesForPartner
-        .map((o) => normalizeServiceCategoryRef(o.category_id))
-        .filter(Boolean)
-    );
-    catIdsFromProviding.forEach((id) => {
-      catIdsFromServices.add(id);
-    });
-    let base =
-      catIdsFromServices.size === 0
-        ? quoteCategoryOptions
-        : quoteCategoryOptions.filter((c) =>
-            catIdsFromServices.has(String(c.value))
-          );
-    /**
-     * `available_categories` can disagree with `active_services_providing` on staging data.
-     * Only narrow by it when the intersection is non-empty; otherwise keep service-derived categories.
-     */
-    if (partnerCatIds && partnerCatIds.size > 0) {
-      const narrowed = base.filter((c) => partnerCatIds.has(String(c.value)));
-      if (narrowed.length > 0) {
-        base = narrowed;
-      }
-    }
-    return base;
   }, [
     quoteCategoryOptions,
     quoteCatalogServicesForPartner,
@@ -1264,7 +1242,7 @@ const QuoteManagement = () => {
         rightActions={
           <button
             type="button"
-            className="custom-btn-secondary w-auto"
+            className="custom-btn-secondary custom-header-action-btn"
             disabled={!isSuperAdminOrStaff && quoteCatalogBlocked}
             onClick={handleOpenCreateQuoteModal}
           >
@@ -1444,7 +1422,7 @@ const QuoteManagement = () => {
                             htmlFor="add-quote-franchise"
                             className="custom-profile-lable"
                           >
-                            Franchise
+                            <FieldLabelText label="Franchise" required />
                           </label>
                         </Col>
                         <Col>
@@ -1541,7 +1519,7 @@ const QuoteManagement = () => {
                         className="custom-profile-lable d-block"
                         style={{ fontWeight: 600, marginBottom: "1.125rem" }}
                       >
-                        Customer addresses
+                        <FieldLabelText label="Customer addresses" required />
                       </label>
                       {!addQuoteAddressUi.ready ? (
                         <div className="small text-muted">
@@ -2124,6 +2102,7 @@ const QuoteManagement = () => {
                               labelSize={12}
                               placeholderText="From date"
                               filterDate={addQuoteScheduleFromDateFilter}
+                              required
                             />
                           </Col>
                           <Col xs={12} md={3}>
@@ -2150,6 +2129,7 @@ const QuoteManagement = () => {
                               labelSize={12}
                               placeholderText="To date"
                               filterDate={addQuoteScheduleToDateFilter}
+                              required
                             />
                           </Col>
                           <Col xs={12} md={3}>
@@ -2233,6 +2213,7 @@ const QuoteManagement = () => {
                               labelSize={12}
                               placeholderText="Select date"
                               filterDate={addQuoteScheduleFromDateFilter}
+                              required
                             />
                           </Col>
                           <Col xs={12} md={4}>
@@ -2322,7 +2303,7 @@ const QuoteManagement = () => {
                     <Col xs={12} md={6} lg={5}>
                       <Form.Group controlId="service_price">
                         <Form.Label className="fw-medium mb-1">
-                          Service Price
+                          <FieldLabelText label="Service Price" required />
                         </Form.Label>
                         <InputGroup>
                           <InputGroup.Text

@@ -2,6 +2,7 @@ import React from "react";
 import { Row, Col } from "react-bootstrap";
 import CustomDatePicker from "./CustomDatePicker";
 import { UseFormSetValue } from "react-hook-form";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomTextFieldDatePicketProps {
   labelSize?: number;
@@ -19,6 +20,8 @@ interface CustomTextFieldDatePicketProps {
   setValue: UseFormSetValue<any>;
   suppressHiddenRegister?: boolean;
   birthDatePicker?: boolean;
+  /** Show required asterisk when validation does not include `required`. */
+  required?: boolean;
 }
 
 const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
@@ -37,11 +40,15 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
   validation,
   suppressHiddenRegister,
   birthDatePicker,
+  required = false,
 }) => {
+  const showRequiredMark = required || isValidationRequired(validation);
   return (
     <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
       <Col sm={labelSize} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+        <label className="custom-profile-lable">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </label>
       </Col>
       <Col>
         <CustomDatePicker
@@ -59,6 +66,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
           filterDate={filterDate}
           suppressHiddenRegister={suppressHiddenRegister}
           birthDatePicker={birthDatePicker}
+          required={showRequiredMark}
         />
       </Col>
     </Row>

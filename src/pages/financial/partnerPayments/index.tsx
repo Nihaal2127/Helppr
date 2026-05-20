@@ -9,7 +9,7 @@ import {
   textUnderlineCell,
 } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
-import { fetchFinancial } from "../../../services/financialService";
+import { fetchOrderServiceFinancial } from "../../../services/financialService";
 import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
@@ -65,11 +65,8 @@ const PartnerPayments = () => {
       if (fetchRef.current) return;
       fetchRef.current = true;
       filters.service_status = "3";
-      const { response, financials, totalPages } = await fetchFinancial(
-        currentPage,
-        pageSize,
-        { ...filters }
-      );
+      const { response, financials, totalPages } =
+        await fetchOrderServiceFinancial(currentPage, pageSize, { ...filters });
       if (response) {
         setFinancialList(financials);
         setTotalPages(totalPages);

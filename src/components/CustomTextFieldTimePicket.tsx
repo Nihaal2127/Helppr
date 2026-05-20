@@ -2,6 +2,7 @@ import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { UseFormSetValue } from "react-hook-form";
 import CustomTimePicker from "./CustomTimePicker";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomTextFieldTimePicketProps {
   labelSize?: number;
@@ -20,6 +21,8 @@ interface CustomTextFieldTimePicketProps {
   asCol?: boolean;
   setValue: UseFormSetValue<any>;
   suppressHiddenRegister?: boolean;
+  /** Show required asterisk when validation does not include `required`. */
+  required?: boolean;
 }
 
 const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
@@ -38,11 +41,15 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
   register,
   validation,
   suppressHiddenRegister,
+  required = false,
 }) => {
+  const showRequiredMark = required || isValidationRequired(validation);
   return (
     <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
       <Col sm={labelSize} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+        <label className="custom-profile-lable">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </label>
       </Col>
       <Col>
         <CustomTimePicker
@@ -60,6 +67,7 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
           filterTime={filterTime}
           timeIntervals={timeIntervals}
           suppressHiddenRegister={suppressHiddenRegister}
+          required={showRequiredMark}
         />
       </Col>
     </Row>

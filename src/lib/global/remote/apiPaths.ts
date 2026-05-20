@@ -116,7 +116,16 @@ export const ApiPaths = {
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
   CREATE_TAX_OTHER_CHARGES: "/tax/create",
   UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,
-  GET_FINANCIAL: () => `/order_service/getAll`,
+  /** Financial — Order Payments list (Postman: Financial orders → getAll). */
+  FINANCIAL_ORDER_GET_ALL: () => `/financial-order/getAll`,
+  FINANCIAL_ORDER_GET_BY_ID: (id: string) => `/financial-order/get/${id}`,
+  FINANCIAL_ORDER_CREATE: `/financial-order/create`,
+  FINANCIAL_ORDER_UPDATE: (id: string) => `/financial-order/update/${id}`,
+  FINANCIAL_ORDER_DELETE: (id: string) => `/financial-order/delete/${id}`,
+  /** Legacy line-item list (Partner Payments page, payout pending lines). */
+  GET_ORDER_SERVICE_ALL: () => `/order_service/getAll`,
+  /** @deprecated use FINANCIAL_ORDER_GET_ALL */
+  GET_FINANCIAL: () => `/financial-order/getAll`,
   EXPORT_ORDER_PAYMENTS: `/export/orders_payments`,
   EXPORT_PARTNER_PAYMENTS: `/export/partner_payments`,
   GET_TICKET: () => `/ticket/getAll`,
@@ -152,6 +161,8 @@ export const ApiPaths = {
   UPDATE_QUOTE: (id: string) => `/quote/update/${id}`,
   DELETE_QUOTE: (id: string) => `/quote/delete/${id}`,
   GET_QUOTE_COUNTS: () => `/quote/getCounts`,
+  /** Active offers / coupons for order create (`?is_active=true`). */
+  GET_OFFER_GET_ALL: () => `/offer/getAll`,
   // Partner management
   /** Global subscription tier catalog (Postman: `/subscription-plan/*`). */
   SUBSCRIPTION_PLAN_GET_ALL: () => `/subscription-plan/getAll`,

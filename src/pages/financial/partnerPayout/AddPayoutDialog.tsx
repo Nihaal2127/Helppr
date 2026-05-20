@@ -6,7 +6,7 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { openDialog } from "../../../lib/global/DialogManager";
 import { fetchUser } from "../../../services/userService";
-import { fetchAllFinancialRowsMatching } from "../../../services/financialService";
+import { fetchAllOrderServiceRowsMatching } from "../../../services/financialService";
 import { submitPartnerWalletPayout } from "../../../services/partnerPayoutService";
 import { PARTNER_PAYOUT_PAYMENT_METHODS } from "../../../lib/financial/partnerPayoutPayment";
 import type { PartnerPayoutPaymentMethod } from "../../../lib/financial/partnerPayoutPayment";
@@ -77,14 +77,13 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
     }
     setLoadingPending(true);
     try {
-      const rows = await fetchAllFinancialRowsMatching(
+      const rows = await fetchAllOrderServiceRowsMatching(
         {
           partner_id: pid,
           partner_paid_status: "1",
           service_status: "3",
         },
-        250,
-        { skipEnrich: true }
+        250
       );
       setPendingRows(rows ?? []);
     } finally {

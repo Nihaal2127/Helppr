@@ -116,18 +116,10 @@ export function buildCatalogGetAllQueryParams(
 }
 
 export function catalogGetAllDebugLog(
-  label: "category" | "service",
-  franchiseId: string | null | undefined,
-  endpointPathWithQuery: string
-): void {
-  if (process.env.NODE_ENV === "production") return;
-  // Temporary diagnostics for malformed franchise URLs (see integration checklist).
-  // eslint-disable-next-line no-console
-  console.log(`[catalog:getAll:${label}]`, {
-    franchiseId: franchiseId ?? null,
-    endpoint: endpointPathWithQuery,
-  });
-}
+  _label: "category" | "service",
+  _franchiseId: string | null | undefined,
+  _endpointPathWithQuery: string
+): void {}
 
 export function messageForCatalogGetAllFailure(
   status: number | undefined,

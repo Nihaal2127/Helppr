@@ -122,8 +122,6 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
   const headerFranchiseId = watch("franchise_id") as string | undefined;
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isFranchiseAdminSession = currentUserRole === UserRole.FRANCHISE_ADMIN;
-  const isSuperAdminOrStaff =
-    currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.STAFF;
   const [selectedBox, setSelectedBox] = useState<
     "plans" | "partner_subscription_list"
   >("plans");
@@ -654,7 +652,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
         ),
       },
     ],
-    [currentPage, isSuperAdminOrStaff, pageSize, refreshData]
+    [currentPage, pageSize, refreshData]
   );
 
   return (

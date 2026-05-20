@@ -17,13 +17,8 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
-import { exportData } from "../../services/exportService";
-import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
-import {
-  sessionFranchiseIdForScopedApis,
-} from "../../lib/franchise/headerFranchisePreference";
 import { AreaModel } from "../../lib/models/AreaModel";
 import { fetchArea, deleteArea } from "../../services/areaService";
 import AddEditAreaDialog from "./AddEditAreaDialog";
@@ -81,7 +76,6 @@ const LocationManagement = () => {
   const fetchRef = useRef(false);
   const isFranchiseAdmin =
     getLocalStorage(AppConstant.userRole) === UserRole.FRANCHISE_ADMIN;
-  const sessionFranchiseId = sessionFranchiseIdForScopedApis();
   const { register: areaFilterRegister, setValue: setAreaFilterValue } =
     useForm<{
       area_franchise_id: string;
@@ -89,12 +83,6 @@ const LocationManagement = () => {
       defaultValues: {
         area_franchise_id: "",
       },
-    });
-  const { register: cityFilterRegister, setValue: setCityFilterValue } =
-    useForm<{
-      city_state_id: string;
-    }>({
-      defaultValues: { city_state_id: "" },
     });
   const {
     register: headerRegister,
@@ -217,7 +205,6 @@ const LocationManagement = () => {
       pageSize,
       stateTableSortBy,
       isFranchiseAdmin,
-      sessionFranchiseId,
     ]
   );
 

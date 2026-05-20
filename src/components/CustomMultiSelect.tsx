@@ -8,6 +8,7 @@ import Select, {
   GroupBase,
 } from "react-select";
 import { UseFormRegister, FieldError } from "react-hook-form";
+import { FieldLabelText } from "./RequiredFieldMark";
 
 /** Passed to custom MenuList without putting unknown props on react-select's Select (TS-safe; works with menuPortal). */
 const MultiSelectMenuFooterContext = createContext<React.ReactNode | undefined>(
@@ -226,7 +227,9 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
       controlId={controlId}
     >
       {label?.trim() && (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label className="fw-medium mb-1">
+          <FieldLabelText label={label} required={!!requiredMessage} />
+        </Form.Label>
       )}
       <MultiSelectMenuFooterContext.Provider value={menuFooter}>
         <Select

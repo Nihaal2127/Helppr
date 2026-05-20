@@ -688,7 +688,7 @@ const RoleManagement = () => {
       if ((prev.assignedFranchise ?? "").trim()) return prev;
       return { ...prev, assignedFranchise: label };
     });
-  }, [showForm, editing?.id, editing?.franchise_id, franchiseNameById]);
+  }, [showForm, editing, franchiseNameById]);
 
   /** Resolve label from API fields or franchise dropdown (handles delayed dropdown load). */
   const franchiseDisplayFor = useCallback(
@@ -831,20 +831,6 @@ const RoleManagement = () => {
     franchiseDropdownOptions,
     franchiseAssignedAdminDropdownOptions,
   ]);
-
-  const franchiseFilterOptions = useMemo(() => {
-    const uniqueFranchises = Array.from(
-      new Set(franchiseDropdownOptions.map((option) => option.label))
-    ).sort((a, b) => a.localeCompare(b));
-
-    return [
-      { value: "all", label: "All Franchises" },
-      ...uniqueFranchises.map((franchise) => ({
-        value: franchise,
-        label: franchise,
-      })),
-    ];
-  }, [franchiseDropdownOptions]);
 
   const columns = React.useMemo(
     () => [

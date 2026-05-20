@@ -405,6 +405,140 @@ function mergeServicesFromFranchiseServiceDocs(
   }
 }
 
+/** Partner catalog row enabled at partner level (`is_active` on providing row). */
+function isPartnerProvidingRowEligible(row: Record<string, unknown>): boolean {
+  return row.is_active !== false && row.is_active !== 0;
+}
+
+/** Prefer `active_*_providing`; fall back to full `*_providing` when active list is empty. */
+function partnerServicesProvidingRows(
+  partner: Record<string, unknown> | null | undefined
+): Record<string, unknown>[] {
+  if (!partner) return [];
+  const active =
+    partner.active_services_providing ?? partner.activeServicesProviding;
+  if (Array.isArray(active) && active.length > 0) {
+    return asObjectRecords(active).filter(isPartnerProvidingRowEligible);
+  }
+  const all = partner.services_providing ?? partner.servicesProviding;
+  if (!Array.isArray(all)) return [];
+  return asObjectRecords(all).filter(isPartnerProvidingRowEligible);
+}
+
+function partnerCategoriesProvidingRows(
+  partner: Record<string, unknown> | null | undefined
+): Record<string, unknown>[] {
+  if (!partner) return [];
+  const active =
+    partner.active_categories_providing ?? partner.activeCategoriesProviding;
+  if (Array.isArray(active) && active.length > 0) {
+    return asObjectRecords(active).filter(isPartnerProvidingRowEligible);
+  }
+  const all = partner.categories_providing ?? partner.categoriesProviding;
+  if (!Array.isArray(all)) return [];
+  return asObjectRecords(all).filter(isPartnerProvidingRowEligible);
+}
+
+function pushPartnerServiceRowToCatalog(
+  row: Record<string, unknown>,
+  catById: Map<string, string>,
+  seenSvc: Set<string>,
+  services: ServiceDropDownOption[]
+): void {
+      const inner = row.service as Record<string, unknown> | undefined;
+      const sid =
+        normalizeMongoRef(row.service_id) ||
+        (inner ? normalizeMongoRef(inner._id ?? inner.id) : "") ||
+        str(row._id ?? row.id);
+      if (!sid || seenSvc.has(sid)) return;
+      const catRef =
+        normalizeServiceCategoryRef(row.category_id) ||
+        (inner
+          ? normalizeServiceCategoryRef(
+              inner.category_id ?? inner.category ?? inner.categoryId
+            )
+          : "");
+      if (catRef && !catById.has(catRef)) {
+        const catNested = row.category as Record<string, unknown> | undefined;
+        const catName =
+          str(catNested?.name ?? catNested?.category_name) || catRef;
+        catById.set(catRef, catName);
+      }
+      seenSvc.add(sid);
+      services.push({
+        value: sid,
+        label: str(inner?.name ?? row.name) || sid,
+        price:
+          row.price != null
+            ? Number(row.price)
+            : inner?.price != null
+            ? Number(inner.price)
+            : undefined,
+        category_id: catRef || undefined,
+        payment_type: str(
+          row.payment_type ??
+            inner?.payment_type ??
+            inner?.min_deposit_type ??
+            ""
+        ),
+        ...quoteServiceFeeFieldsFromRow(inner, row),
+      });
+}
+
+/**
+ * When franchise mapping has no active services, partner rows still expose offerings via
+ * `services_providing` / `categories_providing` on `related-catalog` partners.
+ */
+function mergePartnerProvidingIntoCatalog(
+  record: FranchiseRelatedCatalogRecord,
+  catById: Map<string, string>,
+  seenSvc: Set<string>,
+  services: ServiceDropDownOption[]
+): void {
+  for (const partner of asObjectRecords(record.partners)) {
+    for (const row of partnerCategoriesProvidingRows(partner)) {
+      const nested = row.category as Record<string, unknown> | undefined;
+      const cid = str(row.category_id ?? nested?._id ?? nested?.id);
+      if (!cid) continue;
+      const name =
+        str(nested?.name ?? nested?.category_name ?? row.name) || cid;
+      if (!catById.has(cid)) catById.set(cid, name);
+    }
+    for (const row of partnerServicesProvidingRows(partner)) {
+      pushPartnerServiceRowToCatalog(row, catById, seenSvc, services);
+    }
+  }
+}
+
+/** Service dropdown options for one partner (names from nested `service`). */
+export function buildPartnerServiceOptionsFromProviding(
+  partner: Record<string, unknown> | null | undefined
+): ServiceDropDownOption[] {
+  const out: ServiceDropDownOption[] = [];
+  const seen = new Set<string>();
+  for (const row of partnerServicesProvidingRows(partner)) {
+    pushPartnerServiceRowToCatalog(row, new Map(), seen, out);
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Category dropdown options for one partner (names from nested `category`). */
+export function buildPartnerCategoryOptionsFromProviding(
+  partner: Record<string, unknown> | null | undefined
+): OptionType[] {
+  const out: OptionType[] = [];
+  const seen = new Set<string>();
+  for (const row of partnerCategoriesProvidingRows(partner)) {
+    const nested = row.category as Record<string, unknown> | undefined;
+    const cid = str(row.category_id ?? nested?._id ?? nested?.id);
+    if (!cid || seen.has(cid)) continue;
+    seen.add(cid);
+    const name = str(nested?.name ?? nested?.category_name ?? row.name) || cid;
+    out.push({ value: cid, label: name });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /**
  * Maps `related-catalog` payload into quote form dropdowns (categories, services, partners, employees, customers).
  * Supports hydrated `categories` / `services` / `customers` rows (staging) and mapping-doc shapes as fallback.
@@ -442,10 +576,6 @@ export function mapRelatedCatalogToQuoteOptions(
   mergeCategoriesFromFranchiseCategoryDocs(record, catById);
 
   const franchiseActiveSvcIds = collectFranchiseActiveServiceIds(record);
-
-  out.quoteCategoryOptions = Array.from(catById.entries())
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
 
   const seenSvc = new Set<string>();
 
@@ -507,6 +637,17 @@ export function mapRelatedCatalogToQuoteOptions(
     );
   }
 
+  mergePartnerProvidingIntoCatalog(
+    record,
+    catById,
+    seenSvc,
+    out.quoteCatalogServices
+  );
+
+  out.quoteCategoryOptions = Array.from(catById.entries())
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
   out.quoteCatalogServices.sort((a, b) => a.label.localeCompare(b.label));
 
   out.quotePartnerRecords = asObjectRecords(record.partners);
@@ -549,26 +690,16 @@ export function mapRelatedCatalogToQuoteOptions(
 export function getPartnerProvidingServiceIdSet(
   partner: Record<string, unknown> | null | undefined
 ): Set<string> | null {
-  if (!partner) return null;
-  const raw =
-    partner.active_services_providing ??
-    partner.activeServicesProviding ??
-    partner.services_providing;
-  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const rows = partnerServicesProvidingRows(partner);
+  if (!rows.length) return null;
   const out = new Set<string>();
-  for (const x of raw as unknown[]) {
-    if (x == null) continue;
-    if (typeof x === "string" || typeof x === "number") {
-      const id = str(x);
-      if (id) out.add(id);
-      continue;
-    }
-    if (typeof x === "object") {
-      const o = x as Record<string, unknown>;
-      const id =
-        normalizeMongoRef(o.service_id) || str(o._id ?? o.id);
-      if (id) out.add(id);
-    }
+  for (const o of rows) {
+    const inner = o.service as Record<string, unknown> | undefined;
+    const id =
+      normalizeMongoRef(o.service_id) ||
+      (inner ? normalizeMongoRef(inner._id ?? inner.id) : "") ||
+      str(o._id ?? o.id);
+    if (id) out.add(id);
   }
   return out.size ? out : null;
 }
@@ -610,14 +741,12 @@ export function getPartnerCategoryIdsFromProviding(
 ): Set<string> {
   const out = new Set<string>();
   if (!partner) return out;
-  const raw =
-    partner.active_services_providing ??
-    partner.activeServicesProviding ??
-    partner.services_providing;
-  if (!Array.isArray(raw)) return out;
-  for (const x of raw as unknown[]) {
-    if (x == null || typeof x !== "object") continue;
-    const o = x as Record<string, unknown>;
+  for (const row of partnerCategoriesProvidingRows(partner)) {
+    const nested = row.category as Record<string, unknown> | undefined;
+    const cid = str(row.category_id ?? nested?._id ?? nested?.id);
+    if (cid) out.add(cid);
+  }
+  for (const o of partnerServicesProvidingRows(partner)) {
     const direct = normalizeServiceCategoryRef(o.category_id);
     if (direct) out.add(direct);
     const svc = o.service as Record<string, unknown> | undefined;
@@ -629,6 +758,65 @@ export function getPartnerCategoryIdsFromProviding(
     }
   }
   return out;
+}
+
+/** Dropdown options from `active_categories_providing` (partner-scoped categories). */
+export function getPartnerCategoryOptionsFromActiveCategoriesProviding(
+  partner: Record<string, unknown> | null | undefined
+): OptionType[] {
+  return buildPartnerCategoryOptionsFromProviding(partner);
+}
+
+/**
+ * Category dropdown for a selected partner: franchise catalog + partner providing rows,
+ * without emptying the list when franchise inactive categories omit partner offerings.
+ */
+export function buildQuoteCategoryOptionsForPartner(
+  quoteCategoryOptions: OptionType[],
+  quoteCatalogServicesForPartner: ServiceDropDownOption[],
+  partner: Record<string, unknown> | null | undefined
+): OptionType[] {
+  const partnerCatIds = getPartnerAvailableCategoryIdSet(partner);
+  const catIdsFromProviding = getPartnerCategoryIdsFromProviding(partner);
+  const catIdsFromServices = new Set(
+    quoteCatalogServicesForPartner
+      .map((o) => normalizeServiceCategoryRef(o.category_id))
+      .filter(Boolean)
+  );
+  catIdsFromProviding.forEach((id) => catIdsFromServices.add(id));
+
+  const optionById = new Map(
+    quoteCategoryOptions.map((c) => [String(c.value), c] as const)
+  );
+  for (const opt of getPartnerCategoryOptionsFromActiveCategoriesProviding(
+    partner
+  )) {
+    if (!optionById.has(String(opt.value))) {
+      optionById.set(String(opt.value), opt);
+    }
+  }
+
+  const allOptions = Array.from(optionById.values()).sort((a, b) =>
+    a.label.localeCompare(b.label)
+  );
+
+  let base =
+    catIdsFromServices.size === 0
+      ? allOptions
+      : allOptions.filter((c) => catIdsFromServices.has(String(c.value)));
+
+  if (partnerCatIds && partnerCatIds.size > 0) {
+    const narrowed = base.filter((c) => partnerCatIds.has(String(c.value)));
+    if (narrowed.length > 0) base = narrowed;
+  }
+
+  if (base.length === 0 && partner) {
+    const fromCats =
+      getPartnerCategoryOptionsFromActiveCategoriesProviding(partner);
+    if (fromCats.length > 0) base = fromCats;
+  }
+
+  return base;
 }
 
 /** Resolves a Mongo-style id whether the API sends a string or a populated `{ _id }`. */
@@ -673,14 +861,7 @@ export function getPartnerActiveServiceProvidingRow(
 ): Record<string, unknown> | null {
   const sid = str(serviceId);
   if (!partner || !sid) return null;
-  const raw =
-    partner.active_services_providing ??
-    partner.activeServicesProviding ??
-    partner.services_providing;
-  if (!Array.isArray(raw)) return null;
-  for (const x of raw as unknown[]) {
-    if (x == null || typeof x !== "object") continue;
-    const o = x as Record<string, unknown>;
+  for (const o of partnerServicesProvidingRows(partner)) {
     if (providingRowMatchesServiceId(o, sid)) return o;
   }
   return null;
@@ -1605,20 +1786,6 @@ function filterQuotesByStatusTab(
 ): QuoteRow[] {
   const want = tab.toLowerCase();
   return records.filter((r) => normalizeQuoteApiStatus(r.status) === want);
-}
-
-function parseQuoteDateToMs(input?: string): number | null {
-  if (!input) return null;
-  const trimmed = String(input).trim();
-  if (!trimmed) return null;
-
-  const fromPart = trimmed.includes(" to ")
-    ? trimmed.split(/\s+to\s+/i)[0]
-    : trimmed.split(/\s+[–—-]\s+/)[0];
-
-  const dt = new Date(fromPart);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.getTime();
 }
 
 /** Schedule bounds for list filters (prefers API `from_date` / `to_date`). */

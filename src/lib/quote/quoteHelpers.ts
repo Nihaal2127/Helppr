@@ -6,6 +6,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../types/quoteTypes";
 import { AppConstant } from "../global/AppConstant";
+import { formatCurrency, roundMoney } from "../global/paymentAndCurrency";
 import { extractMinDepositTypeKey } from "../service/serviceMinDepositDisplay";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import {
@@ -14,7 +15,10 @@ import {
   normalizePincodeDigits,
   parseCatalogAddressRecord,
 } from "./quoteAddressCore";
-import type { QuoteAddressFieldFallback } from "./quoteAddressCore";
+import type {
+  QuoteAddressFieldFallback,
+  QuoteAddressRowUi,
+} from "./quoteAddressCore";
 import type { FranchiseRelatedCatalogRecord } from "../../services/quoteService";
 
 /** --- Price breakdown --- */
@@ -32,29 +36,157 @@ export type QuotePriceBreakdown = {
   minDepositNote: string;
 };
 
-function roundQuoteMoney(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+/** Coupon / offer row from `GET /offer/getAll` (or settings OfferModel). */
+export type QuoteCouponInput = {
+  type: "percentage" | "fixed";
+  /** For `fixed`, total rupee discount split by contributions; for `percentage`, unused for split bases. */
+  value: number;
+  /** % or rupee share — applied on admin commission amount. */
+  adminContribution: number;
+  /** % or rupee share — applied on service price. */
+  partnerContribution: number;
+};
+
+export type QuotePriceBreakdownCouponLines = {
+  partnerDiscountOnService: number;
+  adminDiscountOnCommission: number;
+  serviceAfterCoupon: number;
+  commissionAfterCoupon: number;
+};
+
+export type QuotePriceBreakdownWithCoupon = QuotePriceBreakdown &
+  QuotePriceBreakdownCouponLines & {
+    hasCoupon: boolean;
+    totalCouponDiscount: number;
+  };
+
+export function mapOfferModelToCouponInput(offer: {
+  offerType: "percentage" | "fixed";
+  totalOfferValue: number;
+  adminContribution: number;
+  partnerContribution: number;
+}): QuoteCouponInput {
+  return {
+    type: offer.offerType,
+    value: Number(offer.totalOfferValue) || 0,
+    adminContribution: Number(offer.adminContribution) || 0,
+    partnerContribution: Number(offer.partnerContribution) || 0,
+  };
 }
 
-export function formatQuoteRupees(amount: number): string {
-  const rounded = Math.round((amount + Number.EPSILON) * 100) / 100;
-  const s = rounded.toFixed(2).replace(/\.00$/, "");
-  return `${AppConstant.currencySymbol}${s}`;
+export type CouponDisplayMeta = {
+  type: "percentage" | "fixed";
+  partnerContribution: number;
+  adminContribution: number;
+  totalOfferValue?: number;
+};
+
+export type CouponApplicationValidation = {
+  valid: boolean;
+  reason?: string;
+};
+
+/** Human-readable coupon share for breakdown labels (fixed = rupees, percentage = %). */
+export function formatCouponContributionLabel(
+  type: "percentage" | "fixed",
+  contribution: number,
+  base: "service" | "commission"
+): string {
+  const n = Number(contribution) || 0;
+  if (type === "percentage") {
+    return `${n}${AppConstant.percentageSymbol} on ${base}`;
+  }
+  return `${formatQuoteRupees(n)} off ${base}`;
 }
 
-export function computeQuotePriceBreakdown(
-  servicePrice: string | number | undefined | null,
+/**
+ * Validates coupon against current service price breakdown before apply.
+ * Fixed: partner/admin contribution amounts must not exceed service / commission.
+ * Percentage: each share must be 0–100%.
+ */
+export function validateCouponForPriceBreakdown(
+  breakdown: QuotePriceBreakdown,
+  coupon: QuoteCouponInput | null | undefined
+): CouponApplicationValidation {
+  if (!coupon) return { valid: true };
+
+  const service = breakdown.base;
+  const commission = breakdown.commissionAmount;
+
+  if (!Number.isFinite(service) || service <= 0.009) {
+    return {
+      valid: false,
+      reason: "Enter a service price before applying a coupon.",
+    };
+  }
+
+  if (coupon.type === "percentage") {
+    const partnerPct = Math.max(0, Number(coupon.partnerContribution) || 0);
+    const adminPct = Math.max(0, Number(coupon.adminContribution) || 0);
+    if (partnerPct > 100.009) {
+      return {
+        valid: false,
+        reason: `Partner coupon cannot exceed 100% of service price (configured: ${partnerPct}%).`,
+      };
+    }
+    if (adminPct > 100.009) {
+      return {
+        valid: false,
+        reason: `Admin coupon cannot exceed 100% of commission (configured: ${adminPct}%).`,
+      };
+    }
+    if (adminPct > 0.009 && commission <= 0.009) {
+      return {
+        valid: false,
+        reason:
+          "This coupon reduces admin commission, but commission is zero for the selected service.",
+      };
+    }
+    return { valid: true };
+  }
+
+  const partnerAmt = Math.max(0, Number(coupon.partnerContribution) || 0);
+  const adminAmt = Math.max(0, Number(coupon.adminContribution) || 0);
+
+  if (partnerAmt > service + 0.009) {
+    return {
+      valid: false,
+      reason: `Partner coupon (${formatQuoteRupees(partnerAmt)}) cannot exceed service price (${formatQuoteRupees(service)}).`,
+    };
+  }
+  if (adminAmt > 0.009 && commission <= 0.009) {
+    return {
+      valid: false,
+      reason:
+        "This coupon reduces admin commission, but commission is zero for the selected service.",
+    };
+  }
+  if (adminAmt > commission + 0.009) {
+    return {
+      valid: false,
+      reason: `Admin coupon (${formatQuoteRupees(adminAmt)}) cannot exceed admin commission (${formatQuoteRupees(commission)}).`,
+    };
+  }
+
+  const totalOffer = Math.max(0, Number(coupon.value) || 0);
+  const parts = partnerAmt + adminAmt;
+  if (totalOffer > 0.009 && parts > totalOffer + 0.009) {
+    return {
+      valid: false,
+      reason: `Partner and admin coupon parts (${formatQuoteRupees(parts)}) exceed total offer value (${formatQuoteRupees(totalOffer)}).`,
+    };
+  }
+
+  return { valid: true };
+}
+
+function recalcMinDeposit(
+  grandTotal: number,
   opt: ServiceDropDownOption | undefined
-): QuotePriceBreakdown | null {
-  const base = Number.parseFloat(String(servicePrice ?? "").trim());
-  if (!Number.isFinite(base) || base < 0) return null;
-  const taxPct = Math.max(0, Number(opt?.tax ?? 0) || 0);
-  const commissionPct = Math.max(0, Number(opt?.commission ?? 0) || 0);
-  const commissionAmount = roundQuoteMoney(base * (commissionPct / 100));
-  const subtotalBeforeTax = roundQuoteMoney(base + commissionAmount);
-  const taxAmount = roundQuoteMoney(subtotalBeforeTax * (taxPct / 100));
-  const grandTotal = roundQuoteMoney(subtotalBeforeTax + taxAmount);
-
+): Pick<
+  QuotePriceBreakdown,
+  "minDepositTitle" | "minDepositAmount" | "minDepositNote"
+> {
   const typeKey = extractMinDepositTypeKey(
     String(opt?.min_deposit_type ?? opt?.payment_type ?? "")
   );
@@ -82,6 +214,125 @@ export function computeQuotePriceBreakdown(
         : "";
   }
 
+  return { minDepositTitle, minDepositAmount, minDepositNote };
+}
+
+/**
+ * Partner contribution reduces service price; admin contribution reduces commission;
+ * tax is calculated on the post-coupon subtotal (service + commission).
+ */
+export function applyCouponToQuotePriceBreakdown(
+  breakdown: QuotePriceBreakdown,
+  coupon: QuoteCouponInput | null | undefined,
+  feeOpt?: ServiceDropDownOption
+): QuotePriceBreakdownWithCoupon {
+  const emptyCoupon: QuotePriceBreakdownCouponLines = {
+    partnerDiscountOnService: 0,
+    adminDiscountOnCommission: 0,
+    serviceAfterCoupon: breakdown.base,
+    commissionAfterCoupon: breakdown.commissionAmount,
+  };
+
+  if (!coupon) {
+    return {
+      ...breakdown,
+      ...emptyCoupon,
+      hasCoupon: false,
+      totalCouponDiscount: 0,
+    };
+  }
+
+  let partnerDiscountOnService = 0;
+  let adminDiscountOnCommission = 0;
+
+  if (coupon.type === "percentage") {
+    const partnerPct = Math.max(0, Number(coupon.partnerContribution) || 0);
+    const adminPct = Math.max(0, Number(coupon.adminContribution) || 0);
+    partnerDiscountOnService = roundQuoteMoney(
+      breakdown.base * (partnerPct / 100)
+    );
+    adminDiscountOnCommission = roundQuoteMoney(
+      breakdown.commissionAmount * (adminPct / 100)
+    );
+  } else {
+    const total = Math.max(0, Number(coupon.value) || 0);
+    const adminPart = Math.max(0, Number(coupon.adminContribution) || 0);
+    const partnerPart = Math.max(0, Number(coupon.partnerContribution) || 0);
+    const parts = adminPart + partnerPart;
+    if (parts > 0.009) {
+      partnerDiscountOnService = roundQuoteMoney(
+        Math.min(total * (partnerPart / parts), breakdown.base)
+      );
+      adminDiscountOnCommission = roundQuoteMoney(
+        Math.min(total * (adminPart / parts), breakdown.commissionAmount)
+      );
+    } else {
+      partnerDiscountOnService = roundQuoteMoney(
+        Math.min(total / 2, breakdown.base)
+      );
+      adminDiscountOnCommission = roundQuoteMoney(
+        Math.min(total / 2, breakdown.commissionAmount)
+      );
+    }
+  }
+
+  const serviceAfterCoupon = roundQuoteMoney(
+    Math.max(0, breakdown.base - partnerDiscountOnService)
+  );
+  const commissionAfterCoupon = roundQuoteMoney(
+    Math.max(0, breakdown.commissionAmount - adminDiscountOnCommission)
+  );
+  const subtotalBeforeTax = roundQuoteMoney(
+    serviceAfterCoupon + commissionAfterCoupon
+  );
+  const taxAmount = roundQuoteMoney(
+    subtotalBeforeTax * (breakdown.taxPct / 100)
+  );
+  const grandTotal = roundQuoteMoney(subtotalBeforeTax + taxAmount);
+  const minDeposit = recalcMinDeposit(grandTotal, feeOpt);
+  const totalCouponDiscount = roundQuoteMoney(
+    partnerDiscountOnService + adminDiscountOnCommission
+  );
+
+  return {
+    ...breakdown,
+    ...minDeposit,
+    commissionAmount: breakdown.commissionAmount,
+    subtotalBeforeTax,
+    taxAmount,
+    grandTotal,
+    partnerDiscountOnService,
+    adminDiscountOnCommission,
+    serviceAfterCoupon,
+    commissionAfterCoupon,
+    hasCoupon: totalCouponDiscount > 0.009,
+    totalCouponDiscount,
+  };
+}
+
+export function roundQuoteMoney(n: number): number {
+  return roundMoney(n);
+}
+
+export function formatQuoteRupees(amount: number): string {
+  return formatCurrency(amount);
+}
+
+export function computeQuotePriceBreakdown(
+  servicePrice: string | number | undefined | null,
+  opt: ServiceDropDownOption | undefined
+): QuotePriceBreakdown | null {
+  const base = Number.parseFloat(String(servicePrice ?? "").trim());
+  if (!Number.isFinite(base) || base < 0) return null;
+  const taxPct = Math.max(0, Number(opt?.tax ?? 0) || 0);
+  const commissionPct = Math.max(0, Number(opt?.commission ?? 0) || 0);
+  const commissionAmount = roundQuoteMoney(base * (commissionPct / 100));
+  const subtotalBeforeTax = roundQuoteMoney(base + commissionAmount);
+  const taxAmount = roundQuoteMoney(subtotalBeforeTax * (taxPct / 100));
+  const grandTotal = roundQuoteMoney(subtotalBeforeTax + taxAmount);
+
+  const minDeposit = recalcMinDeposit(grandTotal, opt);
+
   return {
     base,
     commissionPct,
@@ -90,9 +341,7 @@ export function computeQuotePriceBreakdown(
     taxPct,
     taxAmount,
     grandTotal,
-    minDepositTitle,
-    minDepositAmount,
-    minDepositNote,
+    ...minDeposit,
   };
 }
 
@@ -514,40 +763,11 @@ export function buildFranchisePincodeSetFromRelatedCatalog(
 
 /** --- Address panel (React) --- */
 
-export type QuoteAddressRowUi = {
-  id: string;
-  summary: string;
-  selectable: boolean;
-  contactName: string;
-  stateName: string;
-  cityName: string;
-  areaName: string;
-  streetAddress: string;
-  landmark: string;
-  pincode: string;
-};
-
 export type QuoteAddressUiState = {
   ready: boolean;
   rows: QuoteAddressRowUi[];
   error: string;
 };
-
-export function formatQuoteAddressRowAsServiceLine(
-  row: QuoteAddressRowUi
-): string {
-  const parts = [
-    row.streetAddress,
-    row.landmark,
-    row.areaName,
-    row.pincode,
-    row.cityName,
-    row.stateName,
-  ]
-    .map((s) => String(s ?? "").trim())
-    .filter(Boolean);
-  return parts.join(", ");
-}
 
 const emptyUi = (): QuoteAddressUiState => ({
   ready: false,
@@ -1088,5 +1308,6 @@ export type {
   AddressLocationLookups,
   ParsedCatalogAddressRow,
   QuoteAddressFieldFallback,
+  QuoteAddressRowUi,
   QuoteServiceAddressInput,
 } from "./quoteAddressCore";

@@ -19,9 +19,7 @@ const ORDER_STATUS_LABELS = new Map<number, { label: string }>([
 export const capitalizeString = (str: string) =>
   str.replace(/\b\w/g, (char) => char.toUpperCase());
 
-export function showLog(message?: any, ...optionalParams: any[]): void {
-  console.log(message, ...optionalParams);
-}
+export function showLog(_message?: any, ..._optionalParams: any[]): void {}
 
 /** API fields that are either an id string or a populated `{ _id, … }` document. */
 export function apiDocumentId(value: unknown): string {
@@ -433,8 +431,7 @@ export const formatUtcToLocalTime = (utcString: string): string => {
       minute: "2-digit",
       hour12: true,
     });
-  } catch (error) {
-    console.error("Invalid UTC date:", error);
+  } catch {
     return "";
   }
 };

@@ -10,7 +10,7 @@ import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import { FinancialModel } from "../../../lib/models/FinancialModel";
 import { formatDate } from "../../../helper/utility";
-import { fetchAllFinancialRowsMatching } from "../../../services/financialService";
+import { fetchAllOrderServiceRowsMatching } from "../../../services/financialService";
 import { fetchUserById } from "../../../services/userService";
 import { UserModel } from "../../../lib/models/UserModel";
 import { showOrderInfoDialog } from "../../../components/order";
@@ -212,23 +212,21 @@ function ShowPartnerPayout() {
       setLedgerLoading(true);
       try {
         const [pendingRows, paidRows, payouts] = await Promise.all([
-          fetchAllFinancialRowsMatching(
+          fetchAllOrderServiceRowsMatching(
             {
               partner_id: partnerId,
               service_status: "3",
               partner_paid_status: "1",
             },
-            400,
-            { skipEnrich: true }
+            400
           ),
-          fetchAllFinancialRowsMatching(
+          fetchAllOrderServiceRowsMatching(
             {
               partner_id: partnerId,
               service_status: "3",
               partner_paid_status: "2",
             },
-            400,
-            { skipEnrich: true }
+            400
           ),
           fetchAllPartnerWalletPayoutHistory(partnerId),
         ]);

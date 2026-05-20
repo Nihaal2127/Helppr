@@ -764,6 +764,20 @@ body:has(.modal.show ~ .modal.show) {
   color: var(--primary-txt-color) !important;
 }
 
+/* Page header: Create Quote / Create Order (avoid .custom-btn-secondary width:100%). */
+.custom-header-action-btn {
+  width: auto !important;
+  min-width: unset !important;
+  max-width: none;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 4px 14px !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  border-radius: 14px !important;
+  white-space: nowrap;
+}
+
 /* Financials sub-pages: icon back beside header title (avoid .custom-btn-* width:100%). */
 .financial-subpage-back {
   display: inline-flex;
@@ -1156,6 +1170,26 @@ body:has(.modal.show ~ .modal.show) {
 
 .wallet-tx-table__row--credit:hover td {
   background-color: var(--wallet-tx-credit-bg-hover) !important;
+}
+
+/* Order payment tables: black borders by default; red only after Add on empty row */
+.order-payment-table tbody .form-control,
+.order-payment-table tbody .react-select__control {
+  border-color: #212529 !important;
+  box-shadow: none !important;
+}
+
+.order-payment-table tbody .form-control:focus,
+.order-payment-table tbody .react-select__control--is-focused {
+  border-color: #212529 !important;
+  box-shadow: 0 0 0 1px rgba(33, 37, 41, 0.2) !important;
+}
+
+.order-payment-table tr.payment-row--invalid .form-control,
+.order-payment-table tr.payment-row--invalid .react-select__control,
+.order-payment-table tr.payment-row--invalid .react-select__control--is-focused {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.45) !important;
 }
 
 .wallet-tx-table__row--debit td {

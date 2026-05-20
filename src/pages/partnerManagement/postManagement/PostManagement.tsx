@@ -204,9 +204,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
       <CustomUtilityBox
         title="Post Management"
         searchHint="Search Partner Name"
-        onDownloadClick={async () => {
-          console.log("Download clicked");
-        }}
+        onDownloadClick={async () => {}}
         onSortClick={(value: "1" | "-1") => {
           setSortValue(value);
         }}

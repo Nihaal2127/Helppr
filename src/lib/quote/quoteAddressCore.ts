@@ -310,3 +310,33 @@ export function formatQuoteServiceAddressLines(
   const fallback = [street, area, city, state, pincode].filter(Boolean).join(", ");
   return fallback || "-";
 }
+
+export type QuoteAddressRowUi = {
+  id: string;
+  summary: string;
+  selectable: boolean;
+  contactName: string;
+  stateName: string;
+  cityName: string;
+  areaName: string;
+  streetAddress: string;
+  landmark: string;
+  pincode: string;
+};
+
+/** Single-line service address for order/quote payloads. */
+export function formatQuoteAddressRowAsServiceLine(
+  row: QuoteAddressRowUi
+): string {
+  const parts = [
+    row.streetAddress,
+    row.landmark,
+    row.areaName,
+    row.pincode,
+    row.cityName,
+    row.stateName,
+  ]
+    .map((s) => String(s ?? "").trim())
+    .filter(Boolean);
+  return parts.join(", ");
+}

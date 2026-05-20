@@ -312,9 +312,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
         key={utilitySearchKey}
         title="Portfolio Management"
         searchHint="Search Partner Name / Partner ID"
-        onDownloadClick={async () => {
-          console.log("Download clicked");
-        }}
+        onDownloadClick={async () => {}}
         onSortClick={(value) => {
           handleFilterChange({ sort: value });
         }}

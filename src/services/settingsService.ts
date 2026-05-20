@@ -98,6 +98,62 @@ export const getOffers = (): OfferModel[] => {
   return [...mockOffers];
 };
 
+function mapApiOfferRecord(raw: Record<string, unknown>): OfferModel | null {
+  const id = String(raw._id ?? raw.id ?? "").trim();
+  if (!id) return null;
+  const typeRaw = String(raw.type ?? raw.offerType ?? "percentage").toLowerCase();
+  const offerType: OfferModel["offerType"] =
+    typeRaw === "fixed" ? "fixed" : "percentage";
+  const isActive = raw.is_active !== false && raw.is_active !== 0;
+  return {
+    id,
+    offerId: String(raw.unique_id ?? raw.offer_id ?? raw.offerId ?? id).trim(),
+    offerName: String(raw.name ?? raw.offer_name ?? raw.offerName ?? id).trim(),
+    offerType,
+    totalOfferValue: Number(raw.value ?? raw.totalOfferValue ?? 0) || 0,
+    adminContribution:
+      Number(raw.admin_contribution ?? raw.adminContribution ?? 0) || 0,
+    partnerContribution:
+      Number(raw.partner_contribution ?? raw.partnerContribution ?? 0) || 0,
+    applicableOn: "orders",
+    startDate: String(raw.start_date ?? raw.startDate ?? ""),
+    endDate: String(raw.end_date ?? raw.endDate ?? ""),
+    status: isActive ? "active" : "inactive",
+    createdAt: String(raw.created_at ?? raw.createdAt ?? ""),
+  };
+}
+
+/** `GET /offer/getAll?is_active=true` — coupons for create order. */
+export async function fetchActiveOffers(): Promise<OfferModel[]> {
+  try {
+    const res = await apiRequest(
+      `${ApiPaths.GET_OFFER_GET_ALL()}?is_active=true`,
+      "GET",
+      undefined,
+      false,
+      true,
+      true
+    );
+    if (!res.success) return getOffers().filter((o) => o.status === "active");
+    const records =
+      (res.data as { records?: unknown[] })?.records ??
+      (res.data as { data?: { records?: unknown[] } })?.data?.records;
+    if (!Array.isArray(records)) {
+      return getOffers().filter((o) => o.status === "active");
+    }
+    const mapped = records
+      .map((r) =>
+        r && typeof r === "object"
+          ? mapApiOfferRecord(r as Record<string, unknown>)
+          : null
+      )
+      .filter((o): o is OfferModel => o != null && o.status === "active");
+    return mapped.length ? mapped : getOffers().filter((o) => o.status === "active");
+  } catch {
+    return getOffers().filter((o) => o.status === "active");
+  }
+}
+
 export const saveOffer = (
   payload: Omit<OfferModel, "id" | "createdAt">,
   id?: string

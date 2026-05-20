@@ -19,10 +19,8 @@ import {
   textUnderlineCell,
 } from "../../../helper/utility";
 import { AppConstant } from "../../../lib/global/AppConstant";
-import {
-  FRANCHISE_HEADER_ALL,
-  useFranchiseHeaderForm,
-} from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
 import CustomTable from "../../../components/CustomTable";
 import {
   fetchFinancial,
@@ -41,7 +39,7 @@ import {
   partnerPaymentStatusLabelFromSlug,
 } from "../../../lib/financial/paymentStatus";
 
-/** Live `GET /order_service/getAll` (set true only for offline UI work). */
+/** Live `GET /financial-order/getAll` (set true only for offline UI work). */
 const USE_MOCK_ORDER_PAYMENTS = false;
 
 const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
@@ -252,14 +250,14 @@ function buildListFilters(p: {
   toDate: string;
   franchiseId?: string;
 }): FinancialListFilters {
-  const fid = String(p.franchiseId ?? "").trim();
+  const fid = franchiseIdForApiQuery(p.franchiseId);
   const out: FinancialListFilters = {
     ...(p.search ? { search: p.search } : {}),
     ...(p.sort ? { sort: p.sort } : {}),
     ...(p.orderStatus ? { order_status: p.orderStatus } : {}),
     ...(p.fromDate ? { from_date: p.fromDate } : {}),
     ...(p.toDate ? { to_date: p.toDate } : {}),
-    ...(fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : {}),
+    ...(fid ? { franchise_id: fid } : {}),
   };
   if (p.customerPaymentScope) {
     out.customer_payment_status = p.customerPaymentScope;
@@ -355,8 +353,8 @@ const OrderPayments = () => {
     const out: FinancialListFilters = {};
     if (fromDate) out.from_date = fromDate;
     if (toDate) out.to_date = toDate;
-    const fid = headerFranchiseId.trim();
-    if (fid && fid !== FRANCHISE_HEADER_ALL) out.franchise_id = fid;
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    if (fid) out.franchise_id = fid;
     return out;
   }, [fromDate, toDate, headerFranchiseId]);
 
@@ -388,11 +386,11 @@ const OrderPayments = () => {
     }
     let cancelled = false;
     (async () => {
-      const fid = headerFranchiseId.trim();
+      const fid = franchiseIdForApiQuery(headerFranchiseId);
       const { responseCount, countModel } = await getCount(
         "financial-order-payments",
         {
-          ...(fid && fid !== FRANCHISE_HEADER_ALL ? { franchise_id: fid } : {}),
+          ...(fid ? { franchise_id: fid } : {}),
           ...(fromDate ? { from_date: fromDate } : {}),
           ...(toDate ? { to_date: toDate } : {}),
         }
@@ -663,6 +661,7 @@ const OrderPayments = () => {
       {
         Header: "Service Date",
         accessor: "service_date",
+        sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) =>
           formatDate(
             row.original.service_date ? row.original.service_date : ""
@@ -671,6 +670,7 @@ const OrderPayments = () => {
       {
         Header: "Total Amount",
         accessor: "total_price",
+        sort: true,
         Cell: priceCell("total_price"),
       },
       {
@@ -753,11 +753,11 @@ const OrderPayments = () => {
         Header: "Customer Payment Status",
         accessor: "customer_payment_status",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const slug = row.original.customer_payment_status;
-          const label = slug
-            ? customerPaymentStatusLabelFromSlug(slug)
-            : "";
-          if (label) return label;
+          const slug = row.original.customer_payment_status?.trim();
+          if (slug) {
+            const label = customerPaymentStatusLabelFromSlug(slug);
+            if (label) return label;
+          }
           const pending = Number(row.original.customer_pending_amount) || 0;
           const paid = Number(row.original.customer_paid_amount) || 0;
           if (pending <= 0 && paid > 0) return "Paid";
@@ -769,9 +769,11 @@ const OrderPayments = () => {
         Header: "Partner Payment Status",
         accessor: "partner_payment_status",
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const slug = row.original.partner_payment_status;
-          const label = slug ? partnerPaymentStatusLabelFromSlug(slug) : "";
-          if (label) return label;
+          const slug = row.original.partner_payment_status?.trim();
+          if (slug) {
+            const label = partnerPaymentStatusLabelFromSlug(slug);
+            if (label) return label;
+          }
           const pending = Number(row.original.pending_to_partner) || 0;
           const paid = Number(row.original.paid_to_partner) || 0;
           if (pending <= 0 && paid > 0) return "Paid";

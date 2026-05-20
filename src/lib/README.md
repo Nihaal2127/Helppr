@@ -4,7 +4,7 @@
 
 Cross-cutting code only (no `constant/` or `helper/` subfolders anymore):
 
-- **Root `.ts`**: `AppConstant`, `RoleEnum`, `ResolveStatusEnum`, `VerificationStatusEnum`, `alertHelper`, `DialogManager`, `localStorageHelper`, `authSessionHelper`, `useViewPort`, `serverTableSort`, `getCountRouteType`
+- **Root `.ts`**: `AppConstant`, `paymentAndCurrency` (`roundMoney`, `formatMoney2`, `formatCurrency`, payment methods), `RoleEnum`, `ResolveStatusEnum`, `VerificationStatusEnum`, `alertHelper`, `DialogManager`, `localStorageHelper`, `authSessionHelper`, `useViewPort`, `serverTableSort`, `getCountRouteType`
 - **`global/remote/`** — `apiHelper`, `apiPaths`
 
 ## Shared `lib/` folders (not under `global/`)
@@ -21,9 +21,7 @@ Cross-cutting code only (no `constant/` or `helper/` subfolders anymore):
 | Folder | Contents (examples) |
 |--------|---------------------|
 | **`lib/dashboard/`** | `dashboardModel`, `dashboardService` |
-| **`lib/order/orderTypes.ts`** | `OrderModel`, `OrderItemModel`, `PaymentEnum`, `OrderStatusEnum` |
-| **`lib/order/orderHelpers.ts`** | Display, payment extension storage, preview helpers |
-| **`lib/order/orderService.ts`** | API re-exports, invoice PDF, `downloadInvoice` |
+| **`lib/order/orders.ts`** | Types, API (`fetchOrder`, `createOrUpdateOrder`, …), helpers, invoice PDF |
 | **`lib/quote/quoteHelpers.ts`** | Quote UI logic, mappers, hooks, pricing |
 | **`lib/quote/quoteAddressCore.ts`** | Pure address helpers (used by quoteService + quoteHelpers) |
 | **`lib/franchise/`** | `headerFranchisePreference`, `franchiseCatalog` |
@@ -38,4 +36,4 @@ API services (`userService`, `franchiseService`, …) currently live under **`sr
 
 ## Imports
 
-Use explicit paths, e.g. `../../lib/global/AppConstant`, `../../lib/layout/menuItems`, `../../lib/types/quoteTypes`, `../../lib/order/orderTypes`, `../../lib/franchise/headerFranchisePreference`.
+Use explicit paths, e.g. `../../lib/global/AppConstant`, `../../lib/layout/menuItems`, `../../lib/types/quoteTypes`, `../../lib/order/orders`, `../../lib/franchise/headerFranchisePreference`.

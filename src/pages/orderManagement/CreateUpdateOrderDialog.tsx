@@ -8,11 +8,20 @@ import React, {
 import { useForm, UseFormUnregister, UseFormSetValue, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, Table, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import { OrderModel, OrderItemModel, orderPaymentModeSelectOptions } from "../../lib/order/orderTypes";
-import type { ServiceAddressCard, AddressCityDropdownRow } from "../../lib/order/orderTypes";
+import { OrderModel, OrderItemModel, orderPaymentModeSelectOptions } from "../../lib/order/orders";
+import type { ServiceAddressCard, AddressCityDropdownRow } from "../../lib/order/orders";
 import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
-import { createOrUpdateOrder } from "../../lib/order/orderService";
+import {
+  buildCreateOrderPayload,
+  canAddAnotherCustomerPayment,
+  canAddAnotherPartnerPayment,
+  createOrUpdateOrder,
+  deriveOrderCustomerPaymentFields,
+  isCustomerPaymentRowComplete,
+  isPartnerPaymentRowComplete,
+  roundMoney,
+} from "../../lib/order/orders";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchTaxOtherChargesById } from "../../services/taxOtherChargesService";
 import CustomTextField from "../../components/CustomTextField";
@@ -23,11 +32,18 @@ import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicke
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import CustomFormSelect from "../../components/CustomFormSelect";
+import { FieldLabelText } from "../../components/RequiredFieldMark";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { APP_USER_TYPE, fetchUserDropDown } from "../../services/userService";
-import { getOffers } from "../../services/settingsService";
+import { fetchActiveOffers } from "../../services/settingsService";
+import type { OfferModel } from "../../lib/models/SettingsModel";
 import { UserModel } from "../../lib/models/UserModel";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
+import {
+  formatMoney2,
+  normalizePaymentMethod,
+  paymentMethodSelectOptions,
+} from "../../lib/global/paymentAndCurrency";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
@@ -41,17 +57,20 @@ import type {
   CustomerPaymentRow,
   OrderPaymentExtV1,
   PartnerPaymentRow,
-} from "../../lib/order/orderHelpers";
+} from "../../lib/order/orders";
 import {
-  mergePaymentExtension,
   sumCustomerAmounts,
   sumPartnerAmounts,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
-  resolveOrderOfferBreakdown,
-  computeCreateOrderOfferDiscountRupees,
-  splitOfferContributionAmounts,
-} from "../../lib/order/orderHelpers";
+} from "../../lib/order/orders";
+import {
+  computeQuotePriceBreakdown,
+  applyCouponToQuotePriceBreakdown,
+  mapOfferModelToCouponInput,
+  validateCouponForPriceBreakdown,
+} from "../../lib/quote/quoteHelpers";
+import type { CouponDisplayMeta } from "../../lib/quote/quoteHelpers";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import type { CustomerSavedAddressPreview } from "../../lib/user/userAddressPreview";
 import { fetchServiceDropDown } from "../../services/servicesService";
@@ -61,9 +80,10 @@ import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import {
   fetchFranchiseRelatedCatalog,
   mapRelatedCatalogToQuoteOptions,
+  buildPartnerCategoryOptionsFromProviding,
+  buildPartnerServiceOptionsFromProviding,
+  buildQuoteCategoryOptionsForPartner,
   getPartnerActiveServiceProvidingRow,
-  getPartnerAvailableCategoryIdSet,
-  getPartnerCategoryIdsFromProviding,
   getPartnerProvidingServiceIdSet,
   getQuoteScheduleModeFromServiceOption,
   deriveQuoteScheduleMetrics,
@@ -76,11 +96,11 @@ import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import { formatQuoteAddressRowAsServiceLine } from "../../lib/quote/quoteAddressCore";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
   compareIsoDateOnlyAsc,
-  formatQuoteAddressRowAsServiceLine,
   isCalendarDateNotBeforeToday,
   isScheduleEndAfterStartSameDay,
   minutesFromScheduleTimeStorage,
@@ -93,7 +113,7 @@ import {
   toIsoCalendarDate,
   useQuoteCustomerAddressPanel,
 } from "../../lib/quote/quoteHelpers";
-
+import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
 
 /** --- Service address cards --- */
 
@@ -325,7 +345,9 @@ const ServiceAddressCardsPanel: React.FC<ServiceAddressCardsPanelProps> = ({
       ) : null}
       <Row className="align-items-center mb-2">
         <Col>
-          <span className="custom-profile-lable">Service addresses</span>
+          <span className="custom-profile-lable">
+            <FieldLabelText label="Service addresses" required />
+          </span>
         </Col>
         <Col xs="auto">
           <span
@@ -1124,7 +1146,9 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
         <Col xs={4}>
           <Row className="align-items-start mx-0">
             <Col sm={4} className="d-flex align-items-start px-0">
-              <label className="custom-profile-lable">Service Price</label>
+              <label className="custom-profile-lable">
+                <FieldLabelText label="Service Price" required />
+              </label>
             </Col>
             <Col className="ps-1 pe-0">{renderServicePriceControl(index)}</Col>
           </Row>
@@ -1533,9 +1557,7 @@ const priceSummarySection: React.CSSProperties = {
   padding: "14px 16px",
 };
 
-const PAY_TYPES = ["COD", "Razor pay", "UPI", "Online", "Cash", "—"].map(
-  (t) => ({ value: t, label: t })
-);
+const PAYMENT_METHOD_OPTIONS = paymentMethodSelectOptions();
 
 const newPayRowId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1584,13 +1606,24 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 } = ({ isEditable, order, onClose, onRefreshData }) => {
   const {
     register,
-    formState: { errors },
+    formState: { errors, isSubmitted: createFormSubmitted },
     setValue,
     getValues,
     handleSubmit,
-    unregister,
     watch,
   } = useForm<any>();
+
+  /** Payment table fields are controlled in state — avoid RHF register side effects. */
+  const paymentFieldRegister = useCallback(
+    (name: string) => ({
+      onChange: async () => {},
+      onBlur: async () => {},
+      name: String(name),
+      ref: () => {},
+    }),
+    []
+  ) as UseFormRegister<any>;
+
   /** Avoid `useWatch` + `useForm<any>()` — TS2589 deep instantiation on `control`. */
   const offerIdWatch = watch("offer_id") as string | undefined;
   const createFranchiseIdWatch = watch("franchise_id") as string | undefined;
@@ -1611,6 +1644,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     return String(getLocalStorage(AppConstant.partnerId) ?? "").trim();
   }, [isSuperAdminOrStaff]);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [showCustomerPaymentAddHint, setShowCustomerPaymentAddHint] =
+    useState(false);
+  const [showPartnerPaymentAddHint, setShowPartnerPaymentAddHint] =
+    useState(false);
+  const [couponModalError, setCouponModalError] = useState("");
   /** Payment summary: long offer breakdown hidden until user expands (reset when offer changes). */
   const [showOfferPaymentBreakdown, setShowOfferPaymentBreakdown] =
     useState(false);
@@ -1621,22 +1659,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   const [cities, setCity] = useState<
     { value: string; label: string; state_id?: string; state_name?: string }[]
   >([]);
-
-  const addressStateOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of cities) {
-      if (c.state_id) {
-        const lab = (c.state_name?.trim() || c.state_id).trim();
-        if (!m.has(c.state_id)) m.set(c.state_id, lab || c.state_id);
-      }
-    }
-    return [
-      { value: "", label: "Select state" },
-      ...Array.from(m, ([value, label]) => ({ value, label })),
-    ];
-  }, [cities]);
-
-  const addressCityRows = useMemo(() => cities, [cities]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedUser, setSelectedUser] = useState<UserModel>();
@@ -1651,17 +1673,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   });
   const payments = orderPaymentModeSelectOptions;
   const [serviceItems, setServiceItems] = useState<OrderItemModel[]>([]);
-  const [offerOptions, setOfferOptions] = useState<
+  const [activeCoupons, setActiveCoupons] = useState<OfferModel[]>([]);
+  const [couponOptions, setCouponOptions] = useState<
     { value: string; label: string }[]
-  >([{ value: "", label: "None" }]);
+  >([{ value: "", label: "Select" }]);
   const [employeeOptions, setEmployeeOptions] = useState<
     { value: string; label: string }[]
   >([]);
-  const [customerUsers, setCustomerUsers] = useState<UserModel[]>([]);
-  const [customerUserOptions, setCustomerUserOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
-
   const [franchiseOptionsForOrder, setFranchiseOptionsForOrder] = useState<
     OptionType[]
   >([]);
@@ -1710,7 +1728,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           id: newPayRowId(),
           date: "",
           amount: 0,
-          type: "COD",
+          type: "cash",
           description: "",
         },
       ],
@@ -1825,39 +1843,27 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   }, [createPartnerIdWatch, catalogPartnerRecords]);
 
   const quoteCatalogServicesForPartner = useMemo(() => {
+    if (!selectedPartnerCatalogRecord) return [];
+    const fromPartner = buildPartnerServiceOptionsFromProviding(
+      selectedPartnerCatalogRecord
+    );
+    if (fromPartner.length > 0) return fromPartner;
     const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
     if (!allow) return quoteCatalogServices;
     return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
   }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
 
   const quoteCategoryOptionsForPartner = useMemo(() => {
-    const partnerCatIds = getPartnerAvailableCategoryIdSet(
+    if (!selectedPartnerCatalogRecord) return [];
+    const fromPartner = buildPartnerCategoryOptionsFromProviding(
       selectedPartnerCatalogRecord
     );
-    const catIdsFromProviding = getPartnerCategoryIdsFromProviding(
+    if (fromPartner.length > 0) return fromPartner;
+    return buildQuoteCategoryOptionsForPartner(
+      quoteCategoryOptions,
+      quoteCatalogServicesForPartner,
       selectedPartnerCatalogRecord
     );
-    const catIdsFromServices = new Set(
-      quoteCatalogServicesForPartner
-        .map((o) => normalizeServiceCategoryRef(o.category_id))
-        .filter(Boolean)
-    );
-    catIdsFromProviding.forEach((id) => {
-      catIdsFromServices.add(id);
-    });
-    let base =
-      catIdsFromServices.size === 0
-        ? quoteCategoryOptions
-        : quoteCategoryOptions.filter((c) =>
-            catIdsFromServices.has(String(c.value))
-          );
-    if (partnerCatIds && partnerCatIds.size > 0) {
-      const narrowed = base.filter((c) => partnerCatIds.has(String(c.value)));
-      if (narrowed.length > 0) {
-        base = narrowed;
-      }
-    }
-    return base;
   }, [
     quoteCategoryOptions,
     quoteCatalogServicesForPartner,
@@ -1891,9 +1897,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     () =>
       quoteCustomerRecords.map((c) => {
         const value = String(c._id ?? c.id ?? "").trim();
-        const label = String(
+        const name = String(
           c.name ?? c.user_name ?? c.phone_number ?? value
         ).trim();
+        const email = String(c.email ?? "").trim();
+        const label = email ? `${name} (${email})` : name;
         return { value, label: label || value };
       }),
     [quoteCustomerRecords]
@@ -2004,6 +2012,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   };
 
   const fetchUserFromApi = async (nationalDigits: string) => {
+    if (!isEditable) return;
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
@@ -2043,8 +2052,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   };
 
   useEffect(() => {
-    fetchDataFromApi();
-  }, []);
+    if (!isEditable) return;
+    void fetchDataFromApi();
+  }, [isEditable]);
 
   useEffect(() => {
     if (isEditable) return;
@@ -2094,7 +2104,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           id: newPayRowId(),
           date: "",
           amount: 0,
-          type: "COD",
+          type: "cash",
           description: "",
         },
       ],
@@ -2127,11 +2137,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   useEffect(() => {
     if (isEditable) return;
-    setCustomerUserOptions(createCatalogUserOptions);
-  }, [createCatalogUserOptions, isEditable]);
-
-  useEffect(() => {
-    if (isEditable) return;
     const uid = String(createCustomerIdWatch ?? "").trim();
     if (!uid) {
       setSelectedUser(undefined);
@@ -2156,8 +2161,175 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     } as UserModel);
   }, [createCustomerIdWatch, quoteCustomerRecords, isEditable]);
 
+  const createCatalogServiceTax = useMemo(() => {
+    const sid = String(createServiceIdWatch ?? "").trim();
+    const svc = quoteCatalogServicesForPartner.find((o) => o.value === sid);
+    return {
+      taxPct: Number(svc?.tax ?? 0) || 0,
+      commissionPct: Number(svc?.commission ?? 0) || 0,
+    };
+  }, [createServiceIdWatch, quoteCatalogServicesForPartner]);
+
+  const createOrderFeeOption = useMemo(
+    () =>
+      quoteCatalogServicesForPartner.find(
+        (o) => o.value === String(createServiceIdWatch ?? "").trim()
+      ),
+    [quoteCatalogServicesForPartner, createServiceIdWatch]
+  );
+
+  const selectedCouponOffer = useMemo(() => {
+    const id = String(offerIdWatch ?? "").trim();
+    if (!id) return null;
+    return (
+      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
+      null
+    );
+  }, [offerIdWatch, activeCoupons]);
+
+  const parsedCreateServicePrice = useMemo(() => {
+    const raw = String(createServicePriceWatch ?? "")
+      .trim()
+      .replace(/,/g, "");
+    if (raw === "" || raw === ".") return null;
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }, [createServicePriceWatch]);
+
+  const createOrderBasePriceBreakdown = useMemo(() => {
+    if (isEditable || parsedCreateServicePrice == null) return null;
+    return computeQuotePriceBreakdown(
+      parsedCreateServicePrice,
+      createOrderFeeOption
+    );
+  }, [isEditable, parsedCreateServicePrice, createOrderFeeOption]);
+
+  const selectedCouponMeta = useMemo((): CouponDisplayMeta | null => {
+    if (!selectedCouponOffer) return null;
+    return {
+      type: selectedCouponOffer.offerType,
+      partnerContribution: selectedCouponOffer.partnerContribution,
+      adminContribution: selectedCouponOffer.adminContribution,
+      totalOfferValue: selectedCouponOffer.totalOfferValue,
+    };
+  }, [selectedCouponOffer]);
+
+  const couponApplyValidation = useMemo(() => {
+    if (isEditable || !selectedCouponOffer || !createOrderBasePriceBreakdown) {
+      return null;
+    }
+    return validateCouponForPriceBreakdown(
+      createOrderBasePriceBreakdown,
+      mapOfferModelToCouponInput(selectedCouponOffer)
+    );
+  }, [isEditable, selectedCouponOffer, createOrderBasePriceBreakdown]);
+
+  const createOrderPriceBreakdown = useMemo(() => {
+    if (!createOrderBasePriceBreakdown) return null;
+    const couponOk =
+      !selectedCouponOffer ||
+      !couponApplyValidation ||
+      couponApplyValidation.valid;
+    const couponInput =
+      selectedCouponOffer && couponOk
+        ? mapOfferModelToCouponInput(selectedCouponOffer)
+        : null;
+    return applyCouponToQuotePriceBreakdown(
+      createOrderBasePriceBreakdown,
+      couponInput,
+      createOrderFeeOption
+    );
+  }, [
+    createOrderBasePriceBreakdown,
+    createOrderFeeOption,
+    selectedCouponOffer,
+    couponApplyValidation,
+  ]);
+
+  useEffect(() => {
+    if (isEditable || offerModalOpen) return;
+    const id = String(offerIdWatch ?? "").trim();
+    if (!id || !couponApplyValidation || couponApplyValidation.valid) return;
+    showErrorAlert(
+      couponApplyValidation.reason ?? "Cannot apply this coupon."
+    );
+    setValue("offer_id", "", { shouldValidate: false });
+  }, [couponApplyValidation, offerIdWatch, isEditable, offerModalOpen, setValue]);
+
+  const confirmApplyCouponFromModal = useCallback(() => {
+    const id = String(getValues("offer_id") ?? "").trim();
+    if (!id) {
+      setCouponModalError("");
+      setOfferModalOpen(false);
+      return;
+    }
+    if (!createOrderBasePriceBreakdown) {
+      const msg = "Enter a service price before applying a coupon.";
+      setCouponModalError(msg);
+      showErrorAlert(msg);
+      return;
+    }
+    const offer =
+      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
+      null;
+    if (!offer) {
+      const msg = "Selected coupon is no longer available.";
+      setCouponModalError(msg);
+      showErrorAlert(msg);
+      return;
+    }
+    const validation = validateCouponForPriceBreakdown(
+      createOrderBasePriceBreakdown,
+      mapOfferModelToCouponInput(offer)
+    );
+    if (!validation.valid) {
+      setCouponModalError(validation.reason ?? "Cannot apply this coupon.");
+      showErrorAlert(validation.reason ?? "Cannot apply this coupon.");
+      return;
+    }
+    setCouponModalError("");
+    setOfferModalOpen(false);
+  }, [activeCoupons, createOrderBasePriceBreakdown, getValues]);
+
   const calculateCreateServiceDetails = useCallback(
     (servicePrice: number) => {
+      if (!isEditable) {
+        const base = computeQuotePriceBreakdown(
+          servicePrice,
+          createOrderFeeOption
+        );
+        if (!base) {
+          return {
+            tax: 0,
+            sub_total: 0,
+            user_paltform_fee: 0,
+            total_price: 0,
+            partner_commison_platform_fee: 0,
+            partner_earning: 0,
+            admin_earning: 0,
+          };
+        }
+        const couponInput = selectedCouponOffer
+          ? mapOfferModelToCouponInput(selectedCouponOffer)
+          : null;
+        const full = applyCouponToQuotePriceBreakdown(
+          base,
+          couponInput,
+          createOrderFeeOption
+        );
+        return {
+          tax: full.taxAmount,
+          sub_total: full.serviceAfterCoupon,
+          user_paltform_fee: 0,
+          total_price: full.grandTotal,
+          partner_commison_platform_fee: full.commissionAfterCoupon,
+          partner_earning: Math.max(
+            0,
+            full.serviceAfterCoupon - full.commissionAfterCoupon
+          ),
+          admin_earning: full.commissionAfterCoupon,
+        };
+      }
       if (!taxDetails) {
         return {
           tax: 0,
@@ -2190,20 +2362,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         admin_earning: Math.round(adminEarning),
       };
     },
-    [taxDetails]
+    [
+      isEditable,
+      taxDetails,
+      createCatalogServiceTax,
+      createOrderFeeOption,
+      selectedCouponOffer,
+    ]
   );
 
   useEffect(() => {
-    if (isEditable || !taxDetails) return;
+    if (isEditable) return;
     const partnerId = String(createPartnerIdWatch ?? "").trim();
     const serviceId = String(createServiceIdWatch ?? "").trim();
-    const raw = String(createServicePriceWatch ?? "").trim().replace(/,/g, "");
-    const servicePrice =
-      raw === "" || raw === "."
-        ? 0
-        : Number.isFinite(Number.parseFloat(raw))
-        ? Number.parseFloat(raw)
-        : 0;
+    const servicePrice = parsedCreateServicePrice ?? 0;
     const addrRow = createOrderAddressUi.rows.find(
       (r) => r.id === createOrderAddressId
     );
@@ -2246,12 +2418,21 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     createPartnerIdWatch,
     createServiceIdWatch,
     createCategoryIdWatch,
-    createServicePriceWatch,
+    parsedCreateServicePrice,
     createOrderAddressId,
     createOrderAddressUi.rows,
     calculateCreateServiceDetails,
+    selectedCouponOffer,
   ]);
 
+  const createScheduleDate = String(serviceItems[0]?.service_date ?? "");
+  const createScheduleDateTo = String(getValues("service_date_to") ?? "");
+  const createScheduleTimeFrom = String(
+    serviceItems[0]?.service_from_time ?? ""
+  );
+  const createScheduleTimeTo = String(serviceItems[0]?.service_to_time ?? "");
+
+  /** Auto-fill price from partner rate × schedule — not when user edits price (avoid `serviceItems` in deps). */
   useEffect(() => {
     if (isEditable) return;
     if (!isCreateOrderScheduleComplete || !createOrderPartnerSelected) return;
@@ -2263,11 +2444,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     );
     const metrics = deriveQuoteScheduleMetrics({
       scheduleMode,
-      requested_date: String(serviceItems[0]?.service_date ?? ""),
-      requested_date_to: String(getValues("service_date_to") ?? ""),
+      requested_date: createScheduleDate,
+      requested_date_to: createScheduleDateTo,
       requested_time: "",
-      requested_time_from: String(serviceItems[0]?.service_from_time ?? ""),
-      requested_time_to: String(serviceItems[0]?.service_to_time ?? ""),
+      requested_time_from: createScheduleTimeFrom,
+      requested_time_to: createScheduleTimeTo,
     });
     if (!metrics) return;
     const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
@@ -2277,26 +2458,31 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     isCreateOrderScheduleComplete,
     createOrderPartnerSelected,
     createOrderServiceId,
-    serviceItems,
-    getValues,
+    createScheduleDate,
+    createScheduleDateTo,
+    createScheduleTimeFrom,
+    createScheduleTimeTo,
     scheduleMode,
     selectedPartnerCatalogRecord,
     setValue,
   ]);
 
   useEffect(() => {
-    const offers = getOffers().filter(
-      (o) =>
-        o.status === "active" &&
-        (o.applicableOn === "orders" || o.applicableOn === "quotes")
-    );
-    setOfferOptions([
-      { value: "", label: "None" },
-      ...offers.map((o) => ({
-        value: o.id,
-        label: `${o.offerName} (${o.offerId})`,
-      })),
-    ]);
+    if (isEditable) return;
+    void fetchActiveOffers().then((coupons) => {
+      setActiveCoupons(coupons);
+      setCouponOptions([
+        { value: "", label: "Select" },
+        ...coupons.map((o) => ({
+          value: o.id,
+          label: `${o.offerName} (${o.offerId})`,
+        })),
+      ]);
+    });
+  }, [isEditable]);
+
+  useEffect(() => {
+    if (!isEditable) return;
     const loadEmployees = async () => {
       const { users } = await fetchUserDropDown(APP_USER_TYPE.FRANCHISE_EMPLOYEE);
       setEmployeeOptions(
@@ -2306,23 +2492,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         }))
       );
     };
-    const loadCustomers = async () => {
-      const { users } = await fetchUserDropDown(APP_USER_TYPE.CUSTOMER);
-      setCustomerUsers(users);
-      setCustomerUserOptions(
-        users.map((u) => ({
-          value: u._id,
-          label:
-            (u.name && String(u.name).trim()) ||
-            u.user_id ||
-            u.phone_number ||
-            u._id,
-        }))
-      );
-    };
     void loadEmployees();
-    void loadCustomers();
-  }, []);
+  }, [isEditable]);
 
   useEffect(() => {
     if (!isEditable || !order) return;
@@ -2382,12 +2553,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     }
 
     setPaymentDetails({
-      subTotal: Math.round(subTotal),
-      tax: Math.round(tax),
-      userPlatformFee: Math.round(userPlatformFee),
-      totalPrice: Math.round(totalPrice),
-      partnerCommissionPlatformFee: Math.round(partnerCommissionPlatformFee),
-      adminEarning: Math.round(adminEarning),
+      subTotal: roundMoney(subTotal),
+      tax: roundMoney(tax),
+      userPlatformFee: roundMoney(userPlatformFee),
+      totalPrice: roundMoney(totalPrice),
+      partnerCommissionPlatformFee: roundMoney(partnerCommissionPlatformFee),
+      adminEarning: roundMoney(adminEarning),
     });
   }, [serviceItems]);
 
@@ -2400,94 +2571,68 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   }, [offerIdWatch]);
 
   useEffect(() => {
-    if (isEditable || !taxDetails) return;
+    if (isEditable) return;
     setCreatePaymentExt((prev) => ({
       ...prev,
       serviceAmount: paymentDetails.subTotal,
-      taxPercent: Number(taxDetails.tax_for_customer) || 0,
-      commissionPercent:
-        (Number(taxDetails.partner_commision_fee) || 0) +
-        (Number(taxDetails.partner_platform_fee) || 0),
+      taxPercent: createCatalogServiceTax.taxPct,
+      commissionPercent: createCatalogServiceTax.commissionPct,
     }));
-  }, [isEditable, taxDetails, paymentDetails.subTotal]);
+  }, [isEditable, createCatalogServiceTax, paymentDetails.subTotal]);
 
-  const previewOfferBreakdown = useMemo(() => {
+  const previewCouponBreakdown = useMemo(() => {
     const id = (offerIdWatch ?? "").trim();
-    const fromSettings = getOffers().find(
-      (o) => o.id === id || String(o.offerId) === id
-    );
-    const sub = Number(paymentDetails.subTotal) || 0;
-    const total = Number(paymentDetails.totalPrice) || 0;
-
-    const { discount, percentOff, baseUsed } =
-      computeCreateOrderOfferDiscountRupees({
-        offerId: id,
-        fromSettings,
-        orderTotalPrice: total,
-        orderSubTotal: sub,
-      });
-    const discountRounded = Math.round(discount * 100) / 100;
-    const { admin, partner } = splitOfferContributionAmounts(
-      discountRounded,
-      fromSettings
-    );
-
-    const synthetic = {
-      offer_id: id || undefined,
-      offer_name: fromSettings?.offerName,
-      sub_total: paymentDetails.subTotal,
-      total_price: paymentDetails.totalPrice,
-      ...(discountRounded > 0
-        ? { offer_discount_amount: discountRounded }
-        : {}),
-    } as OrderModel;
-
-    const resolved = resolveOrderOfferBreakdown(synthetic);
+    const coupon = selectedCouponOffer;
+    const partnerDisc =
+      createOrderPriceBreakdown?.partnerDiscountOnService ?? 0;
+    const adminDisc = createOrderPriceBreakdown?.adminDiscountOnCommission ?? 0;
+    const appliedDiscount =
+      createOrderPriceBreakdown?.totalCouponDiscount ??
+      partnerDisc + adminDisc;
+    const discountBaseForPercent =
+      coupon?.offerType === "percentage" && createOrderPriceBreakdown
+        ? createOrderPriceBreakdown.grandTotal + appliedDiscount
+        : undefined;
     return {
-      ...resolved,
-      appliedDiscount: discountRounded,
-      totalOfferValue: discountRounded,
-      adminContribution: admin,
-      partnerContribution: partner,
-      percentOffOrder: percentOff,
-      discountBaseForPercent: percentOff != null ? baseUsed : undefined,
+      offerCode: coupon?.offerId,
+      offerName: coupon?.offerName,
+      appliedDiscount,
+      adminContribution: adminDisc,
+      partnerContribution: partnerDisc,
+      percentOffOrder:
+        coupon?.offerType === "percentage" ? coupon.totalOfferValue : null,
+      discountBaseForPercent,
+      offerId: id,
     };
-  }, [offerIdWatch, paymentDetails.subTotal, paymentDetails.totalPrice]);
-
-  /** Admin / partner share of the applied discount (rupees), for subline copy. */
-  const offerContributionPercents = useMemo(() => {
-    const disc = Number(previewOfferBreakdown.appliedDiscount) || 0;
-    const admin = Number(previewOfferBreakdown.adminContribution) || 0;
-    const partner = Number(previewOfferBreakdown.partnerContribution) || 0;
-    if (disc > 0.009) {
-      return {
-        adminPct: (admin / disc) * 100,
-        partnerPct: (partner / disc) * 100,
-      };
-    }
-    return { adminPct: 0, partnerPct: 0 };
   }, [
-    previewOfferBreakdown.appliedDiscount,
-    previewOfferBreakdown.adminContribution,
-    previewOfferBreakdown.partnerContribution,
+    offerIdWatch,
+    selectedCouponOffer,
+    createOrderPriceBreakdown,
   ]);
 
-  const totalPriceGrossCreate = Number(paymentDetails.totalPrice || 0);
-  const createOfferDiscount =
-    !isEditable &&
-    (offerIdWatch ?? "").trim() !== "" &&
-    previewOfferBreakdown.appliedDiscount > 0.009
-      ? previewOfferBreakdown.appliedDiscount
-      : 0;
-  const totalPriceAfterOfferCreate = Math.max(
-    0,
-    totalPriceGrossCreate - createOfferDiscount
-  );
   const createFinalTotal = !isEditable
-    ? totalPriceAfterOfferCreate
+    ? Number(
+        createOrderPriceBreakdown?.grandTotal ??
+          paymentDetails.totalPrice ??
+          0
+      )
     : paymentDetails.totalPrice;
 
-  const createPartnerCap = Math.max(0, paymentDetails.subTotal);
+  const createPartnerCap = useMemo(() => {
+    if (!isEditable && createOrderPriceBreakdown) {
+      return Math.max(
+        0,
+        createOrderPriceBreakdown.serviceAfterCoupon ??
+          createOrderPriceBreakdown.base ??
+          0
+      );
+    }
+    return Math.max(0, paymentDetails.subTotal);
+  }, [
+    isEditable,
+    createOrderPriceBreakdown,
+    paymentDetails.subTotal,
+  ]);
   const createCustomerPaidBal = useMemo(
     () => customerPaidBalanceForEdit(createPaymentExt, createFinalTotal, false),
     [createPaymentExt, createFinalTotal]
@@ -2502,8 +2647,87 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       ),
     [createPaymentExt, createPartnerCap]
   );
-  const canAddCustomerCreate = createCustomerPaidBal.balance > 0.009;
-  const canAddPartnerCreate = createPartnerPaidBal.balance > 0.009;
+  const customerAddPaymentState = useMemo(
+    () =>
+      canAddAnotherCustomerPayment(
+        createPaymentExt.customerPayments,
+        createCustomerPaidBal.balance
+      ),
+    [createPaymentExt.customerPayments, createCustomerPaidBal.balance]
+  );
+  const partnerAddPaymentState = useMemo(
+    () =>
+      canAddAnotherPartnerPayment(
+        createPaymentExt.partnerPayments,
+        createPartnerPaidBal.balance
+      ),
+    [createPaymentExt.partnerPayments, createPartnerPaidBal.balance]
+  );
+  const canAddCustomerByBalance = createCustomerPaidBal.balance > 0.009;
+  const canAddPartnerByBalance = createPartnerPaidBal.balance > 0.009;
+
+  useEffect(() => {
+    if (
+      showCustomerPaymentAddHint &&
+      createPaymentExt.customerPayments.every(isCustomerPaymentRowComplete)
+    ) {
+      setShowCustomerPaymentAddHint(false);
+    }
+  }, [createPaymentExt.customerPayments, showCustomerPaymentAddHint]);
+
+  useEffect(() => {
+    if (
+      showPartnerPaymentAddHint &&
+      createPaymentExt.partnerPayments.every(isPartnerPaymentRowComplete)
+    ) {
+      setShowPartnerPaymentAddHint(false);
+    }
+  }, [createPaymentExt.partnerPayments, showPartnerPaymentAddHint]);
+
+  const tryAddCreateCustomerPayment = () => {
+    if (!customerAddPaymentState.allowed) {
+      if (customerAddPaymentState.reason) {
+        setShowCustomerPaymentAddHint(true);
+      }
+      return;
+    }
+    setShowCustomerPaymentAddHint(false);
+    setCreatePaymentExt((e) => ({
+      ...e,
+      customerPayments: [
+        ...e.customerPayments,
+        {
+          id: newPayRowId(),
+          date: "",
+          amount: 0,
+          type: "cash",
+          description: "",
+        },
+      ],
+    }));
+  };
+
+  const tryAddCreatePartnerPayment = () => {
+    if (!partnerAddPaymentState.allowed) {
+      if (partnerAddPaymentState.reason) {
+        setShowPartnerPaymentAddHint(true);
+      }
+      return;
+    }
+    setShowPartnerPaymentAddHint(false);
+    setCreatePaymentExt((e) => ({
+      ...e,
+      partnerPayments: [
+        ...e.partnerPayments,
+        {
+          id: newPayRowId(),
+          date: "",
+          amount: 0,
+          description: "",
+        },
+      ],
+    }));
+  };
 
   const updateCreateCustomer = (
     id: string,
@@ -2571,10 +2795,37 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     [setValue]
   );
 
+  /** Same as Add Quote — drop stale category when partner-scoped list changes. */
+  useEffect(() => {
+    if (isEditable || !createOrderPartnerSelected) return;
+    const cid = String(createCategoryIdWatch ?? "").trim();
+    if (!cid) return;
+    const ok = quoteCategoryOptionsForPartner.some(
+      (c) => String(c.value) === cid
+    );
+    if (ok) return;
+    setValue("category_id", "", { shouldValidate: false });
+    setValue("requested_services", "", { shouldValidate: false });
+    setValue("create_service_price", "", { shouldValidate: false });
+    patchCreateScheduleField("service_date", "");
+    patchCreateScheduleField("service_date_to", "");
+    patchCreateScheduleField("service_from_time", "");
+    patchCreateScheduleField("service_to_time", "");
+  }, [
+    isEditable,
+    createOrderPartnerSelected,
+    createCategoryIdWatch,
+    quoteCategoryOptionsForPartner,
+    setValue,
+    patchCreateScheduleField,
+  ]);
+
   const handleCreateOrderFranchiseChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const nextId = String(e.target.value ?? "").trim();
-      setValue("franchise_id", e.target.value, { shouldValidate: true });
+      setValue("franchise_id", e.target.value, {
+        shouldValidate: createFormSubmitted,
+      });
       resetCreateOrderCatalogSelections();
       lastOrderCatalogFranchiseIdRef.current = "";
       if (isSuperAdminOrStaff && nextId) {
@@ -2589,11 +2840,17 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     ]
   );
 
-  const taxPctLabel = taxDetails ? Number(taxDetails.tax_for_customer) || 0 : 0;
-  const commissionPctLabel = taxDetails
-    ? (Number(taxDetails.partner_commision_fee) || 0) +
-      (Number(taxDetails.partner_platform_fee) || 0)
-    : 0;
+  const taxPctLabel = isEditable
+    ? taxDetails
+      ? Number(taxDetails.tax_for_customer) || 0
+      : 0
+    : createCatalogServiceTax.taxPct;
+  const commissionPctLabel = isEditable
+    ? taxDetails
+      ? (Number(taxDetails.partner_commision_fee) || 0) +
+        (Number(taxDetails.partner_platform_fee) || 0)
+      : 0
+    : createCatalogServiceTax.commissionPct;
 
   const onSubmitEvent = async (data: any) => {
     if (!isEditable) {
@@ -2646,6 +2903,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       if (Number.isNaN(price) || price <= 0) {
         showErrorAlert("Enter a valid service price.");
         return;
+      }
+      if (
+        String(data.offer_id ?? "").trim() &&
+        selectedCouponOffer &&
+        createOrderBasePriceBreakdown
+      ) {
+        const couponCheck = validateCouponForPriceBreakdown(
+          createOrderBasePriceBreakdown,
+          mapOfferModelToCouponInput(selectedCouponOffer)
+        );
+        if (!couponCheck.valid) {
+          showErrorAlert(couponCheck.reason ?? "Cannot apply this coupon.");
+          return;
+        }
       }
       const schedDate = String(serviceItems[0]?.service_date ?? "").trim();
       const schedTo = String(data.service_date_to ?? "").trim();
@@ -2708,71 +2979,84 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       selectedUser?.city_id ||
       (cities.length > 0 ? cities[0].value : "");
 
-    let commentsOut = (data.comments ?? "").trim();
-    let isPaidOut = false;
-    if (!isEditable) {
-      const extForSave: OrderPaymentExtV1 = {
-        ...createPaymentExt,
-        serviceAmount: paymentDetails.subTotal,
-        taxPercent: taxDetails ? Number(taxDetails.tax_for_customer) || 0 : 0,
-        commissionPercent: taxDetails
-          ? (Number(taxDetails.partner_commision_fee) || 0) +
-            (Number(taxDetails.partner_platform_fee) || 0)
-          : 0,
-      };
-      commentsOut = mergePaymentExtension(commentsOut, extForSave);
-      const customerSum = sumCustomerAmounts(extForSave.customerPayments);
-      isPaidOut = customerSum >= createFinalTotal - 0.01;
-    }
-
-    const payload = {
-      user_id: selectedUser?._id,
-      user_unique_id: selectedUser?.user_id,
-      city_id: resolvedCityId,
-      category_id: data.category_id,
-      is_paid: !isEditable ? isPaidOut : !!(order?.is_paid ?? false),
-      payment_mode_id: !isEditable
-        ? "2"
-        : String(data.payment_mode_id ?? order?.payment_mode_id ?? "2"),
-      transaction_id: !isEditable
-        ? ""
-        : order?.transaction_id != null
-        ? String(order.transaction_id)
-        : "",
-      created_by_id:
-        data.created_by_id || getLocalStorage(AppConstant.createdById),
-      ...(data.offer_id ? { offer_id: data.offer_id } : {}),
-      ...(data.offer_id &&
-        !isEditable &&
-        previewOfferBreakdown.appliedDiscount > 0.009 && {
-          offer_discount_amount: previewOfferBreakdown.appliedDiscount,
-        }),
-      order_status: isEditable && order ? order.order_status : 2,
-      type: 1,
-      order_date: new Date().toISOString(),
-      address: firstAddr || selectedUser?.address,
-      sub_total: paymentDetails.subTotal,
-      tax: paymentDetails.tax,
-      discount_amount: 0,
-      user_paltform_fee: paymentDetails.userPlatformFee,
-      partner_commison_platform_fee:
-        paymentDetails.partnerCommissionPlatformFee,
-      total_price: !isEditable ? createFinalTotal : paymentDetails.totalPrice,
-      admin_earning: paymentDetails.adminEarning,
-      service_items: payloadServiceItems,
-      comments: !isEditable ? commentsOut : data.comments ?? "",
-      name: selectedUser?.name,
-      email: selectedUser?.email,
-      contact: selectedUser?.phone_number,
-    };
     let response;
     if (isEditable) {
       if (!order?._id) {
         showErrorAlert("Unable to update. ID is missing.");
         return;
       }
+      const editPayMeta = deriveOrderCustomerPaymentFields(
+        createPaymentExt,
+        Number(order?.total_price ?? paymentDetails.totalPrice ?? 0)
+      );
+      const payload = {
+        user_id: selectedUser?._id,
+        user_unique_id: selectedUser?.user_id,
+        city_id: resolvedCityId,
+        category_id: data.category_id,
+        payment_mode_id: String(data.payment_mode_id ?? order?.payment_mode_id ?? "2"),
+        transaction_id:
+          order?.transaction_id != null ? String(order.transaction_id) : "",
+        created_by_id:
+          data.created_by_id || getLocalStorage(AppConstant.createdById),
+        address: firstAddr || selectedUser?.address,
+        service_items: payloadServiceItems,
+        comments: data.comments ?? "",
+        name: selectedUser?.name,
+        email: selectedUser?.email,
+        contact: selectedUser?.phone_number,
+        is_paid: editPayMeta.is_paid,
+        customer_payment_method: editPayMeta.customer_payment_method,
+      };
       response = await createOrUpdateOrder(payload, true, order?._id);
     } else {
+      const price = Number.parseFloat(
+        String(data.create_service_price ?? "").trim()
+      );
+      const extForSave: OrderPaymentExtV1 = {
+        ...createPaymentExt,
+        serviceAmount: paymentDetails.subTotal,
+        taxPercent: createCatalogServiceTax.taxPct,
+        commissionPercent: createCatalogServiceTax.commissionPct,
+      };
+      const serviceId = String(data.requested_services ?? "").trim();
+      const serviceOpt = quoteCatalogServicesForPartner.find(
+        (o) => o.value === serviceId
+      );
+      const categoryId =
+        String(data.category_id ?? "").trim() ||
+        normalizeServiceCategoryRef(serviceOpt?.category_id) ||
+        "";
+      const primaryLine = payloadServiceItems[0];
+      const payload = buildCreateOrderPayload({
+        userId: selectedUser!._id,
+        userUniqueId: selectedUser?.user_id
+          ? String(selectedUser.user_id)
+          : undefined,
+        cityId: resolvedCityId,
+        categoryId,
+        partnerId: String(data.requested_partner ?? "").trim(),
+        serviceId: String(data.requested_services ?? "").trim(),
+        createdById:
+          data.created_by_id || getLocalStorage(AppConstant.createdById) || "",
+        address: firstAddr || selectedUser?.address || "",
+        addressId: createOrderAddressId.trim() || undefined,
+        totalServiceCharge: Math.max(
+          0,
+          Number(createFinalTotal) ||
+            Number(paymentDetails.totalPrice) ||
+            price
+        ),
+        orderDescription: (data.comments ?? "").trim() || undefined,
+        offerId: data.offer_id ? String(data.offer_id) : undefined,
+        serviceItem: {
+          service_date: primaryLine?.service_date ?? "",
+          service_from_time: primaryLine?.service_from_time ?? "",
+          service_to_time: primaryLine?.service_to_time ?? "",
+          service_address: primaryLine?.service_address ?? "",
+        },
+        paymentExt: extForSave,
+      });
       response = await createOrUpdateOrder(payload, false);
     }
 
@@ -2787,36 +3071,23 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       <Modal
         show={true}
         onHide={onClose}
-        {...(isEditable ? { centered: true } : QUOTE_MODAL_LAYOUT)}
+        {...QUOTE_MODAL_LAYOUT}
         enforceFocus={false}
       >
-        <div className="custom-order-model-detail">
           <Modal.Header className="py-3 px-4 border-bottom-0">
             <Modal.Title as="h5" className="custom-modal-title">
               {isEditable ? "Update" : "Create"} Order
             </Modal.Title>
             <CustomCloseButton onClose={onClose} />
           </Modal.Header>
-          <Modal.Body
-            className={
-              isEditable ? "px-4 pb-4 pt-0" : "add-quote-modal-body pt-0"
-            }
-            style={
-              isEditable
-                ? {
-                    maxHeight: "70vh",
-                    overflowY: "auto",
-                  }
-                : undefined
-            }
-          >
+          <Modal.Body className="add-quote-modal-body pt-0">
             <form
               noValidate
               name="order-form"
               id="order-form"
               onSubmit={handleSubmit(onSubmitEvent)}
             >
-                            {!isEditable ? (
+              {!isEditable ? (
                 <>
                   <section className="custom-other-details add-quote-form-section">
                     <div>
@@ -2829,10 +3100,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                   htmlFor="create-order-franchise"
                                   className="custom-profile-lable"
                                 >
-                                  Franchise
+                                  <FieldLabelText label="Franchise" required />
                                 </label>
                               </Col>
-                              <Col>
+                      <Col>
                                 <Form.Select
                                   id="create-order-franchise"
                                   className="form-select custom-form-input"
@@ -2859,24 +3130,24 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     </option>
                                   ))}
                                 </Form.Select>
-                              </Col>
-                            </Row>
+                      </Col>
+                    </Row>
                           </Col>
                         ) : null}
                         <Col xs={12} md={6}>
-                          <CustomTextFieldSelect
+                        <CustomTextFieldSelect
                             label="User Name"
                             controlId="create-order-user"
                             asCol={false}
                             options={createCatalogUserOptions}
-                            register={register}
-                            fieldName="customer_user_id"
-                            error={errors.customer_user_id}
+                          register={register}
+                          fieldName="customer_user_id"
+                          error={errors.customer_user_id}
                             requiredMessage="Please select a user"
-                            defaultValue={getValues("customer_user_id")}
-                            setValue={
-                              setValue as (name: string, value: any) => void
-                            }
+                          defaultValue={getValues("customer_user_id")}
+                          setValue={
+                            setValue as (name: string, value: any) => void
+                          }
                             placeholder="Search user"
                             menuPortal
                             isClearable
@@ -2913,7 +3184,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                               className="custom-profile-lable d-block"
                               style={{ fontWeight: 600, marginBottom: "1.125rem" }}
                             >
-                              Customer addresses
+                              <FieldLabelText label="Customer addresses" required />
                             </label>
                             {!createOrderAddressUi.ready ? (
                               <div className="small text-muted">
@@ -3074,11 +3345,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 setValue as (name: string, value: any) => void
                               }
                               placeholder="Select employee"
-                              menuPortal
+                          menuPortal
                               isClearable
                               isDisabled={createOrderFieldsLocked}
-                            />
-                          </Col>
+                        />
+                      </Col>
                         ) : null}
                         <Col xs={12} md={6}>
                           <CustomTextFieldSelect
@@ -3092,15 +3363,23 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             requiredMessage="Please select a partner"
                             defaultValue={getValues("requested_partner")}
                             setValue={(name: string, value: any) => {
-                              setValue(name, value, { shouldValidate: true });
+                              setValue(name, value, {
+                                shouldValidate: createFormSubmitted,
+                              });
                               if (name === "requested_partner") {
-                                setValue("category_id", "");
-                                setValue("requested_services", "");
+                                setValue("category_id", "", {
+                                  shouldValidate: false,
+                                });
+                                setValue("requested_services", "", {
+                                  shouldValidate: false,
+                                });
                                 patchCreateScheduleField("service_date", "");
                                 patchCreateScheduleField("service_date_to", "");
                                 patchCreateScheduleField("service_from_time", "");
                                 patchCreateScheduleField("service_to_time", "");
-                                setValue("create_service_price", "");
+                                setValue("create_service_price", "", {
+                                  shouldValidate: false,
+                                });
                               }
                             }}
                             placeholder="Select partner"
@@ -3110,26 +3389,36 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           />
                         </Col>
                         <Col xs={12} md={6}>
-                          <CustomTextFieldSelect
-                            label="Category"
+                        <CustomTextFieldSelect
+                          label="Requested Category"
                             controlId="create-order-category"
                             asCol={false}
                             options={quoteCategoryOptionsForPartner}
-                            register={register}
-                            fieldName="category_id"
-                            error={errors.category_id}
-                            requiredMessage="Please select a category"
-                            defaultValue={getValues("category_id")}
+                          register={register}
+                          fieldName="category_id"
+                          error={errors.category_id}
+                            requiredMessage={
+                              createOrderPartnerSelected
+                                ? "Please select a category"
+                                : undefined
+                            }
+                          defaultValue={getValues("category_id")}
                             isClearable
                             setValue={(name: string, value: any) => {
-                              setValue(name, value, { shouldValidate: true });
+                              setValue(name, value, {
+                                shouldValidate: createFormSubmitted,
+                              });
                               if (name === "category_id") {
-                                setValue("requested_services", "");
+                                setValue("requested_services", "", {
+                                  shouldValidate: false,
+                                });
                                 patchCreateScheduleField("service_date", "");
                                 patchCreateScheduleField("service_date_to", "");
                                 patchCreateScheduleField("service_from_time", "");
                                 patchCreateScheduleField("service_to_time", "");
-                                setValue("create_service_price", "");
+                                setValue("create_service_price", "", {
+                                  shouldValidate: false,
+                                });
                               }
                             }}
                             placeholder={
@@ -3137,37 +3426,55 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 ? "Select category"
                                 : "Select partner first"
                             }
-                            menuPortal
+                          menuPortal
                             isDisabled={
                               createOrderFieldsLocked ||
                               !createOrderPartnerSelected
                             }
-                          />
-                        </Col>
+                        />
+                      </Col>
                         <Col xs={12} md={6}>
-                          <CustomTextFieldSelect
+                        <CustomTextFieldSelect
                             key={`create-order-svc-${createCategoryIdWatch || "none"}`}
                             label="Requested Services"
                             controlId="create-order-service"
                             asCol={false}
                             options={quoteServiceOptionsForCategory}
-                            register={register}
+                          register={register}
                             fieldName="requested_services"
                             error={errors.requested_services}
-                            requiredMessage={
+                          requiredMessage={
                               createCategoryIdWatch && createOrderPartnerSelected
                                 ? "Please select a service"
-                                : undefined
-                            }
+                              : undefined
+                          }
                             defaultValue={getValues("requested_services")}
                             setValue={(name: string, value: any) => {
-                              setValue(name, value, { shouldValidate: true });
+                              setValue(name, value, {
+                                shouldValidate: createFormSubmitted,
+                              });
                               if (name === "requested_services") {
+                                const sid = String(value ?? "").trim();
+                                if (sid) {
+                                  const opt = quoteCatalogServicesForPartner.find(
+                                    (o) => o.value === sid
+                                  );
+                                  const catRef = normalizeServiceCategoryRef(
+                                    opt?.category_id
+                                  );
+                                  if (catRef) {
+                                    setValue("category_id", catRef, {
+                                      shouldValidate: false,
+                                    });
+                                  }
+                                }
                                 patchCreateScheduleField("service_date", "");
                                 patchCreateScheduleField("service_date_to", "");
                                 patchCreateScheduleField("service_from_time", "");
                                 patchCreateScheduleField("service_to_time", "");
-                                setValue("create_service_price", "");
+                                setValue("create_service_price", "", {
+                                  shouldValidate: false,
+                                });
                               }
                             }}
                             placeholder={
@@ -3176,17 +3483,17 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 : !String(createCategoryIdWatch ?? "").trim()
                                 ? "Select category first"
                                 : "Select service"
-                            }
-                            menuPortal
+                          }
+                          menuPortal
                             isClearable
                             isDisabled={
                               createOrderFieldsLocked ||
                               !createOrderPartnerSelected ||
                               !String(createCategoryIdWatch ?? "").trim()
                             }
-                          />
-                        </Col>
-                      </Row>
+                        />
+                      </Col>
+                    </Row>
 
                       {hasCreateOrderServiceSelected ? (
                         <>
@@ -3202,22 +3509,22 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                               >
                                 Schedule
                               </label>
-                            </Col>
-                          </Row>
+                        </Col>
+                      </Row>
                           <div className="add-quote-schedule-panel">
                             <Row className="gy-3 gx-md-4">
                               {scheduleMode === "range" ? (
                                 <>
                                   <Col xs={12} md={3}>
-                                    <CustomTextFieldDatePicket
+                          <CustomTextFieldDatePicket
                                       label="From date"
                                       controlId="create-order-from-date"
-                                      selectedDate={
+                            selectedDate={
                                         serviceItems[0]?.service_date || null
-                                      }
+                            }
                                       onChange={(date) => {
-                                        patchCreateScheduleField(
-                                          "service_date",
+                              patchCreateScheduleField(
+                                "service_date",
                                           toIsoCalendarDate(date) ?? ""
                                         );
                                       }}
@@ -3227,6 +3534,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       labelSize={12}
                                       placeholderText="From date"
                                       filterDate={createOrderScheduleFromDateFilter}
+                                      required
                                     />
                                   </Col>
                                   <Col xs={12} md={3}>
@@ -3242,12 +3550,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           toIsoCalendarDate(date) ?? ""
                                         );
                                       }}
-                                      register={register}
+                            register={register}
                                       setValue={setValue}
                                       asCol={false}
                                       labelSize={12}
                                       placeholderText="To date"
                                       filterDate={createOrderScheduleToDateFilter}
+                                      required
                                     />
                                   </Col>
                                 </>
@@ -3266,62 +3575,65 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       );
                                     }}
                                     register={register}
-                                    setValue={setValue}
+                            setValue={setValue}
                                     asCol={false}
                                     labelSize={12}
                                     placeholderText="Date"
                                     filterDate={createOrderScheduleFromDateFilter}
-                                  />
-                                </Col>
+                                    required
+                          />
+                        </Col>
                               )}
                               <Col xs={12} md={3}>
-                                <CustomTextFieldTimePicket
+                          <CustomTextFieldTimePicket
                                   label="Start time"
                                   controlId="create-order-time-from"
-                                  selectedTime={
+                            selectedTime={
                                     serviceItems[0]?.service_from_time || null
-                                  }
+                            }
                                   onChange={(date) => {
                                     const next = date
                                       ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
                                       : "";
-                                    patchCreateScheduleField(
-                                      "service_from_time",
+                              patchCreateScheduleField(
+                                "service_from_time",
                                       next
                                     );
                                   }}
-                                  register={register}
-                                  setValue={setValue}
+                            register={register}
+                            setValue={setValue}
                                   asCol={false}
                                   labelSize={12}
                                   placeholderText="Start time"
                                   filterTime={quoteScheduleTimePickerAllowAllHours}
                                   timeIntervals={createOrderScheduleTimeIntervals}
-                                />
-                              </Col>
+                                  required
+                          />
+                        </Col>
                               <Col xs={12} md={3}>
-                                <CustomTextFieldTimePicket
+                          <CustomTextFieldTimePicket
                                   label="End time"
                                   controlId="create-order-time-to"
-                                  selectedTime={
+                            selectedTime={
                                     serviceItems[0]?.service_to_time || null
-                                  }
+                            }
                                   onChange={(date) => {
                                     const next = date
                                       ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
                                       : "";
-                                    patchCreateScheduleField(
-                                      "service_to_time",
+                              patchCreateScheduleField(
+                                "service_to_time",
                                       next
                                     );
                                   }}
-                                  register={register}
-                                  setValue={setValue}
+                            register={register}
+                            setValue={setValue}
                                   asCol={false}
                                   labelSize={12}
                                   placeholderText="End time"
                                   filterTime={createOrderEndTimeFilter}
                                   timeIntervals={createOrderScheduleTimeIntervals}
+                                  required
                                 />
                               </Col>
                             </Row>
@@ -3349,7 +3661,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 <Col xs={12} md={6} lg={5}>
                                   <Form.Group controlId="create_service_price">
                                     <Form.Label className="fw-medium mb-1">
-                                      Service Price
+                                      <FieldLabelText label="Service Price" required />
                                     </Form.Label>
                                     <InputGroup>
                                       <InputGroup.Text
@@ -3375,14 +3687,25 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           borderBottomLeftRadius: 0,
                                         }}
                                         placeholder="e.g. 499"
-                                        {...register("create_service_price")}
+                                        {...register("create_service_price", {
+                                          onChange: (e) => {
+                                            setValue(
+                                              "create_service_price",
+                                              e.target.value,
+                                              {
+                                                shouldValidate: false,
+                                                shouldDirty: true,
+                                              }
+                                            );
+                                          },
+                                        })}
                                       />
                                     </InputGroup>
                                   </Form.Group>
-                                </Col>
-                              </Row>
+                        </Col>
+                      </Row>
                             </div>
-                          ) : null}
+                  ) : null}
                         </>
                       ) : null}
                     </div>
@@ -3401,174 +3724,43 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     </Row>
 
                     <div style={priceSummarySection}>
-                      <div style={paymentSubcard}>
-                        <div style={summaryRow}>
-                          <span style={summaryLabel}>Service Amount</span>
-                          <span style={summaryValueTop}>
-                            {AppConstant.currencySymbol}
-                            {Number(paymentDetails.subTotal || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div style={summaryRow}>
-                          <span style={summaryLabel}>
-                            Tax ({taxPctLabel.toFixed(2)}%)
-                          </span>
-                          <span style={summaryValueTop}>
-                            {AppConstant.currencySymbol}
-                            {Number(paymentDetails.tax || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div style={summaryRow}>
-                          <span style={summaryLabel}>
-                            Commission ({commissionPctLabel.toFixed(2)}%)
-                          </span>
-                          <span style={summaryValueTop}>
-                            {AppConstant.currencySymbol}
-                            {Number(
-                              paymentDetails.partnerCommissionPlatformFee || 0
-                            ).toFixed(2)}
-                          </span>
-                        </div>
-                        {(offerIdWatch ?? "").trim() ? (
-                          <div style={summaryRow}>
-                            <div
-                              className="d-flex flex-column align-items-start gap-1"
-                              style={{ minWidth: 0, flex: "1 1 auto" }}
-                            >
-                              <div className="d-flex flex-wrap align-items-center gap-2">
-                                <span style={summaryLabel}>Offer</span>
-                                <span
-                                  className="px-2 py-0 rounded-pill"
-                                  style={{
-                                    fontSize: FONT_LABEL,
-                                    fontWeight: 600,
-                                    border: "1px solid var(--primary-color)",
-                                    color: "var(--primary-txt-color)",
-                                    backgroundColor: "var(--bg-color)",
-                                  }}
-                                >
-                                  {String(
-                                    previewOfferBreakdown.offerCode ??
-                                      previewOfferBreakdown.offerName ??
-                                      offerIdWatch ??
-                                      ""
-                                  ).trim()}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="btn btn-link p-0 small text-decoration-underline"
-                                  style={{
-                                    color: "var(--primary-color)",
-                                    fontSize: FONT_LABEL,
-                                    fontWeight: 600,
-                                  }}
-                                  onClick={() =>
-                                    setShowOfferPaymentBreakdown((v) => !v)
-                                  }
-                                >
-                                  {showOfferPaymentBreakdown
-                                    ? "Hide offer details"
-                                    : "Show offer details"}
-                                </button>
-                              </div>
-                              {showOfferPaymentBreakdown ? (
-                                <span style={offerSublineCreate}>
-                                  {previewOfferBreakdown.percentOffOrder !=
-                                  null ? (
-                                    <>
-                                      ({" "}
-                                      {formatOfferSplitPercent(
-                                        previewOfferBreakdown.percentOffOrder
-                                      )}
-                                      % off order total{" "}
-                                      {AppConstant.currencySymbol}
-                                      {(
-                                        previewOfferBreakdown.discountBaseForPercent ??
-                                        0
-                                      ).toFixed(2)}{" "}
-                                      · Discount {AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.appliedDiscount.toFixed(
-                                        2
-                                      )}{" "}
-                                      · Admin{" "}
-                                      {formatOfferSplitPercent(
-                                        offerContributionPercents.adminPct
-                                      )}
-                                      % ({AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.adminContribution.toFixed(
-                                        2
-                                      )}
-                                      ) · Partner{" "}
-                                      {formatOfferSplitPercent(
-                                        offerContributionPercents.partnerPct
-                                      )}
-                                      % ({AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.partnerContribution.toFixed(
-                                        2
-                                      )}{" "}
-                                      ) )
-                                    </>
-                                  ) : (
-                                    <>
-                                      ( Total discount value{" "}
-                                      {AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.appliedDiscount.toFixed(
-                                        2
-                                      )}{" "}
-                                      · Admin{" "}
-                                      {formatOfferSplitPercent(
-                                        offerContributionPercents.adminPct
-                                      )}
-                                      % ({AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.adminContribution.toFixed(
-                                        2
-                                      )}
-                                      ) · Partner{" "}
-                                      {formatOfferSplitPercent(
-                                        offerContributionPercents.partnerPct
-                                      )}
-                                      % ({AppConstant.currencySymbol}
-                                      {previewOfferBreakdown.partnerContribution.toFixed(
-                                        2
-                                      )}{" "}
-                                      ) )
-                                    </>
-                                  )}
-                                </span>
-                              ) : null}
-                            </div>
-                            <span
-                              style={{
-                                ...summaryValueTop,
-                                flexShrink: 0,
-                                color:
-                                  previewOfferBreakdown.appliedDiscount > 0.009
-                                    ? "var(--bs-success, #198754)"
-                                    : undefined,
-                              }}
-                            >
-                              {previewOfferBreakdown.appliedDiscount > 0.009
-                                ? `-${
-                                    AppConstant.currencySymbol
-                                  }${previewOfferBreakdown.appliedDiscount.toFixed(
-                                    2
-                                  )}`
-                                : "—"}
-                            </span>
-                          </div>
-                        ) : null}
-                        <div
+                      {createOrderPriceBreakdown ? (
+                        <OrderAmountSummaryPanel
+                          serviceAmount={createOrderPriceBreakdown.base}
+                          offerDiscount={previewCouponBreakdown.appliedDiscount}
+                          taxPct={createOrderPriceBreakdown.taxPct}
+                          taxAmount={createOrderPriceBreakdown.taxAmount}
+                          commissionPct={createOrderPriceBreakdown.commissionPct}
+                          commissionAmount={
+                            createOrderPriceBreakdown.commissionAmount
+                          }
+                          offer={{
+                            totalOfferValue:
+                              Number(selectedCouponOffer?.totalOfferValue) ||
+                              previewCouponBreakdown.appliedDiscount,
+                            adminContribution:
+                              previewCouponBreakdown.adminContribution,
+                            partnerContribution:
+                              previewCouponBreakdown.partnerContribution,
+                            appliedDiscount:
+                              previewCouponBreakdown.appliedDiscount,
+                            offerName: previewCouponBreakdown.offerName,
+                            offerCode: previewCouponBreakdown.offerCode
+                              ? String(previewCouponBreakdown.offerCode)
+                              : undefined,
+                          }}
+                          finalTotal={createFinalTotal}
                           style={{
-                            ...summaryTotalWrap,
-                            flexWrap: "wrap",
-                            rowGap: "6px",
+                            marginTop: 0,
+                            padding: 0,
+                            border: "none",
+                            background: "transparent",
                           }}
                         >
-                          <div className="d-flex flex-wrap align-items-center gap-2">
-                            <span style={summaryTotalLabel}>Total Price</span>
+                          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 mt-2 border-top">
                             <button
                               type="button"
-                              className="btn btn-link p-0 small"
+                              className="btn btn-link p-0"
                               style={{
                                 color: "var(--primary-color)",
                                 textDecoration: "underline",
@@ -3587,18 +3779,22 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                               }}
                             >
                               {(offerIdWatch ?? "").trim()
-                                ? "Remove offer"
-                                : "Apply offer"}
+                                ? "Remove coupon"
+                                : "Apply coupon"}
                             </button>
                           </div>
-                          <div className="text-end">
-                            <span style={summaryTotalValue}>
-                              {AppConstant.currencySymbol}
-                              {totalPriceAfterOfferCreate.toFixed(2)}
-                            </span>
-                          </div>
+                        </OrderAmountSummaryPanel>
+                      ) : null}
+                      {couponApplyValidation &&
+                      !couponApplyValidation.valid &&
+                      (offerIdWatch ?? "").trim() ? (
+                        <div
+                          className="small text-danger mt-2 px-1"
+                          role="alert"
+                        >
+                          {couponApplyValidation.reason}
                         </div>
-                      </div>
+                      ) : null}
                     </div>
 
                     <div
@@ -3622,29 +3818,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             style={{ ...moneyTabular, fontSize: FONT_BODY }}
                           >
                             {AppConstant.currencySymbol}
-                            {Number(createFinalTotal || 0).toFixed(2)}
+                            {formatMoney2(createFinalTotal || 0)}
                           </span>
                         </Col>
                         <Col xs="auto">
                           <Button
                             type="button"
                             className="custom-btn-secondary w-auto"
-                            disabled={!canAddCustomerCreate}
-                            onClick={() =>
-                              setCreatePaymentExt((e) => ({
-                                ...e,
-                                customerPayments: [
-                                  ...e.customerPayments,
-                                  {
-                                    id: newPayRowId(),
-                                    date: "",
-                                    amount: 0,
-                                    type: "COD",
-                                    description: "",
-                                  },
-                                ],
-                              }))
-                            }
+                            disabled={!canAddCustomerByBalance}
+                            onClick={tryAddCreateCustomerPayment}
                           >
                             Add User payment
                           </Button>
@@ -3654,7 +3836,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         <Table
                           bordered
                           size="sm"
-                          className="mb-0 align-middle"
+                          className="mb-0 align-middle order-payment-table"
                           style={{
                             color: "var(--content-txt-color)",
                             width: "100%",
@@ -3697,7 +3879,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                 className="text-start fw-semibold"
                                 style={tableThCreate}
                               >
-                                Type
+                                Payment Method
                               </th>
                               <th
                                 className="text-start fw-semibold"
@@ -3714,8 +3896,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           </thead>
                           <tbody>
                             {createPaymentExt.customerPayments.map(
-                              (row, idx) => (
-                                <tr key={row.id}>
+                              (row, idx) => {
+                                const customerRowHighlight =
+                                  showCustomerPaymentAddHint &&
+                                  !isCustomerPaymentRowComplete(row);
+                                return (
+                                <tr
+                                  key={row.id}
+                                  className={
+                                    customerRowHighlight
+                                      ? "payment-row--invalid"
+                                      : undefined
+                                  }
+                                >
                                   <td className="align-middle text-center fw-medium">
                                     {idx + 1}
                                   </td>
@@ -3738,11 +3931,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           date: `${y}-${m}-${day}`,
                                         });
                                       }}
-                                      register={register}
+                                      register={paymentFieldRegister}
                                       setValue={setValue}
                                       asCol={false}
                                       groupClassName="mb-0"
                                       filterDate={() => true}
+                                      suppressHiddenRegister
                                     />
                                   </td>
                                   <td className="align-middle">
@@ -3750,7 +3944,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       label=""
                                       controlId={`create-cust-amt-${row.id}`}
                                       placeholder="0.00"
-                                      register={register}
+                                      register={paymentFieldRegister}
                                       asCol={false}
                                       inputType="text"
                                       inputClassName="text-end"
@@ -3758,7 +3952,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       value={
                                         row.amount === 0
                                           ? ""
-                                          : String(row.amount)
+                                          : formatMoney2(row.amount)
                                       }
                                       onChange={(val) => {
                                         setCreatePaymentExt((e) => {
@@ -3780,9 +3974,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           if (t !== "") {
                                             const n = parseFloat(t);
                                             if (!Number.isNaN(n) && n >= 0) {
-                                              nextAmount = Math.min(
-                                                n,
-                                                maxForRow
+                                              nextAmount = roundMoney(
+                                                Math.min(n, maxForRow)
                                               );
                                             }
                                           }
@@ -3803,10 +3996,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     <CustomFormSelect
                                       label=""
                                       controlId={`create-cust-type-${row.id}`}
-                                      register={register}
+                                      register={paymentFieldRegister}
                                       fieldName={`createCustPayType_${row.id}`}
-                                      options={PAY_TYPES}
-                                      defaultValue={row.type}
+                                      options={PAYMENT_METHOD_OPTIONS}
+                                      defaultValue={
+                                        normalizePaymentMethod(row.type) ||
+                                        "cash"
+                                      }
                                       setValue={setValue}
                                       asCol={false}
                                       noBottomMargin
@@ -3880,7 +4076,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     />
                                   </td>
                                 </tr>
-                              )
+                              );
+                              }
                             )}
                           </tbody>
                         </Table>
@@ -3890,14 +4087,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           <span className="text-secondary">Total Paid</span>
                           <span className="fw-semibold" style={moneyTabular}>
                             {AppConstant.currencySymbol}
-                            {createCustomerPaidBal.totalPaid.toFixed(2)}
+                            {formatMoney2(createCustomerPaidBal.totalPaid)}
                           </span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center py-1">
                           <span className="text-secondary">Balance</span>
                           <span className="fw-semibold" style={moneyTabular}>
                             {AppConstant.currencySymbol}
-                            {createCustomerPaidBal.balance.toFixed(2)}
+                            {formatMoney2(createCustomerPaidBal.balance)}
                           </span>
                         </div>
                       </div>
@@ -3924,28 +4121,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             style={{ ...moneyTabular, fontSize: FONT_BODY }}
                           >
                             {AppConstant.currencySymbol}
-                            {Number(createPartnerCap || 0).toFixed(2)}
+                            {formatMoney2(createPartnerCap || 0)}
                           </span>
                         </Col>
                         <Col xs="auto">
                           <Button
                             type="button"
                             className="custom-btn-secondary w-auto"
-                            disabled={!canAddPartnerCreate}
-                            onClick={() =>
-                              setCreatePaymentExt((e) => ({
-                                ...e,
-                                partnerPayments: [
-                                  ...e.partnerPayments,
-                                  {
-                                    id: newPayRowId(),
-                                    date: "",
-                                    amount: 0,
-                                    description: "",
-                                  },
-                                ],
-                              }))
-                            }
+                            disabled={!canAddPartnerByBalance}
+                            onClick={tryAddCreatePartnerPayment}
                           >
                             Add partner payment
                           </Button>
@@ -3955,7 +4139,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         <Table
                           bordered
                           size="sm"
-                          className="mb-0 align-middle"
+                          className="mb-0 align-middle order-payment-table"
                           style={{
                             color: "var(--content-txt-color)",
                             width: "100%",
@@ -4008,8 +4192,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           </thead>
                           <tbody>
                             {createPaymentExt.partnerPayments.map(
-                              (row, idx) => (
-                                <tr key={row.id}>
+                              (row, idx) => {
+                                const partnerRowHighlight =
+                                  showPartnerPaymentAddHint &&
+                                  !isPartnerPaymentRowComplete(row);
+                                return (
+                                <tr
+                                  key={row.id}
+                                  className={
+                                    partnerRowHighlight
+                                      ? "payment-row--invalid"
+                                      : undefined
+                                  }
+                                >
                                   <td className="align-middle text-center fw-medium">
                                     {idx + 1}
                                   </td>
@@ -4032,11 +4227,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           date: `${y}-${m}-${day}`,
                                         });
                                       }}
-                                      register={register}
+                                      register={paymentFieldRegister}
                                       setValue={setValue}
                                       asCol={false}
                                       groupClassName="mb-0"
                                       filterDate={() => true}
+                                      suppressHiddenRegister
                                     />
                                   </td>
                                   <td className="align-middle">
@@ -4044,7 +4240,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       label=""
                                       controlId={`create-part-amt-${row.id}`}
                                       placeholder="0.00"
-                                      register={register}
+                                      register={paymentFieldRegister}
                                       asCol={false}
                                       inputType="text"
                                       inputClassName="text-end"
@@ -4052,7 +4248,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       value={
                                         row.amount === 0
                                           ? ""
-                                          : String(row.amount)
+                                          : formatMoney2(row.amount)
                                       }
                                       onChange={(val) => {
                                         setCreatePaymentExt((e) => {
@@ -4074,9 +4270,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           if (t !== "") {
                                             const n = parseFloat(t);
                                             if (!Number.isNaN(n) && n >= 0) {
-                                              nextAmount = Math.min(
-                                                n,
-                                                maxForRow
+                                              nextAmount = roundMoney(
+                                                Math.min(n, maxForRow)
                                               );
                                             }
                                           }
@@ -4153,7 +4348,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     />
                                   </td>
                                 </tr>
-                              )
+                              );
+                              }
                             )}
                           </tbody>
                         </Table>
@@ -4163,14 +4359,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           <span className="text-secondary">Total Paid</span>
                           <span className="fw-semibold" style={moneyTabular}>
                             {AppConstant.currencySymbol}
-                            {createPartnerPaidBal.totalPaid.toFixed(2)}
+                            {formatMoney2(createPartnerPaidBal.totalPaid)}
                           </span>
                         </div>
                         <div className="d-flex justify-content-between align-items-center py-1">
                           <span className="text-secondary">Balance</span>
                           <span className="fw-semibold" style={moneyTabular}>
                             {AppConstant.currencySymbol}
-                            {createPartnerPaidBal.balance.toFixed(2)}
+                            {formatMoney2(createPartnerPaidBal.balance)}
                           </span>
                         </div>
                       </div>
@@ -4289,7 +4485,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         <CustomTextFieldSelect
                           label="Offer"
                           controlId="offer_id"
-                          options={offerOptions}
+                          options={couponOptions}
                           register={register}
                           fieldName="offer_id"
                           error={errors.offer_id}
@@ -4484,40 +4680,69 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
               </Row>
             </form>
           </Modal.Body>
-        </div>
       </Modal>
       {!isEditable && (
         <Modal
           show={offerModalOpen}
-          onHide={() => setOfferModalOpen(false)}
+          onHide={() => {
+            setCouponModalError("");
+            setOfferModalOpen(false);
+          }}
           centered
           enforceFocus={false}
         >
           <Modal.Header closeButton className="py-3 px-4 border-bottom-0">
             <Modal.Title as="h5" className="custom-modal-title">
-              Apply offer
+              Apply coupon
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="px-4 pb-4 pt-0">
             <CustomTextFieldSelect
-              label="Offer"
-              controlId="Offer_modal"
-              options={offerOptions}
+              label="Coupon"
+              controlId="Coupon_modal"
+              options={couponOptions}
+              placeholder="Select coupon"
               register={register}
               fieldName="offer_id"
               error={errors.offer_id}
               defaultValue={getValues("offer_id")}
               setValue={setValue as (name: string, value: any) => void}
               menuPortal
+              onChange={() => setCouponModalError("")}
             />
+            {couponModalError ? (
+              <p className="small text-danger mb-0 mt-2" role="alert">
+                {couponModalError}
+              </p>
+            ) : null}
+            {!couponModalError &&
+            (offerIdWatch ?? "").trim() &&
+            createOrderBasePriceBreakdown &&
+            selectedCouponOffer ? (
+              <p className="small text-muted mb-0 mt-2">
+                {selectedCouponOffer.offerType === "fixed"
+                  ? `Fixed coupon: partner ${AppConstant.currencySymbol}${selectedCouponOffer.partnerContribution}, admin ${AppConstant.currencySymbol}${selectedCouponOffer.adminContribution}`
+                  : `Percentage coupon: ${selectedCouponOffer.partnerContribution}% on service, ${selectedCouponOffer.adminContribution}% on commission`}
+              </p>
+            ) : null}
           </Modal.Body>
           <Modal.Footer className="border-top-0 pt-0">
             <Button
               type="button"
-              className="custom-btn-primary"
-              onClick={() => setOfferModalOpen(false)}
+              className="custom-btn-secondary me-2"
+              onClick={() => {
+                setCouponModalError("");
+                setOfferModalOpen(false);
+              }}
             >
-              Done
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="custom-btn-primary"
+              onClick={confirmApplyCouponFromModal}
+            >
+              Apply
             </Button>
           </Modal.Footer>
         </Modal>

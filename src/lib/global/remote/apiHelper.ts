@@ -6,7 +6,6 @@ import { clearLocalStorage } from "../localStorageHelper";
 import { isMockAuthSession } from "../authSessionHelper";
 import { ApiPaths } from "./apiPaths";
 import { getNavigate } from "../../../helper/navigation";
-import { showLog } from "../../../helper/logger";
 import { closeAllModals } from "../DialogManager";
 
 export const apiRequest = async (
@@ -31,17 +30,6 @@ export const apiRequest = async (
     /** Query string is part of `endpoint` for GET (e.g. `/category/getAll/:id?page=1`). */
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
-    showLog("API Request URL:", requestUrl);
-    showLog("API header :", headers);
-    showLog("isMultipart :", isMultipart);
-
-    if (isMultipart && payload) {
-      payload.forEach((value: FormDataEntryValue, key: string) => {
-        showLog("API FormData :", `${key}: ${value}`);
-      });
-    } else {
-      showLog("API payload :", payload);
-    }
 
     const response = await fetch(requestUrl, {
       method,
@@ -62,8 +50,6 @@ export const apiRequest = async (
     } catch {
       data = { message: responseText || "Invalid server response" };
     }
-
-    showLog("API Response:", data);
 
     if (response.ok) {
       if (method !== "GET" && !suppressSuccessAlert) {
@@ -105,7 +91,6 @@ export const apiRequest = async (
     }
   } catch (error: any) {
     if (!skipLoader) hideLoader();
-    showLog("API Error:", error);
 
     if (error?.name === "AbortError") {
       return { success: false, aborted: true as const, error: "aborted" };
@@ -135,9 +120,6 @@ export const apiRequestBlob = async (endpoint: string, payload?: any) => {
     };
 
     const requestUrl = `${AppConstant.BASE_URL}${endpoint}`;
-    showLog("API Request URL:", requestUrl);
-    //showLog("API header :", headers);
-    showLog("API payload :", payload);
 
     const response = await fetch(requestUrl, {
       method: "POST",
@@ -153,7 +135,6 @@ export const apiRequestBlob = async (endpoint: string, payload?: any) => {
         : "report.xlsx";
 
       const contentType = response.headers.get("Content-Type") || "";
-      showLog("contentType", contentType);
 
       if (
         contentType.includes(
@@ -203,8 +184,6 @@ export const apiRequestBlob = async (endpoint: string, payload?: any) => {
     }
   } catch (error: any) {
     hideLoader();
-    //showErrorAlert("An error occurred during the request.");
-    showLog("API Error:", error);
     return { success: false, error: error.message || "Network error" };
   }
 };

@@ -1,74 +1,24 @@
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { FinancialModel } from "../lib/models/FinancialModel";
-import { OrderModel } from "../lib/order/orderTypes";
 import { showLog } from "../helper/utility";
-import { fetchOrderById } from "./orderService";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
-/**
- * `order_service/getAll` rows usually omit populated `user_info` / `partner_info`.
- * Order detail (`/order/get/:id`) includes the same shapes as OrderInfoDialog.
- */
-export async function enrichFinancialRowsWithOrderNames(
-  rows: FinancialModel[],
-  options?: { skipLoader?: boolean }
-): Promise<FinancialModel[]> {
-  if (!rows.length) return rows;
-
-  const orderIds = Array.from(
-    new Set(
-      rows.map((r) => r.order_id).filter((id): id is string => Boolean(id))
-    )
-  );
-
-  const orderById = new Map<string, OrderModel>();
-  await Promise.all(
-    orderIds.map(async (orderId) => {
-      const { response, order } = await fetchOrderById(orderId, options);
-      if (response && order) {
-        orderById.set(orderId, order);
-      }
-    })
-  );
-
-  return rows.map((row) => {
-    if (!row.order_id) return row;
-    const order = orderById.get(row.order_id);
-    if (!order) return row;
-
-    const serviceLine =
-      order.service_items?.find((si) => si._id === row._id) ??
-      order.service_items?.find(
-        (si) =>
-          row.service_id &&
-          si.service_id === row.service_id &&
-          (row.partner_id ? si.partner_id === row.partner_id : true)
-      );
-
-    return {
-      ...row,
-      user_info: order.user_info ?? row.user_info,
-      partner_info: serviceLine?.partner_info ?? row.partner_info,
-    };
-  });
-}
-
 export type FinancialListFilters = {
-  /** Table search — sent as `search` query param (same as order/quote lists). */
+  /** Table search — sent as `search` query param. */
   search?: string;
   /** @deprecated use `search` */
   keyword?: string;
   /** `completed` | `in_progress` */
   order_status?: string;
+  /** Legacy order_service filter only */
   service_status?: string;
   user_id?: string;
   partner_id?: string;
   is_paid?: string;
   partner_paid_status?: string;
   sort?: string;
-  /** Backend may filter rows by consolidated payment state */
   payment_status?: string;
   customer_payment_status?: string;
   partner_payment_status?: string;
@@ -78,19 +28,60 @@ export type FinancialListFilters = {
   franchise_id?: string | null;
 };
 
-export const fetchFinancial = async (
-  page: number,
-  pageSize: number,
-  filters: FinancialListFilters,
-  requestOpts?: { skipLoader?: boolean },
-  sortBy: ServerTableSortBy = []
-): Promise<{
+function parseListPayload(response: {
+  success?: boolean;
+  data?: Record<string, unknown>;
+  message?: string;
+}): {
   response: boolean;
   financials: FinancialModel[];
   totalPages: number;
-  /** From list API `totalItems` (order service / financial list). */
   totalItems?: number;
-}> => {
+} {
+  if (!response.success) {
+    showLog(response.message || "Failed to fetch financials");
+    return {
+      response: false,
+      financials: [],
+      totalPages: 0,
+      totalItems: undefined,
+    };
+  }
+
+  const d = response.data ?? {};
+  const inner =
+    d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+      ? (d.data as Record<string, unknown>)
+      : null;
+  const records = (inner?.records ?? d.records ?? []) as FinancialModel[];
+  const totalPagesVal = Number(inner?.totalPages ?? d.totalPages ?? 0);
+  const totalItemsRaw = inner?.totalItems ?? d.totalItems;
+  const totalItemsParsed =
+    totalItemsRaw === undefined ||
+    totalItemsRaw === null ||
+    totalItemsRaw === ""
+      ? undefined
+      : Number(totalItemsRaw);
+  const totalItems =
+    totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed)
+      ? totalItemsParsed
+      : undefined;
+
+  return {
+    response: true,
+    financials: records,
+    totalPages: totalPagesVal,
+    totalItems,
+  };
+}
+
+function buildFinancialQueryParams(
+  page: number,
+  pageSize: number,
+  filters: FinancialListFilters,
+  sortBy: ServerTableSortBy,
+  opts?: { includeOrderServiceFields?: boolean }
+): URLSearchParams {
   const primarySort = sortBy[0];
   const fidRaw = String(filters.franchise_id ?? "").trim();
   const franchiseId =
@@ -99,18 +90,24 @@ export const fetchFinancial = async (
       : "";
 
   const searchText = (filters.search ?? filters.keyword)?.trim();
+
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
     ...(searchText && { search: searchText }),
     ...(filters.order_status && { order_status: filters.order_status }),
-    ...(filters.service_status && { service_status: filters.service_status }),
-    ...(filters.user_id && { user_id: filters.user_id }),
-    ...(filters.partner_id && { partner_id: filters.partner_id }),
-    ...(filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
-    ...(filters.partner_paid_status && {
-      partner_paid_status: filters.partner_paid_status,
-    }),
+    ...(opts?.includeOrderServiceFields &&
+      filters.service_status && { service_status: filters.service_status }),
+    ...(opts?.includeOrderServiceFields &&
+      filters.user_id && { user_id: filters.user_id }),
+    ...(opts?.includeOrderServiceFields &&
+      filters.partner_id && { partner_id: filters.partner_id }),
+    ...(opts?.includeOrderServiceFields &&
+      filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
+    ...(opts?.includeOrderServiceFields &&
+      filters.partner_paid_status && {
+        partner_paid_status: filters.partner_paid_status,
+      }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
@@ -127,56 +124,96 @@ export const fetchFinancial = async (
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
   });
 
+  return params;
+}
+
+/** `GET /financial-order/getAll` — Financial → Order Payments (Postman Financial orders). */
+export const fetchFinancial = async (
+  page: number,
+  pageSize: number,
+  filters: FinancialListFilters,
+  requestOpts?: { skipLoader?: boolean },
+  sortBy: ServerTableSortBy = []
+): Promise<{
+  response: boolean;
+  financials: FinancialModel[];
+  totalPages: number;
+  totalItems?: number;
+}> => {
+  const params = buildFinancialQueryParams(page, pageSize, filters, sortBy, {
+    includeOrderServiceFields: false,
+  });
+
   const response = await apiRequest(
-    `${ApiPaths.GET_FINANCIAL()}?${params.toString()}`,
+    `${ApiPaths.FINANCIAL_ORDER_GET_ALL()}?${params.toString()}`,
     "GET",
     undefined,
     false,
     requestOpts?.skipLoader ?? false
   );
 
-  if (response.success) {
-    const d = response.data ?? {};
-    const inner =
-      d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
-        ? d.data
-        : null;
-    const records = inner?.records ?? d.records ?? [];
-    const totalPagesVal = inner?.totalPages ?? d.totalPages ?? 0;
-    const totalItemsRaw = inner?.totalItems ?? d.totalItems;
-    const totalItemsParsed =
-      totalItemsRaw === undefined ||
-      totalItemsRaw === null ||
-      totalItemsRaw === ""
-        ? undefined
-        : Number(totalItemsRaw);
-    const totalItems =
-      totalItemsParsed !== undefined && !Number.isNaN(totalItemsParsed)
-        ? totalItemsParsed
-        : undefined;
-
-    return {
-      response: true,
-      financials: records,
-      totalPages: totalPagesVal,
-      totalItems,
-    };
-  } else {
-    showLog(response.message || "Failed to fetch financials");
-    return {
-      response: false,
-      financials: [],
-      totalPages: 0,
-      totalItems: undefined,
-    };
-  }
+  return parseListPayload(response);
 };
 
-/** Loads every page for the given filters (same as the table). Optionally skips per-order enrichment (faster for bulk pending lists). */
+/** `GET /financial-order/get/:id` */
+export const fetchFinancialOrderById = async (
+  id: string,
+  requestOpts?: { skipLoader?: boolean }
+): Promise<{ response: boolean; record: FinancialModel | null }> => {
+  const response = await apiRequest(
+    ApiPaths.FINANCIAL_ORDER_GET_BY_ID(id),
+    "GET",
+    undefined,
+    false,
+    requestOpts?.skipLoader ?? true
+  );
+  if (!response.success) {
+    return { response: false, record: null };
+  }
+  const d = response.data ?? {};
+  const inner =
+    d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+      ? d.data
+      : d;
+  const record =
+    (inner as { record?: FinancialModel }).record ??
+    (inner as FinancialModel);
+  return { response: true, record: record ?? null };
+};
+
+/** `GET /order_service/getAll` — Partner Payments page & payout pending lines. */
+export const fetchOrderServiceFinancial = async (
+  page: number,
+  pageSize: number,
+  filters: FinancialListFilters,
+  requestOpts?: { skipLoader?: boolean },
+  sortBy: ServerTableSortBy = []
+): Promise<{
+  response: boolean;
+  financials: FinancialModel[];
+  totalPages: number;
+  totalItems?: number;
+}> => {
+  const params = buildFinancialQueryParams(page, pageSize, filters, sortBy, {
+    includeOrderServiceFields: true,
+  });
+
+  const response = await apiRequest(
+    `${ApiPaths.GET_ORDER_SERVICE_ALL()}?${params.toString()}`,
+    "GET",
+    undefined,
+    false,
+    requestOpts?.skipLoader ?? false
+  );
+
+  return parseListPayload(response);
+};
+
+/** Paginated financial-order rows (all pages). */
 export async function fetchAllFinancialRowsMatching(
   filters: FinancialListFilters,
   batchSize = 250,
-  opts?: { skipEnrich?: boolean; sortBy?: ServerTableSortBy }
+  opts?: { sortBy?: ServerTableSortBy }
 ): Promise<FinancialModel[] | null> {
   const first = await fetchFinancial(
     1,
@@ -199,8 +236,35 @@ export async function fetchAllFinancialRowsMatching(
     if (!next.response) break;
     all = all.concat(next.financials);
   }
-  if (opts?.skipEnrich) {
-    return all;
+  return all;
+}
+
+/** Paginated order_service rows (partner payout ledger credits). */
+export async function fetchAllOrderServiceRowsMatching(
+  filters: FinancialListFilters,
+  batchSize = 250,
+  opts?: { sortBy?: ServerTableSortBy }
+): Promise<FinancialModel[] | null> {
+  const first = await fetchOrderServiceFinancial(
+    1,
+    batchSize,
+    filters,
+    { skipLoader: true },
+    opts?.sortBy ?? []
+  );
+  if (!first.response) return null;
+  let all = [...first.financials];
+  const totalPages = Math.max(1, first.totalPages);
+  for (let p = 2; p <= totalPages; p++) {
+    const next = await fetchOrderServiceFinancial(
+      p,
+      batchSize,
+      filters,
+      { skipLoader: true },
+      opts?.sortBy ?? []
+    );
+    if (!next.response) break;
+    all = all.concat(next.financials);
   }
-  return enrichFinancialRowsWithOrderNames(all, { skipLoader: true });
+  return all;
 }

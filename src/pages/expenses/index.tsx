@@ -11,10 +11,15 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
-import { PaymentEnum } from "../../lib/order/orderTypes";
+import {
+  paymentMethodApiValue,
+  paymentMethodFromExpenseModeId,
+  paymentMethodLabel,
+  paymentMethodSelectOptions,
+  normalizePaymentMethod,
+} from "../../lib/global/paymentAndCurrency";
 import { DetailsRow, capitalizeString, formatDate } from "../../helper/utility";
-import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
-import { openConfirmDialog } from "../../components/CustomConfirmDialog";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   ensureSettingsSeedData,
   fetchAllExpenseCategoriesWithApi,
@@ -22,15 +27,12 @@ import {
 } from "../../services/settingsService";
 import {
   createOrUpdateExpense,
-  deleteExpenseById,
-  fetchAllExpensesMatching,
   fetchExpenseById,
   fetchExpenses,
   ExpensesFilters,
 } from "../../services/expensesService";
 import { ExpenseModel } from "../../lib/models/ExpenseModel";
 import { ExpenseCategoryModel } from "../../lib/models/SettingsModel";
-import { buildExpensesCsv, downloadExpensesCsv } from "../../lib/expenses/expensesExport";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { readHeaderFranchisePreference } from "../../lib/franchise/headerFranchisePreference";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
@@ -54,7 +56,8 @@ type ExpenseFormState = {
   description: string;
   expenseAmount: string;
   expenseDate: string; // YYYY-MM-DD
-  paymentModeId: string; // "1" | "2"
+  /** Payment method slug — see `PAYMENT_METHODS` in `paymentAndCurrency`. */
+  paymentModeId: string;
 };
 
 type ExpenseFormErrors = {
@@ -77,7 +80,7 @@ const emptyForm: ExpenseFormState = {
   description: "",
   expenseAmount: "",
   expenseDate: "",
-  paymentModeId: "1",
+  paymentModeId: "cash",
 };
 
 const ExpensesPage = () => {
@@ -207,7 +210,7 @@ const ExpensesPage = () => {
       return undefined;
     }
     return franchiseId;
-  }, [franchiseId, isFranchiseScopedUser, sessionFranchiseId]);
+  }, [franchiseId, isFranchiseScopedUser]);
 
   const refreshListParams = useCallback(() => {
     listParamsRef.current = {
@@ -238,7 +241,7 @@ const ExpensesPage = () => {
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, effectiveListFranchiseId, isFranchiseScopedUser, pageSize, sessionFranchiseId, sortBy]);
+  }, [currentPage, pageSize, sortBy]);
 
   useEffect(() => {
     fetchData();
@@ -264,11 +267,11 @@ const ExpensesPage = () => {
             : "",
       expenseDate: toDateInputValue(expense.expense_date ?? expense.expenseDate),
       paymentModeId:
-        expense.payment_mode_id !== undefined && expense.payment_mode_id !== null
-          ? String(expense.payment_mode_id)
-          : expense.paymentModeId !== undefined && expense.paymentModeId !== null
-            ? String(expense.paymentModeId)
-            : "1",
+        normalizePaymentMethod(expense.payment_mode ?? expense.paymentMode) ||
+        paymentMethodFromExpenseModeId(
+          expense.payment_mode_id ?? expense.paymentModeId
+        ) ||
+        "cash",
     };
   }, []);
 
@@ -338,9 +341,7 @@ const ExpensesPage = () => {
     [franchiseIdForExpenseApi, prefillFormFromExpense]
   );
 
-  const paymentModeOptions = useMemo(() => {
-    return Array.from(PaymentEnum.entries()).map(([id, v]) => ({ value: String(id), label: v.label }));
-  }, []);
+  const paymentModeOptions = useMemo(() => paymentMethodSelectOptions(), []);
 
   const expensesColumns = useMemo(
     () => [
@@ -423,9 +424,14 @@ const ExpensesPage = () => {
         Header: "Payment mode",
         accessor: "paymentMode",
         Cell: ({ row }: any) => {
-          const id = row.original.payment_mode_id ?? row.original.paymentModeId;
-          const mapped = id !== undefined && id !== null && id !== "" ? PaymentEnum.get(Number(id)) : undefined;
-          return mapped?.label ?? row.original.payment_mode ?? row.original.paymentMode ?? "-";
+          return (
+            paymentMethodLabel(
+              row.original.payment_mode ??
+                row.original.paymentMode ??
+                row.original.payment_mode_id ??
+                row.original.paymentModeId
+            ) || "-"
+          );
         },
       },
       {
@@ -459,17 +465,7 @@ const ExpensesPage = () => {
         ),
       },
     ],
-    [
-      currentPage,
-      fetchData,
-      franchiseIdForExpenseApi,
-      franchiseIdToName,
-      handleOpenEdit,
-      handleOpenView,
-      isSuperAdminOrStaff,
-      pageSize,
-      refreshListParams,
-    ]
+    [currentPage, franchiseIdToName, handleOpenView, isSuperAdminOrStaff, pageSize]
   );
 
   const handleSaveExpense = async () => {
@@ -479,7 +475,7 @@ const ExpensesPage = () => {
     const description = form.description.trim();
     const expenseAmountNum = Number(form.expenseAmount);
     const expenseDateYmd = form.expenseDate || "";
-    const paymentModeIdNum = Number(form.paymentModeId);
+    const paymentSlug = normalizePaymentMethod(form.paymentModeId);
 
     const nextErrors: ExpenseFormErrors = {};
     if (isSuperAdminOrStaff && !form.franchiseId.trim()) {
@@ -507,8 +503,8 @@ const ExpensesPage = () => {
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
-    if (Number.isNaN(paymentModeIdNum)) {
-      return showErrorAlert("Invalid Payment Mode");
+    if (!paymentSlug) {
+      return showErrorAlert("Invalid payment method");
     }
 
     const selectedCategory = expenseCategories.find(
@@ -533,7 +529,7 @@ const ExpensesPage = () => {
       description,
       expense_amount: expenseAmountNum,
       expense_date: expenseDateYmd,
-      payment_mode: PaymentEnum.get(paymentModeIdNum)?.label ?? "COD",
+      payment_mode: paymentMethodApiValue(paymentSlug) || "Cash",
     };
 
     const id = (editingExpense?._id ?? editingExpense?.id ?? (editingExpense as any)?.expense_id) as string | undefined;
@@ -561,19 +557,6 @@ const ExpensesPage = () => {
     setCurrentPage(1);
     setFilterEpoch((k) => k + 1);
     setUtilitySearchKey((k) => k + 1);
-  };
-
-  const handleDownload = async () => {
-    try {
-      const filters = listParamsRef.current;
-      const rows = await fetchAllExpensesMatching(filters, 250, { skipLoader: true });
-      if (!rows) return;
-      const csv = buildExpensesCsv(rows);
-      downloadExpensesCsv("Expenses.csv", csv);
-      showSuccessAlert("Download successfully");
-    } catch (e: any) {
-      showErrorAlert(e?.message || "Failed to download expenses");
-    }
   };
 
   return (
@@ -721,13 +704,12 @@ const ExpensesPage = () => {
                   <DetailsRow
                     title="Payment mode"
                     value={
-                      (() => {
-                        const id = editingExpense.payment_mode_id ?? editingExpense.paymentModeId;
-                        if (id !== undefined && id !== null && id !== "") {
-                          return PaymentEnum.get(Number(id))?.label ?? "-";
-                        }
-                        return editingExpense.payment_mode ?? editingExpense.paymentMode ?? "-";
-                      })()
+                      paymentMethodLabel(
+                        editingExpense.payment_mode ??
+                          editingExpense.paymentMode ??
+                          editingExpense.payment_mode_id ??
+                          editingExpense.paymentModeId
+                      ) || "-"
                     }
                   />
                 </div>

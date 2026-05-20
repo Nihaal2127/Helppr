@@ -15,7 +15,6 @@ import {
   fullPhoneFromIndiaNational,
   isValidE164StylePhone,
   isValidUserEmail,
-  nationalDigitsWithoutIndia91,
   passwordsMatch,
   sanitizeIndiaNationalPhoneInput,
   validateStrongPassword,

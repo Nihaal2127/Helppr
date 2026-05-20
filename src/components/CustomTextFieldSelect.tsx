@@ -1,6 +1,7 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
 import CustomFormSelect from "./CustomFormSelect";
+import { FieldLabelText } from "./RequiredFieldMark";
 
 interface CustomTextFieldSelectProps {
   label: string;
@@ -62,7 +63,9 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
         .join(" ")}
     >
       <Col sm={labelSize} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+        <label className="custom-profile-lable">
+          <FieldLabelText label={label} required={!!requiredMessage} />
+        </label>
       </Col>
       <Col>
         <CustomFormSelect

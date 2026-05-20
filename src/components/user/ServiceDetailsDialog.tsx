@@ -5,7 +5,7 @@ import { ServiceStatusEnum } from "../../lib/user/ServiceStatusEnum";
 import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
 import CustomServiceTable from "../../components/CustomServiceTable";
 import { FinancialModel } from "../../lib/models/FinancialModel";
-import { fetchFinancial } from "../../services/financialService";
+import { fetchOrderServiceFinancial } from "../../services/financialService";
 import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { openDialog } from "../../lib/global/DialogManager";
@@ -57,11 +57,8 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
       if (is_partner !== undefined && is_partner === false) {
         filters.user_id = user_id;
       }
-      const { response, financials, totalPages } = await fetchFinancial(
-        currentPage,
-        pageSize,
-        { ...filters }
-      );
+      const { response, financials, totalPages } =
+        await fetchOrderServiceFinancial(currentPage, pageSize, { ...filters });
       if (response) {
         setServiceList(financials);
         setTotalPages(totalPages);

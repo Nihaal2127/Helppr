@@ -18,6 +18,9 @@ import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { useForm, UseFormRegister } from "react-hook-form";
 import {
   franchiseHeaderFormDefaults,
+  franchiseIdForApiQuery,
+  HEADER_FRANCHISE_CHANGED_EVENT,
+  readHeaderFranchisePreference,
   writeHeaderFranchisePreference,
 } from "../../lib/franchise/headerFranchisePreference";
 import {
@@ -210,6 +213,23 @@ const FranchiseManagement = () => {
   const [headerFranchiseId, setHeaderFranchiseId] = useState(() =>
     franchiseHeaderFormDefaults().franchise_id
   );
+
+  useEffect(() => {
+    const sync = () => {
+      const next = readHeaderFranchisePreference();
+      setHeaderFranchiseId(next);
+      setValue("franchise_id", next, { shouldValidate: false });
+    };
+    window.addEventListener(
+      HEADER_FRANCHISE_CHANGED_EVENT,
+      sync as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        HEADER_FRANCHISE_CHANGED_EVENT,
+        sync as EventListener
+      );
+  }, [setValue]);
   const [franchiseData, setFranchiseData] = useState({
     Total: 0,
     Active: 0,
@@ -320,13 +340,13 @@ const FranchiseManagement = () => {
   /** Summary counts: `POST /getCount` `{ type: "franchise-management", franchise_id? }`. */
   useEffect(() => {
     let cancelled = false;
-    const fid = String(headerFranchiseId ?? "").trim();
+    const apiFranchiseId = franchiseIdForApiQuery(headerFranchiseId);
     void (async () => {
-      if (fid && fid !== "all") {
+      if (apiFranchiseId) {
         const { responseCount, countModel } = await getCount(
           "franchise-management",
           {
-            franchise_id: fid,
+            franchise_id: apiFranchiseId,
           }
         );
         if (cancelled || !responseCount || !countModel) return;
@@ -369,18 +389,18 @@ const FranchiseManagement = () => {
 
   const fetchData = useCallback(async () => {
     const gen = ++franchiseManagementFetchGeneration;
-    const fid = String(headerFranchiseId ?? "").trim();
+    const apiFranchiseId = franchiseIdForApiQuery(headerFranchiseId);
     const apiFilters = {
       ...filters,
-      ...(fid && fid !== "all" ? { franchise_id: fid } : {}),
+      ...(apiFranchiseId ? { franchise_id: apiFranchiseId } : {}),
     };
-    if (fid && fid !== "all") {
-      let row = await fetchFranchiseById(fid);
+    if (apiFranchiseId) {
+      let row = await fetchFranchiseById(apiFranchiseId);
       if (!row) {
         const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
         const list = wide.franchises as any[];
         row =
-          list.find((r) => String(r?._id ?? "") === fid) ??
+          list.find((r) => String(r?._id ?? "") === apiFranchiseId) ??
           (list.length === 1 ? list[0] : null);
       }
       if (!isMountedRef.current) return;
@@ -444,14 +464,14 @@ const FranchiseManagement = () => {
         searchQ !== "" ||
         (statusF !== "" && statusF !== "All") ||
         sortBy.length > 0 ||
-        (fid && fid !== "all");
+        Boolean(apiFranchiseId);
 
       /** Only Active/Inactive from dropdown: one list getAll is enough; skip 3× limit=1 count fetches. */
       const statusOnlyScoped =
         (statusF !== "" && statusF !== "All") &&
         searchQ === "" &&
         sortBy.length === 0 &&
-        (!fid || fid === "all");
+        !apiFranchiseId;
 
       /**
        * Search uses the same getAll as counts would (search+name on each leg) → 4× traffic.

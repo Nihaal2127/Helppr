@@ -16,7 +16,6 @@ import {
   partnerVerificationLabel,
 } from "../../lib/partner/partnerVerification";
 import {
-  FRANCHISE_HEADER_ALL,
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";

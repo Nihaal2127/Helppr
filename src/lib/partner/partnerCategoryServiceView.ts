@@ -1,4 +1,4 @@
-import { AppConstant } from "../global/AppConstant";
+import { formatCurrency } from "../global/paymentAndCurrency";
 
 export type ViewCategoryServiceRow = {
   /** Present when row came from `service_ids` (stable key for React). */
@@ -40,7 +40,7 @@ function formatServicePrice(price: unknown): string {
   if (price == null || price === "") return "—";
   const n = typeof price === "number" ? price : Number(price);
   if (!Number.isFinite(n)) return String(price);
-  return `${AppConstant.currencySymbol}${n}`;
+  return formatCurrency(n);
 }
 
 function rowDisplayDescription(fromAll: ServiceLite | undefined): string {

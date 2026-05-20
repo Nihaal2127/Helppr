@@ -3,6 +3,7 @@ import { Form, Col } from "react-bootstrap";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomDatePickerProps {
   label?: string;
@@ -23,6 +24,8 @@ interface CustomDatePickerProps {
   suppressHiddenRegister?: boolean;
   /** Date of birth: year/month dropdowns, past dates only. */
   birthDatePicker?: boolean;
+  /** Show required asterisk when validation does not include `required`. */
+  required?: boolean;
 }
 
 const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
@@ -41,7 +44,9 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   groupClassName,
   suppressHiddenRegister = false,
   birthDatePicker = false,
+  required = false,
 }) => {
+  const showRequiredMark = required || isValidationRequired(validation);
   const Wrapper = asCol ? Col : "div";
   const wrapperProps = asCol ? { xs: 12, md: 4 } : {};
 
@@ -68,7 +73,11 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         controlId={groupControlId ?? controlId}
         className={groupClassName ?? "mb-3 w-100"}
       >
-        {label && <Form.Label>{label}</Form.Label>}
+        {label && (
+          <Form.Label>
+            <FieldLabelText label={label} required={showRequiredMark} />
+          </Form.Label>
+        )}
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}

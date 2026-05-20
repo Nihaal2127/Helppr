@@ -1,3 +1,5 @@
+import { CURRENCY } from "./paymentAndCurrency";
+
 export const AppConstant = {
   BASE_URL:
     "https://dtvx6yflf1.execute-api.ap-south-1.amazonaws.com/staging/api", //Help Pr Live
@@ -21,7 +23,8 @@ export const AppConstant = {
   isAuthenticated: "isAuthenticated",
   canAccessExpenseSheet: "canAccessExpenseSheet",
   CART_KEY: "cart",
-  currencySymbol: "₹",
+  currencySymbol: CURRENCY.symbol,
+  currencyCode: CURRENCY.code,
   percentageSymbol: "%",
   companyName: "Helper",
   helplineNumber: "+61434380737",

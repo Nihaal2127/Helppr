@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { Col, Form, InputGroup } from "react-bootstrap";
 import classNames from "classnames";
 import { sanitizeIndiaNationalPhoneInput } from "../lib/user/userFormValidation";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 export interface CustomFormIndiaMobileProps {
   label: string;
@@ -40,6 +41,7 @@ export const CustomFormIndiaMobile: React.FC<CustomFormIndiaMobileProps> = ({
 
   const fieldRegistration = register(controlId, validation);
   const { onChange: rhfOnChange, ...fieldReg } = fieldRegistration;
+  const showRequiredMark = isValidationRequired(validation);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const national = sanitizeIndiaNationalPhoneInput(e.target.value);
@@ -59,7 +61,9 @@ export const CustomFormIndiaMobile: React.FC<CustomFormIndiaMobileProps> = ({
       controlId={controlId}
     >
       {label?.trim() && (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label className="fw-medium mb-1">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </Form.Label>
       )}
       <InputGroup
         className={classNames(

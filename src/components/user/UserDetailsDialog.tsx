@@ -5,19 +5,17 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Modal, Col, Row } from "react-bootstrap";
+import { Modal, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import { createOrUpdateUser, fetchUserById } from "../../services/userService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreaViewOptionsByCity } from "../../services/areaService";
-import type { AreaViewSelectOption } from "../../services/areaService";
 import editIcon from "../../assets/icons/edit_red.svg";
 import profileIcon from "../../assets/icons/profile.svg";
 import {
   DetailsRow,
-  formatDate,
   PersonalAccountDetailsGrid,
 } from "../../helper/utility";
 import { formatGenderLabel } from "../../lib/user/genderOptions";

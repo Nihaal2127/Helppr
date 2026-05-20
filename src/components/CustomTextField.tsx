@@ -1,6 +1,7 @@
 import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { CustomFormInput } from "./CustomFormInput";
+import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
 
 interface CustomTextFieldProps {
   label: string;
@@ -43,10 +44,13 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
   isIndianPincodeField,
 }) => {
   const resolvedInputType = isIndianPincodeField ? "tel" : inputType;
+  const showRequiredMark = isValidationRequired(validation);
   return (
     <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
       <Col sm={labelSize} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+        <label className="custom-profile-lable">
+          <FieldLabelText label={label} required={showRequiredMark} />
+        </label>
       </Col>
       <Col>
         <CustomFormInput
