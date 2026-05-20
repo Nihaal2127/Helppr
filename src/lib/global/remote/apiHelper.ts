@@ -8,6 +8,12 @@ import { ApiPaths } from "./apiPaths";
 import { getNavigate } from "../../../helper/navigation";
 import { closeAllModals } from "../DialogManager";
 
+/** Path without query string — used so `/getCount?franchise_id=…` is treated like `/getCount`. */
+function endpointPathOnly(endpoint: string): string {
+  const q = endpoint.indexOf("?");
+  return q >= 0 ? endpoint.slice(0, q) : endpoint;
+}
+
 export const apiRequest = async (
   endpoint: string,
   method: "GET" | "POST" | "PUT" | "DELETE",
@@ -53,12 +59,13 @@ export const apiRequest = async (
 
     if (response.ok) {
       if (method !== "GET" && !suppressSuccessAlert) {
+        const path = endpointPathOnly(endpoint);
         if (
-          endpoint !== ApiPaths.LOGOUT() &&
-          endpoint !== ApiPaths.LOGIN() &&
-          endpoint !== ApiPaths.DOCUMENT_UPLOAD &&
-          endpoint !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
-          endpoint !== ApiPaths.GET_COUNT
+          path !== ApiPaths.LOGOUT() &&
+          path !== ApiPaths.LOGIN() &&
+          path !== ApiPaths.DOCUMENT_UPLOAD &&
+          path !== ApiPaths.UPDATE_DOCUMENT_UPLOAD &&
+          path !== ApiPaths.GET_COUNT
         ) {
           const successMessage = data.message || "Operation successful!";
           showSuccessAlert(successMessage);

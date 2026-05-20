@@ -11,6 +11,7 @@ import { extractMinDepositTypeKey } from "../service/serviceMinDepositDisplay";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import {
   buildAddressLocationLookupsFromCustomers,
+  displayStateName,
   formatQuoteServiceAddressLines,
   normalizePincodeDigits,
   parseCatalogAddressRecord,
@@ -406,6 +407,43 @@ export type QuoteViewData = {
   payment_date?: string;
   description?: string;
 };
+
+export type QuoteServiceAddressDisplay = {
+  state: string;
+  city: string;
+  area: string;
+  pincode: string;
+  addressLine: string;
+};
+
+/** Structured service address for quote view (matches order info layout). */
+export function getQuoteServiceAddressDisplay(
+  q?: Pick<
+    QuoteViewData,
+    "state" | "city" | "area" | "pincode" | "address_line" | "street"
+  >
+): QuoteServiceAddressDisplay {
+  const dash = "-";
+  if (!q) {
+    return {
+      state: dash,
+      city: dash,
+      area: dash,
+      pincode: dash,
+      addressLine: dash,
+    };
+  }
+  return {
+    state: displayStateName(q.state ?? "") || dash,
+    city: String(q.city ?? "").trim() || dash,
+    area: String(q.area ?? "").trim() || dash,
+    pincode: String(q.pincode ?? "").trim() || dash,
+    addressLine:
+      String(q.address_line ?? "").trim() ||
+      String(q.street ?? "").trim() ||
+      dash,
+  };
+}
 
 /** Section headings in quote view (Quote details, Customer, Amount breakdown, etc.). */
 export const QUOTE_SECTION_TITLE_CLASS = "quote-section-title fw-bold mb-3";

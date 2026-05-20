@@ -1,5 +1,4 @@
 import React from "react";
-import { Row, Col } from "react-bootstrap";
 
 export type QuoteDetailFieldRowProps = {
   label: string;
@@ -15,14 +14,19 @@ export default function QuoteDetailFieldRow({
   label,
   value,
 }: QuoteDetailFieldRowProps) {
+  const isEmail = label.toLowerCase().includes("email");
   return (
-    <Row className="mb-2 g-1">
-      <Col xs={12} sm={4} className="fw-semibold text-secondary">
+    <div
+      className={`info-detail-inline-row custom-personal-row mb-2${
+        isEmail ? " info-detail-inline-row--long-text" : ""
+      }`}
+    >
+      <span className="info-detail-inline-label custom-personal-row-title">
         {label}
-      </Col>
-      <Col xs={12} sm={8} className="text-break">
+      </span>
+      <span className="info-detail-inline-value custom-personal-row-value text-break">
         {displayValue(value)}
-      </Col>
-    </Row>
+      </span>
+    </div>
   );
 }

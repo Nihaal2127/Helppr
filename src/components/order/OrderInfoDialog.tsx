@@ -11,7 +11,7 @@ import {
   DetailsRow,
   formatDate,
   DetailsOrderStatusRow,
-  WideLabelValueBlock,
+  InfoDetailInlineRow,
 } from "../../helper/utility";
 import { fetchOrderById } from "../../lib/order/orders";
 import { AppConstant } from "../../lib/global/AppConstant";
@@ -30,16 +30,18 @@ import {
   orderRefundBreakdown,
   orderPaymentSummaryServiceAmount,
   resolveOrderOfferBreakdown,
+  roundMoney,
   serviceNamesJoined,
 } from "../../lib/order/orders";
 import {
-  computeTaxCommissionAmounts,
+  computeOrderPaymentLineTotals,
   customerPaidBalanceHeadline,
   getServiceTaxCommissionPercents,
   otherChargesTotal,
   partnerPaidBalanceHeadline,
   resolvePaymentExtension,
 } from "../../lib/order/orders";
+import { buildOrderAmountSummaryFromOrder } from "../../lib/order/orderAmountSummary";
 import { applyOrderPaymentPreviewDummy } from "../../lib/order/orders";
 import {
   QUOTE_MODAL_LAYOUT,
@@ -111,13 +113,13 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   const { viewTax, viewComm } = useMemo(() => {
     if (!paymentExt) return { viewTax: 0, viewComm: 0 };
     const other = otherChargesTotal(paymentExt.otherCharges);
-    const taxableBase = Math.max(0, paymentExt.serviceAmount + other);
-    const { taxAmount, commissionAmount } = computeTaxCommissionAmounts(
-      taxableBase,
+    const line = computeOrderPaymentLineTotals(
+      paymentExt.serviceAmount,
+      other,
       taxCommFromService.taxPct,
       taxCommFromService.commissionPct
     );
-    return { viewTax: taxAmount, viewComm: commissionAmount };
+    return { viewTax: line.taxAmount, viewComm: line.commissionAmount };
   }, [paymentExt, taxCommFromService]);
 
   const viewOtherSum = paymentExt
@@ -133,85 +135,66 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     [orderDetails]
   );
 
-  const orderDiscountView = Math.max(
-    0,
-    Number(orderDetails?.discount_amount ?? 0)
-  );
-  const viewFinalTotal = paymentExt
-    ? Math.max(
-        0,
-        paymentExt.serviceAmount +
-          viewOtherSum +
-          viewTax +
-          viewComm -
-          refundN -
-          offerBreakdown.appliedDiscount -
-          orderDiscountView
-      )
-    : 0;
+  const amountSummaryDisplay = useMemo(() => {
+    if (!orderDetails || !paymentExt) return null;
+    return buildOrderAmountSummaryFromOrder(orderDetails, {
+      primary,
+      paymentExt,
+      finalTotal: roundMoney(Number(orderDetails.total_price ?? 0)),
+    });
+  }, [orderDetails, paymentExt, primary]);
 
   const paymentHeadlines = useMemo(() => {
     if (!paymentExt || !orderDetails) return null;
-    const apiTotal = Number(orderDetails.total_price ?? 0);
-    const apiPartnerDue = Math.max(
-      0,
-      Number(primary?.partner_earning ?? 0) ||
-        Number(orderDetails.total_service_charge ?? 0) ||
-        Number(primary?.service_price ?? 0)
+    /** User price = `total_price`; partner price = `service_price`. */
+    const userPrice = roundMoney(
+      Math.max(0, Number(orderDetails.total_price ?? 0))
     );
-    /** Customer balance caps — prefer API totals (sub_total + tax = total_price). */
+    const partnerLine = Number(primary?.service_price ?? 0);
+    const partnerOrder = Number(orderDetails.service_price ?? 0);
+    const partnerCharge = Number(orderDetails.total_service_charge ?? 0);
+    const partnerPrice = roundMoney(
+      partnerLine > 0
+        ? partnerLine
+        : partnerOrder > 0
+          ? partnerOrder
+          : Math.max(0, partnerCharge)
+    );
     const userInvoice =
-      apiTotal > 0
-        ? apiTotal
-        : Math.max(0, Number(orderDetails.customer_due_amount ?? 0)) ||
-          viewFinalTotal;
+      userPrice > 0
+        ? userPrice
+        : Math.max(0, Number(orderDetails.customer_due_amount ?? 0));
     const partnerInvoice = Math.max(
       0,
-      apiPartnerDue - offerBreakdown.partnerContribution
+      partnerPrice - offerBreakdown.partnerContribution
     );
     const serviceAmt = orderPaymentSummaryServiceAmount(
       orderDetails,
       primary
     );
-    const isPaid = !!orderDetails.is_paid;
     return {
-      user: customerPaidBalanceHeadline(paymentExt, userInvoice, isPaid),
+      user: customerPaidBalanceHeadline(
+        paymentExt,
+        userInvoice,
+        !!orderDetails.is_paid,
+        orderDetails
+      ),
       partner: partnerPaidBalanceHeadline(
         paymentExt,
         partnerInvoice,
         serviceAmt,
-        isPaid
+        !!orderDetails.is_paid
       ),
+      /** User price (`total_price`) — beside User payments heading. */
+      userAmount: userInvoice,
+      /** Partner price (`service_price`) — beside Partner payments heading. */
+      partnerAmount: partnerPrice > 0 ? partnerPrice : partnerInvoice,
       serviceAmt,
       taxAmt: Number(orderDetails.tax ?? viewTax),
       commAmt: Number(orderDetails.partner_commison_platform_fee ?? viewComm),
-      totalPriceDisp: Number(orderDetails.total_price ?? 0) || viewFinalTotal,
+      totalPriceDisp: Number(orderDetails.total_price ?? 0),
     };
-  }, [
-    paymentExt,
-    orderDetails,
-    primary,
-    viewFinalTotal,
-    offerBreakdown.partnerContribution,
-  ]);
-
-  /** When service line omits %, infer from stored amounts (tax/commission apply to service + other charges). */
-  const taxPctForLabel = useMemo(() => {
-    if (taxCommFromService.taxPct > 0) return taxCommFromService.taxPct;
-    const s = (paymentHeadlines?.serviceAmt ?? 0) + viewOtherSum;
-    const t = paymentHeadlines?.taxAmt ?? 0;
-    if (s > 0 && t >= 0) return Math.round((t / s) * 10000) / 100;
-    return 0;
-  }, [taxCommFromService.taxPct, paymentHeadlines, viewOtherSum]);
-
-  const commissionPctForLabel = useMemo(() => {
-    if (taxCommFromService.commissionPct > 0)
-      return taxCommFromService.commissionPct;
-    const s = (paymentHeadlines?.serviceAmt ?? 0) + viewOtherSum;
-    const c = paymentHeadlines?.commAmt ?? 0;
-    if (s > 0 && c >= 0) return Math.round((c / s) * 10000) / 100;
-    return 0;
-  }, [taxCommFromService.commissionPct, paymentHeadlines, viewOtherSum]);
+  }, [paymentExt, orderDetails, primary, offerBreakdown.partnerContribution]);
 
   const canEditOrderHeader =
     orderDetails?.order_status === 1 || orderDetails?.order_status === 2;
@@ -254,8 +237,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
           {/* Order */}
           <section className="border rounded p-3 mb-3">
             <h6 className={QUOTE_SECTION_TITLE_CLASS}>Order</h6>
-            <Row className="g-3">
-              <Col xs={12} md={6} className="custom-helper-column">
+            <Row className="g-2">
+              <Col xs={12} md={6}>
                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
                 <DetailsRow
                   title="Order Date"
@@ -270,7 +253,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                   value={serviceNamesJoined(orderDetails)}
                 />
               </Col>
-              <Col xs={12} md={6} className="custom-helper-column">
+              <Col xs={12} md={6}>
                 <DetailsRow
                   title="Schedule Date/time"
                   value={formatServiceScheduleLine(primary)}
@@ -288,27 +271,48 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                   value={orderDetails?.order_status!}
                 />
               </Col>
+              <Col xs={12}>
+                <DetailsRow
+                  title="Order description"
+                  value={
+                    (
+                      orderDetails?.order_description ??
+                      orderDetails?.comment ??
+                      ""
+                    ).trim() || "—"
+                  }
+                />
+              </Col>
             </Row>
           </section>
 
-          {/* Service address */}
+          {/* Service address — inline rows so label|value gaps match across pairs + full Address row */}
           <section className="border rounded p-3 mb-3">
             <h6 className={QUOTE_SECTION_TITLE_CLASS}>Service address</h6>
-            <Row className="g-3">
-              <Col xs={12} md={6} className="custom-helper-column">
-                <DetailsRow title="State" value={serviceAddress.state} />
-                <DetailsRow title="City" value={serviceAddress.city} />
+            <Row className="g-2 mb-0">
+              <Col xs={12} md={6}>
+                <InfoDetailInlineRow label="State" value={serviceAddress.state} />
               </Col>
-              <Col xs={12} md={6} className="custom-helper-column">
-                <DetailsRow title="Area" value={serviceAddress.area} />
-                <DetailsRow title="Pin code" value={serviceAddress.pincode} />
-              </Col>
-              <Col xs={12}>
-                <WideLabelValueBlock label="Address" whiteSpace="normal">
-                  {serviceAddress.addressLine}
-                </WideLabelValueBlock>
+              <Col xs={12} md={6}>
+                <InfoDetailInlineRow label="Area" value={serviceAddress.area} />
               </Col>
             </Row>
+            <Row className="g-2 mb-0">
+              <Col xs={12} md={6}>
+                <InfoDetailInlineRow label="City" value={serviceAddress.city} />
+              </Col>
+              <Col xs={12} md={6}>
+                <InfoDetailInlineRow
+                  label="Pin code"
+                  value={serviceAddress.pincode}
+                />
+              </Col>
+            </Row>
+            <InfoDetailInlineRow
+              label="Address"
+              value={serviceAddress.addressLine}
+              className="mb-0"
+            />
           </section>
 
           <QuoteInfoPersonSection
@@ -323,14 +327,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 column: "left",
               },
               {
-                label: "Email",
-                value: orderDetails?.user_info?.email,
-                column: "left",
-              },
-              {
                 label: "Phone number",
                 value: orderDetails?.user_info?.phone_number,
                 column: "right",
+              },
+              {
+                label: "Email",
+                value: orderDetails?.user_info?.email,
+                fullWidth: true,
               },
             ]}
           />
@@ -349,14 +353,6 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 column: "left",
               },
               {
-                label: "Email",
-                value:
-                  String(
-                    partnerRef?.email ?? primary?.partner_info?.email ?? ""
-                  ).trim() || "-",
-                column: "left",
-              },
-              {
                 label: "Phone number",
                 value:
                   String(
@@ -365,6 +361,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       ""
                   ).trim() || "-",
                 column: "right",
+              },
+              {
+                label: "Email",
+                value:
+                  String(
+                    partnerRef?.email ?? primary?.partner_info?.email ?? ""
+                  ).trim() || "-",
+                fullWidth: true,
               },
               ...(String(
                 partnerRef?.address ?? primary?.partner_info?.address ?? ""
@@ -395,14 +399,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 column: "left",
               },
               {
-                label: "Email",
-                value: createdBy?.email,
-                column: "left",
-              },
-              {
                 label: "Phone number",
                 value: createdBy?.phone_number,
                 column: "right",
+              },
+              {
+                label: "Email",
+                value: createdBy?.email,
+                fullWidth: true,
               },
             ]}
           />
@@ -414,7 +418,15 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
             <Row className="g-3 mb-3 mt-1">
               <Col lg={6}>
                 <div className="p-3 h-100" style={paymentSubcard}>
-                  <div className="fw-semibold mb-2">User payments</div>
+                  <div className="fw-semibold mb-2">
+                    User payments
+                    {paymentHeadlines ? (
+                      <span className="text-muted fw-normal ms-1">
+                        ({sym}
+                        {paymentHeadlines.userAmount.toFixed(2)})
+                      </span>
+                    ) : null}
+                  </div>
                   <Table
                     responsive
                     bordered
@@ -465,7 +477,15 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
               </Col>
               <Col lg={6}>
                 <div className="p-3 h-100" style={paymentSubcard}>
-                  <div className="fw-semibold mb-2">Partner payments</div>
+                  <div className="fw-semibold mb-2">
+                    Partner payments
+                    {paymentHeadlines ? (
+                      <span className="text-muted fw-normal ms-1">
+                        ({sym}
+                        {paymentHeadlines.partnerAmount.toFixed(2)})
+                      </span>
+                    ) : null}
+                  </div>
                   <Table
                     responsive
                     bordered
@@ -514,25 +534,9 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
               </Col>
             </Row>
 
-            {paymentExt && paymentHeadlines && orderDetails && (
-              <OrderAmountSummaryPanel
-                serviceAmount={
-                  paymentHeadlines.serviceAmt +
-                  offerBreakdown.appliedDiscount
-                }
-                offerDiscount={offerBreakdown.appliedDiscount}
-                taxPct={taxPctForLabel}
-                taxAmount={paymentHeadlines.taxAmt}
-                commissionPct={commissionPctForLabel}
-                commissionAmount={paymentHeadlines.commAmt}
-                otherCharges={paymentExt.otherCharges}
-                offer={offerBreakdown}
-                orderDiscount={Number(orderDetails.discount_amount ?? 0)}
-                refund={refundBreakdown}
-                refundTotal={refundN}
-                finalTotal={paymentHeadlines.totalPriceDisp}
-              />
-            )}
+            {amountSummaryDisplay ? (
+              <OrderAmountSummaryPanel display={amountSummaryDisplay} />
+            ) : null}
           </section>
         </Modal.Body>
     </Modal>

@@ -1,8 +1,6 @@
 import React from "react";
-import { Row, Col } from "react-bootstrap";
 import { AppConstant } from "../../lib/global/AppConstant";
 import profileIcon from "../../assets/icons/profile.svg";
-import QuoteInfoFieldRow from "./QuoteInfoFieldRow";
 import { QUOTE_SECTION_TITLE_CLASS } from "../../lib/quote/quoteHelpers";
 
 export type QuoteInfoPersonRole = "customer" | "partner" | "employee";
@@ -35,19 +33,27 @@ function displayValue(value: React.ReactNode): React.ReactNode {
 function PersonFieldRow({
   label,
   value,
+  longText = false,
 }: {
   label: string;
   value: React.ReactNode;
+  longText?: boolean;
 }) {
+  const isLong =
+    longText || String(label).toLowerCase().includes("email");
   return (
-    <Row className="mb-2 g-1">
-      <Col xs={5} sm={4} className="fw-semibold text-secondary">
+    <div
+      className={`info-detail-inline-row custom-personal-row${
+        isLong ? " info-detail-inline-row--long-text" : ""
+      }`}
+    >
+      <span className="info-detail-inline-label custom-personal-row-title">
         {label}
-      </Col>
-      <Col xs={7} sm={8} className="text-break">
+      </span>
+      <span className="info-detail-inline-value custom-personal-row-value text-break">
         {displayValue(value)}
-      </Col>
-    </Row>
+      </span>
+    </div>
   );
 }
 
@@ -64,15 +70,18 @@ export default function QuoteInfoPersonSection({
   fields,
 }: QuoteInfoPersonSectionProps) {
   const fullWidthFields = fields.filter((f) => f.fullWidth);
-  const gridFields = fields.filter((f) => !f.fullWidth);
-  const leftFields = gridFields.filter((f) => (f.column ?? "left") === "left");
-  const rightFields = gridFields.filter((f) => f.column === "right");
+  const leftFields = fields.filter(
+    (f) => !f.fullWidth && (f.column ?? "left") === "left"
+  );
+  const rightFields = fields.filter(
+    (f) => !f.fullWidth && f.column === "right"
+  );
 
   return (
-    <section className="border rounded p-3 mb-3">
+    <section className="border rounded p-3 mb-3 quote-info-person-section">
       <h6 className={QUOTE_SECTION_TITLE_CLASS}>{title}</h6>
-      <Row className="g-3">
-        <Col xs={12} md="auto" className="text-center text-md-start">
+      <div className="d-flex flex-column flex-md-row align-items-start gap-3">
+        <div className="flex-shrink-0 text-center text-md-start">
           <img
             src={resolveQuoteProfileSrc(profileUrl)}
             alt=""
@@ -80,43 +89,42 @@ export default function QuoteInfoPersonSection({
             height={72}
             className={`rounded-circle object-fit-cover border border-2 ${PROFILE_BORDER_CLASS[role]}`}
           />
-        </Col>
-        <Col xs={12} md>
-          <Row className="g-3">
-            <Col xs={12} md={6}>
-              {leftFields.map((field) => (
-                <PersonFieldRow
-                  key={field.label}
-                  label={field.label}
-                  value={field.value}
-                />
-              ))}
-            </Col>
-            {rightFields.length > 0 ? (
-              <Col xs={12} md={6}>
-                {rightFields.map((field) => (
+        </div>
+        <div className="flex-grow-1 min-w-0 w-100 quote-info-person-fields">
+          {leftFields.length > 0 || rightFields.length > 0 ? (
+            <div className="quote-info-person-fields-row">
+              <div className="quote-info-person-fields-col">
+                {leftFields.map((field) => (
                   <PersonFieldRow
                     key={field.label}
                     label={field.label}
                     value={field.value}
                   />
                 ))}
-              </Col>
-            ) : null}
-          </Row>
-          {fullWidthFields.length > 0 ? (
-            <div className="border-top pt-3 mt-2">
-              {fullWidthFields.map((field) => (
-                <QuoteInfoFieldRow
-                  key={field.label}
-                  label={field.label}
-                  value={field.value}
-                />
-              ))}
+              </div>
+              {rightFields.length > 0 ? (
+                <div className="quote-info-person-fields-col">
+                  {rightFields.map((field) => (
+                    <PersonFieldRow
+                      key={field.label}
+                      label={field.label}
+                      value={field.value}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
-        </Col>
-      </Row>
+          {fullWidthFields.map((field) => (
+            <PersonFieldRow
+              key={field.label}
+              label={field.label}
+              value={field.value}
+              longText
+            />
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

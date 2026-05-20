@@ -32,20 +32,23 @@ import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import type { AddQuoteFormValues } from "../../lib/types/quoteTypes";
 import {
+  applyCouponToQuotePriceBreakdown,
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
+  mapOfferModelToCouponInput,
   QUOTE_MODAL_LAYOUT,
   setQuoteFranchiseCatalogSnapshot,
   useQuoteCustomerAddressPanel,
+  validateCouponForPriceBreakdown,
 } from "../../lib/quote/quoteHelpers";
+import { fetchActiveOffers } from "../../services/settingsService";
+import type { OfferModel } from "../../lib/models/SettingsModel";
 import type { QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
 import {
   buildOrderEditAllUpdatePayload,
   getOrderCategoryName,
   getOrderPartnerDisplayName,
-  ORDER_CUSTOMER_PAYMENT_STATUS_OPTIONS,
-  ORDER_PARTNER_PAYMENT_STATUS_OPTIONS,
   orderEditAllAddressLine,
   resolveOrderEditFranchiseId,
   resolveOrderOfferBreakdown,
@@ -54,6 +57,9 @@ import {
 } from "../../lib/order/orders";
 import type { EditOrderFormValues } from "../../lib/order/orders";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import { buildOrderAmountSummaryFromQuoteBreakdown } from "../../lib/order/orderAmountSummary";
+import type { QuotePriceBreakdownWithCoupon } from "../../lib/quote/quoteHelpers";
+import { roundMoney } from "../../lib/global/paymentAndCurrency";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
 import { OrderPaymentEditModal } from "./orderInfoModals";
@@ -130,6 +136,11 @@ const ORDER_STATUS_OPTIONS: OptionType[] = Array.from(
   OrderStatusEnum.entries()
 ).map(([id, v]) => ({ value: String(id), label: v.label }));
 
+/** Edit order: refunded status is not selectable. */
+const ORDER_STATUS_OPTIONS_EDIT: OptionType[] = ORDER_STATUS_OPTIONS.filter(
+  (o) => o.value !== "5"
+);
+
 function QuoteAddressPanelError({ message }: { message: string }) {
   return <p className="small text-danger mb-2">{message}</p>;
 }
@@ -159,6 +170,13 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [formHydrated, setFormHydrated] = useState(false);
   const [paymentEditorKey, setPaymentEditorKey] = useState(0);
+  const paymentSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const [activeCoupons, setActiveCoupons] = useState<OfferModel[]>([]);
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [couponModalError, setCouponModalError] = useState("");
+  const [couponOptions, setCouponOptions] = useState<OptionType[]>([
+    { value: "", label: "Select" },
+  ]);
 
   const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
     OptionType[]
@@ -223,10 +241,12 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       order_status: "1",
       customer_payment_status: "Unpaid",
       partner_payment_status: "Unpaid",
+      offer_id: "",
     },
   });
 
   const form = watch();
+  const offerIdWatch = String(form.offer_id ?? "").trim();
   const serviceId = String(form.requested_services ?? "").trim();
   const hasServiceSelected = Boolean(serviceId);
   const partnerSelected = Boolean(String(form.requested_partner ?? "").trim());
@@ -532,10 +552,120 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     [form.service_price, feeOptionForPreview]
   );
 
-  const editOfferBreakdown = useMemo(
-    () => (orderRow ? resolveOrderOfferBreakdown(orderRow) : null),
-    [orderRow]
-  );
+  useEffect(() => {
+    void fetchActiveOffers().then((coupons) => {
+      setActiveCoupons(coupons);
+      setCouponOptions([
+        { value: "", label: "Select" },
+        ...coupons.map((o) => ({
+          value: o.id,
+          label: `${o.offerName} (${o.offerId})`,
+        })),
+      ]);
+    });
+  }, []);
+
+  const selectedCouponOffer = useMemo(() => {
+    if (!offerIdWatch) return null;
+    return (
+      activeCoupons.find(
+        (o) => o.id === offerIdWatch || String(o.offerId) === offerIdWatch
+      ) ?? null
+    );
+  }, [offerIdWatch, activeCoupons]);
+
+  const couponApplyValidation = useMemo(() => {
+    if (!selectedCouponOffer || !editPriceBreakdown) return null;
+    return validateCouponForPriceBreakdown(
+      editPriceBreakdown,
+      mapOfferModelToCouponInput(selectedCouponOffer)
+    );
+  }, [selectedCouponOffer, editPriceBreakdown]);
+
+  const editPriceBreakdownWithCoupon = useMemo(() => {
+    if (!editPriceBreakdown) return null;
+    const couponOk =
+      !selectedCouponOffer ||
+      !couponApplyValidation ||
+      couponApplyValidation.valid;
+    const couponInput =
+      selectedCouponOffer && couponOk
+        ? mapOfferModelToCouponInput(selectedCouponOffer)
+        : null;
+    return applyCouponToQuotePriceBreakdown(
+      editPriceBreakdown,
+      couponInput,
+      feeOptionForPreview
+    );
+  }, [
+    editPriceBreakdown,
+    selectedCouponOffer,
+    couponApplyValidation,
+    feeOptionForPreview,
+  ]);
+
+  const editAmountSummaryDisplay = useMemo(() => {
+    if (!editPriceBreakdownWithCoupon) return null;
+    const partnerDisc = roundMoney(
+      editPriceBreakdownWithCoupon.partnerDiscountOnService ?? 0
+    );
+    const adminDisc = roundMoney(
+      editPriceBreakdownWithCoupon.adminDiscountOnCommission ?? 0
+    );
+    const appliedDiscount = roundMoney(
+      editPriceBreakdownWithCoupon.totalCouponDiscount ??
+        partnerDisc + adminDisc
+    );
+    return buildOrderAmountSummaryFromQuoteBreakdown(
+      editPriceBreakdownWithCoupon,
+      {
+        offer: {
+          totalOfferValue: appliedDiscount,
+          adminContribution: adminDisc,
+          partnerContribution: partnerDisc,
+          appliedDiscount,
+          offerName: selectedCouponOffer?.offerName,
+          offerCode: selectedCouponOffer?.offerId,
+        },
+        finalTotal: editPriceBreakdownWithCoupon.grandTotal,
+      }
+    );
+  }, [editPriceBreakdownWithCoupon, selectedCouponOffer]);
+
+  const confirmApplyCouponFromModal = useCallback(() => {
+    const id = String(getValues("offer_id") ?? "").trim();
+    if (!id) {
+      setCouponModalError("");
+      setOfferModalOpen(false);
+      return;
+    }
+    if (!editPriceBreakdown) {
+      const msg = "Enter a valid service price before applying a coupon.";
+      setCouponModalError(msg);
+      showErrorAlert(msg);
+      return;
+    }
+    const offer =
+      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
+      null;
+    if (!offer) {
+      const msg = "Selected coupon is no longer available.";
+      setCouponModalError(msg);
+      showErrorAlert(msg);
+      return;
+    }
+    const validation = validateCouponForPriceBreakdown(
+      editPriceBreakdown,
+      mapOfferModelToCouponInput(offer)
+    );
+    if (!validation.valid) {
+      setCouponModalError(validation.reason ?? "Cannot apply this coupon.");
+      showErrorAlert(validation.reason ?? "Cannot apply this coupon.");
+      return;
+    }
+    setCouponModalError("");
+    setOfferModalOpen(false);
+  }, [activeCoupons, editPriceBreakdown, getValues]);
 
   const schedulePricePreview = useMemo(() => {
     if (!isScheduleComplete || !partnerSelected) return null;
@@ -725,16 +855,14 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       return;
     }
 
-    if (!String(data.requested_partner ?? "").trim()) {
-      showErrorAlert("Please select a partner.");
-      return;
-    }
-    if (!String(data.category_id ?? "").trim()) {
-      showErrorAlert("Please select a category.");
-      return;
-    }
-    if (!String(data.requested_services ?? "").trim()) {
-      showErrorAlert("Please select a service.");
+    if (
+      offerIdWatch &&
+      couponApplyValidation &&
+      !couponApplyValidation.valid
+    ) {
+      showErrorAlert(
+        couponApplyValidation.reason ?? "Selected coupon cannot be applied."
+      );
       return;
     }
 
@@ -789,6 +917,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       orderRow.address ?? ""
     );
 
+    if (!isTerminalOrderStatus && paymentSaveRef.current) {
+      const payOk = await paymentSaveRef.current();
+      if (!payOk) return;
+    }
+
     const payload = buildOrderEditAllUpdatePayload({
       order: orderRow,
       form: data,
@@ -796,6 +929,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       servicePrice: price,
       addressLine,
       selectedAddressId,
+      invoiceTotal: editPriceBreakdownWithCoupon?.grandTotal ?? price,
     });
     if (!payload) {
       showErrorAlert("Invalid schedule.");
@@ -957,42 +1091,54 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
             <section className="custom-other-details add-quote-form-section">
               <Row className="gy-3 gx-md-4 align-items-start">
                 <Col xs={12} md={6}>
+                  <div className="order-edit-locked-select">
+                    <CustomTextFieldSelect
+                      label="User"
+                      controlId="edit-order-user"
+                      asCol={false}
+                      options={userSelectOptions}
+                      register={
+                        register as unknown as UseFormRegister<AddQuoteFormValues>
+                      }
+                      fieldName="user_id"
+                      error={errors.user_id}
+                      requiredMessage="Please select a user"
+                      defaultValue={form.user_id}
+                      setValue={
+                        setValue as (name: string, value: unknown) => void
+                      }
+                      placeholder="Search user"
+                      menuPortal
+                      isClearable={false}
+                      isDisabled
+                    />
+                  </div>
+                </Col>
+                <Col xs={12} md={6}>
                   <CustomTextFieldSelect
-                    label="User"
-                    controlId="edit-order-user"
+                    label="Employee"
+                    controlId={
+                      isSuperAdminOrStaff
+                        ? "edit-order-employee"
+                        : "edit-order-employee-super"
+                    }
                     asCol={false}
-                    options={userSelectOptions}
-                    register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                    fieldName="user_id"
-                    error={errors.user_id}
-                    requiredMessage="Please select a user"
-                    defaultValue={form.user_id}
-                    setValue={setValue as (name: string, value: unknown) => void}
-                    placeholder="Search user"
+                    options={quoteEmployeeOptions}
+                    register={
+                      register as unknown as UseFormRegister<AddQuoteFormValues>
+                    }
+                    fieldName="employee_id"
+                    error={errors.employee_id}
+                    defaultValue={form.employee_id}
+                    setValue={
+                      setValue as (name: string, value: unknown) => void
+                    }
+                    placeholder="Select employee"
                     menuPortal
-                    isClearable={false}
-                    isDisabled
+                    isClearable
+                    isDisabled={lockedFields}
                   />
                 </Col>
-                {!isSuperAdminOrStaff ? (
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="Employee"
-                      controlId="edit-order-employee-super"
-                      asCol={false}
-                      options={quoteEmployeeOptions}
-                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                      fieldName="employee_id"
-                      error={errors.employee_id}
-                      defaultValue={form.employee_id}
-                      setValue={setValue as (name: string, value: unknown) => void}
-                      placeholder="Select employee"
-                      menuPortal
-                      isClearable
-                      isDisabled={lockedFields}
-                    />
-                  </Col>
-                ) : null}
               </Row>
 
               {String(form.user_id ?? "").trim() ? (
@@ -1028,268 +1174,76 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                 </Row>
               ) : null}
 
-              {isSuperAdminOrStaff ? (
-                <>
-                  <Row className="gy-4 gx-md-5 align-items-start mt-2">
-                    <Col xs={12} md={6}>
-                      <CustomTextFieldSelect
-                        label="Employee"
-                        controlId="edit-order-employee"
-                        asCol={false}
-                        options={quoteEmployeeOptions}
-                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                        fieldName="employee_id"
-                        error={errors.employee_id}
-                        defaultValue={form.employee_id}
-                        setValue={setValue as (name: string, value: unknown) => void}
-                        placeholder="Select employee"
-                        menuPortal
-                        isClearable
-                        isDisabled={lockedFields}
-                      />
-                    </Col>
-                    <Col xs={12} md={6}>
+              {orderRow ? (
+                <Row className="gy-3 gx-md-4 align-items-start mt-2 order-edit-catalog-row">
+                  <Col xs={12} md={6}>
+                    <div className="order-edit-locked-select">
                       <CustomTextFieldSelect
                         label="Partner"
                         controlId="edit-order-partner"
                         asCol={false}
                         options={partnerSelectOptions}
-                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+                        register={
+                          register as unknown as UseFormRegister<AddQuoteFormValues>
+                        }
                         fieldName="requested_partner"
-                        error={errors.requested_partner}
-                        requiredMessage="Please select a partner"
                         defaultValue={form.requested_partner}
-                        setValue={(name, value) => {
-                          if (name === "requested_partner") {
-                            const prev = getValues("requested_partner");
-                            applySelectFieldValue("requested_partner", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
-                              setValue("category_id", "", { shouldValidate: false });
-                              setValue("requested_services", "", {
-                                shouldValidate: false,
-                              });
-                              clearScheduleAndPriceFields();
-                            }
-                            return;
-                          }
-                          applySelectFieldValue(
-                            name as keyof EditOrderFormValues,
-                            value
-                          );
-                        }}
-                        placeholder="Select partner"
+                        setValue={
+                          setValue as (name: string, value: unknown) => void
+                        }
+                        placeholder="Partner"
                         menuPortal
-                        isClearable
-                        isDisabled={lockedFields}
+                        isClearable={false}
+                        isDisabled
                       />
-                    </Col>
-                  </Row>
-                  <Row className="gy-4 gx-md-5 align-items-start">
-                    <Col xs={12} md={6}>
+                    </div>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <div className="order-edit-locked-select">
                       <CustomTextFieldSelect
                         label="Category"
                         controlId="edit-order-category"
                         asCol={false}
                         options={categorySelectOptions}
-                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                        fieldName="category_id"
-                        error={errors.category_id}
-                        requiredMessage="Please select a category"
-                        defaultValue={form.category_id}
-                        isClearable
-                        setValue={(name, value) => {
-                          if (name === "category_id") {
-                            const prev = getValues("category_id");
-                            applySelectFieldValue("category_id", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
-                              setValue("requested_services", "", {
-                                shouldValidate: false,
-                              });
-                              clearScheduleAndPriceFields();
-                            }
-                            return;
-                          }
-                          applySelectFieldValue(
-                            name as keyof EditOrderFormValues,
-                            value
-                          );
-                        }}
-                        placeholder={
-                          partnerSelected ? "Select category" : "Select partner first"
+                        register={
+                          register as unknown as UseFormRegister<AddQuoteFormValues>
                         }
+                        fieldName="category_id"
+                        defaultValue={form.category_id}
+                        setValue={
+                          setValue as (name: string, value: unknown) => void
+                        }
+                        placeholder="Category"
                         menuPortal
-                        isDisabled={lockedFields || !partnerSelected}
+                        isClearable={false}
+                        isDisabled
                       />
-                    </Col>
-                    <Col xs={12} md={6}>
+                    </div>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <div className="order-edit-locked-select">
                       <CustomTextFieldSelect
-                        key={`edit-order-svc-${form.category_id || "none"}`}
                         label="Service"
                         controlId="edit-order-service"
                         asCol={false}
                         options={serviceSelectOptions}
-                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+                        register={
+                          register as unknown as UseFormRegister<AddQuoteFormValues>
+                        }
                         fieldName="requested_services"
-                        error={errors.requested_services}
-                        requiredMessage={
-                          form.category_id && partnerSelected
-                            ? "Please select a service"
-                            : undefined
-                        }
                         defaultValue={form.requested_services}
-                        setValue={(name, value) => {
-                          if (name === "requested_services") {
-                            const prev = getValues("requested_services");
-                            applySelectFieldValue("requested_services", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
-                              clearScheduleAndPriceFields();
-                            }
-                            return;
-                          }
-                          applySelectFieldValue(
-                            name as keyof EditOrderFormValues,
-                            value
-                          );
-                        }}
-                        placeholder={
-                          !partnerSelected
-                            ? "Select partner first"
-                            : !form.category_id
-                            ? "Select category first"
-                            : "Select service"
+                        setValue={
+                          setValue as (name: string, value: unknown) => void
                         }
+                        placeholder="Service"
                         menuPortal
-                        isClearable
-                        isDisabled={
-                          lockedFields ||
-                          !partnerSelected ||
-                          !String(form.category_id ?? "").trim()
-                        }
+                        isClearable={false}
+                        isDisabled
                       />
-                    </Col>
-                  </Row>
-                </>
-              ) : (
-                <Row className="gy-4 gx-md-5 align-items-start mt-2">
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="Partner"
-                      controlId="edit-order-partner"
-                      asCol={false}
-                        options={partnerSelectOptions}
-                        register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                        fieldName="requested_partner"
-                        error={errors.requested_partner}
-                        requiredMessage="Please select a partner"
-                        defaultValue={form.requested_partner}
-                        setValue={(name, value) => {
-                          if (name === "requested_partner") {
-                            const prev = getValues("requested_partner");
-                            applySelectFieldValue("requested_partner", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
-                              setValue("category_id", "", { shouldValidate: false });
-                              setValue("requested_services", "", {
-                                shouldValidate: false,
-                              });
-                              clearScheduleAndPriceFields();
-                            }
-                            return;
-                          }
-                          applySelectFieldValue(
-                            name as keyof EditOrderFormValues,
-                            value
-                          );
-                        }}
-                        placeholder="Select partner"
-                        menuPortal
-                        isClearable
-                        isDisabled={lockedFields}
-                      />
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <CustomTextFieldSelect
-                        label="Category"
-                        controlId="edit-order-category"
-                        asCol={false}
-                        options={categorySelectOptions}
-                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                      fieldName="category_id"
-                      error={errors.category_id}
-                      requiredMessage="Please select a category"
-                      defaultValue={form.category_id}
-                      isClearable
-                      setValue={(name, value) => {
-                        if (name === "category_id") {
-                          const prev = getValues("category_id");
-                          applySelectFieldValue("category_id", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
-                            setValue("requested_services", "", {
-                              shouldValidate: false,
-                            });
-                            clearScheduleAndPriceFields();
-                          }
-                          return;
-                        }
-                        applySelectFieldValue(
-                          name as keyof EditOrderFormValues,
-                          value
-                        );
-                      }}
-                      placeholder={
-                        partnerSelected ? "Select category" : "Select partner first"
-                      }
-                      menuPortal
-                      isDisabled={lockedFields || !partnerSelected}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      key={`edit-order-svc-${form.category_id || "none"}`}
-                      label="Service"
-                      controlId="edit-order-service"
-                      asCol={false}
-                      options={serviceSelectOptions}
-                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                      fieldName="requested_services"
-                      error={errors.requested_services}
-                      requiredMessage={
-                        form.category_id && partnerSelected
-                          ? "Please select a service"
-                          : undefined
-                      }
-                      defaultValue={form.requested_services}
-                      setValue={(name, value) => {
-                        if (name === "requested_services") {
-                          const prev = getValues("requested_services");
-                          applySelectFieldValue("requested_services", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
-                            clearScheduleAndPriceFields();
-                          }
-                          return;
-                        }
-                        applySelectFieldValue(
-                          name as keyof EditOrderFormValues,
-                          value
-                        );
-                      }}
-                      placeholder={
-                        !partnerSelected
-                          ? "Select partner first"
-                          : !form.category_id
-                          ? "Select category first"
-                          : "Select service"
-                      }
-                      menuPortal
-                      isClearable
-                      isDisabled={
-                        lockedFields ||
-                        !partnerSelected ||
-                        !String(form.category_id ?? "").trim()
-                      }
-                    />
+                    </div>
                   </Col>
                 </Row>
-              )}
+              ) : null}
 
               {hasServiceSelected ? (
                 <>
@@ -1557,69 +1511,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                           disabled={lockedFields || isTerminalOrderStatus}
                           {...register("order_status")}
                         >
-                          {ORDER_STATUS_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      </Form.Group>
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <Form.Group
-                        controlId="edit-order-customer-payment-status"
-                        className="mb-0"
-                      >
-                        <Form.Label
-                          htmlFor="edit-order-customer-payment-status"
-                          className="fw-medium mb-1"
-                        >
-                          User payment status
-                        </Form.Label>
-                        <Form.Select
-                          id="edit-order-customer-payment-status"
-                          className="form-select custom-form-input"
-                          style={{
-                            borderRadius: "8px",
-                            borderColor: "var(--primary-color)",
-                            height: "35px",
-                            fontSize: "14px",
-                          }}
-                          disabled={lockedFields || isTerminalOrderStatus}
-                          {...register("customer_payment_status")}
-                        >
-                          {ORDER_CUSTOMER_PAYMENT_STATUS_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      </Form.Group>
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <Form.Group
-                        controlId="edit-order-partner-payment-status"
-                        className="mb-0"
-                      >
-                        <Form.Label
-                          htmlFor="edit-order-partner-payment-status"
-                          className="fw-medium mb-1"
-                        >
-                          Partner payment status
-                        </Form.Label>
-                        <Form.Select
-                          id="edit-order-partner-payment-status"
-                          className="form-select custom-form-input"
-                          style={{
-                            borderRadius: "8px",
-                            borderColor: "var(--primary-color)",
-                            height: "35px",
-                            fontSize: "14px",
-                          }}
-                          disabled={lockedFields || isTerminalOrderStatus}
-                          {...register("partner_payment_status")}
-                        >
-                          {ORDER_PARTNER_PAYMENT_STATUS_OPTIONS.map((o) => (
+                          {ORDER_STATUS_OPTIONS_EDIT.map((o) => (
                             <option key={o.value} value={o.value}>
                               {o.label}
                             </option>
@@ -1662,18 +1554,39 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                 </Col>
               </Row>
 
-              {editPriceBreakdown && hasServiceSelected ? (
+              {editAmountSummaryDisplay && hasServiceSelected ? (
                 <div className="add-quote-breakdown-end mt-3">
-                  <OrderAmountSummaryPanel
-                    serviceAmount={editPriceBreakdown.base}
-                    offerDiscount={editOfferBreakdown?.appliedDiscount ?? 0}
-                    taxPct={editPriceBreakdown.taxPct}
-                    taxAmount={editPriceBreakdown.taxAmount}
-                    commissionPct={editPriceBreakdown.commissionPct}
-                    commissionAmount={editPriceBreakdown.commissionAmount}
-                    offer={editOfferBreakdown ?? undefined}
-                    finalTotal={editPriceBreakdown.grandTotal}
-                  />
+                  <OrderAmountSummaryPanel display={editAmountSummaryDisplay}>
+                    {!lockedFields && !isTerminalOrderStatus ? (
+                      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 mt-2 border-top">
+                        <button
+                          type="button"
+                          className="btn btn-link p-0"
+                          style={{
+                            color: "var(--primary-color)",
+                            textDecoration: "underline",
+                            fontWeight: 600,
+                          }}
+                          onClick={() => {
+                            if (offerIdWatch) {
+                              setValue("offer_id", "", { shouldValidate: false });
+                            } else {
+                              setOfferModalOpen(true);
+                            }
+                          }}
+                        >
+                          {offerIdWatch ? "Remove coupon" : "Apply coupon"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </OrderAmountSummaryPanel>
+                  {couponApplyValidation &&
+                  !couponApplyValidation.valid &&
+                  offerIdWatch ? (
+                    <div className="small text-danger mt-2" role="alert">
+                      {couponApplyValidation.reason}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </section>
@@ -1681,15 +1594,20 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
             {!isTerminalOrderStatus ? (
               <section className="custom-other-details add-quote-form-section mt-4">
                 <h6
-                  className="mb-3 pb-2 border-bottom"
+                  className="mb-1 pb-2 border-bottom"
                   style={{ fontWeight: 600 }}
                 >
                   Payments & charges
                 </h6>
+                <p className="text-muted small mb-3">
+                  Services — here you can add additional service charges as extra
+                  line items. Changes are saved when you click Update.
+                </p>
                 <OrderPaymentEditModal
                   key={`order-pay-edit-${orderMongoId}-${paymentEditorKey}`}
                   embedded
                   order={orderRow}
+                  saveRef={paymentSaveRef}
                   onClose={() => {}}
                   onSaved={() => {
                     void refreshOrderAfterPaymentSave();
@@ -1719,6 +1637,59 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
           </Button>
         </Modal.Footer>
       ) : null}
+      <Modal
+        show={offerModalOpen}
+        onHide={() => {
+          setCouponModalError("");
+          setOfferModalOpen(false);
+        }}
+        centered
+        enforceFocus={false}
+      >
+        <Modal.Header closeButton className="py-3 px-4 border-bottom-0">
+          <Modal.Title as="h5" className="custom-modal-title">
+            Apply coupon
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="px-4 pb-4 pt-0">
+          <CustomTextFieldSelect
+            label="Coupon"
+            controlId="edit-order-coupon-modal"
+            options={couponOptions}
+            placeholder="Select coupon"
+            register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+            fieldName="offer_id"
+            defaultValue={form.offer_id}
+            setValue={setValue as (name: string, value: unknown) => void}
+            menuPortal
+            onChange={() => setCouponModalError("")}
+          />
+          {couponModalError ? (
+            <p className="small text-danger mb-0 mt-2" role="alert">
+              {couponModalError}
+            </p>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer className="border-top-0">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setCouponModalError("");
+              setOfferModalOpen(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="custom-btn-primary"
+            onClick={confirmApplyCouponFromModal}
+          >
+            Apply
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Modal>
   );
 };

@@ -241,6 +241,64 @@ export function formatAddressLineFromRecord(rec: Record<string, unknown>): strin
 }
 
 /** Removes state / city / area tokens already shown on other lines (API `address` is often a composite). */
+export type ParsedCompositeAddressParts = {
+  addressLine: string;
+  area: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+/**
+ * Split API composite `order.address` (e.g. "2-33, Sivapuram, 564543, Guntur, Andhra Pradesh")
+ * when `address_info` has street/pincode but empty city/state/area strings.
+ */
+export function parseCompositeServiceAddressLine(
+  flat: string,
+  pincodeHint?: string
+): ParsedCompositeAddressParts {
+  const empty: ParsedCompositeAddressParts = {
+    addressLine: "",
+    area: "",
+    city: "",
+    state: "",
+    pincode: "",
+  };
+  const raw = strTrim(flat);
+  if (!raw) return empty;
+
+  const parts = raw
+    .split(",")
+    .map((p) => strTrim(p))
+    .filter(Boolean);
+  if (!parts.length) return empty;
+
+  let pincode = strTrim(pincodeHint);
+  const pinIdx = parts.findIndex((p) => /^\d{6}$/.test(p));
+  if (pinIdx >= 0) {
+    if (!pincode) pincode = parts[pinIdx];
+    parts.splice(pinIdx, 1);
+  }
+
+  if (parts.length === 1) {
+    return { ...empty, addressLine: parts[0], pincode };
+  }
+
+  const state =
+    parts.length >= 1 ? displayStateName(parts[parts.length - 1]) : "";
+  const city = parts.length >= 2 ? parts[parts.length - 2] : "";
+  const area = parts.length >= 3 ? parts[parts.length - 3] : "";
+  const addressLine = parts.slice(0, Math.max(0, parts.length - 3)).join(", ");
+
+  return {
+    addressLine: addressLine || raw,
+    area,
+    city,
+    state,
+    pincode,
+  };
+}
+
 export function stripKnownAddressParts(
   phrase: string,
   parts: Array<string | undefined | null>

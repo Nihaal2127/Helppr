@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
-import QuoteInfoFieldRow from "../../components/quote/QuoteInfoFieldRow";
+import { DetailsRow, InfoDetailInlineRow } from "../../helper/utility";
 import { openDialog } from "../../lib/global/DialogManager";
 import type { QuoteRow } from "../../lib/types/quoteTypes";
 import {
   computeQuotePriceBreakdown,
-  displayStateName,
   formatQuoteRupees,
   formatQuoteScheduleForView,
+  getQuoteServiceAddressDisplay,
   mergeQuoteViewData,
   QUOTE_MODAL_LAYOUT,
   QUOTE_SECTION_TITLE_CLASS,
@@ -154,6 +154,11 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
     [displayQuote.service_price, serviceFees]
   );
 
+  const serviceAddress = useMemo(
+    () => getQuoteServiceAddressDisplay(displayQuote),
+    [displayQuote]
+  );
+
   const customerProfile = displayQuote.profile_url ?? null;
   const partnerProfile = displayQuote.partner_profile_url ?? null;
   const employeeProfile = displayQuote.employee_profile_url ?? null;
@@ -176,7 +181,12 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   };
 
   return (
-    <Modal show={true} onHide={onClose} {...QUOTE_MODAL_LAYOUT}>
+    <Modal
+      show={true}
+      onHide={onClose}
+      {...QUOTE_MODAL_LAYOUT}
+      key={quoteMongoId || "quote-info"}
+    >
       <Modal.Header className="py-3 px-4 border-bottom-0 d-flex align-items-center flex-shrink-0">
         <Modal.Title className="mb-0 me-auto">Quote information</Modal.Title>
         <div className="d-flex align-items-center gap-3 ms-3">
@@ -198,69 +208,76 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
         {isSuccess ? (
           <section className="border rounded p-3 mb-3">
             <h6 className={QUOTE_SECTION_TITLE_CLASS}>Order</h6>
-            <QuoteInfoFieldRow
-              label="Order ID"
-              value={displayQuote.order_id ?? "-"}
-            />
+            <DetailsRow title="Order ID" value={displayQuote.order_id} />
           </section>
         ) : null}
 
         <section className="border rounded p-3 mb-3">
           <h6 className={QUOTE_SECTION_TITLE_CLASS}>Quote details</h6>
-          <Row className="g-3">
+          <Row className="g-2">
             <Col xs={12} md={6}>
-              <QuoteInfoFieldRow label="Service" value={serviceLabel} />
-              <QuoteInfoFieldRow
-                label="Category"
-                value={displayQuote.category_name ?? "-"}
+              <DetailsRow title="Service" value={serviceLabel} />
+              <DetailsRow
+                title="Category"
+                value={displayQuote.category_name}
               />
-              <QuoteInfoFieldRow
-                label="Quote description"
-                value={(displayQuote.description ?? "").trim() || "-"}
+              <DetailsRow
+                title="Quote description"
+                value={(displayQuote.description ?? "").trim() || undefined}
               />
-              <QuoteInfoFieldRow
-                label="Service price"
+            </Col>
+            <Col xs={12} md={6}>
+              <DetailsRow
+                title="Service price"
                 value={
                   displayQuote.service_price != null &&
                   Number.isFinite(displayQuote.service_price)
                     ? formatQuoteRupees(displayQuote.service_price)
-                    : "-"
+                    : undefined
                 }
               />
-              <QuoteInfoFieldRow
-                label="Quote status"
+              <DetailsRow
+                title="Quote status"
                 value={
                   <span className={`fw-semibold ${statusTextClass}`}>
                     {displayQuote.status}
                   </span>
                 }
               />
-              <QuoteInfoFieldRow
-                label="Schedule date and time"
+              <DetailsRow
+                title="Schedule date and time"
                 value={scheduleDisplay}
               />
             </Col>
+          </Row>
+        </section>
+
+        <section className="border rounded p-3 mb-3">
+          <h6 className={QUOTE_SECTION_TITLE_CLASS}>Service address</h6>
+          <Row className="g-2 mb-0">
             <Col xs={12} md={6}>
-              <QuoteInfoFieldRow
-                label="State"
-                value={displayStateName(displayQuote.state ?? "") || "-"}
-              />
-              <QuoteInfoFieldRow label="City" value={displayQuote.city ?? "-"} />
-              <QuoteInfoFieldRow label="Area" value={displayQuote.area ?? "-"} />
-              <QuoteInfoFieldRow
+              <InfoDetailInlineRow label="State" value={serviceAddress.state} />
+            </Col>
+            <Col xs={12} md={6}>
+              <InfoDetailInlineRow label="Area" value={serviceAddress.area} />
+            </Col>
+          </Row>
+          <Row className="g-2 mb-0">
+            <Col xs={12} md={6}>
+              <InfoDetailInlineRow label="City" value={serviceAddress.city} />
+            </Col>
+            <Col xs={12} md={6}>
+              <InfoDetailInlineRow
                 label="Pin code"
-                value={displayQuote.pincode ?? "-"}
-              />
-              <QuoteInfoFieldRow
-                label="Address"
-                value={
-                  displayQuote.address_line?.trim() ||
-                  displayQuote.street?.trim() ||
-                  "-"
-                }
+                value={serviceAddress.pincode}
               />
             </Col>
           </Row>
+          <InfoDetailInlineRow
+            label="Address"
+            value={serviceAddress.addressLine}
+            className="mb-0"
+          />
         </section>
 
         <QuoteInfoPersonSection
@@ -269,8 +286,8 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           profileUrl={customerProfile}
           fields={[
             { label: "Name", value: displayQuote.user_name ?? "-", column: "left" },
-            { label: "Email", value: displayQuote.user_email ?? "-", column: "left" },
             { label: "Phone", value: displayQuote.phone_number ?? "-", column: "right" },
+            { label: "Email", value: displayQuote.user_email ?? "-", fullWidth: true },
           ]}
         />
 
@@ -280,8 +297,8 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           profileUrl={partnerProfile}
           fields={[
             { label: "Name", value: partnerNameForDisplay ?? "-", column: "left" },
-            { label: "Email", value: displayQuote.partner_email ?? "-", column: "left" },
             { label: "Phone", value: displayQuote.partner_phone ?? "-", column: "right" },
+            { label: "Email", value: displayQuote.partner_email ?? "-", column: "left" },
             ...((displayQuote.partner_city ?? "").trim()
               ? [
                   {
@@ -300,8 +317,8 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           profileUrl={employeeProfile}
           fields={[
             { label: "Name", value: displayQuote.employee_name ?? "-", column: "left" },
-            { label: "Email", value: displayQuote.employee_email ?? "-", column: "left" },
             { label: "Phone", value: displayQuote.employee_phone ?? "-", column: "right" },
+            { label: "Email", value: displayQuote.employee_email ?? "-", fullWidth: true },
           ]}
         />
 

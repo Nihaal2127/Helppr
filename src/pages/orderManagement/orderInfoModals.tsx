@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, Table } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import { buildOrderAmountSummaryFromOrder } from "../../lib/order/orderAmountSummary";
 import {
   buildOrderEmployeeUpdatePayload,
   buildOrderHeaderPatchPayload,
@@ -35,7 +36,11 @@ import { AppConstant } from "../../lib/global/AppConstant";
 import {
   formatMoney2,
   normalizePaymentMethod,
+  parseMoneyInput,
+  paymentAmountFieldValue,
+  paymentRowEffectiveAmount,
   paymentMethodSelectOptions,
+  sanitizeMoneyInput,
 } from "../../lib/global/paymentAndCurrency";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { CustomFormInput } from "../../components/CustomFormInput";
@@ -43,12 +48,13 @@ import { showErrorAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type {
   CustomerPaymentRow,
-  OrderPaymentExtV1,
   OtherChargeRow,
   PartnerPaymentRow,
-} from "../../lib/order/orders";
+} from "../../lib/order/orderPaymentRows";
+import type { OrderPaymentExtV1 } from "../../lib/order/orders";
 import {
-  computeTaxCommissionAmounts,
+  computeOrderPaymentLineTotals,
+  orderPaymentInvoiceTotal,
   otherChargesTotal,
   sumCustomerAmounts,
   sumPartnerAmounts,
@@ -672,6 +678,8 @@ type OrderPaymentEditModalProps = {
   onSaved: () => void;
   /** When true, render inside parent modal (no nested dialog shell). */
   embedded?: boolean;
+  /** Parent edit-all uses this to run payment save on Update. */
+  saveRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
 };
 
 const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -716,7 +724,7 @@ const tablePriceInputStyle: React.CSSProperties = {
 
 const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   show: (order: OrderModel, onSaved: () => void) => void;
-} = ({ order, onClose, onSaved, embedded = false }) => {
+} = ({ order, onClose, onSaved, embedded = false, saveRef }) => {
   const primary = getPrimaryServiceItem(order);
   const partnerLock = partnerPaymentsEditLocked(order);
   const refundN = orderRefundAmount(order);
@@ -760,6 +768,11 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     order.sub_total,
     order.tax,
     order.partner_commison_platform_fee,
+    order.payment_status,
+    order.customer_paid_amount,
+    order.customer_net_paid,
+    order.customer_due_amount,
+    order.order_payments,
     primary,
   ]);
 
@@ -776,10 +789,15 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     () => Math.max(0, ext.serviceAmount + otherSum),
     [ext.serviceAmount, otherSum]
   );
-  const { taxAmount, commissionAmount } = useMemo(
+  const paymentLineTotals = useMemo(
     () =>
-      computeTaxCommissionAmounts(combinedServiceBase, taxPct, commissionPct),
-    [combinedServiceBase, taxPct, commissionPct]
+      computeOrderPaymentLineTotals(
+        ext.serviceAmount,
+        otherSum,
+        taxPct,
+        commissionPct
+      ),
+    [ext.serviceAmount, otherSum, taxPct, commissionPct]
   );
 
   const offerBreakdown = useMemo(
@@ -792,9 +810,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     [order.discount_amount]
   );
   const preAdjustTotal = useMemo(
-    () =>
-      Math.max(0, combinedServiceBase + taxAmount + commissionAmount - refundN),
-    [combinedServiceBase, taxAmount, commissionAmount, refundN]
+    () => Math.max(0, paymentLineTotals.totalInclTax - refundN),
+    [paymentLineTotals.totalInclTax, refundN]
   );
   const finalTotal = useMemo(
     () =>
@@ -803,6 +820,17 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
         preAdjustTotal - offerBreakdown.appliedDiscount - orderDiscount
       ),
     [preAdjustTotal, offerBreakdown.appliedDiscount, orderDiscount]
+  );
+
+  const amountSummaryDisplay = useMemo(
+    () =>
+      buildOrderAmountSummaryFromOrder(order, {
+        primary,
+        paymentExt: ext,
+        finalTotal,
+        orderDiscount,
+      }),
+    [order, primary, ext, finalTotal, orderDiscount]
   );
 
   /** Partner obligation before tax/commission: service + other charges minus partner offer share. */
@@ -1027,18 +1055,18 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     );
   };
 
-  const save = async () => {
+  const save = React.useCallback(async (): Promise<boolean> => {
     if (customerAddPaymentState.reason) {
       setShowCustomerPaymentAddHint(true);
-      return;
+      return false;
     }
     if (partnerAddPaymentState.reason) {
       setShowPartnerPaymentAddHint(true);
-      return;
+      return false;
     }
     if (ext.serviceAmount < 0) {
       showErrorAlert("Service amount cannot be negative.");
-      return;
+      return false;
     }
     const custSum = sumCustomerAmounts(ext.customerPayments);
     const partSum = sumPartnerAmounts(ext.partnerPayments);
@@ -1046,13 +1074,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
       showErrorAlert(
         "Sum of user payment amounts cannot exceed the final total."
       );
-      return;
+      return false;
     }
     if (!partnerLock && partSum > partnerDueTotal + 0.01) {
       showErrorAlert(
         "Sum of partner payment amounts cannot exceed the partner total (service charges minus partner offer share, excluding tax and commission)."
       );
-      return;
+      return false;
     }
 
     const ok = await createOrUpdateOrder(
@@ -1064,11 +1092,33 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
       true,
       order._id
     );
-    if (ok) {
-      if (!embedded) onClose();
-      onSaved();
+    if (!ok) {
+      showErrorAlert("Could not save payments and charges.");
+      return false;
     }
-  };
+    if (!embedded) onClose();
+    onSaved();
+    return true;
+  }, [
+    customerAddPaymentState.reason,
+    partnerAddPaymentState.reason,
+    ext,
+    finalTotal,
+    partnerLock,
+    partnerDueTotal,
+    order,
+    embedded,
+    onClose,
+    onSaved,
+  ]);
+
+  React.useEffect(() => {
+    if (!saveRef) return;
+    saveRef.current = save;
+    return () => {
+      saveRef.current = null;
+    };
+  }, [save, saveRef]);
 
   const paymentBody = (
     <div
@@ -1077,11 +1127,16 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     >
           {/* Services */}
           <section className="custom-other-details mt-2" style={sectionShell}>
-            <Row className="align-items-center mb-3 pb-2 border-bottom">
-              <Col>
-                <h3 className="mb-0">Services</h3>
-              </Col>
-            </Row>
+            {!embedded ? (
+              <Row className="align-items-center mb-2 pb-2 border-bottom">
+                <Col>
+                  <h3 className="mb-0">Services</h3>
+                  <p className="text-muted small mb-0 mt-1">
+                    Here you can add additional service charges as extra line items.
+                  </p>
+                </Col>
+              </Row>
+            ) : null}
             <div style={paymentSubcard}>
               <Table
                 bordered
@@ -1257,20 +1312,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
 
           <section className="custom-other-details mt-3" style={sectionShell}>
             <OrderAmountSummaryPanel
-              serviceAmount={ext.serviceAmount}
-              offerDiscount={offerBreakdown.appliedDiscount}
-              taxPct={taxPct}
-              taxAmount={taxAmount}
-              commissionPct={commissionPct}
-              commissionAmount={commissionAmount}
-              otherCharges={ext.otherCharges}
-              offer={offerBreakdown}
-              orderDiscount={orderDiscount}
-              refund={refundBreakdown}
-              refundTotal={refundN}
-              finalTotal={finalTotal}
+              display={amountSummaryDisplay}
               finalTotalLabel="Final total"
-              style={{ marginTop: 0, padding: 0, border: "none", background: "transparent" }}
+              style={{
+                marginTop: 0,
+                padding: 0,
+                border: "none",
+                background: "transparent",
+              }}
             />
           </section>
 
@@ -1400,7 +1449,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           inputType="text"
                           inputClassName="text-end"
                           inputStyle={tablePriceInputStyle}
-                          value={row.amount === 0 ? "" : String(row.amount)}
+                          value={paymentAmountFieldValue(row)}
                           onChange={(val) => {
                             setExt((e) => {
                               const cap = Math.max(0, finalTotal);
@@ -1410,21 +1459,50 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                 )
                               );
                               const maxForRow = Math.max(0, cap - otherSum);
-                              const t = val.trim();
-                              let nextAmount = 0;
-                              if (t !== "") {
-                                const n = parseFloat(t);
-                                if (!Number.isNaN(n) && n >= 0) {
-                                  nextAmount = Math.min(n, maxForRow);
-                                }
-                              }
+                              const amountInput = sanitizeMoneyInput(val);
+                              let nextAmount = parseMoneyInput(amountInput);
+                              nextAmount = roundMoney(
+                                Math.min(nextAmount, maxForRow)
+                              );
                               return {
                                 ...e,
                                 customerPayments: e.customerPayments.map((r) =>
                                   r.id === row.id
-                                    ? { ...r, amount: nextAmount }
+                                    ? {
+                                        ...r,
+                                        amount: nextAmount,
+                                        amountInput,
+                                      }
                                     : r
                                 ),
+                              };
+                            });
+                          }}
+                          onBlur={() => {
+                            setExt((e) => {
+                              const cap = Math.max(0, finalTotal);
+                              const otherSum = sumCustomerAmounts(
+                                e.customerPayments.filter(
+                                  (r) => r.id !== row.id
+                                )
+                              );
+                              const maxForRow = Math.max(0, cap - otherSum);
+                              return {
+                                ...e,
+                                customerPayments: e.customerPayments.map((r) => {
+                                  if (r.id !== row.id) return r;
+                                  const amount = roundMoney(
+                                    Math.min(
+                                      paymentRowEffectiveAmount(r),
+                                      maxForRow
+                                    )
+                                  );
+                                  return {
+                                    ...r,
+                                    amount,
+                                    amountInput: undefined,
+                                  };
+                                }),
                               };
                             });
                           }}
@@ -1627,7 +1705,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           inputClassName="text-end"
                           inputStyle={tablePriceInputStyle}
                           isEditable={!partnerLock}
-                          value={row.amount === 0 ? "" : String(row.amount)}
+                          value={paymentAmountFieldValue(row)}
                           onChange={(val) => {
                             if (partnerLock) return;
                             setExt((e) => {
@@ -1636,21 +1714,49 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                 e.partnerPayments.filter((r) => r.id !== row.id)
                               );
                               const maxForRow = Math.max(0, cap - otherSum);
-                              const t = val.trim();
-                              let nextAmount = 0;
-                              if (t !== "") {
-                                const n = parseFloat(t);
-                                if (!Number.isNaN(n) && n >= 0) {
-                                  nextAmount = Math.min(n, maxForRow);
-                                }
-                              }
+                              const amountInput = sanitizeMoneyInput(val);
+                              let nextAmount = parseMoneyInput(amountInput);
+                              nextAmount = roundMoney(
+                                Math.min(nextAmount, maxForRow)
+                              );
                               return {
                                 ...e,
                                 partnerPayments: e.partnerPayments.map((r) =>
                                   r.id === row.id
-                                    ? { ...r, amount: nextAmount }
+                                    ? {
+                                        ...r,
+                                        amount: nextAmount,
+                                        amountInput,
+                                      }
                                     : r
                                 ),
+                              };
+                            });
+                          }}
+                          onBlur={() => {
+                            if (partnerLock) return;
+                            setExt((e) => {
+                              const cap = Math.max(0, partnerDueTotal);
+                              const otherSum = sumPartnerAmounts(
+                                e.partnerPayments.filter((r) => r.id !== row.id)
+                              );
+                              const maxForRow = Math.max(0, cap - otherSum);
+                              return {
+                                ...e,
+                                partnerPayments: e.partnerPayments.map((r) => {
+                                  if (r.id !== row.id) return r;
+                                  const amount = roundMoney(
+                                    Math.min(
+                                      paymentRowEffectiveAmount(r),
+                                      maxForRow
+                                    )
+                                  );
+                                  return {
+                                    ...r,
+                                    amount,
+                                    amountInput: undefined,
+                                  };
+                                }),
                               };
                             });
                           }}
@@ -1716,23 +1822,19 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
             </div>
           </section>
 
-          <Row className="mt-4">
-            <Col
-              xs={12}
-              className={
-                embedded
-                  ? "d-flex justify-content-end"
-                  : "text-center d-flex justify-content-end gap-3"
-              }
-            >
-              <Button
-                type="button"
-                className="custom-btn-primary"
-                onClick={() => void save()}
+          {!embedded ? (
+            <Row className="mt-4">
+              <Col
+                xs={12}
+                className="text-center d-flex justify-content-end gap-3"
               >
-                {embedded ? "Save payments & charges" : "Save"}
-              </Button>
-              {!embedded ? (
+                <Button
+                  type="button"
+                  className="custom-btn-primary"
+                  onClick={() => void save()}
+                >
+                  Save
+                </Button>
                 <Button
                   type="button"
                   className="custom-btn-secondary"
@@ -1740,9 +1842,9 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 >
                   Cancel
                 </Button>
-              ) : null}
-            </Col>
-          </Row>
+              </Col>
+            </Row>
+          ) : null}
     </div>
   );
 

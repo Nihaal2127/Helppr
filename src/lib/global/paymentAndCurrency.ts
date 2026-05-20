@@ -112,6 +112,46 @@ export function formatMoney2(amount: number): string {
   return roundMoney(amount).toFixed(2);
 }
 
+/** While typing money: digits, optional `.`, max 2 fraction digits (does not round). */
+export function sanitizeMoneyInput(raw: string): string {
+  const cleaned = String(raw ?? "").replace(/[^\d.]/g, "");
+  if (!cleaned) return "";
+  const dotIdx = cleaned.indexOf(".");
+  if (dotIdx === -1) return cleaned;
+  const intPart = cleaned.slice(0, dotIdx + 1);
+  const frac = cleaned.slice(dotIdx + 1).replace(/\./g, "").slice(0, 2);
+  return intPart + frac;
+}
+
+/** Parse sanitized money text to a rounded number (`""` / `"."` → 0). */
+export function parseMoneyInput(raw: string): number {
+  const t = sanitizeMoneyInput(raw).trim();
+  if (!t || t === ".") return 0;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return roundMoney(n);
+}
+
+/** Paid-amount field display: show in-progress text while typing, else formatted amount. */
+export function paymentAmountFieldValue(row: {
+  amount: number;
+  amountInput?: string;
+}): string {
+  if (row.amountInput != null) return row.amountInput;
+  if (!row.amount) return "";
+  return formatMoney2(row.amount);
+}
+
+/** Effective rupee value from stored amount + optional draft input. */
+export function paymentRowEffectiveAmount(row: {
+  amount: number;
+  amountInput?: string;
+}): number {
+  const draft = row.amountInput?.trim();
+  if (draft && draft !== ".") return parseMoneyInput(draft);
+  return roundMoney(Number(row.amount) || 0);
+}
+
 export function formatCurrency(
   amount: number,
   opts?: { decimals?: number; symbol?: string }

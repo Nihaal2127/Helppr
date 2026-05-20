@@ -1750,6 +1750,14 @@ body:has(.modal.show ~ .modal.show) {
 
   .modal-body.add-quote-modal-body {
     padding: 0.75rem 1.5rem 1.5rem;
+
+    /* Label + value rows: tight gap (matches quote/order view field rows). */
+    .custom-personal-row-value {
+      width: auto !important;
+      max-width: 100%;
+      white-space: normal;
+      word-break: break-word;
+    }
   }
 
   @media (min-width: 768px) {
@@ -1784,6 +1792,42 @@ body:has(.modal.show ~ .modal.show) {
     font-size: 1rem;
     font-weight: 600;
     color: var(--primary-color);
+  }
+
+  /* Edit order — locked partner / category / service / user selects (full label, same row rhythm as User). */
+  .order-edit-locked-select {
+    .react-select__control--is-disabled {
+      background-color: var(--bg-color, #fff);
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12));
+      cursor: default;
+      min-height: 35px !important;
+      height: auto !important;
+    }
+
+    .react-select--is-disabled .react-select__single-value {
+      color: var(--content-txt-color, #333);
+      position: static !important;
+      transform: none !important;
+      max-width: 100% !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: unset !important;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .react-select--is-disabled .react-select__value-container {
+      padding: 6px 8px !important;
+      flex-wrap: wrap;
+    }
+
+    .react-select--is-disabled .react-select__indicators {
+      opacity: 0.45;
+    }
+  }
+
+  .order-edit-catalog-row {
+    margin-top: 0.25rem !important;
   }
 
   .add-quote-schedule-panel {
@@ -2472,6 +2516,45 @@ body:has(.modal.show ~ .modal.show) {
   min-height: 36px;
 }
 
+/* Compact label | value (order/quote view, service address, details rows). */
+.info-detail-inline-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  margin-bottom: 0.5rem;
+}
+
+.info-detail-inline-label {
+  flex: 0 0 10.25rem;
+  max-width: 10.25rem;
+  white-space: nowrap;
+}
+
+.info-detail-inline-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto !important;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Person blocks (User / Partner / Employee): long email on full-width row. */
+.info-detail-inline-row--long-text .info-detail-inline-label {
+  flex: 0 0 10.25rem;
+  max-width: 10.25rem;
+}
+
+.info-detail-inline-row--long-text .info-detail-inline-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.modal-body.add-quote-modal-body .info-detail-inline-row--long-text .info-detail-inline-value {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
 .custom-personal-row-title {
   font-size: 16px;
   font-weight: 600;
@@ -2484,7 +2567,36 @@ body:has(.modal.show ~ .modal.show) {
   font-family: "Inter";
   color: var(--txt-color);
   width: 130px;
-  white-space: nowrap
+  white-space: nowrap;
+}
+
+/* Quote/order person blocks: Name + Phone on one row; Email below. */
+.quote-info-person-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1.25rem;
+  row-gap: 0.15rem;
+  margin-bottom: 0.15rem;
+}
+
+@media (max-width: 575.98px) {
+  .quote-info-person-fields-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quote-info-person-fields-col {
+  min-width: 0;
+}
+
+.quote-info-person-section .info-detail-inline-row .custom-personal-row-value,
+.modal-body.add-quote-modal-body
+  .quote-info-person-section
+  .info-detail-inline-row
+  .custom-personal-row-value {
+  width: auto !important;
+  max-width: none;
+  white-space: normal;
 }
 
 .custom-personal-row-value a {

@@ -26,17 +26,31 @@ import {
   formatQuoteAddressRowAsServiceLine,
   formatQuoteServiceAddressLines,
   parseCatalogAddressRecord,
+  parseCompositeServiceAddressLine,
 } from "../quote/quoteAddressCore";
 import type { QuoteAddressRowUi } from "../quote/quoteAddressCore";
 import { deriveOrderScheduleMetrics } from "./orderScheduleMetrics";
 import { workTimeToTimeStorage } from "./orderTimeUtils";
 import {
   normalizePaymentMethod,
+  parseMoneyInput,
   paymentMethodFromExpenseModeId,
+  paymentRowEffectiveAmount,
   roundMoney,
 } from "../global/paymentAndCurrency";
+import type {
+  CustomerPaymentRow,
+  OtherChargeRow,
+  PartnerPaymentRow,
+} from "./orderPaymentRows";
 
 export { roundMoney } from "../global/paymentAndCurrency";
+
+export type {
+  CustomerPaymentRow,
+  OtherChargeRow,
+  PartnerPaymentRow,
+} from "./orderPaymentRows";
 
 
 // ========== Types ==========
@@ -195,6 +209,10 @@ export interface OrderModel {
   service_name?: string | null;
   tax_percent?: number | null;
   commission_percent?: number | null;
+  /** GET detail — commission rupees (may be pre- or post-offer) */
+  commission_amount?: number | null;
+  admin_commission?: number | null;
+  tax_amount?: number | null;
   /** GET /order/get/:id — populated saved address */
   address_info?: Record<string, unknown> | null;
   partner_info?: UserModel | null;
@@ -505,10 +523,12 @@ export function buildOrderPaymentUpdatePayload(input: {
     };
   }
 
-  const payMeta = deriveOrderCustomerPaymentFields(
+  const invoiceTotal = orderPaymentInvoiceTotal(
     input.ext,
-    input.totalServiceCharge
+    input.order,
+    getPrimaryServiceItem(input.order)
   );
+  const payMeta = deriveOrderCustomerPaymentFields(input.ext, invoiceTotal);
   body.is_paid = payMeta.is_paid;
   body.customer_payment_method = payMeta.customer_payment_method;
 
@@ -728,6 +748,36 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     partner_info:
       (nestedObj(r.partner_info) as OrderModel["partner_info"] | undefined) ??
       (r.partner_info as OrderModel["partner_info"]),
+    ...((): Partial<OrderModel> => {
+      const offerRec = nestedObj(r.order_offer);
+      if (!offerRec) return {};
+      const disc = parseOrderMoneyField(
+        offerRec.offer_discount_amount ?? offerRec.discount_amount
+      );
+      return {
+        offer_id:
+          str(offerRec._id) ||
+          str(offerRec.offer_id) ||
+          str(r.offer_id) ||
+          null,
+        offer_name:
+          str(offerRec.name) ||
+          str(offerRec.offer_name) ||
+          str(r.offer_name) ||
+          null,
+        offer_discount_amount:
+          disc > 0 ? disc : apiMoney(r.offer_discount_amount),
+        total_offer_value: parseOrderMoneyField(
+          offerRec.total_offer_value ?? offerRec.value ?? r.total_offer_value
+        ),
+        admin_contribution: parseOrderMoneyField(
+          offerRec.admin_contribution ?? r.admin_contribution
+        ),
+        partner_contribution: parseOrderMoneyField(
+          offerRec.partner_contribution ?? r.partner_contribution
+        ),
+      };
+    })(),
   };
 }
 
@@ -1100,6 +1150,26 @@ export function getPartnerPaymentStatusLabel(order?: OrderModel): string {
   }
   const raw = order?.partner_payment_status?.trim();
   if (raw) return raw;
+
+  if (order && orderUsesApiPaymentLedger(order)) {
+    const primary = getPrimaryServiceItem(order);
+    const partnerDue = roundMoney(
+      Math.max(
+        0,
+        Number(primary?.service_price ?? 0) ||
+          Number(order.service_price ?? 0) ||
+          Number(order.total_service_charge ?? 0)
+      )
+    );
+    const paid = sumApiPaymentsByPayer(order, "partner");
+    if (partnerDue > 0.009) {
+      if (paid >= partnerDue - 0.01) return "Paid";
+      if (paid > 0.009) return "Partially paid";
+      return "Unpaid";
+    }
+    if (paid > 0.009) return "Partially paid";
+  }
+
   const items = order?.service_items ?? [];
   if (!items.length) return "-";
   const paid = items.filter((i) => i.is_paid).length;
@@ -1303,11 +1373,12 @@ export function resolveOrderOfferBreakdown(
     };
   }
 
-  if (orderHasOffer(order)) {
+  if (orderHasOffer(order) && appliedDiscount > 0) {
+    const split = splitOfferContributionAmounts(appliedDiscount);
     return {
       totalOfferValue: appliedDiscount,
-      adminContribution: 0,
-      partnerContribution: 0,
+      adminContribution: split.admin,
+      partnerContribution: split.partner,
       appliedDiscount,
       offerName: order.offer_name?.trim() || undefined,
       offerCode: codeFromOrder,
@@ -1349,11 +1420,25 @@ export function getOrderServiceAddressDisplay(
   const addrRef = orderAddressRecord(rec);
   const parsed = addrRef ? parseCatalogAddressRecord(addrRef) : null;
 
+  const primary = getPrimaryServiceItem(order);
+  const flat =
+    order.address?.trim() ||
+    primary?.service_address?.trim() ||
+    order.user_info?.address?.trim() ||
+    "";
+  const franchiseRec = nestedObj(rec.franchise_info);
+  const composite = flat
+    ? parseCompositeServiceAddressLine(
+        flat,
+        str(addrRef?.pincode ?? addrRef?.postal_code)
+      )
+    : null;
+
   if (parsed) {
-    const state = displayStateName(parsed.stateName);
-    const city = str(parsed.cityName);
-    const area = str(parsed.areaName);
-    const pincode = str(parsed.pincode);
+    let state = displayStateName(parsed.stateName);
+    let city = str(parsed.cityName);
+    let area = str(parsed.areaName);
+    let pincode = str(parsed.pincode);
     let addressLine = [parsed.streetAddress, parsed.landmark]
       .map((s) => str(s))
       .filter(Boolean)
@@ -1364,6 +1449,18 @@ export function getOrderServiceAddressDisplay(
         str(addrRef?.street ?? addrRef?.address_line) ||
         str(parsed.areaName) ||
         "";
+    }
+    if (composite && (!state || !city || !area)) {
+      if (!state) state = composite.state;
+      if (!city) city = composite.city;
+      if (!area) area = composite.area;
+      if (!pincode) pincode = composite.pincode;
+      if (!addressLine || addressLine === str(addrRef?.address)) {
+        addressLine = composite.addressLine || addressLine;
+      }
+    }
+    if (!state) {
+      state = displayStateName(str(franchiseRec?.state_name));
     }
     return {
       state: state || dash,
@@ -1378,26 +1475,32 @@ export function getOrderServiceAddressDisplay(
   const city =
     str((order as OrderModel & { city_name?: string }).city_name) ||
     str(order.city_info?.name) ||
-    str(cityRef?.name);
+    str(cityRef?.name) ||
+    (composite?.city ?? "");
   const state =
     displayStateName(
       str(addrRef?.state) ||
         str(nestedObj(addrRef?.state_id)?.name) ||
-        str((order.city_info as { state_name?: string } | undefined)?.state_name)
+        str((order.city_info as { state_name?: string } | undefined)?.state_name) ||
+        str(franchiseRec?.state_name) ||
+        (composite?.state ?? "")
     ) || "";
 
-  const primary = getPrimaryServiceItem(order);
-  const flat =
-    order.address?.trim() ||
-    primary?.service_address?.trim() ||
-    order.user_info?.address?.trim() ||
-    "";
+  if (composite) {
+    return {
+      state: state || composite.state || dash,
+      city: city || composite.city || dash,
+      area: composite.area || dash,
+      pincode: composite.pincode || str(addrRef?.pincode) || dash,
+      addressLine: composite.addressLine || dash,
+    };
+  }
 
   return {
     state: state || dash,
     city: city || dash,
     area: dash,
-    pincode: dash,
+    pincode: str(addrRef?.pincode) || dash,
     addressLine: flat || dash,
   };
 }
@@ -1442,27 +1545,6 @@ export function serviceNamesJoined(order?: OrderModel): string {
 }
 
 export const ORDER_PAYMENT_MARKER = "__OPAY1__";
-
-export type OtherChargeRow = {
-  id: string;
-  amount: number;
-  description: string;
-  /** Extra service / line item label for this charge */
-  serviceName?: string;
-};
-export type CustomerPaymentRow = {
-  id: string;
-  date: string;
-  amount: number;
-  type: string;
-  description: string;
-};
-export type PartnerPaymentRow = {
-  id: string;
-  date: string;
-  amount: number;
-  description: string;
-};
 
 export type OrderPaymentExtV1 = {
   v: 1;
@@ -1594,16 +1676,95 @@ export function orderPaymentSummaryServiceAmount(
   );
 }
 
+export {
+  orderPartnerPriceAmount,
+  orderUserPriceAmount,
+} from "./orderPriceAmounts";
+
+/**
+ * Order/quote pricing: commission on (service + additional charges), then tax on subtotal.
+ * Matches `computeQuotePriceBreakdown` in quoteHelpers.
+ */
+export function computeOrderPaymentLineTotals(
+  serviceAmount: number,
+  otherChargesSum: number,
+  taxPct: number,
+  commissionPct: number
+): {
+  commissionBase: number;
+  commissionAmount: number;
+  subtotalBeforeTax: number;
+  taxAmount: number;
+  totalInclTax: number;
+} {
+  const commissionBase = roundMoney(
+    Math.max(0, Number(serviceAmount) || 0) +
+      Math.max(0, Number(otherChargesSum) || 0)
+  );
+  const commissionAmount = roundMoney(
+    (commissionBase * Math.max(0, Number(commissionPct) || 0)) / 100
+  );
+  const subtotalBeforeTax = roundMoney(commissionBase + commissionAmount);
+  const taxAmount = roundMoney(
+    (subtotalBeforeTax * Math.max(0, Number(taxPct) || 0)) / 100
+  );
+  const totalInclTax = roundMoney(subtotalBeforeTax + taxAmount);
+  return {
+    commissionBase,
+    commissionAmount,
+    subtotalBeforeTax,
+    taxAmount,
+    totalInclTax,
+  };
+}
+
+/** @deprecated Prefer `computeOrderPaymentLineTotals` (tax is on subtotal, not parallel on base). */
 export function computeTaxCommissionAmounts(
   serviceAmount: number,
   taxPct: number,
   commissionPct: number
 ): { taxAmount: number; commissionAmount: number } {
-  const s = Math.max(0, serviceAmount);
+  const line = computeOrderPaymentLineTotals(
+    serviceAmount,
+    0,
+    taxPct,
+    commissionPct
+  );
   return {
-    taxAmount: roundMoney((s * taxPct) / 100),
-    commissionAmount: roundMoney((s * commissionPct) / 100),
+    taxAmount: line.taxAmount,
+    commissionAmount: line.commissionAmount,
   };
+}
+
+/** User invoice total from payment editor rows (incl. tax, offers, discounts, refunds). */
+export function orderPaymentInvoiceTotal(
+  ext: OrderPaymentExtV1,
+  order: OrderModel,
+  primary?: OrderItemModel
+): number {
+  const { taxPct, commissionPct } = getServiceTaxCommissionPercents(
+    primary,
+    order
+  );
+  const otherSum = otherChargesTotal(ext.otherCharges ?? []);
+  const pricing = computeOrderPaymentLineTotals(
+    ext.serviceAmount,
+    otherSum,
+    taxPct,
+    commissionPct
+  );
+  const offer = resolveOrderOfferBreakdown(order);
+  const refundN = orderRefundAmount(order);
+  const orderDiscount = Math.max(0, Number(order.discount_amount ?? 0));
+  return Math.max(
+    0,
+    roundMoney(
+      pricing.totalInclTax -
+        offer.appliedDiscount -
+        orderDiscount -
+        refundN
+    )
+  );
 }
 
 /** When no saved extension, show sensible default rows (matches common invoice-style lines). */
@@ -1710,13 +1871,33 @@ export function buildDefaultPaymentExtension(
   };
 }
 
-function extensionFromApiOrderPayments(
+/** True when `GET /order/get/:id` included an `order_payments` array (may be empty). */
+export function orderUsesApiPaymentLedger(order: OrderModel): boolean {
+  return Array.isArray(order.order_payments);
+}
+
+function sumApiPaymentsByPayer(
+  order: OrderModel,
+  payer: "customer" | "partner"
+): number {
+  const target = payer === "partner" ? "partner" : "customer";
+  let sum = 0;
+  for (const p of order.order_payments ?? []) {
+    const pt = String(p.payer_type ?? "").trim().toLowerCase();
+    if (pt === (target === "partner" ? "partner" : "customer")) {
+      sum += apiMoney(p.amount);
+    }
+  }
+  return roundMoney(sum);
+}
+
+/** Map `order_payments` / `additional_charges` from API into the payment editor model. */
+function buildPaymentExtensionFromApiLedger(
   order: OrderModel,
   primary?: OrderItemModel
-): OrderPaymentExtV1 | null {
-  const payments = order.order_payments;
-  const charges = order.additional_charges;
-  if (!payments?.length && !charges?.length) return null;
+): OrderPaymentExtV1 {
+  const payments = order.order_payments ?? [];
+  const charges = order.additional_charges ?? [];
 
   const { taxPct, commissionPct } = getServiceTaxCommissionPercents(
     primary,
@@ -1726,7 +1907,7 @@ function extensionFromApiOrderPayments(
 
   const customerPayments: CustomerPaymentRow[] = [];
   const partnerPayments: PartnerPaymentRow[] = [];
-  for (const p of payments ?? []) {
+  for (const p of payments) {
     const payer = String(p.payer_type ?? "").trim().toLowerCase();
     const amount = apiMoney(p.amount);
     if (amount <= 0) continue;
@@ -1750,7 +1931,7 @@ function extensionFromApiOrderPayments(
     }
   }
 
-  const otherCharges: OtherChargeRow[] = (charges ?? []).map((c) => ({
+  const otherCharges: OtherChargeRow[] = charges.map((c) => ({
     id: str(c._id) || newId(),
     amount: apiMoney(c.amount),
     description: str(c.description) || "",
@@ -1772,8 +1953,10 @@ export function resolvePaymentExtension(
   order: OrderModel,
   primary?: OrderItemModel
 ): OrderPaymentExtV1 {
+  if (orderUsesApiPaymentLedger(order)) {
+    return buildPaymentExtensionFromApiLedger(order, primary);
+  }
   return (
-    extensionFromApiOrderPayments(order, primary) ??
     parsePaymentExtension(order.comment) ??
     buildDefaultPaymentExtension(order, primary)
   );
@@ -1798,11 +1981,11 @@ export function sumPartnerAmounts(rows: PartnerPaymentRow[]): number {
 }
 
 export function isCustomerPaymentRowComplete(row: CustomerPaymentRow): boolean {
-  return roundMoney(Number(row.amount) || 0) > 0.009;
+  return paymentRowEffectiveAmount(row) > 0.009;
 }
 
 export function isPartnerPaymentRowComplete(row: PartnerPaymentRow): boolean {
-  return roundMoney(Number(row.amount) || 0) > 0.009;
+  return paymentRowEffectiveAmount(row) > 0.009;
 }
 
 export type CanAddPaymentRowResult = {
@@ -1918,26 +2101,54 @@ function sumTemplateSideCountedPayments<
   );
 }
 
-/** User-facing headline: paid vs balance (uses template rows when present). */
+/** User-facing headline: amount paid so far vs remaining due. */
 export function customerPaidBalanceHeadline(
   ext: OrderPaymentExtV1,
   invoiceTotal: number,
-  orderIsPaid: boolean
+  _orderIsPaid: boolean,
+  order?: OrderModel
 ): { totalPaid: number; balance: number } {
   const inv = Math.max(0, Number(invoiceTotal) || 0);
+
+  if (order && orderUsesApiPaymentLedger(order)) {
+    const netPaid = apiMoney(order.customer_net_paid);
+    const paidAmount = apiMoney(order.customer_paid_amount);
+    const dueAmount = apiMoney(order.customer_due_amount);
+    const rowSum = sumCustomerAmounts(ext.customerPayments);
+
+    let totalPaid = 0;
+    if (netPaid > 0.009) totalPaid = netPaid;
+    else if (paidAmount > 0.009) totalPaid = paidAmount;
+    else totalPaid = rowSum;
+
+    totalPaid = Math.min(inv, Math.max(0, roundMoney(totalPaid)));
+    const balance =
+      dueAmount > 0.009
+        ? roundMoney(dueAmount)
+        : Math.max(0, roundMoney(inv - totalPaid));
+    return { totalPaid, balance };
+  }
+
   const totalPaidRaw = hasCustomerPaymentTemplateRows(ext)
     ? sumTemplateSideCountedPayments(ext.customerPayments, inv)
-    : (() => {
-        const paidRow = amountForPaymentDescription(
-          ext.customerPayments,
-          "Paid amount"
-        );
-        return paidRow !== null ? paidRow : orderIsPaid ? inv : 0;
-      })();
+    : sumCustomerAmounts(ext.customerPayments);
   const totalPaid = Math.min(inv, Math.max(0, totalPaidRaw));
-  /** Always derive balance from the current invoice total — stored "Balance amount" rows go stale. */
   const balance = Math.max(0, roundMoney(inv - totalPaid));
   return { totalPaid, balance };
+}
+
+/** View / read-only: same as `customerPaidBalanceHeadline` with order context for API ledger. */
+export function customerPaidBalanceHeadlineForView(
+  ext: OrderPaymentExtV1,
+  invoiceTotal: number,
+  order: OrderModel
+): { totalPaid: number; balance: number } {
+  return customerPaidBalanceHeadline(
+    ext,
+    invoiceTotal,
+    !!order.is_paid,
+    order
+  );
 }
 
 /** Partner headline: paid vs balance (`invoiceTotal` = partner obligation before tax/commission). */
@@ -1950,13 +2161,7 @@ export function partnerPaidBalanceHeadline(
   const inv = Math.max(0, Number(invoiceTotal) || 0);
   const totalPaidRaw = hasPartnerPaymentTemplateRows(ext)
     ? sumTemplateSideCountedPayments(ext.partnerPayments, inv)
-    : (() => {
-        const paidRow = amountForPaymentDescription(
-          ext.partnerPayments,
-          "Paid amount"
-        );
-        return paidRow !== null ? paidRow : orderIsPaid ? inv : 0;
-      })();
+    : sumPartnerAmounts(ext.partnerPayments);
   const totalPaid = Math.min(inv, Math.max(0, totalPaidRaw));
   const balance = Math.max(0, roundMoney(inv - totalPaid));
   return { totalPaid, balance };
@@ -2084,6 +2289,7 @@ export type EditOrderFormValues = AddQuoteFormValues & {
   order_status: string;
   customer_payment_status: string;
   partner_payment_status: string;
+  offer_id?: string;
 };
 
 function ymdChunk(isoish: string): string {
@@ -2182,6 +2388,11 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
     order_status: String(order.order_status ?? 1),
     customer_payment_status: getCustomerPaymentStatusLabel(order),
     partner_payment_status: getPartnerPaymentStatusLabel(order),
+    offer_id: String(
+      order.offer_id ??
+        (order as OrderModel & { order_offer_id?: string }).order_offer_id ??
+        ""
+    ).trim(),
   };
 }
 
@@ -2220,11 +2431,12 @@ export function buildOrderEditAllUpdatePayload(input: {
     "in-progress";
 
   const customerPaySlug = normalizeCustomerPaymentStatusSlug(
-    form.customer_payment_status
+    getCustomerPaymentStatusLabel(order)
   );
   const partnerPaySlug = normalizePartnerPaymentStatusSlug(
-    form.partner_payment_status
+    getPartnerPaymentStatusLabel(order)
   );
+  const offerId = String(form.offer_id ?? order.offer_id ?? "").trim();
 
   const serviceDateIso = scheduleStorageToIso(
     form.requested_date,
@@ -2265,6 +2477,7 @@ export function buildOrderEditAllUpdatePayload(input: {
   if (userId) payload.user_id = userId;
   if (customerPaySlug) payload.customer_payment_status = customerPaySlug;
   if (partnerPaySlug) payload.partner_payment_status = partnerPaySlug;
+  if (offerId) payload.offer_id = offerId;
 
   if (input.selectedAddressId.trim()) {
     payload.address_id = input.selectedAddressId.trim();

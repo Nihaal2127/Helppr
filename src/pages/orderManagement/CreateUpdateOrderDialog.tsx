@@ -41,6 +41,10 @@ import { UserModel } from "../../lib/models/UserModel";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import {
   formatMoney2,
+  parseMoneyInput,
+  paymentAmountFieldValue,
+  paymentRowEffectiveAmount,
+  sanitizeMoneyInput,
   normalizePaymentMethod,
   paymentMethodSelectOptions,
 } from "../../lib/global/paymentAndCurrency";
@@ -55,9 +59,9 @@ import { TaxOtherChargesModel } from "../../lib/models/TaxOtherChargesModel";
 import { openDialog } from "../../lib/global/DialogManager";
 import type {
   CustomerPaymentRow,
-  OrderPaymentExtV1,
   PartnerPaymentRow,
-} from "../../lib/order/orders";
+} from "../../lib/order/orderPaymentRows";
+import type { OrderPaymentExtV1 } from "../../lib/order/orders";
 import {
   sumCustomerAmounts,
   sumPartnerAmounts,
@@ -114,6 +118,7 @@ import {
   useQuoteCustomerAddressPanel,
 } from "../../lib/quote/quoteHelpers";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import { buildOrderAmountSummaryFromQuoteBreakdown } from "../../lib/order/orderAmountSummary";
 
 /** --- Service address cards --- */
 
@@ -1058,7 +1063,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                 handleInputChange(
                   index,
                   "service_price",
-                  sanitizeDecimalDigits(value)
+                  sanitizeMoneyInput(value)
                 )
               }
               inputStyle={{
@@ -3726,30 +3731,31 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     <div style={priceSummarySection}>
                       {createOrderPriceBreakdown ? (
                         <OrderAmountSummaryPanel
-                          serviceAmount={createOrderPriceBreakdown.base}
-                          offerDiscount={previewCouponBreakdown.appliedDiscount}
-                          taxPct={createOrderPriceBreakdown.taxPct}
-                          taxAmount={createOrderPriceBreakdown.taxAmount}
-                          commissionPct={createOrderPriceBreakdown.commissionPct}
-                          commissionAmount={
-                            createOrderPriceBreakdown.commissionAmount
-                          }
-                          offer={{
-                            totalOfferValue:
-                              Number(selectedCouponOffer?.totalOfferValue) ||
-                              previewCouponBreakdown.appliedDiscount,
-                            adminContribution:
-                              previewCouponBreakdown.adminContribution,
-                            partnerContribution:
-                              previewCouponBreakdown.partnerContribution,
-                            appliedDiscount:
-                              previewCouponBreakdown.appliedDiscount,
-                            offerName: previewCouponBreakdown.offerName,
-                            offerCode: previewCouponBreakdown.offerCode
-                              ? String(previewCouponBreakdown.offerCode)
-                              : undefined,
-                          }}
-                          finalTotal={createFinalTotal}
+                          display={buildOrderAmountSummaryFromQuoteBreakdown(
+                            createOrderPriceBreakdown,
+                            {
+                              offer: {
+                                totalOfferValue:
+                                  Number(
+                                    selectedCouponOffer?.totalOfferValue
+                                  ) ||
+                                  previewCouponBreakdown.appliedDiscount,
+                                adminContribution:
+                                  previewCouponBreakdown.adminContribution,
+                                partnerContribution:
+                                  previewCouponBreakdown.partnerContribution,
+                                appliedDiscount:
+                                  previewCouponBreakdown.appliedDiscount,
+                                offerName: previewCouponBreakdown.offerName,
+                                offerCode: previewCouponBreakdown.offerCode
+                                  ? String(
+                                      previewCouponBreakdown.offerCode
+                                    )
+                                  : undefined,
+                              },
+                              finalTotal: createFinalTotal,
+                            }
+                          )}
                           style={{
                             marginTop: 0,
                             padding: 0,
@@ -3949,11 +3955,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       inputType="text"
                                       inputClassName="text-end"
                                       inputStyle={tablePriceInputCreate}
-                                      value={
-                                        row.amount === 0
-                                          ? ""
-                                          : formatMoney2(row.amount)
-                                      }
+                                      value={paymentAmountFieldValue(row)}
                                       onChange={(val) => {
                                         setCreatePaymentExt((e) => {
                                           const cap = Math.max(
@@ -3969,24 +3971,63 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                             0,
                                             cap - otherSum
                                           );
-                                          const t = val.trim();
-                                          let nextAmount = 0;
-                                          if (t !== "") {
-                                            const n = parseFloat(t);
-                                            if (!Number.isNaN(n) && n >= 0) {
-                                              nextAmount = roundMoney(
-                                                Math.min(n, maxForRow)
-                                              );
-                                            }
+                                          const amountInput =
+                                            sanitizeMoneyInput(val);
+                                          let nextAmount = parseMoneyInput(
+                                            amountInput
+                                          );
+                                          if (maxForRow >= 0) {
+                                            nextAmount = roundMoney(
+                                              Math.min(nextAmount, maxForRow)
+                                            );
                                           }
                                           return {
                                             ...e,
                                             customerPayments:
                                               e.customerPayments.map((r) =>
                                                 r.id === row.id
-                                                  ? { ...r, amount: nextAmount }
+                                                  ? {
+                                                      ...r,
+                                                      amount: nextAmount,
+                                                      amountInput,
+                                                    }
                                                   : r
                                               ),
+                                          };
+                                        });
+                                      }}
+                                      onBlur={() => {
+                                        setCreatePaymentExt((e) => {
+                                          const cap = Math.max(
+                                            0,
+                                            createFinalTotal
+                                          );
+                                          const otherSum = sumCustomerAmounts(
+                                            e.customerPayments.filter(
+                                              (r) => r.id !== row.id
+                                            )
+                                          );
+                                          const maxForRow = Math.max(
+                                            0,
+                                            cap - otherSum
+                                          );
+                                          return {
+                                            ...e,
+                                            customerPayments:
+                                              e.customerPayments.map((r) => {
+                                                if (r.id !== row.id) return r;
+                                                const amount = roundMoney(
+                                                  Math.min(
+                                                    paymentRowEffectiveAmount(r),
+                                                    maxForRow
+                                                  )
+                                                );
+                                                return {
+                                                  ...r,
+                                                  amount,
+                                                  amountInput: undefined,
+                                                };
+                                              }),
                                           };
                                         });
                                       }}
@@ -4245,11 +4286,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       inputType="text"
                                       inputClassName="text-end"
                                       inputStyle={tablePriceInputCreate}
-                                      value={
-                                        row.amount === 0
-                                          ? ""
-                                          : formatMoney2(row.amount)
-                                      }
+                                      value={paymentAmountFieldValue(row)}
                                       onChange={(val) => {
                                         setCreatePaymentExt((e) => {
                                           const cap = Math.max(
@@ -4265,24 +4302,63 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                             0,
                                             cap - otherSum
                                           );
-                                          const t = val.trim();
-                                          let nextAmount = 0;
-                                          if (t !== "") {
-                                            const n = parseFloat(t);
-                                            if (!Number.isNaN(n) && n >= 0) {
-                                              nextAmount = roundMoney(
-                                                Math.min(n, maxForRow)
-                                              );
-                                            }
+                                          const amountInput =
+                                            sanitizeMoneyInput(val);
+                                          let nextAmount = parseMoneyInput(
+                                            amountInput
+                                          );
+                                          if (maxForRow >= 0) {
+                                            nextAmount = roundMoney(
+                                              Math.min(nextAmount, maxForRow)
+                                            );
                                           }
                                           return {
                                             ...e,
                                             partnerPayments:
                                               e.partnerPayments.map((r) =>
                                                 r.id === row.id
-                                                  ? { ...r, amount: nextAmount }
+                                                  ? {
+                                                      ...r,
+                                                      amount: nextAmount,
+                                                      amountInput,
+                                                    }
                                                   : r
                                               ),
+                                          };
+                                        });
+                                      }}
+                                      onBlur={() => {
+                                        setCreatePaymentExt((e) => {
+                                          const cap = Math.max(
+                                            0,
+                                            createPartnerCap
+                                          );
+                                          const otherSum = sumPartnerAmounts(
+                                            e.partnerPayments.filter(
+                                              (r) => r.id !== row.id
+                                            )
+                                          );
+                                          const maxForRow = Math.max(
+                                            0,
+                                            cap - otherSum
+                                          );
+                                          return {
+                                            ...e,
+                                            partnerPayments:
+                                              e.partnerPayments.map((r) => {
+                                                if (r.id !== row.id) return r;
+                                                const amount = roundMoney(
+                                                  Math.min(
+                                                    paymentRowEffectiveAmount(r),
+                                                    maxForRow
+                                                  )
+                                                );
+                                                return {
+                                                  ...r,
+                                                  amount,
+                                                  amountInput: undefined,
+                                                };
+                                              }),
                                           };
                                         });
                                       }}

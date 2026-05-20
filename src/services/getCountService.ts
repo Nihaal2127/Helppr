@@ -45,7 +45,15 @@ export const getCount = async (
     if (extra?.to_date?.trim()) {
       payload.to_date = extra.to_date.trim();
     }
-    const response = await apiRequest(buildGetCountEndpoint(extra), "POST", payload);
+    const response = await apiRequest(
+      buildGetCountEndpoint(extra),
+      "POST",
+      payload,
+      false,
+      false,
+      false,
+      true
+    );
     if (response.success) {
       const d = response.data as Record<string, unknown> | undefined;
       const inner =

@@ -14,6 +14,7 @@ interface CustomFormInputProps {
   asCol?: boolean;
   value?: string | string[] | number;
   onChange?: (value: string) => void;
+  onBlur?: React.FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
   inputType?: string;
   isEditable?: boolean;
   maxLength?: number;
@@ -36,6 +37,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   error,
   asCol = true,
   onChange,
+  onBlur,
   value,
   inputType = "text",
   isEditable = true,
@@ -153,6 +155,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
         isInvalid={!!error}
         {...(isControlled ? { value: String(value ?? "") } : {})}
         onChange={handleFieldChange}
+        onBlur={onBlur}
         readOnly={!isEditable}
         autoComplete={autoComplete}
         maxLength={maxLength}

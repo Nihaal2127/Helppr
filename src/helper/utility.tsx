@@ -159,17 +159,34 @@ export const verificationStatusCell = (field: string | number) => {
   };
 };
 
-export const DetailsRow = ({ title, value }: { title: string; value: any }) => {
-  const displayValue =
-    value === undefined || value === "" || value === null ? "-" : value;
-
+/** Tight label + value (fixed label width) — use inside `md={6}` pairs e.g. service address. */
+export function InfoDetailInlineRow({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+}) {
+  const display =
+    value === undefined || value === null || value === "" ? "-" : value;
   return (
-    <Row className="row custom-personal-row">
-      <label className="col custom-personal-row-title">{title}</label>
-      <label className="col">{displayValue}</label>
-    </Row>
+    <div className={`info-detail-inline-row ${className}`.trim()}>
+      <span className="info-detail-inline-label custom-personal-row-title">
+        {label}
+      </span>
+      <span className="info-detail-inline-value custom-personal-row-value text-break">
+        {display}
+      </span>
+    </div>
   );
-};
+}
+
+/** Label + value row — same compact layout as `InfoDetailInlineRow`. */
+export const DetailsRow = ({ title, value }: { title: string; value: any }) => (
+  <InfoDetailInlineRow label={title} value={value} />
+);
 
 /** Two-column personal block: name/DOB, gender/email, phone/registered, optional last service. */
 export function PersonalAccountDetailsGrid({
@@ -239,16 +256,16 @@ export function PersonalAccountDetailsGrid({
   );
 }
 
-/** Full-width label + value without `custom-personal-row` (long schedule / address text). */
+/** Full-width label + value (long address / schedule); same 4/8 split as `DetailsRow`. */
 export function WideLabelValueBlock({
   label,
   children,
   whiteSpace = "normal",
-  gap = "3rem",
 }: {
   label: string;
   children: ReactNode;
   whiteSpace?: "pre-line" | "normal";
+  /** @deprecated Ignored — layout uses Bootstrap cols like quote view. */
   gap?: string;
 }) {
   const content =
@@ -256,32 +273,24 @@ export function WideLabelValueBlock({
       ? "-"
       : children;
   return (
-    <div className="w-100" style={{ flex: "1 1 100%", minWidth: "100%" }}>
-      <Row className="gx-0 align-items-start" style={{ gap }}>
-        <Col
-          xs={12}
-          sm="auto"
-          className="custom-personal-row-title pe-sm-3 mb-1 mb-sm-0 col-sm-auto col-12"
+    <Row className="mb-2 g-1 align-items-start custom-personal-row w-100">
+      <Col xs={12} sm={4} className="custom-personal-row-title pe-sm-2">
+        {label}
+      </Col>
+      <Col xs={12} sm={8} className="text-break" style={{ minWidth: 0 }}>
+        <div
+          className="custom-personal-row-value text-wrap"
+          style={{
+            width: "auto",
+            maxWidth: "100%",
+            whiteSpace,
+            wordBreak: "break-word",
+          }}
         >
-          {label}
-        </Col>
-        <Col xs={12} sm className="col-12" style={{ minWidth: 0 }}>
-          <div
-            className="text-wrap"
-            style={{
-              fontSize: 16,
-              fontWeight: "normal",
-              fontFamily: "Inter, sans-serif",
-              color: "var(--txt-color)",
-              whiteSpace,
-              wordBreak: "break-word",
-            }}
-          >
-            {content}
-          </div>
-        </Col>
-      </Row>
-    </div>
+          {content}
+        </div>
+      </Col>
+    </Row>
   );
 }
 
@@ -365,11 +374,18 @@ export const DetailsOrderStatusRow = ({
   }
 
   return (
-    <Row className="row custom-personal-row">
-      <label className="col custom-personal-row-title">{title}</label>
-      <label className={`col custom-personal-row-value`} style={{ color }}>
+    <Row className="mb-2 g-1 align-items-start custom-personal-row">
+      <Col xs={12} sm={4} className="custom-personal-row-title pe-sm-2">
+        {title}
+      </Col>
+      <Col
+        xs={12}
+        sm={8}
+        className="custom-personal-row-value text-break"
+        style={{ color, width: "auto", maxWidth: "100%", whiteSpace: "normal" }}
+      >
         {status}
-      </label>
+      </Col>
     </Row>
   );
 };

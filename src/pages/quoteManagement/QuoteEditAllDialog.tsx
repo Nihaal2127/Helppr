@@ -38,6 +38,7 @@ import {
   collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
   QUOTE_MODAL_LAYOUT,
+  QUOTE_SECTION_TITLE_CLASS,
   seedEditQuoteFormFromRow,
   setQuoteFranchiseCatalogSnapshot,
   useQuoteCustomerAddressPanel,
@@ -930,36 +931,35 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
               </Row>
 
               {String(form.user_id ?? "").trim() ? (
-                <Row className="mt-4">
-                  <Col xs={12}>
-                    <label
-                      className="custom-profile-lable d-block"
-                      style={{ fontWeight: 600, marginBottom: "1.125rem" }}
-                    >
-                      <FieldLabelText label="Customer addresses" required />
-                    </label>
-                    {!addressUi.ready ? (
-                      <div className="small text-muted">
-                        Loading address options…
-                      </div>
-                    ) : (
-                      <>
-                        {addressUi.error ? (
-                          <QuoteAddressPanelError message={addressUi.error} />
-                        ) : null}
-                        {addressUi.rows.length ? (
-                          <div className="add-quote-address-cards-grid mb-4">
-                            {renderAddressCards(addressUi.rows)}
-                          </div>
-                        ) : !addressUi.error ? (
-                          <div className="small text-warning">
-                            No saved address on file for this customer.
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </Col>
-                </Row>
+                <section className="border rounded p-3 mt-4 mb-0">
+                  <h6 className={QUOTE_SECTION_TITLE_CLASS}>Service address</h6>
+                  <label
+                    className="custom-profile-lable d-block"
+                    style={{ fontWeight: 600, marginBottom: "1.125rem" }}
+                  >
+                    <FieldLabelText label="Service address" required />
+                  </label>
+                  {!addressUi.ready ? (
+                    <div className="small text-muted">
+                      Loading address options…
+                    </div>
+                  ) : (
+                    <>
+                      {addressUi.error ? (
+                        <QuoteAddressPanelError message={addressUi.error} />
+                      ) : null}
+                      {addressUi.rows.length ? (
+                        <div className="add-quote-address-cards-grid">
+                          {renderAddressCards(addressUi.rows)}
+                        </div>
+                      ) : !addressUi.error ? (
+                        <div className="small text-warning">
+                          No saved address on file for this customer.
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </section>
               ) : null}
 
               {isSuperAdminOrStaff ? (
