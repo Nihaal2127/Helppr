@@ -374,19 +374,17 @@ export const DetailsOrderStatusRow = ({
   }
 
   return (
-    <Row className="mb-2 g-1 align-items-start custom-personal-row">
-      <Col xs={12} sm={4} className="custom-personal-row-title pe-sm-2">
+    <div className="info-detail-inline-row custom-personal-row">
+      <span className="info-detail-inline-label custom-personal-row-title">
         {title}
-      </Col>
-      <Col
-        xs={12}
-        sm={8}
-        className="custom-personal-row-value text-break"
-        style={{ color, width: "auto", maxWidth: "100%", whiteSpace: "normal" }}
+      </span>
+      <span
+        className="info-detail-inline-value custom-personal-row-value text-break"
+        style={{ color, whiteSpace: "normal" }}
       >
         {status}
-      </Col>
-    </Row>
+      </span>
+    </div>
   );
 };
 

@@ -2516,7 +2516,32 @@ body:has(.modal.show ~ .modal.show) {
   min-height: 36px;
 }
 
-/* Compact label | value (order/quote view, service address, details rows). */
+/* Stacked label/value columns — values align vertically (order/quote info panels). */
+.info-detail-fields-col {
+  display: grid;
+  grid-template-columns: 12.75rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.5rem;
+  align-items: start;
+}
+
+.info-detail-fields-col > .info-detail-inline-row {
+  display: contents;
+}
+
+.info-detail-fields-col .info-detail-inline-label,
+.info-detail-fields-col .info-detail-inline-value {
+  margin-bottom: 0;
+}
+
+@media (max-width: 575.98px) {
+  .info-detail-fields-col {
+    grid-template-columns: 1fr;
+    row-gap: 0.25rem;
+  }
+}
+
+/* Compact label | value fallback when not inside `.info-detail-fields-col`. */
 .info-detail-inline-row {
   display: flex;
   align-items: flex-start;
@@ -2528,7 +2553,9 @@ body:has(.modal.show ~ .modal.show) {
 .info-detail-inline-label {
   flex: 0 0 10.25rem;
   max-width: 10.25rem;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .info-detail-inline-value {
@@ -2589,11 +2616,7 @@ body:has(.modal.show ~ .modal.show) {
   min-width: 0;
 }
 
-.quote-info-person-section .info-detail-inline-row .custom-personal-row-value,
-.modal-body.add-quote-modal-body
-  .quote-info-person-section
-  .info-detail-inline-row
-  .custom-personal-row-value {
+.info-detail-inline-row .custom-personal-row-value {
   width: auto !important;
   max-width: none;
   white-space: normal;

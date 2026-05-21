@@ -1728,18 +1728,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       taxPercent: 0,
       commissionPercent: 0,
       otherCharges: [],
-      customerPayments: [
-        {
-          id: newPayRowId(),
-          date: "",
-          amount: 0,
-          type: "cash",
-          description: "",
-        },
-      ],
-      partnerPayments: [
-        { id: newPayRowId(), date: "", amount: 0, description: "" },
-      ],
+      customerPayments: [],
+      partnerPayments: [],
     })
   );
 
@@ -2104,18 +2094,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       taxPercent: 0,
       commissionPercent: 0,
       otherCharges: [],
-      customerPayments: [
-        {
-          id: newPayRowId(),
-          date: "",
-          amount: 0,
-          type: "cash",
-          description: "",
-        },
-      ],
-      partnerPayments: [
-        { id: newPayRowId(), date: "", amount: 0, description: "" },
-      ],
+      customerPayments: [],
+      partnerPayments: [],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- create-mode field reset; setValue is stable from react-hook-form
   }, [isEditable]);
@@ -2513,7 +2493,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         "payment_mode_id",
         order.payment_mode_id != null ? String(order.payment_mode_id) : "2"
       );
-      setValue("comments", order.comment ?? "");
+      setValue(
+        "comments",
+        (order.order_description ?? order.comment ?? "").trim()
+      );
       setValue("offer_id", order.offer_id ?? "");
       const defaultEmployee =
         order.created_by_id ?? getLocalStorage(AppConstant.createdById) ?? "";
@@ -3007,6 +2990,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         address: firstAddr || selectedUser?.address,
         service_items: payloadServiceItems,
         comments: data.comments ?? "",
+        order_description: (data.comments ?? "").trim() || undefined,
         name: selectedUser?.name,
         email: selectedUser?.email,
         contact: selectedUser?.phone_number,
@@ -3722,6 +3706,28 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     className="custom-other-details mt-3"
                     style={sectionShell}
                   >
+                    <Row className="g-3">
+                      <Col xs={12}>
+                        <CustomFormInput
+                          label="Order description"
+                          controlId="comments"
+                          placeholder="Optional description for this order"
+                          register={register}
+                          as="textarea"
+                          asCol={false}
+                          rows={3}
+                        />
+                      </Col>
+                    </Row>
+                  </section>
+                  ) : null}
+
+                  {hasCreateOrderServiceSelected &&
+                  isCreateOrderScheduleComplete ? (
+                  <section
+                    className="custom-other-details mt-3"
+                    style={sectionShell}
+                  >
                     <Row className="align-items-center mb-3 pb-2 border-bottom">
                       <Col>
                         <h3 className="mb-0">Payment information</h3>
@@ -3839,6 +3845,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         </Col>
                       </Row>
                       <div style={paymentSubcard}>
+                        {createPaymentExt.customerPayments.length > 0 ? (
                         <Table
                           bordered
                           size="sm"
@@ -4086,11 +4093,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       title="Remove row"
                                       aria-label="Remove user payment row"
                                       onClick={() => {
-                                        if (
-                                          createPaymentExt.customerPayments
-                                            .length <= 1
-                                        )
-                                          return;
                                         openConfirmDialog(
                                           "Are you sure you want to delete this user payment entry?",
                                           "Delete",
@@ -4122,8 +4124,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             )}
                           </tbody>
                         </Table>
+                        ) : null}
                       </div>
-                      <div className="mt-3 pt-3 border-top">
+                      <div
+                        className={
+                          createPaymentExt.customerPayments.length > 0
+                            ? "mt-3 pt-3 border-top"
+                            : ""
+                        }
+                      >
                         <div className="d-flex justify-content-between align-items-center py-1">
                           <span className="text-secondary">Total Paid</span>
                           <span className="fw-semibold" style={moneyTabular}>
@@ -4177,6 +4186,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                         </Col>
                       </Row>
                       <div style={paymentSubcard}>
+                        {createPaymentExt.partnerPayments.length > 0 ? (
                         <Table
                           bordered
                           size="sm"
@@ -4393,11 +4403,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       title="Remove row"
                                       aria-label="Remove partner payment row"
                                       onClick={() => {
-                                        if (
-                                          createPaymentExt.partnerPayments
-                                            .length <= 1
-                                        )
-                                          return;
                                         openConfirmDialog(
                                           "Are you sure you want to delete this partner payment entry?",
                                           "Delete",
@@ -4429,8 +4434,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             )}
                           </tbody>
                         </Table>
+                        ) : null}
                       </div>
-                      <div className="mt-3 pt-3 border-top">
+                      <div
+                        className={
+                          createPaymentExt.partnerPayments.length > 0
+                            ? "mt-3 pt-3 border-top"
+                            : ""
+                        }
+                      >
                         <div className="d-flex justify-content-between align-items-center py-1">
                           <span className="text-secondary">Total Paid</span>
                           <span className="fw-semibold" style={moneyTabular}>
@@ -4616,15 +4628,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     className="custom-other-details mt-3"
                     style={{ padding: "10px" }}
                   >
-                    <h3>Comments</h3>
                     <CustomFormInput
-                      label=""
+                      label="Order description"
                       controlId="comments"
-                      placeholder="Write Something"
+                      placeholder="Optional description for this order"
                       register={register}
                       as="textarea"
                       asCol={false}
-                      rows={5}
+                      rows={3}
                     />
                   </section>
 

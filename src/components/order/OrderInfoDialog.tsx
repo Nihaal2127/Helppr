@@ -238,7 +238,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
           <section className="border rounded p-3 mb-3">
             <h6 className={QUOTE_SECTION_TITLE_CLASS}>Order</h6>
             <Row className="g-2">
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <DetailsRow title="Order ID" value={orderDetails?.unique_id} />
                 <DetailsRow
                   title="Order Date"
@@ -253,7 +253,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                   value={serviceNamesJoined(orderDetails)}
                 />
               </Col>
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <DetailsRow
                   title="Schedule Date/time"
                   value={formatServiceScheduleLine(primary)}
@@ -271,7 +271,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                   value={orderDetails?.order_status!}
                 />
               </Col>
-              <Col xs={12}>
+              <Col xs={12} className="info-detail-fields-col">
                 <DetailsRow
                   title="Order description"
                   value={
@@ -290,29 +290,31 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
           <section className="border rounded p-3 mb-3">
             <h6 className={QUOTE_SECTION_TITLE_CLASS}>Service address</h6>
             <Row className="g-2 mb-0">
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <InfoDetailInlineRow label="State" value={serviceAddress.state} />
               </Col>
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <InfoDetailInlineRow label="Area" value={serviceAddress.area} />
               </Col>
             </Row>
             <Row className="g-2 mb-0">
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <InfoDetailInlineRow label="City" value={serviceAddress.city} />
               </Col>
-              <Col xs={12} md={6}>
+              <Col xs={12} md={6} className="info-detail-fields-col">
                 <InfoDetailInlineRow
                   label="Pin code"
                   value={serviceAddress.pincode}
                 />
               </Col>
             </Row>
-            <InfoDetailInlineRow
-              label="Address"
-              value={serviceAddress.addressLine}
-              className="mb-0"
-            />
+            <div className="info-detail-fields-col">
+              <InfoDetailInlineRow
+                label="Address"
+                value={serviceAddress.addressLine}
+                className="mb-0"
+              />
+            </div>
           </section>
 
           <QuoteInfoPersonSection
@@ -427,6 +429,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </span>
                     ) : null}
                   </div>
+                  {(paymentExt?.customerPayments ?? []).length > 0 ? (
                   <Table
                     responsive
                     bordered
@@ -455,6 +458,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       ))}
                     </tbody>
                   </Table>
+                  ) : null}
                   {paymentHeadlines && (
                     <div className="mt-3 pt-3 border-top">
                       <div className="d-flex justify-content-between align-items-center py-1">
@@ -486,6 +490,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </span>
                     ) : null}
                   </div>
+                  {(paymentExt?.partnerPayments ?? []).length > 0 ? (
                   <Table
                     responsive
                     bordered
@@ -512,6 +517,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       ))}
                     </tbody>
                   </Table>
+                  ) : null}
                   {paymentHeadlines && (
                     <div className="mt-3 pt-3 border-top">
                       <div className="d-flex justify-content-between align-items-center py-1">

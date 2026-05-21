@@ -2214,7 +2214,8 @@ export function partnerPaidBalanceForEdit(
  * Set to `false` when the API returns real offer/refund fields and you no longer need sample rows.
  * Dummy data is only merged when the order has no real offer and/or no real refund.
  */
-export const ORDER_PAYMENT_PREVIEW_DUMMY = true;
+/** When `false`, Order information shows only API offer/refund fields (no sample rows). */
+export const ORDER_PAYMENT_PREVIEW_DUMMY = false;
 
 function hashOrderKey(order: OrderModel): number {
   const s = String(order._id || order.unique_id || "");

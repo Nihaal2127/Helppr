@@ -145,14 +145,13 @@ export function buildOrderAmountSummaryFromOrder(
   }
   const serviceBefore = roundMoney(serviceAfter + partnerDisc);
 
-  const taxableBaseForCommission = roundMoney(
-    Math.max(0, serviceBefore + otherSum)
-  );
-  const grossCommission = computeTaxCommissionAmounts(
-    taxableBaseForCommission,
+  const pricing = computeOrderPaymentLineTotals(
+    serviceAfter,
+    otherSum,
     taxPct,
     commissionPct
-  ).commissionAmount;
+  );
+  const grossCommission = pricing.commissionAmount;
 
   const orderDetail = order as OrderModel & {
     commission_amount?: number | null;

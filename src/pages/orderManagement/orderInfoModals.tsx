@@ -1357,6 +1357,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
               </Col>
             </Row>
             <div style={paymentSubcard}>
+              {ext.customerPayments.length > 0 ? (
               <Table
                 bordered
                 size="sm"
@@ -1565,8 +1566,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   })}
                 </tbody>
               </Table>
+              ) : null}
             </div>
-            <div className="mt-3 pt-3 border-top">
+            <div
+              className={
+                ext.customerPayments.length > 0 ? "mt-3 pt-3 border-top" : ""
+              }
+            >
               <div className="d-flex justify-content-between align-items-center py-1">
                 <span className="text-secondary">Total Paid</span>
                 <span className="fw-semibold" style={moneyTabular}>
@@ -1623,6 +1629,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
               ) : null}
             </Row>
             <div style={paymentSubcard}>
+              {ext.partnerPayments.length > 0 ? (
               <Table
                 bordered
                 size="sm"
@@ -1803,8 +1810,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   })}
                 </tbody>
               </Table>
+              ) : null}
             </div>
-            <div className="mt-3 pt-3 border-top">
+            <div
+              className={
+                ext.partnerPayments.length > 0 ? "mt-3 pt-3 border-top" : ""
+              }
+            >
               <div className="d-flex justify-content-between align-items-center py-1">
                 <span className="text-secondary">Total Paid</span>
                 <span className="fw-semibold" style={moneyTabular}>

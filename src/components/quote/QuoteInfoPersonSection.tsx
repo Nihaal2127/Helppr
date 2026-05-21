@@ -93,7 +93,7 @@ export default function QuoteInfoPersonSection({
         <div className="flex-grow-1 min-w-0 w-100 quote-info-person-fields">
           {leftFields.length > 0 || rightFields.length > 0 ? (
             <div className="quote-info-person-fields-row">
-              <div className="quote-info-person-fields-col">
+              <div className="quote-info-person-fields-col info-detail-fields-col">
                 {leftFields.map((field) => (
                   <PersonFieldRow
                     key={field.label}
@@ -103,7 +103,7 @@ export default function QuoteInfoPersonSection({
                 ))}
               </div>
               {rightFields.length > 0 ? (
-                <div className="quote-info-person-fields-col">
+                <div className="quote-info-person-fields-col info-detail-fields-col">
                   {rightFields.map((field) => (
                     <PersonFieldRow
                       key={field.label}
@@ -115,14 +115,18 @@ export default function QuoteInfoPersonSection({
               ) : null}
             </div>
           ) : null}
-          {fullWidthFields.map((field) => (
-            <PersonFieldRow
-              key={field.label}
-              label={field.label}
-              value={field.value}
-              longText
-            />
-          ))}
+          {fullWidthFields.length > 0 ? (
+            <div className="info-detail-fields-col">
+              {fullWidthFields.map((field) => (
+                <PersonFieldRow
+                  key={field.label}
+                  label={field.label}
+                  value={field.value}
+                  longText
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>
