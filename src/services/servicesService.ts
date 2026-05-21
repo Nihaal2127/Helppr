@@ -500,6 +500,25 @@ export const fetchServiceById = async (
   return { response: false, service: null };
 };
 
+/** Global catalogue row — active flag only (Service Management list toggle). */
+export async function patchServiceCatalogActiveStatus(
+  id: string,
+  is_active: boolean
+): Promise<boolean> {
+  const sid = String(id ?? "").trim();
+  if (!sid) return false;
+  const response = await apiRequest(
+    ApiPaths.UPDATE_SERVICE(sid),
+    "PUT",
+    { is_active },
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
+}
+
 export const createOrUpdateService = async (
   payload: any,
   isEditable: boolean,

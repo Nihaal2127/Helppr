@@ -459,6 +459,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     const isActive =
       isEditable && isRequestCategorySubmit
         ? moderationStatus !== "rejected"
+        : hideStatusInView && category?.is_active !== undefined
+        ? Boolean(category.is_active)
         : isActiveNormal;
 
     const payload = {
@@ -771,8 +773,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   validation={{ required: "Category name is required" }}
                 />
               </Col>
-              <Col md={6}>
-                {isEditable && isRequestCategory ? (
+              {isEditable && isRequestCategory ? (
+                <Col md={6}>
                   <CustomRadioSelection
                     label="Approval status"
                     name="approval_status"
@@ -785,7 +787,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                     isEditable={isEditable}
                     setValue={setValue}
                   />
-                ) : (
+                </Col>
+              ) : isEditable && !hideStatusInView ? (
+                <Col md={6}>
                   <CustomRadioSelection
                     label="Status"
                     name="is_active"
@@ -798,8 +802,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                     isEditable
                     setValue={setValue}
                   />
-                )}
-              </Col>
+                </Col>
+              ) : null}
 
               <Col md={12}>
                 <CustomFormInput

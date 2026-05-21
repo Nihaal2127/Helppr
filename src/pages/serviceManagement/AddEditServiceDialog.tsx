@@ -373,6 +373,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       is_active:
         isEditable && isRequestService
           ? moderationStatus !== "rejected"
+          : hideStatusInView && service?.is_active !== undefined
+          ? Boolean(service.is_active)
           : isTruthyFormBool(data.is_active),
       ...(isEditable &&
         isRequestService &&
@@ -813,8 +815,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 />
               </Col>
 
-              <Col md={6} className="mb-3">
-                {isEditable && isRequestService ? (
+              {isEditable && isRequestService ? (
+                <Col md={6} className="mb-3">
                   <CustomRadioSelection
                     label="Approval status"
                     name="approval_status"
@@ -827,23 +829,23 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                     isEditable={isEditable}
                     setValue={setValue}
                   />
-                ) : (
+                </Col>
+              ) : isEditable && !hideStatusInView ? (
+                <Col md={6} className="mb-3">
                   <CustomRadioSelection
                     label="Status"
                     name="is_active"
                     options={getStatusOptions()}
                     defaultValue={
-                      isEditable
-                        ? service?.is_active !== undefined
-                          ? String(service.is_active)
-                          : "true"
+                      service?.is_active !== undefined
+                        ? String(service.is_active)
                         : "true"
                     }
                     isEditable={isEditable}
                     setValue={setValue}
                   />
-                )}
-              </Col>
+                </Col>
+              ) : null}
               {isEditable && isRequestService && approvalStatus === "rejected" && (
                 <Col md={12}>
                   <CustomFormInput

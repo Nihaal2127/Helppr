@@ -1,23 +1,42 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Form } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell, formatDate } from "../../helper/utility";
+import { capitalizeString, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import AddEditServiceDialog from "./AddEditServiceDialog";
 import { CategoryModel } from "../../lib/models/CategoryModel";
 import { ServiceModel } from "../../lib/models/ServiceModel";
-import { fetchCategory, fetchCategoryById } from "../../services/categoryService";
-import { fetchService, fetchServiceById } from "../../services/servicesService";
+import {
+  fetchCategory,
+  fetchCategoryById,
+  patchCategoryCatalogActiveStatus,
+} from "../../services/categoryService";
+import {
+  fetchService,
+  fetchServiceById,
+  patchServiceCatalogActiveStatus,
+} from "../../services/servicesService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
-import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
-import { showErrorAlert } from "../../lib/global/alertHelper";
+import {
+  franchiseIdForApiQuery,
+  isFranchisePortalSession,
+} from "../../lib/franchise/headerFranchisePreference";
+import {
+  showErrorAlert,
+  showSuccessAlert,
+} from "../../lib/global/alertHelper";
+import {
+  setCategoryActive as apiSetCategoryActive,
+  setServiceActive as apiSetServiceActive,
+} from "../../services/myFranchiseService";
 
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
 const SERVICE_ROW_ID_KEYS = ["_id", "service_id", "id"] as const;
@@ -56,6 +75,23 @@ function mergeServiceDetailForDialog(
     }
   }
   return out as unknown as ServiceModel;
+}
+
+function coerceCatalogRowActive(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  const s = String(value ?? "").trim().toLowerCase();
+  if (s === "true" || s === "active" || s === "yes") return true;
+  if (s === "false" || s === "inactive" || s === "no") return false;
+  return false;
+}
+
+function catalogActiveValue(
+  row: Record<string, unknown>,
+  field: string
+): boolean {
+  return coerceCatalogRowActive(row[field]);
 }
 
 const requestStatusCell = () => ({ row }: { row: any }) => {
@@ -243,6 +279,121 @@ const ServiceManagement = () => {
     [refreshSummaryCounts, refreshData]
   );
 
+  const useFranchiseMappingToggle =
+    franchiseCatalogScope || isFranchisePortalSession();
+
+  const setCatalogServiceActive = useCallback(
+    async (row: ServiceModel, is_active: boolean) => {
+      const sid = recordIdFromRow(
+        { original: row as unknown as Record<string, unknown> },
+        SERVICE_ROW_ID_KEYS
+      );
+      if (!sid) {
+        showErrorAlert("Unable to update service: missing identifier.");
+        return;
+      }
+      const prev = catalogActiveValue(
+        row as unknown as Record<string, unknown>,
+        catalogListStatusField
+      );
+      setServiceList((list) =>
+        list.map((s) => {
+          const id = recordIdFromRow(
+            { original: s as unknown as Record<string, unknown> },
+            SERVICE_ROW_ID_KEYS
+          );
+          return id === sid ? ({ ...s, [catalogListStatusField]: is_active } as ServiceModel) : s;
+        })
+      );
+      const ok = useFranchiseMappingToggle
+        ? await apiSetServiceActive(
+            sid,
+            is_active,
+            catalogFranchiseId || undefined
+          )
+        : await patchServiceCatalogActiveStatus(sid, is_active);
+      if (ok) {
+        showSuccessAlert("Service status updated");
+        await refreshTableAfterMutation("box-service");
+      } else {
+        setServiceList((list) =>
+          list.map((s) => {
+            const id = recordIdFromRow(
+              { original: s as unknown as Record<string, unknown> },
+              SERVICE_ROW_ID_KEYS
+            );
+            return id === sid
+              ? ({ ...s, [catalogListStatusField]: prev } as ServiceModel)
+              : s;
+          })
+        );
+        showErrorAlert("Could not update service status.");
+      }
+    },
+    [
+      catalogFranchiseId,
+      catalogListStatusField,
+      refreshTableAfterMutation,
+      useFranchiseMappingToggle,
+    ]
+  );
+
+  const setCatalogCategoryActive = useCallback(
+    async (row: CategoryModel, is_active: boolean) => {
+      const cid = recordIdFromRow(
+        { original: row as unknown as Record<string, unknown> },
+        CATEGORY_ROW_ID_KEYS
+      );
+      if (!cid) {
+        showErrorAlert("Unable to update category: missing identifier.");
+        return;
+      }
+      const prev = catalogActiveValue(
+        row as unknown as Record<string, unknown>,
+        catalogListStatusField
+      );
+      setCategoryList((list) =>
+        list.map((c) =>
+          recordIdFromRow(
+            { original: c as unknown as Record<string, unknown> },
+            CATEGORY_ROW_ID_KEYS
+          ) === cid
+            ? ({ ...c, [catalogListStatusField]: is_active } as CategoryModel)
+            : c
+        )
+      );
+      const ok = useFranchiseMappingToggle
+        ? await apiSetCategoryActive(
+            cid,
+            is_active,
+            catalogFranchiseId || undefined
+          )
+        : await patchCategoryCatalogActiveStatus(cid, is_active);
+      if (ok) {
+        showSuccessAlert("Category status updated");
+        await refreshTableAfterMutation("box-category");
+      } else {
+        setCategoryList((list) =>
+          list.map((c) =>
+            recordIdFromRow(
+              { original: c as unknown as Record<string, unknown> },
+              CATEGORY_ROW_ID_KEYS
+            ) === cid
+              ? ({ ...c, [catalogListStatusField]: prev } as CategoryModel)
+              : c
+          )
+        );
+        showErrorAlert("Could not update category status.");
+      }
+    },
+    [
+      catalogFranchiseId,
+      catalogListStatusField,
+      refreshTableAfterMutation,
+      useFranchiseMappingToggle,
+    ]
+  );
+
   useEffect(() => {
     void refreshData(selectedBox);
   }, [
@@ -304,7 +455,35 @@ const ServiceManagement = () => {
       {
         Header: franchiseCatalogScope ? "Franchise status" : "Status",
         accessor: catalogListStatusField,
-        Cell: statusCell(catalogListStatusField),
+        className: "my-franchise-col-active-toggle",
+        Cell: ({ row }: { row: any }) => {
+          const cat = row.original as CategoryModel;
+          const active = catalogActiveValue(
+            cat as unknown as Record<string, unknown>,
+            catalogListStatusField
+          );
+          const cid = recordIdFromRow(row, CATEGORY_ROW_ID_KEYS);
+          return (
+            <Form.Check
+              type="switch"
+              id={`svc-mgmt-category-active-${cid}`}
+              className={`franchise-chat-switch franchise-status-switch${
+                active ? " franchise-status-switch--on" : ""
+              }`}
+              checked={active}
+              aria-label={
+                active
+                  ? "Active, switch to deactivate"
+                  : "Inactive, switch to activate"
+              }
+              onChange={(e) => {
+                e.stopPropagation();
+                void setCatalogCategoryActive(cat, e.target.checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        },
       },
       {
         Header: "Action",
@@ -323,6 +502,7 @@ const ServiceManagement = () => {
                 true,
                 response && category ? category : row.original,
                 () => void refreshTableAfterMutation("box-category"),
+                true,
                 true
               );
             }}
@@ -336,6 +516,7 @@ const ServiceManagement = () => {
       refreshTableAfterMutation,
       franchiseCatalogScope,
       catalogListStatusField,
+      setCatalogCategoryActive,
     ]
   );
 
@@ -353,7 +534,35 @@ const ServiceManagement = () => {
       {
         Header: franchiseCatalogScope ? "Franchise status" : "Status",
         accessor: catalogListStatusField,
-        Cell: statusCell(catalogListStatusField),
+        className: "my-franchise-col-active-toggle",
+        Cell: ({ row }: { row: any }) => {
+          const svc = row.original as ServiceModel;
+          const active = catalogActiveValue(
+            svc as unknown as Record<string, unknown>,
+            catalogListStatusField
+          );
+          const sid = recordIdFromRow(row, SERVICE_ROW_ID_KEYS);
+          return (
+            <Form.Check
+              type="switch"
+              id={`svc-mgmt-service-active-${sid}`}
+              className={`franchise-chat-switch franchise-status-switch${
+                active ? " franchise-status-switch--on" : ""
+              }`}
+              checked={active}
+              aria-label={
+                active
+                  ? "Active, switch to deactivate"
+                  : "Inactive, switch to activate"
+              }
+              onChange={(e) => {
+                e.stopPropagation();
+                void setCatalogServiceActive(svc, e.target.checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        },
       },
       {
         Header: "Action",
@@ -376,6 +585,8 @@ const ServiceManagement = () => {
                 true,
                 record,
                 () => void refreshTableAfterMutation("box-service"),
+                true,
+                undefined,
                 true
               );
             }}
@@ -389,6 +600,7 @@ const ServiceManagement = () => {
       refreshTableAfterMutation,
       franchiseCatalogScope,
       catalogListStatusField,
+      setCatalogServiceActive,
     ]
   );
 

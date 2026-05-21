@@ -432,6 +432,25 @@ export const createOrUpdateCategory = async (
   return result.response;
 };
 
+/** Global catalogue row — active flag only (Service Management list toggle). */
+export async function patchCategoryCatalogActiveStatus(
+  id: string,
+  is_active: boolean
+): Promise<boolean> {
+  const cid = String(id ?? "").trim();
+  if (!cid) return false;
+  const response = await apiRequest(
+    ApiPaths.UPDATE_CATEGORY(cid),
+    "PUT",
+    { is_active },
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
+}
+
 export const createOrUpdateCategoryWithRecord = async (
   payload: any,
   isEditable: boolean,

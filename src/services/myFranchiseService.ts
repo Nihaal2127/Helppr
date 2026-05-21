@@ -1879,8 +1879,13 @@ export async function setEmployeeChatEnabled(
   });
 }
 
-async function ensureFranchiseServiceMapLoaded(): Promise<FranchiseServiceMapCache | null> {
-  const fid = (await resolveSessionFranchiseId()) ?? "";
+async function ensureFranchiseServiceMapLoaded(
+  franchiseIdOverride?: string
+): Promise<FranchiseServiceMapCache | null> {
+  const fid =
+    String(franchiseIdOverride ?? "").trim() ||
+    (await resolveSessionFranchiseId()) ||
+    "";
   if (!fid) return null;
   syncFranchiseMapCacheScope(fid);
   if (cachedFranchiseServiceMap?.services_list?.length) {
@@ -1894,8 +1899,13 @@ async function ensureFranchiseServiceMapLoaded(): Promise<FranchiseServiceMapCac
   return null;
 }
 
-async function ensureFranchiseCategoryMapLoaded(): Promise<FranchiseCategoryMapCache | null> {
-  const fid = (await resolveSessionFranchiseId()) ?? "";
+async function ensureFranchiseCategoryMapLoaded(
+  franchiseIdOverride?: string
+): Promise<FranchiseCategoryMapCache | null> {
+  const fid =
+    String(franchiseIdOverride ?? "").trim() ||
+    (await resolveSessionFranchiseId()) ||
+    "";
   if (!fid) return null;
   syncFranchiseMapCacheScope(fid);
   if (cachedFranchiseCategoryMap?.categories_list?.length) {
@@ -1927,12 +1937,13 @@ function recordFromUpdateResponse(data: unknown): any | null {
  */
 export async function setServiceActive(
   id: string,
-  is_active: boolean
+  is_active: boolean,
+  franchiseIdOverride?: string
 ): Promise<boolean> {
   const catalogueId = String(id ?? "").trim();
   if (!catalogueId) return false;
 
-  const map = await ensureFranchiseServiceMapLoaded();
+  const map = await ensureFranchiseServiceMapLoaded(franchiseIdOverride);
   if (map?.mapId && map.services_list.length) {
     const idx = resolveFranchiseServiceListIndex(map, catalogueId);
     if (idx >= 0) {
@@ -2040,12 +2051,13 @@ export async function setServiceActive(
  */
 export async function setCategoryActive(
   id: string,
-  is_active: boolean
+  is_active: boolean,
+  franchiseIdOverride?: string
 ): Promise<boolean> {
   const catalogueId = String(id ?? "").trim();
   if (!catalogueId) return false;
 
-  const map = await ensureFranchiseCategoryMapLoaded();
+  const map = await ensureFranchiseCategoryMapLoaded(franchiseIdOverride);
   if (map?.mapId && map.categories_list.length) {
     const idx = findFranchiseCategoryListIndex(map.categories_list, catalogueId);
     if (idx >= 0) {
