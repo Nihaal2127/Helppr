@@ -17,11 +17,38 @@ const FRANCHISE_SCOPE_ALL = "all";
 function unwrapCatalogPayload(data: unknown): Record<string, unknown> {
   if (!data || typeof data !== "object") return {};
   const root = data as Record<string, unknown>;
-  if ("all_categories" in root || "all_services" in root) return root;
+  if (
+    "all_categories" in root ||
+    "all_services" in root ||
+    "categories" in root ||
+    "services" in root
+  ) {
+    return root;
+  }
   const inner = root.data;
   if (inner && typeof inner === "object")
     return inner as Record<string, unknown>;
   return root;
+}
+
+/** `GET /franchise-category/getAll?franchise_id=` — paginated `categories` + `totalPages` / `totalItems`. */
+function isPaginatedFranchiseCategoryPayload(
+  payload: Record<string, unknown>
+): boolean {
+  return (
+    Array.isArray(payload.categories) &&
+    (payload.totalPages != null ||
+      payload.totalItems != null ||
+      payload.currentPage != null)
+  );
+}
+
+function extractFranchiseCategoryRows(
+  payload: Record<string, unknown>
+): unknown[] {
+  if (Array.isArray(payload.categories)) return payload.categories;
+  if (Array.isArray(payload.all_categories)) return payload.all_categories;
+  return [];
 }
 
 function rowMatchesCatalogStatus(
@@ -161,7 +188,7 @@ export const fetchCategory = async (
   totalRecords: number;
   /** When franchise-scoped list clamps `page` to a valid range, sync table state to this value. */
   resolvedPage?: number;
-  /** Franchise-scoped `GET /franchise-category/getAll?franchise_id=` — mapping `records` + `all_categories`. */
+  /** Franchise-scoped `GET /franchise-category/getAll?franchise_id=` — paginated `categories` or legacy `all_categories`. */
   franchiseMappingRecords?: unknown[];
   franchiseMappingTotalPages?: number;
   franchiseMappingTotalItems?: number;
@@ -196,8 +223,6 @@ export const fetchCategory = async (
   });
   if (scopedPathId) {
     queryParams.set("franchise_id", scopedPathId);
-    queryParams.set("page", "1");
-    queryParams.set("limit", "1");
   }
   const path = buildCategoryGetAllPath(scopedPathId ?? rawFid);
   const url = `${path}?${queryParams.toString()}`;
@@ -236,49 +261,62 @@ export const fetchCategory = async (
       payload.currentPage ?? page ?? 1
     );
 
-    const rawList = payload.all_categories;
-    let rows: CategoryModel[] = Array.isArray(rawList)
-      ? (rawList as Record<string, unknown>[]).map(
-          normalizeFranchiseScopedCategoryRow
-        )
-      : [];
-
-    rows = rows.filter((r) =>
-      rowMatchesFranchiseScopedCatalogRow(
-        r as unknown as Record<string, unknown>,
-        filters.status
-      )
+    const rawList = extractFranchiseCategoryRows(payload);
+    let rows: CategoryModel[] = (rawList as Record<string, unknown>[]).map(
+      normalizeFranchiseScopedCategoryRow
     );
-    if (filters.is_request === "true") {
-      rows = rows.filter((r) => r.is_request === true);
-    }
-    if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
-      const want = filters.is_rejected === "true";
+
+    if (!isPaginatedFranchiseCategoryPayload(payload)) {
       rows = rows.filter((r) =>
-        want ? r.is_rejected === true : r.is_rejected !== true
+        rowMatchesFranchiseScopedCatalogRow(
+          r as unknown as Record<string, unknown>,
+          filters.status
+        )
       );
+      if (filters.is_request === "true") {
+        rows = rows.filter((r) => r.is_request === true);
+      }
+      if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
+        const want = filters.is_rejected === "true";
+        rows = rows.filter((r) =>
+          want ? r.is_rejected === true : r.is_rejected !== true
+        );
+      }
+
+      const totalRecords = rows.length;
+      const maxPage =
+        totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
+      let effectivePage = page;
+      if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
+      if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
+      const start = (effectivePage - 1) * pageSize;
+      const pageRows = rows.slice(start, start + pageSize);
+      const totalPages = maxPage;
+
+      return {
+        response: true,
+        categories: pageRows,
+        totalPages,
+        totalRecords,
+        franchiseMappingRecords: mappingRecords,
+        franchiseMappingTotalPages,
+        franchiseMappingTotalItems,
+        franchiseMappingCurrentPage,
+        ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+      };
     }
 
-    const totalRecords = rows.length;
-    const maxPage =
-      totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
-    let effectivePage = page;
-    if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
-    if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
-    const start = (effectivePage - 1) * pageSize;
-    const pageRows = rows.slice(start, start + pageSize);
-    const totalPages = maxPage;
-
+    const serverPage = Number(payload.currentPage ?? page);
     return {
       response: true,
-      categories: pageRows,
-      totalPages,
-      totalRecords,
+      categories: rows,
+      totalPages: franchiseMappingTotalPages,
+      totalRecords: franchiseMappingTotalItems,
       franchiseMappingRecords: mappingRecords,
       franchiseMappingTotalPages,
       franchiseMappingTotalItems,
       franchiseMappingCurrentPage,
-      ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+      ...(serverPage !== page ? { resolvedPage: serverPage } : {}),
     };
   }
 

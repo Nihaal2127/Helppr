@@ -17,11 +17,31 @@ const FRANCHISE_SCOPE_ALL = "all";
 function unwrapServiceFranchisePayload(data: unknown): Record<string, unknown> {
   if (!data || typeof data !== "object") return {};
   const root = data as Record<string, unknown>;
-  if ("all_services" in root) return root;
+  if ("all_services" in root || "services" in root) return root;
   const inner = root.data;
   if (inner && typeof inner === "object")
     return inner as Record<string, unknown>;
   return root;
+}
+
+/** `GET /franchise-service/getAll?franchise_id=` — paginated `services` + `totalPages` / `totalItems`. */
+function isPaginatedFranchiseServicePayload(
+  payload: Record<string, unknown>
+): boolean {
+  return (
+    Array.isArray(payload.services) &&
+    (payload.totalPages != null ||
+      payload.totalItems != null ||
+      payload.currentPage != null)
+  );
+}
+
+function extractFranchiseServiceRows(
+  payload: Record<string, unknown>
+): unknown[] {
+  if (Array.isArray(payload.services)) return payload.services;
+  if (Array.isArray(payload.all_services)) return payload.all_services;
+  return [];
 }
 
 function rowMatchesCatalogStatus(
@@ -309,8 +329,6 @@ export const fetchService = async (
   });
   if (scopedPathId) {
     queryParams.set("franchise_id", scopedPathId);
-    queryParams.set("page", "1");
-    queryParams.set("limit", "1");
   }
   const path = buildServiceGetAllPath(scopedPathId ?? rawFid);
   const url = `${path}?${queryParams.toString()}`;
@@ -349,49 +367,62 @@ export const fetchService = async (
       payload.currentPage ?? page ?? 1
     );
 
-    const rawList = payload.all_services;
-    let rows: ServiceModel[] = Array.isArray(rawList)
-      ? (rawList as Record<string, unknown>[]).map(
-          normalizeFranchiseScopedServiceRow
-        )
-      : [];
-
-    rows = rows.filter((r) =>
-      rowMatchesFranchiseScopedCatalogRow(
-        r as unknown as Record<string, unknown>,
-        filters.status
-      )
+    const rawList = extractFranchiseServiceRows(payload);
+    let rows: ServiceModel[] = (rawList as Record<string, unknown>[]).map(
+      normalizeFranchiseScopedServiceRow
     );
-    if (filters.is_request === "true") {
-      rows = rows.filter((r) => r.is_request === true);
-    }
-    if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
-      const want = filters.is_rejected === "true";
+
+    if (!isPaginatedFranchiseServicePayload(payload)) {
       rows = rows.filter((r) =>
-        want ? r.is_rejected === true : r.is_rejected !== true
+        rowMatchesFranchiseScopedCatalogRow(
+          r as unknown as Record<string, unknown>,
+          filters.status
+        )
       );
+      if (filters.is_request === "true") {
+        rows = rows.filter((r) => r.is_request === true);
+      }
+      if (filters.is_rejected !== undefined && filters.is_rejected !== "") {
+        const want = filters.is_rejected === "true";
+        rows = rows.filter((r) =>
+          want ? r.is_rejected === true : r.is_rejected !== true
+        );
+      }
+
+      const totalRecords = rows.length;
+      const maxPage =
+        totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
+      let effectivePage = page;
+      if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
+      if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
+      const start = (effectivePage - 1) * pageSize;
+      const pageRows = rows.slice(start, start + pageSize);
+      const totalPages = maxPage;
+
+      return {
+        response: true,
+        services: pageRows,
+        totalPages,
+        totalRecords,
+        franchiseMappingRecords: mappingRecords,
+        franchiseMappingTotalPages,
+        franchiseMappingTotalItems,
+        franchiseMappingCurrentPage,
+        ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+      };
     }
 
-    const totalRecords = rows.length;
-    const maxPage =
-      totalRecords === 0 ? 0 : Math.ceil(totalRecords / pageSize);
-    let effectivePage = page;
-    if (maxPage > 0 && effectivePage > maxPage) effectivePage = maxPage;
-    if (maxPage > 0 && effectivePage < 1) effectivePage = 1;
-    const start = (effectivePage - 1) * pageSize;
-    const pageRows = rows.slice(start, start + pageSize);
-    const totalPages = maxPage;
-
+    const serverPage = Number(payload.currentPage ?? page);
     return {
       response: true,
-      services: pageRows,
-      totalPages,
-      totalRecords,
+      services: rows,
+      totalPages: franchiseMappingTotalPages,
+      totalRecords: franchiseMappingTotalItems,
       franchiseMappingRecords: mappingRecords,
       franchiseMappingTotalPages,
       franchiseMappingTotalItems,
       franchiseMappingCurrentPage,
-      ...(effectivePage !== page ? { resolvedPage: effectivePage } : {}),
+      ...(serverPage !== page ? { resolvedPage: serverPage } : {}),
     };
   }
 

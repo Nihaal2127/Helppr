@@ -66,6 +66,7 @@ import type { QuotePriceBreakdownWithCoupon } from "../../lib/quote/quoteHelpers
 import { roundMoney } from "../../lib/global/paymentAndCurrency";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
+import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { OrderPaymentEditModal } from "./orderInfoModals";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -1171,9 +1172,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                       <FieldLabelText label="Customer addresses" required />
                     </label>
                     {!addressUi.ready ? (
-                      <div className="small text-muted">
-                        Loading address options…
-                      </div>
+                      <QuoteAddressOptionsLoader />
                     ) : (
                       <>
                         {addressUi.error ? (

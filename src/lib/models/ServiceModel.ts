@@ -13,6 +13,11 @@ export interface ServiceModel {
   is_active: boolean;
   /** Present on `GET /service/getAll/:franchise_id` → `all_*`: assigned on/off for this franchise (vs global `is_active`). */
   franchise_active?: boolean;
+  /** `GET /franchise-service/getAll` — global catalogue on/off. */
+  global_active?: boolean;
+  franchise_enabled?: boolean;
+  partner_enabled?: boolean;
+  effective_active?: boolean;
   is_request?: boolean;
   /** Legacy moderation flag; use `approval_status` when API sends it. */
   is_rejected?: boolean | null;

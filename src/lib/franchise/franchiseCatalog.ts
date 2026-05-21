@@ -2,7 +2,8 @@
  * Franchise-scoped catalog lists use mapping getAll with a query param:
  * `GET /franchise-category/getAll?franchise_id=…` and
  * `GET /franchise-service/getAll?franchise_id=…`
- * (same hydrated payload shape: mapping `records` + `all_categories` / `all_services`).
+ * Paginated shape: `categories` / `services` + `totalPages` / `totalItems` / `currentPage`.
+ * Legacy shape: mapping `records` + `all_categories` / `all_services`.
  */
 
 import { ApiPaths } from "../global/remote/apiPaths";

@@ -924,6 +924,10 @@ export function useQuoteCustomerAddressPanel(args: {
       ) ?? null;
     if (!customer) {
       setSelectedAddressId("");
+      if (!franchisePinsLoadDone || quoteCustomerRecords.length === 0) {
+        setAddressUi({ ready: false, rows: [], error: "" });
+        return;
+      }
       setAddressUi({
         ready: true,
         rows: [],

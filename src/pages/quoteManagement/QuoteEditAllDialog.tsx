@@ -47,6 +47,7 @@ import {
 } from "../../lib/quote/quoteHelpers";
 import type { EditQuoteFormValues, QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
 
@@ -935,9 +936,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     <FieldLabelText label="Service address" required />
                   </label>
                   {!addressUi.ready ? (
-                    <div className="small text-muted">
-                      Loading address options…
-                    </div>
+                    <QuoteAddressOptionsLoader />
                   ) : (
                     <>
                       {addressUi.error ? (

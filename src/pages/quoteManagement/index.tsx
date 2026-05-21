@@ -71,6 +71,7 @@ import {
   toQuoteViewData,
 } from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
+import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -255,7 +256,7 @@ const QuoteManagement = () => {
   const [franchiseQuoteAreaIdSet, setFranchiseQuoteAreaIdSet] = useState<
     Set<string>
   >(() => new Set());
-  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(true);
+  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(false);
   const [quoteEmployeeOptions, setQuoteEmployeeOptions] = useState<
     OptionType[]
   >([]);
@@ -754,6 +755,14 @@ const QuoteManagement = () => {
       ) ?? null;
     if (!customer) {
       setCreateQuoteAddressId("");
+      if (!franchisePinsLoadDone || quoteCustomerRecords.length === 0) {
+        setAddQuoteAddressUi({
+          ready: false,
+          rows: [],
+          error: "",
+        });
+        return;
+      }
       setAddQuoteAddressUi({
         ready: true,
         rows: [],
@@ -1050,8 +1059,9 @@ const QuoteManagement = () => {
 
   useEffect(() => {
     if (!showAddQuote) return;
+    const prefillFranchiseId = franchiseIdForApiQuery(headerFranchiseScope);
     resetAddQuote({
-      franchise_id: "",
+      franchise_id: prefillFranchiseId,
       user_id: "",
       user_name: "",
       requested_services: "",
@@ -1066,7 +1076,17 @@ const QuoteManagement = () => {
       service_price: "",
       description: "",
     });
-  }, [showAddQuote, resetAddQuote]);
+    if (isSuperAdminOrStaff && prefillFranchiseId) {
+      lastQuoteCatalogFranchiseIdRef.current = "";
+      void loadQuoteCatalogForFranchise(prefillFranchiseId, { force: true });
+    }
+  }, [
+    showAddQuote,
+    resetAddQuote,
+    headerFranchiseScope,
+    isSuperAdminOrStaff,
+    loadQuoteCatalogForFranchise,
+  ]);
 
   const onSubmitAddQuote = async (data: AddQuoteFormValues) => {
     const price = Number.parseFloat(String(data.service_price).trim());
@@ -1511,9 +1531,7 @@ const QuoteManagement = () => {
                         <FieldLabelText label="Customer addresses" required />
                       </label>
                       {!addQuoteAddressUi.ready ? (
-                        <div className="small text-muted">
-                          Loading address options…
-                        </div>
+                        <QuoteAddressOptionsLoader />
                       ) : (
                         <>
                           {addQuoteAddressUi.error ? (

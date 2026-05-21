@@ -71,12 +71,13 @@ const CustomSummaryBox: React.FC<CustomSummaryBoxProps> = ({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(divId);
 
               if (key === "requested_category" || key === "requested_service") {
                 onItemClick && onItemClick(key);
                 return;
               }
+
+              onSelect(divId);
 
               let status: string | undefined;
               if (key === "Total") {

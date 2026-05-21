@@ -62,9 +62,19 @@ type FranchiseBoxConfig = {
   onAdd?: () => void;
 };
 
-const pendingRequestedStatusCell = () => (
-  <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
-);
+const requestedStatusCell = ({ row }: { row: { original?: { status?: string } } }) => {
+  const status = String(row?.original?.status ?? "pending").toLowerCase();
+  if (status === "rejected") {
+    return <span style={{ color: "red", fontWeight: 600 }}>Rejected</span>;
+  }
+  if (status === "approved") {
+    return <span style={{ color: "green", fontWeight: 600 }}>Approved</span>;
+  }
+  return <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>;
+};
+
+/** Kept for HMR / cached bundles that still reference the old name. */
+const pendingRequestedStatusCell = requestedStatusCell;
 
 function normalizeAreaValue(value: unknown): string {
   return String(value ?? "")
@@ -285,9 +295,9 @@ const MyFranchise = () => {
   );
   const [searchKeyword, setSearchKeyword] = useState("");
   const [areaSortBy, setAreaSortBy] = useState<ServerTableSortBy>([]);
-  /** Server sort on franchise-service `all_services` — **service name** column only (`sort_by=name`). */
+  /** Server sort on franchise-service catalogue — **service name** column only (`sort_by=name`). */
   const [serviceSortBy, setServiceSortBy] = useState<ServerTableSortBy>([]);
-  /** Server sort on franchise-category `all_categories` — **category name** column only (`sort_by=name`). */
+  /** Server sort on franchise-category catalogue — **category name** column only (`sort_by=name`). */
   const [categorySortBy, setCategorySortBy] = useState<ServerTableSortBy>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -357,7 +367,8 @@ const MyFranchise = () => {
         categoriesViewMode === "requested") ||
       (selectedBox === "box-services" && servicesViewMode === "requested")
     ) {
-      o.requestedApprovalStatus = "pending";
+      /** Show every `is_request` row from API (pending, approved, rejected) — same as Service Management. */
+      o.requestedApprovalStatus = "all";
     }
     return o;
   }, [
@@ -490,6 +501,18 @@ const MyFranchise = () => {
     if (selectedBox === "box-categories" && categoriesViewMode === "catalog") {
       for (const k of Array.from(loadedKeysRef.current)) {
         if (k.startsWith("categories|")) loadedKeysRef.current.delete(k);
+      }
+    }
+    if (selectedBox === "box-services" && servicesViewMode === "requested") {
+      for (const k of Array.from(loadedKeysRef.current)) {
+        if (k.startsWith("requested_services|")) loadedKeysRef.current.delete(k);
+      }
+    }
+    if (selectedBox === "box-categories" && categoriesViewMode === "requested") {
+      for (const k of Array.from(loadedKeysRef.current)) {
+        if (k.startsWith("requested_categories|")) {
+          loadedKeysRef.current.delete(k);
+        }
       }
     }
     void hydrateFranchiseSlices(slicesForCurrentSelection);
@@ -1425,20 +1448,32 @@ const MyFranchise = () => {
               cfg.id === "box-services"
                 ? (key) => {
                     if (key === "requested_service") {
+                      for (const k of Array.from(loadedKeysRef.current)) {
+                        if (k.startsWith("requested_services|")) {
+                          loadedKeysRef.current.delete(k);
+                        }
+                      }
                       setSelectedBox("box-services");
                       setServicesViewMode("requested");
                       setStatusFilter(undefined);
                       setServiceSortBy([]);
+                      setSearchKeyword("");
                       setCurrentPage(1);
                     }
                   }
                 : cfg.id === "box-categories"
                 ? (key) => {
                     if (key === "requested_category") {
+                      for (const k of Array.from(loadedKeysRef.current)) {
+                        if (k.startsWith("requested_categories|")) {
+                          loadedKeysRef.current.delete(k);
+                        }
+                      }
                       setSelectedBox("box-categories");
                       setCategoriesViewMode("requested");
                       setStatusFilter(undefined);
                       setCategorySortBy([]);
+                      setSearchKeyword("");
                       setCurrentPage(1);
                     }
                   }

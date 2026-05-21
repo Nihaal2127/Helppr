@@ -50,6 +50,10 @@ import {
   paymentMethodSelectOptions,
 } from "../../lib/global/paymentAndCurrency";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
+import {
+  franchiseIdForApiQuery,
+  readHeaderFranchisePreference,
+} from "../../lib/franchise/headerFranchisePreference";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   nationalDigitsWithoutIndia91,
@@ -103,6 +107,7 @@ import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { formatQuoteAddressRowAsServiceLine } from "../../lib/quote/quoteAddressCore";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,
@@ -1726,7 +1731,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   const [franchiseQuoteAreaIdSet, setFranchiseQuoteAreaIdSet] = useState<
     Set<string>
   >(new Set());
-  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(true);
+  const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(false);
   const orderCatalogLoadSeqRef = useRef(0);
   const lastOrderCatalogFranchiseIdRef = useRef("");
 
@@ -2070,11 +2075,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
   useEffect(() => {
     if (isEditable) return;
+    const prefillFranchiseId = franchiseIdForApiQuery(
+      readHeaderFranchisePreference()
+    );
     setValue("comments", "");
     setValue("offer_id", "");
     setValue("customer_user_id", "");
     setValue("city_id", "");
-    setValue("franchise_id", "");
+    setValue("franchise_id", prefillFranchiseId);
     setValue("requested_partner", "");
     setValue("requested_services", "");
     setValue("category_id", "");
@@ -2101,6 +2109,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     ]);
     if (isSuperAdminOrStaff) {
       void fetchFranchiseDropDown().then(setFranchiseOptionsForOrder);
+      if (prefillFranchiseId) {
+        lastOrderCatalogFranchiseIdRef.current = "";
+        void loadOrderCatalogForFranchise(prefillFranchiseId, { force: true });
+      }
     } else {
       const fid = String(sessionFranchiseIdForOrderCatalog ?? "").trim();
       if (fid) void loadOrderCatalogForFranchise(fid);
@@ -3329,9 +3341,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                               <FieldLabelText label="Customer addresses" required />
                             </label>
                             {!createOrderAddressUi.ready ? (
-                              <div className="small text-muted">
-                                Loading address options…
-                              </div>
+                              <QuoteAddressOptionsLoader />
                             ) : (
                               <>
                                 {createOrderAddressUi.error ? (

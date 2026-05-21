@@ -16,6 +16,11 @@ export interface CategoryModel {
   is_active: boolean;
   /** Present on `GET /category/getAll/:franchise_id` → `all_*`: assigned on/off for this franchise (vs global `is_active`). */
   franchise_active?: boolean;
+  /** `GET /franchise-category/getAll` — global catalogue on/off. */
+  global_active?: boolean;
+  franchise_enabled?: boolean;
+  partner_enabled?: boolean;
+  effective_active?: boolean;
   is_request?: boolean;
   /** `pending` | `approved` | `rejected` (API may also send `approve` / `reject`). */
   approval_status?: string;
