@@ -56,9 +56,10 @@ type OrderInfoDialogProps = {
   onRefreshData: () => void;
 };
 
-const paymentSubcard: React.CSSProperties = {
-  borderRadius: "8px",
-  border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1))",
+const viewPaymentSectionShell: React.CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: "10px",
+  border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08))",
   backgroundColor: "var(--bg-color)",
 };
 
@@ -66,18 +67,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   show: (orderId: string, onRefreshData: () => void) => void;
 } = ({ orderId, onClose, onRefreshData }) => {
   const [orderDetails, setOrderDetails] = useState<OrderModel>();
-  const fetchRef = useRef(false);
+  const fetchSeqRef = useRef(0);
 
   const fetchDataFromApi = useCallback(async () => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    try {
-      const { response, order } = await fetchOrderById(orderId);
-      if (response && order) {
-        setOrderDetails(applyOrderPaymentPreviewDummy(order));
-      }
-    } finally {
-      fetchRef.current = false;
+    const seq = ++fetchSeqRef.current;
+    const { response, order } = await fetchOrderById(orderId);
+    if (seq !== fetchSeqRef.current) return;
+    if (response && order) {
+      setOrderDetails(applyOrderPaymentPreviewDummy(order));
     }
   }, [orderId]);
 
@@ -136,10 +133,12 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   );
 
   const amountSummaryDisplay = useMemo(() => {
-    if (!orderDetails || !paymentExt) return null;
+    if (!orderDetails) return null;
+    const ext =
+      paymentExt ?? resolvePaymentExtension(orderDetails, primary);
     return buildOrderAmountSummaryFromOrder(orderDetails, {
       primary,
-      paymentExt,
+      paymentExt: ext,
       finalTotal: roundMoney(Number(orderDetails.total_price ?? 0)),
     });
   }, [orderDetails, paymentExt, primary]);
@@ -413,19 +412,33 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
             ]}
           />
 
-          {/* Payment */}
-          <section className="border rounded p-3 mb-3">
-            <h6 className={QUOTE_SECTION_TITLE_CLASS}>Payment</h6>
+          {amountSummaryDisplay ? (
+            <section className="border rounded p-3 mb-3 order-payment-info-section">
+              <h3 className="mb-3 pb-2 border-bottom">Payment information</h3>
+              <OrderAmountSummaryPanel
+                display={amountSummaryDisplay}
+                variant="view"
+                style={{
+                  marginTop: 0,
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                }}
+              />
+            </section>
+          ) : null}
 
-            <Row className="g-3 mb-3 mt-1">
-              <Col lg={6}>
-                <div className="p-3 h-100" style={paymentSubcard}>
-                  <div className="fw-semibold mb-2">
-                    User payments
+          <section
+            className="custom-other-details mb-3"
+            style={viewPaymentSectionShell}
+          >
+            <h3 className="mb-3 pb-2 border-bottom">User payments</h3>
+            <div>
+                  <div className="fw-semibold mb-2 text-secondary small">
                     {paymentHeadlines ? (
-                      <span className="text-muted fw-normal ms-1">
-                        ({sym}
-                        {paymentHeadlines.userAmount.toFixed(2)})
+                      <span>
+                        Final total {sym}
+                        {paymentHeadlines.userAmount.toFixed(2)}
                       </span>
                     ) : null}
                   </div>
@@ -477,16 +490,20 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </div>
                     </div>
                   )}
-                </div>
-              </Col>
-              <Col lg={6}>
-                <div className="p-3 h-100" style={paymentSubcard}>
-                  <div className="fw-semibold mb-2">
-                    Partner payments
+            </div>
+          </section>
+
+          <section
+            className="custom-other-details mb-3"
+            style={viewPaymentSectionShell}
+          >
+            <h3 className="mb-3 pb-2 border-bottom">Partner payments</h3>
+            <div>
+                  <div className="fw-semibold mb-2 text-secondary small">
                     {paymentHeadlines ? (
-                      <span className="text-muted fw-normal ms-1">
-                        ({sym}
-                        {paymentHeadlines.partnerAmount.toFixed(2)})
+                      <span>
+                        Partner total {sym}
+                        {paymentHeadlines.partnerAmount.toFixed(2)}
                       </span>
                     ) : null}
                   </div>
@@ -536,13 +553,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </div>
                     </div>
                   )}
-                </div>
-              </Col>
-            </Row>
-
-            {amountSummaryDisplay ? (
-              <OrderAmountSummaryPanel display={amountSummaryDisplay} />
-            ) : null}
+            </div>
           </section>
         </Modal.Body>
     </Modal>

@@ -13,6 +13,7 @@ import {
   resolveOrderOfferBreakdown,
   resolvePaymentExtension,
 } from "./orders";
+import { orderPartnerPriceAmount } from "./orderPriceAmounts";
 
 type QuotePriceBreakdownWithCoupon =
   import("../quote/quoteHelpers").QuotePriceBreakdownWithCoupon;
@@ -54,15 +55,7 @@ function orderAmountSummaryServiceBase(
   order?: OrderModel | null,
   primary?: OrderItemModel
 ): number {
-  return roundMoney(
-    Math.max(
-      0,
-      Number(order?.total_service_charge ?? 0) ||
-        Number(order?.service_price ?? 0) ||
-        Number(primary?.service_price ?? 0) ||
-        0
-    )
-  );
+  return orderPartnerPriceAmount(order ?? undefined, primary);
 }
 
 /** Build summary from quote-style breakdown (create / edit preview with coupon). */

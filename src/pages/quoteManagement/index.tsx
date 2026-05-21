@@ -32,12 +32,11 @@ import {
   fetchQuoteCounts,
   fetchQuotes,
   mapQuoteTabCountsFromRecord,
-  buildPartnerCategoryOptionsFromProviding,
-  buildPartnerServiceOptionsFromProviding,
-  buildQuoteCategoryOptionsForPartner,
+  buildQuoteCatalogServicesForPartner,
+  buildQuoteCategoryOptionsForSelectedPartner,
+  filterPartnerServicesForCategory,
   getPartnerActiveServiceProvidingRow,
-  getPartnerProvidingServiceIdSet,
-  getQuoteScheduleModeFromServiceOption,
+  getQuoteScheduleModeForPartnerService,
   mapRelatedCatalogToQuoteOptions,
   mergeQuoteServiceFeesForBreakdown,
   normalizeQuoteListSort,
@@ -65,6 +64,9 @@ import {
   formatQuoteScheduleForTable,
   parseCatalogAddressRecord,
   QUOTE_MODAL_LAYOUT,
+  SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  scheduleEndTimeMaxForDay,
+  scheduleEndTimeMinAfterStart,
   setQuoteFranchiseCatalogSnapshot,
   toQuoteViewData,
 } from "../../lib/quote/quoteHelpers";
@@ -412,55 +414,49 @@ const QuoteManagement = () => {
     );
   }, [addQuote.requested_partner, catalogPartnerRecords]);
 
-  const quoteCatalogServicesForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerServiceOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
-    if (!allow) return quoteCatalogServices;
-    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
-  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+  const quoteCatalogServicesForPartner = useMemo(
+    () =>
+      buildQuoteCatalogServicesForPartner(
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
-  const quoteCategoryOptionsForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerCategoryOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    return buildQuoteCategoryOptionsForPartner(
-      quoteCategoryOptions,
-      quoteCatalogServicesForPartner,
-      selectedPartnerCatalogRecord
-    );
-  }, [
-    quoteCategoryOptions,
-    quoteCatalogServicesForPartner,
-    selectedPartnerCatalogRecord,
-  ]);
+  const quoteCategoryOptionsForPartner = useMemo(
+    () =>
+      buildQuoteCategoryOptionsForSelectedPartner(
+        quoteCategoryOptions,
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCategoryOptions, quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(addQuote.category_id ?? "").trim();
     const quoteServiceOptionsForCategory = !cid
       ? []
-      : quoteCatalogServicesForPartner.filter((o) => {
-          const ref = normalizeServiceCategoryRef(o.category_id);
-          return ref === cid;
-        });
+      : filterPartnerServicesForCategory(
+          quoteCatalogServicesForPartner,
+          selectedPartnerCatalogRecord,
+          cid
+        );
     const sid = String(addQuote.requested_services ?? "").trim();
     const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
     return {
       quoteServiceOptionsForCategory,
-      scheduleMode: getQuoteScheduleModeFromServiceOption({
-        payment_type: opt?.payment_type,
-        label: opt?.label ?? "",
-      }),
+      scheduleMode: getQuoteScheduleModeForPartnerService(
+        opt,
+        selectedPartnerCatalogRecord,
+        sid
+      ),
     };
   }, [
     addQuote.category_id,
     addQuote.requested_services,
     quoteCatalogServicesForPartner,
+    selectedPartnerCatalogRecord,
   ]);
 
   const isAddQuoteScheduleComplete = useMemo(() => {
@@ -511,15 +507,11 @@ const QuoteManagement = () => {
     [addQuote.service_price, addQuoteFeeOptionForBreakdown]
   );
 
-  const addQuoteScheduleTimeIntervals = useMemo(() => {
-    const raw = String(
-      addQuoteFeeOptionForBreakdown?.payment_type ?? ""
-    ).trim();
-    const key = extractMinDepositTypeKey(raw);
-    if (key === "per_hour") return 60;
-    if (key === "per_consultancy") return 30;
-    return 30;
-  }, [addQuoteFeeOptionForBreakdown?.payment_type]);
+  const addQuoteEndMinTime = useMemo(
+    () =>
+      scheduleEndTimeMinAfterStart(String(addQuote.requested_time_from ?? "")),
+    [addQuote.requested_time_from]
+  );
 
   const addQuoteSchedulePricePreview = useMemo(() => {
     if (!isAddQuoteScheduleComplete || !addQuotePartnerSelected) return null;
@@ -538,10 +530,14 @@ const QuoteManagement = () => {
       requested_time_to: String(addQuote.requested_time_to ?? ""),
     });
     if (!metrics || !row) return null;
+    const catalogPaymentType = String(
+      addQuoteFeeOptionForBreakdown?.payment_type ?? ""
+    ).trim();
     return buildQuoteSchedulePricePreview(
       row,
       metrics,
-      AppConstant.currencySymbol
+      AppConstant.currencySymbol,
+      catalogPaymentType
     );
   }, [
     isAddQuoteScheduleComplete,
@@ -554,19 +550,8 @@ const QuoteManagement = () => {
     addQuote.requested_time_to,
     scheduleMode,
     selectedPartnerCatalogRecord,
+    addQuoteFeeOptionForBreakdown?.payment_type,
   ]);
-
-  const addQuoteEndTimeFilter = useCallback(
-    (time: Date) => {
-      const startStr = String(addQuote.requested_time_from ?? "").trim();
-      if (!startStr) return true;
-      const startM = minutesFromScheduleTimeStorage(startStr);
-      if (startM == null) return true;
-      const cand = time.getHours() * 60 + time.getMinutes();
-      return cand > startM;
-    },
-    [addQuote.requested_time_from]
-  );
 
   useEffect(() => {
     const from = String(addQuote.requested_time_from ?? "").trim();
@@ -886,8 +871,11 @@ const QuoteManagement = () => {
       requested_time_to: String(addQuote.requested_time_to ?? ""),
     });
     if (!metrics) return;
+    const catalogPaymentType = String(
+      addQuoteFeeOptionForBreakdown?.payment_type ?? ""
+    ).trim();
     const n = row
-      ? computeAutoQuotePriceFromPartner(row, metrics)
+      ? computeAutoQuotePriceFromPartner(row, metrics, catalogPaymentType)
       : 0;
     setAddQuoteValue("service_price", String(n), { shouldValidate: false });
   }, [
@@ -901,6 +889,7 @@ const QuoteManagement = () => {
     addQuote.requested_time_to,
     scheduleMode,
     selectedPartnerCatalogRecord,
+    addQuoteFeeOptionForBreakdown?.payment_type,
     setAddQuoteValue,
   ]);
 
@@ -2155,7 +2144,7 @@ const QuoteManagement = () => {
                               setValue={setAddQuoteValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={addQuoteScheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={addQuoteTimePickerAllowAllHours}
                             />
                           </Col>
@@ -2182,8 +2171,9 @@ const QuoteManagement = () => {
                               setValue={setAddQuoteValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={addQuoteScheduleTimeIntervals}
-                              filterTime={addQuoteEndTimeFilter}
+                              minTime={addQuoteEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>
@@ -2239,7 +2229,7 @@ const QuoteManagement = () => {
                               setValue={setAddQuoteValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={addQuoteScheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={addQuoteTimePickerAllowAllHours}
                             />
                           </Col>
@@ -2266,8 +2256,9 @@ const QuoteManagement = () => {
                               setValue={setAddQuoteValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={addQuoteScheduleTimeIntervals}
-                              filterTime={addQuoteEndTimeFilter}
+                              minTime={addQuoteEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>

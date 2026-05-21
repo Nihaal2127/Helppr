@@ -61,6 +61,8 @@ import {
   resolvePaymentExtension,
   getServiceTaxCommissionPercents,
   customerPaidBalanceForEdit,
+  validatePaymentExtAgainstCaps,
+  hasRecordedOrderPayments,
   partnerPaidBalanceForEdit,
   getPrimaryServiceItem,
   orderRefundAmount,
@@ -678,8 +680,10 @@ type OrderPaymentEditModalProps = {
   onSaved: () => void;
   /** When true, render inside parent modal (no nested dialog shell). */
   embedded?: boolean;
-  /** Parent edit-all uses this to run payment save on Update. */
-  saveRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  /** Parent edit-all validates payment rows before a single combined update. */
+  validateRef?: React.MutableRefObject<(() => boolean) | null>;
+  /** Live payment rows for a single amount summary in the parent modal. */
+  onExtChange?: (ext: OrderPaymentExtV1) => void;
 };
 
 const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -724,7 +728,7 @@ const tablePriceInputStyle: React.CSSProperties = {
 
 const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   show: (order: OrderModel, onSaved: () => void) => void;
-} = ({ order, onClose, onSaved, embedded = false, saveRef }) => {
+} = ({ order, onClose, onSaved, embedded = false, validateRef, onExtChange }) => {
   const primary = getPrimaryServiceItem(order);
   const partnerLock = partnerPaymentsEditLocked(order);
   const refundN = orderRefundAmount(order);
@@ -833,6 +837,10 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     [order, primary, ext, finalTotal, orderDiscount]
   );
 
+  useEffect(() => {
+    onExtChange?.(ext);
+  }, [ext, onExtChange]);
+
   /** Partner obligation before tax/commission: service + other charges minus partner offer share. */
   const partnerDueTotal = useMemo(
     () => Math.max(0, combinedServiceBase - offerBreakdown.partnerContribution),
@@ -853,47 +861,6 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
       ),
     [ext, partnerDueTotal, order.is_paid]
   );
-
-  /** When final / partner caps shrink (e.g. service amount), trim rows from the bottom so sums stay within caps. */
-  useEffect(() => {
-    setExt((e) => {
-      const capC = Math.max(0, finalTotal);
-      const sumC = sumCustomerAmounts(e.customerPayments);
-      let cust = e.customerPayments;
-      let changed = false;
-      if (sumC > capC + 0.01) {
-        let over = sumC - capC;
-        cust = [...e.customerPayments];
-        for (let i = cust.length - 1; i >= 0 && over > 0.01; i--) {
-          const a = Math.max(0, Number(cust[i].amount) || 0);
-          const d = Math.min(a, over);
-          cust[i] = { ...cust[i], amount: a - d };
-          over -= d;
-        }
-        changed = true;
-      }
-
-      let part = e.partnerPayments;
-      if (!partnerLock) {
-        const capP = Math.max(0, partnerDueTotal);
-        const sumP = sumPartnerAmounts(part);
-        if (sumP > capP + 0.01) {
-          let over = sumP - capP;
-          part = [...part];
-          for (let i = part.length - 1; i >= 0 && over > 0.01; i--) {
-            const a = Math.max(0, Number(part[i].amount) || 0);
-            const d = Math.min(a, over);
-            part[i] = { ...part[i], amount: a - d };
-            over -= d;
-          }
-          changed = true;
-        }
-      }
-
-      if (!changed) return e;
-      return { ...e, customerPayments: cust, partnerPayments: part };
-    });
-  }, [finalTotal, partnerDueTotal, partnerLock]);
 
   const customerAddPaymentState = useMemo(
     () =>
@@ -1055,7 +1022,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     );
   };
 
-  const save = React.useCallback(async (): Promise<boolean> => {
+  const validatePayment = React.useCallback((): boolean => {
     if (customerAddPaymentState.reason) {
       setShowCustomerPaymentAddHint(true);
       return false;
@@ -1082,6 +1049,18 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
       );
       return false;
     }
+    return true;
+  }, [
+    customerAddPaymentState.reason,
+    partnerAddPaymentState.reason,
+    ext,
+    finalTotal,
+    partnerLock,
+    partnerDueTotal,
+  ]);
+
+  const save = React.useCallback(async (): Promise<boolean> => {
+    if (!validatePayment()) return false;
 
     const ok = await createOrUpdateOrder(
       buildOrderPaymentUpdatePayload({
@@ -1100,12 +1079,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     onSaved();
     return true;
   }, [
-    customerAddPaymentState.reason,
-    partnerAddPaymentState.reason,
+    validatePayment,
     ext,
-    finalTotal,
-    partnerLock,
-    partnerDueTotal,
     order,
     embedded,
     onClose,
@@ -1113,12 +1088,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   ]);
 
   React.useEffect(() => {
-    if (!saveRef) return;
-    saveRef.current = save;
+    if (!validateRef) return;
+    validateRef.current = validatePayment;
     return () => {
-      saveRef.current = null;
+      validateRef.current = null;
     };
-  }, [save, saveRef]);
+  }, [validatePayment, validateRef]);
 
   const paymentBody = (
     <div
@@ -1170,7 +1145,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       Description
                     </th>
                     <th className="text-end fw-semibold" style={tableThStyle}>
-                      Price
+                      Service amount
                     </th>
                     <th
                       className="text-center fw-semibold"
@@ -1212,11 +1187,61 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         onChange={(val) => {
                           const t = val.trim();
                           if (t === "") {
+                            if (
+                              hasRecordedOrderPayments(ext) &&
+                              !validatePaymentExtAgainstCaps(
+                                { ...ext, serviceAmount: 0 },
+                                finalTotal,
+                                partnerDueTotal
+                              ).valid
+                            ) {
+                              showErrorAlert(
+                                validatePaymentExtAgainstCaps(
+                                  ext,
+                                  finalTotal,
+                                  partnerDueTotal
+                                ).reason ??
+                                  "Reduce or remove payment rows before lowering the service amount."
+                              );
+                              return;
+                            }
                             setExt((x) => ({ ...x, serviceAmount: 0 }));
                             return;
                           }
                           const n = parseFloat(t);
                           if (!Number.isNaN(n) && n >= 0) {
+                            const other = otherChargesTotal(ext.otherCharges);
+                            const lineTotals = computeOrderPaymentLineTotals(
+                              n,
+                              other,
+                              taxPct,
+                              commissionPct
+                            );
+                            const newFinal = Math.max(
+                              0,
+                              lineTotals.totalInclTax -
+                                offerBreakdown.appliedDiscount -
+                                orderDiscount -
+                                refundN
+                            );
+                            const newPartnerDue = Math.max(
+                              0,
+                              n + other - offerBreakdown.partnerContribution
+                            );
+                            if (hasRecordedOrderPayments(ext)) {
+                              const check = validatePaymentExtAgainstCaps(
+                                ext,
+                                newFinal,
+                                newPartnerDue
+                              );
+                              if (!check.valid) {
+                                showErrorAlert(
+                                  check.reason ??
+                                    "Payment rows exceed the new total. Reduce or remove payments first."
+                                );
+                                return;
+                              }
+                            }
                             setExt((x) => ({ ...x, serviceAmount: n }));
                           }
                         }}
@@ -1310,18 +1335,24 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
             </div>
           </section>
 
-          <section className="custom-other-details mt-3" style={sectionShell}>
-            <OrderAmountSummaryPanel
-              display={amountSummaryDisplay}
-              finalTotalLabel="Final total"
-              style={{
-                marginTop: 0,
-                padding: 0,
-                border: "none",
-                background: "transparent",
-              }}
-            />
-          </section>
+          {!embedded ? (
+            <section
+              className="custom-other-details mt-3 order-payment-info-section"
+              style={sectionShell}
+            >
+              <h3 className="mb-3 pb-2 border-bottom">Payment information</h3>
+              <OrderAmountSummaryPanel
+                display={amountSummaryDisplay}
+                variant="view"
+                style={{
+                  marginTop: 0,
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                }}
+              />
+            </section>
+          ) : null}
 
           {/* Customer payments */}
           <section className="custom-other-details mt-3" style={sectionShell}>

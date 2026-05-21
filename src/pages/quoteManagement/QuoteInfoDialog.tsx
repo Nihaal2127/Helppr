@@ -221,10 +221,6 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                 title="Category"
                 value={displayQuote.category_name}
               />
-              <DetailsRow
-                title="Quote description"
-                value={(displayQuote.description ?? "").trim() || undefined}
-              />
             </Col>
             <Col xs={12} md={6} className="info-detail-fields-col">
               <DetailsRow
@@ -247,6 +243,14 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
               <DetailsRow
                 title="Schedule date and time"
                 value={scheduleDisplay}
+              />
+            </Col>
+          </Row>
+          <Row className="g-2 mt-1">
+            <Col xs={12} className="info-detail-fields-col">
+              <DetailsRow
+                title="Quote description"
+                value={(displayQuote.description ?? "").trim() || undefined}
               />
             </Col>
           </Row>

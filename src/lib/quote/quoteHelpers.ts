@@ -477,14 +477,25 @@ export function startOfTodayLocal(): Date {
 export function parseIsoDateOnly(iso: string): Date | null {
   const t = String(iso ?? "").trim();
   if (!t) return null;
-  const parts = t.split("-");
-  if (parts.length !== 3) return null;
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  const day = Number(parts[2]);
-  if (!y || !m || !day) return null;
-  const d = new Date(y, m - 1, day);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const ymd = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) {
+    const y = Number(ymd[1]);
+    const m = Number(ymd[2]);
+    const day = Number(ymd[3]);
+    if (!y || !m || !day) return null;
+    const d = new Date(y, m - 1, day);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Parse `YYYY-MM-DD` for react-datepicker without UTC day shift. */
+export function isoCalendarDateToPickerDate(
+  iso: string | null | undefined
+): Date | null {
+  return parseIsoDateOnly(String(iso ?? "").trim());
 }
 
 export function isCalendarDateNotBeforeToday(iso: string): boolean {
@@ -522,6 +533,51 @@ export function isScheduleEndAfterStartSameDay(
 }
 
 export const quoteScheduleTimePickerAllowAllHours = (): boolean => true;
+
+/** Minute step for schedule start/end time pickers (any minute selectable). */
+export const SCHEDULE_TIME_PICKER_INTERVAL_MINUTES = 1;
+
+/** Parse stored schedule time (`2000-01-01T09:30:00`) for react-datepicker without timezone drift. */
+export function scheduleTimeStorageToPickerDate(
+  storage: string | null | undefined
+): Date | null {
+  const mins = minutesFromScheduleTimeStorage(String(storage ?? ""));
+  if (mins == null) return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setMinutes(mins);
+  return d;
+}
+
+/** Earliest selectable end time on the same day (one minute after start). */
+export function scheduleEndTimeMinAfterStart(
+  startStorage: string
+): Date | undefined {
+  const startM = minutesFromScheduleTimeStorage(startStorage);
+  if (startM == null) return undefined;
+  const minM = Math.min(startM + 1, 23 * 60 + 59);
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setMinutes(minM);
+  return d;
+}
+
+export function scheduleEndTimeMaxForDay(): Date {
+  const d = new Date();
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
+/** End time must be later than start on the same day. */
+export function scheduleEndTimeSelectable(
+  time: Date,
+  startStorage: string
+): boolean {
+  const startM = minutesFromScheduleTimeStorage(startStorage);
+  if (startM == null) return true;
+  const cand = time.getHours() * 60 + time.getMinutes();
+  return cand > startM;
+}
 
 function coalesceText(fresh?: string, keep?: string): string {
   const next = String(fresh ?? "").trim();

@@ -4,7 +4,8 @@
 import { apiRequest } from "../global/remote/apiHelper";
 import { ApiPaths } from "../global/remote/apiPaths";
 import { showLog } from "../../helper/logger";
-import { formatDate, formatUtcToLocalTime } from "../../helper/utility";
+import { formatDate } from "../../helper/utility";
+import { formatQuoteScheduledDisplay } from "../quote/quoteHelpers";
 import type { ServerTableSortBy } from "../global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../franchise/headerFranchisePreference";
 import type { OfferModel } from "../models/SettingsModel";
@@ -43,6 +44,7 @@ import type {
   OtherChargeRow,
   PartnerPaymentRow,
 } from "./orderPaymentRows";
+import { orderPartnerPriceAmount } from "./orderPriceAmounts";
 
 export { roundMoney } from "../global/paymentAndCurrency";
 
@@ -326,31 +328,37 @@ function mapCustomerPaymentsToApi(
   rows: CustomerPaymentRow[]
 ): Record<string, unknown>[] {
   return rows
-    .filter((r) => apiMoney(r.amount) > 0.009)
-    .map((r) => ({
-      payer_type: "customer",
-      amount: apiMoney(r.amount),
-      status: "completed",
-      payment_method: normalizePaymentMethod(r.type) || "cash",
-      transaction_reference: String(r.description ?? "").trim() || undefined,
-      notes: String(r.description ?? "").trim() || undefined,
-      ...(r.date ? { paid_at: r.date } : {}),
-    }));
+    .filter((r) => paymentRowEffectiveAmount(r) > 0.009)
+    .map((r) => {
+      const amount = paymentRowEffectiveAmount(r);
+      return {
+        payer_type: "customer",
+        amount,
+        status: "completed",
+        payment_method: normalizePaymentMethod(r.type) || "cash",
+        transaction_reference: String(r.description ?? "").trim() || undefined,
+        notes: String(r.description ?? "").trim() || undefined,
+        ...(r.date ? { paid_at: r.date } : {}),
+      };
+    });
 }
 
 function mapPartnerPaymentsToApi(
   rows: PartnerPaymentRow[]
 ): Record<string, unknown>[] {
   return rows
-    .filter((r) => apiMoney(r.amount) > 0.009)
-    .map((r) => ({
-      payer_type: "partner",
-      amount: apiMoney(r.amount),
-      status: "completed",
-      payment_method: "cash",
-      notes: String(r.description ?? "").trim() || undefined,
-      ...(r.date ? { paid_at: r.date } : {}),
-    }));
+    .filter((r) => paymentRowEffectiveAmount(r) > 0.009)
+    .map((r) => {
+      const amount = paymentRowEffectiveAmount(r);
+      return {
+        payer_type: "partner",
+        amount,
+        status: "completed",
+        payment_method: "cash",
+        notes: String(r.description ?? "").trim() || undefined,
+        ...(r.date ? { paid_at: r.date } : {}),
+      };
+    });
 }
 
 /** POST /api/order/create — Help-PR Orders Postman. */
@@ -427,14 +435,13 @@ export function buildCreateOrderPayload(input: {
   if (input.addressId?.trim()) body.address_id = input.addressId.trim();
   if (input.offerId?.trim()) body.offer_id = input.offerId.trim();
 
-  const payMeta = deriveOrderCustomerPaymentFields(
-    input.paymentExt,
-    charge
-  );
-  body.is_paid = payMeta.is_paid;
+  const ext = input.paymentExt ? normalizePaymentExtForSubmit(input.paymentExt) : undefined;
+  const payMeta = deriveOrderCustomerPaymentFields(ext, charge);
+  /** New orders: API expects `is_paid: false` on create; paid flag is set on update. */
+  body.is_paid = false;
   body.customer_payment_method = payMeta.customer_payment_method;
+  body.customer_payment_status = payMeta.customer_payment_status;
 
-  const ext = input.paymentExt;
   if (ext) {
     const charges = mapOtherChargesToApi(ext.otherCharges ?? []);
     const payments = [
@@ -486,6 +493,7 @@ export function buildOrderPaymentUpdatePayload(input: {
   ext: OrderPaymentExtV1;
   totalServiceCharge: number;
 }): Record<string, unknown> {
+  const extNorm = normalizePaymentExtForSubmit(input.ext);
   const body: Record<string, unknown> = {
     total_service_charge: input.totalServiceCharge,
   };
@@ -494,10 +502,12 @@ export function buildOrderPaymentUpdatePayload(input: {
 
   const payCreate: Record<string, unknown>[] = [];
   const payUpdate: Record<string, unknown>[] = [];
-  for (const r of input.ext.customerPayments ?? []) {
+  for (const r of extNorm.customerPayments ?? []) {
+    const amount = paymentRowEffectiveAmount(r);
+    if (amount <= 0.009) continue;
     const row = {
       payer_type: "customer",
-      amount: apiMoney(r.amount),
+      amount,
       status: "completed",
       payment_method: normalizePaymentMethod(r.type) || "cash",
       notes: String(r.description ?? "").trim() || undefined,
@@ -505,10 +515,12 @@ export function buildOrderPaymentUpdatePayload(input: {
     if (isMongoObjectId(r.id)) payUpdate.push({ _id: r.id, ...row });
     else payCreate.push(row);
   }
-  for (const r of input.ext.partnerPayments ?? []) {
+  for (const r of extNorm.partnerPayments ?? []) {
+    const amount = paymentRowEffectiveAmount(r);
+    if (amount <= 0.009) continue;
     const row = {
       payer_type: "partner",
-      amount: apiMoney(r.amount),
+      amount,
       status: "completed",
       payment_method: "cash",
       notes: String(r.description ?? "").trim() || undefined,
@@ -524,17 +536,18 @@ export function buildOrderPaymentUpdatePayload(input: {
   }
 
   const invoiceTotal = orderPaymentInvoiceTotal(
-    input.ext,
+    extNorm,
     input.order,
     getPrimaryServiceItem(input.order)
   );
-  const payMeta = deriveOrderCustomerPaymentFields(input.ext, invoiceTotal);
+  const payMeta = deriveOrderCustomerPaymentFields(extNorm, invoiceTotal);
   body.is_paid = payMeta.is_paid;
   body.customer_payment_method = payMeta.customer_payment_method;
+  body.customer_payment_status = payMeta.customer_payment_status;
 
   const chCreate: Record<string, unknown>[] = [];
   const chUpdate: Record<string, unknown>[] = [];
-  for (const r of input.ext.otherCharges ?? []) {
+  for (const r of extNorm.otherCharges ?? []) {
     const row = {
       amount: apiMoney(r.amount),
       label:
@@ -553,6 +566,32 @@ export function buildOrderPaymentUpdatePayload(input: {
   }
 
   return body;
+}
+
+/** Merge payment/charges fields from the payment editor into an order update body. */
+export function applyOrderPaymentFieldsToUpdatePayload(
+  target: Record<string, unknown>,
+  input: {
+    order: OrderModel;
+    ext: OrderPaymentExtV1;
+    totalServiceCharge: number;
+  }
+): void {
+  const payment = buildOrderPaymentUpdatePayload(input);
+  if (payment.order_payments) target.order_payments = payment.order_payments;
+  if (payment.additional_charges) {
+    target.additional_charges = payment.additional_charges;
+  }
+  target.total_service_charge = payment.total_service_charge;
+  target.is_paid = payment.is_paid;
+  target.customer_payment_method = payment.customer_payment_method;
+
+  const items = target.service_items as
+    | { update?: Record<string, unknown>[] }
+    | undefined;
+  if (items?.update?.[0]) {
+    items.update[0].total_service_charge = input.totalServiceCharge;
+  }
 }
 
 // ========== API ==========
@@ -1199,16 +1238,14 @@ export const ORDER_PARTNER_PAYMENT_STATUS_OPTIONS: { value: string; label: strin
 
 export function formatServiceScheduleLine(item?: OrderItemModel): string {
   if (!item) return "-";
+  const scheduled = formatQuoteScheduledDisplay({
+    scheduled_date: item.service_date,
+    service_from_time: item.service_from_time,
+    service_to_time: item.service_to_time,
+  });
+  if (scheduled !== "-") return scheduled;
   const d = item.service_date ? formatDate(item.service_date) : "";
-  const from = item.service_from_time
-    ? formatUtcToLocalTime(item.service_from_time)
-    : "";
-  const to = item.service_to_time
-    ? formatUtcToLocalTime(item.service_to_time)
-    : "";
-  const time = from && to ? `${from} – ${to}` : from || to || "";
-  if (d && time) return `${d}, ${time}`;
-  return d || time || "-";
+  return d || "-";
 }
 
 /** Parses API money fields that may be number, string, or null. */
@@ -1657,23 +1694,14 @@ export function getServiceTaxCommissionPercents(
 }
 
 /**
- * Service amount for amount-summary UI — prefers API `sub_total` (pre-tax subtotal),
- * not `total_service_charge` (partner service price only).
+ * Base service price for payment editor & amount summary (line `service_price` /
+ * `total_service_charge`) — not `sub_total` or `total_price`.
  */
 export function orderPaymentSummaryServiceAmount(
   order?: OrderModel,
   primary?: OrderItemModel
 ): number {
-  const fromOrder = apiMoney(order?.sub_total);
-  if (fromOrder > 0) return fromOrder;
-  const fromItem = apiMoney(primary?.sub_total);
-  if (fromItem > 0) return fromItem;
-  return roundMoney(
-    apiMoney(order?.total_service_charge) ||
-      apiMoney(order?.service_price) ||
-      apiMoney(primary?.service_price) ||
-      0
-  );
+  return orderPartnerPriceAmount(order, primary);
 }
 
 export {
@@ -1970,14 +1998,110 @@ export function otherChargesTotal(charges: OtherChargeRow[]): number {
 
 export function sumCustomerAmounts(rows: CustomerPaymentRow[]): number {
   return roundMoney(
-    rows.reduce((a, r) => a + Math.max(0, Number(r.amount) || 0), 0)
+    rows.reduce((a, r) => a + Math.max(0, paymentRowEffectiveAmount(r)), 0)
   );
 }
 
 export function sumPartnerAmounts(rows: PartnerPaymentRow[]): number {
   return roundMoney(
-    rows.reduce((a, r) => a + Math.max(0, Number(r.amount) || 0), 0)
+    rows.reduce((a, r) => a + Math.max(0, paymentRowEffectiveAmount(r)), 0)
   );
+}
+
+/** Flush draft `amountInput` into `amount` before create/update API payloads. */
+export function normalizePaymentExtForSubmit(
+  ext: OrderPaymentExtV1
+): OrderPaymentExtV1 {
+  return {
+    ...ext,
+    customerPayments: (ext.customerPayments ?? []).map((r) => ({
+      ...r,
+      amount: paymentRowEffectiveAmount(r),
+      amountInput: undefined,
+    })),
+    partnerPayments: (ext.partnerPayments ?? []).map((r) => ({
+      ...r,
+      amount: paymentRowEffectiveAmount(r),
+      amountInput: undefined,
+    })),
+  };
+}
+
+export type PaymentCapsValidation = {
+  valid: boolean;
+  reason?: string;
+};
+
+function formatCapMoney(n: number): string {
+  return `${AppConstant.currencySymbol}${roundMoney(Math.max(0, n)).toFixed(2)}`;
+}
+
+/** User/partner paid sums must not exceed their respective invoice caps. */
+export function validatePaymentExtAgainstCaps(
+  ext: OrderPaymentExtV1,
+  customerInvoiceCap: number,
+  partnerServiceCap: number
+): PaymentCapsValidation {
+  const customerPaid = sumCustomerAmounts(ext.customerPayments);
+  const partnerPaid = sumPartnerAmounts(ext.partnerPayments);
+  const custCap = Math.max(0, roundMoney(customerInvoiceCap));
+  const partCap = Math.max(0, roundMoney(partnerServiceCap));
+
+  if (customerPaid > custCap + 0.01) {
+    return {
+      valid: false,
+      reason: `User payments (${formatCapMoney(customerPaid)}) cannot exceed the order total (${formatCapMoney(custCap)}). Reduce or remove user payment rows before changing the total or applying an offer.`,
+    };
+  }
+  if (partnerPaid > partCap + 0.01) {
+    return {
+      valid: false,
+      reason: `Partner payments (${formatCapMoney(partnerPaid)}) cannot exceed the partner service amount (${formatCapMoney(partCap)}). Reduce or remove partner payment rows first.`,
+    };
+  }
+  return { valid: true };
+}
+
+function clampPaymentRowsToCap<
+  T extends { amount: number; amountInput?: string },
+>(rows: T[], cap: number): T[] {
+  const capN = Math.max(0, roundMoney(cap));
+  const sum = roundMoney(
+    rows.reduce((a, r) => a + paymentRowEffectiveAmount(r), 0)
+  );
+  if (sum <= capN + 0.01) return rows;
+
+  let over = sum - capN;
+  const out = rows.map((r) => ({ ...r }));
+  for (let i = out.length - 1; i >= 0 && over > 0.01; i--) {
+    const a = paymentRowEffectiveAmount(out[i]);
+    const d = Math.min(a, over);
+    out[i] = {
+      ...out[i],
+      amount: roundMoney(a - d),
+      amountInput: undefined,
+    };
+    over -= d;
+  }
+  return out;
+}
+
+/** Trim payment rows from the bottom when caps shrink (e.g. after applying an offer). */
+export function clampPaymentExtToCaps(
+  ext: OrderPaymentExtV1,
+  customerInvoiceCap: number,
+  partnerServiceCap: number,
+  options?: { clampPartner?: boolean }
+): OrderPaymentExtV1 {
+  const clampPartner = options?.clampPartner !== false;
+  const customerPayments = clampPaymentRowsToCap(
+    ext.customerPayments,
+    customerInvoiceCap
+  );
+  const partnerPayments = clampPartner
+    ? clampPaymentRowsToCap(ext.partnerPayments, partnerServiceCap)
+    : ext.partnerPayments;
+  return { ...ext, customerPayments, partnerPayments };
 }
 
 export function isCustomerPaymentRowComplete(row: CustomerPaymentRow): boolean {
@@ -1986,6 +2110,14 @@ export function isCustomerPaymentRowComplete(row: CustomerPaymentRow): boolean {
 
 export function isPartnerPaymentRowComplete(row: PartnerPaymentRow): boolean {
   return paymentRowEffectiveAmount(row) > 0.009;
+}
+
+/** True when any user or partner payment row has a non-zero paid amount. */
+export function hasRecordedOrderPayments(ext: OrderPaymentExtV1): boolean {
+  return (
+    ext.customerPayments.some(isCustomerPaymentRowComplete) ||
+    ext.partnerPayments.some(isPartnerPaymentRowComplete)
+  );
 }
 
 export type CanAddPaymentRowResult = {
@@ -2031,24 +2163,40 @@ export function canAddAnotherPartnerPayment(
 }
 
 /**
- * Order create/update: `is_paid` when customer rows cover the invoice total;
- * `customer_payment_method` from the first customer row with amount, else first row, else `cash`.
+ * Order create/update customer payment header fields from user payment rows.
+ *
+ * - `is_paid`: `true` when customer payment rows cover the invoice total (uses draft amounts too).
+ * - `customer_payment_method`: first row with amount &gt; 0 (method column), else `cash` when unpaid with no rows.
+ * - `customer_payment_status`: `paid` | `partially_paid` | `unpaid`.
  */
 export function deriveOrderCustomerPaymentFields(
   ext: OrderPaymentExtV1 | undefined,
   invoiceTotal: number
-): { is_paid: boolean; customer_payment_method: string } {
-  const inv = Math.max(0, Number(invoiceTotal) || 0);
-  const totalPaid = sumCustomerAmounts(ext?.customerPayments ?? []);
-  const balance = Math.max(0, roundMoney(inv - totalPaid));
-  const is_paid = inv > 0.009 ? balance <= 0.009 && totalPaid > 0.009 : false;
-
+): {
+  is_paid: boolean;
+  customer_payment_method: string;
+  customer_payment_status: string;
+} {
+  const inv = Math.max(0, roundMoney(Number(invoiceTotal) || 0));
   const rows = ext?.customerPayments ?? [];
-  const withAmount = rows.filter((r) => apiMoney(r.amount) > 0.009);
-  const pick = withAmount[0] ?? rows[0];
-  const customer_payment_method = normalizePaymentMethod(pick?.type) || "cash";
+  const totalPaid = sumCustomerAmounts(rows);
+  const balance = Math.max(0, roundMoney(inv - totalPaid));
+  const is_paid =
+    inv > 0.009 && totalPaid > 0.009 && balance <= 0.05;
 
-  return { is_paid, customer_payment_method };
+  const withAmount = rows.filter((r) => paymentRowEffectiveAmount(r) > 0.009);
+  const pick = withAmount[0] ?? rows[0];
+  const customer_payment_method =
+    withAmount.length > 0
+      ? normalizePaymentMethod(pick?.type) || "cash"
+      : "cash";
+
+  let customer_payment_status = "unpaid";
+  if (totalPaid > 0.009) {
+    customer_payment_status = is_paid ? "paid" : "partially_paid";
+  }
+
+  return { is_paid, customer_payment_method, customer_payment_status };
 }
 
 function normPaymentDescription(s: string | undefined): string {
@@ -2484,12 +2632,22 @@ export function buildOrderEditAllUpdatePayload(input: {
     payload.address_id = input.selectedAddressId.trim();
   }
 
-  const payMeta = deriveOrderCustomerPaymentFields(
-    input.paymentExt,
-    input.invoiceTotal ?? servicePrice
-  );
-  payload.is_paid = payMeta.is_paid;
-  payload.customer_payment_method = payMeta.customer_payment_method;
+  if (input.paymentExt) {
+    const charge = input.paymentExt.serviceAmount;
+    applyOrderPaymentFieldsToUpdatePayload(payload, {
+      order,
+      ext: input.paymentExt,
+      totalServiceCharge: charge,
+    });
+  } else {
+    const payMeta = deriveOrderCustomerPaymentFields(
+      undefined,
+      input.invoiceTotal ?? servicePrice
+    );
+    payload.is_paid = payMeta.is_paid;
+    payload.customer_payment_method = payMeta.customer_payment_method;
+    payload.customer_payment_status = payMeta.customer_payment_status;
+  }
 
   return payload;
 }

@@ -11,16 +11,11 @@ import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import {
-  buildQuoteSchedulePricePreview,
-  computeAutoQuotePriceFromPartner,
-  deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
-  buildPartnerCategoryOptionsFromProviding,
-  buildPartnerServiceOptionsFromProviding,
-  buildQuoteCategoryOptionsForPartner,
-  getPartnerActiveServiceProvidingRow,
-  getPartnerProvidingServiceIdSet,
-  getQuoteScheduleModeFromServiceOption,
+  buildQuoteCatalogServicesForPartner,
+  buildQuoteCategoryOptionsForSelectedPartner,
+  filterPartnerServicesForCategory,
+  getQuoteScheduleModeForPartnerService,
   mapRelatedCatalogToQuoteOptions,
   mergeQuoteServiceFeesForBreakdown,
 } from "../../services/quoteService";
@@ -38,6 +33,9 @@ import {
   computeQuotePriceBreakdown,
   mapOfferModelToCouponInput,
   QUOTE_MODAL_LAYOUT,
+  SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  scheduleEndTimeMaxForDay,
+  scheduleEndTimeMinAfterStart,
   setQuoteFranchiseCatalogSnapshot,
   useQuoteCustomerAddressPanel,
   validateCouponForPriceBreakdown,
@@ -49,15 +47,21 @@ import {
   buildOrderEditAllUpdatePayload,
   getOrderCategoryName,
   getOrderPartnerDisplayName,
+  getPrimaryServiceItem,
   orderEditAllAddressLine,
+  orderPaymentInvoiceTotal,
   resolveOrderEditFranchiseId,
   resolveOrderOfferBreakdown,
+  resolvePaymentExtension,
   seedEditOrderFormFromRow,
   serviceNamesJoined,
+  validatePaymentExtAgainstCaps,
+  hasRecordedOrderPayments,
 } from "../../lib/order/orders";
-import type { EditOrderFormValues } from "../../lib/order/orders";
+import type { EditOrderFormValues, OrderPaymentExtV1 } from "../../lib/order/orders";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
-import { buildOrderAmountSummaryFromQuoteBreakdown } from "../../lib/order/orderAmountSummary";
+import OrderCouponAction from "../../components/order/OrderCouponAction";
+import { buildOrderAmountSummaryFromOrder } from "../../lib/order/orderAmountSummary";
 import type { QuotePriceBreakdownWithCoupon } from "../../lib/quote/quoteHelpers";
 import { roundMoney } from "../../lib/global/paymentAndCurrency";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
@@ -169,11 +173,16 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const [loadError, setLoadError] = useState("");
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [formHydrated, setFormHydrated] = useState(false);
-  const [paymentEditorKey, setPaymentEditorKey] = useState(0);
-  const paymentSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const paymentValidateRef = useRef<(() => boolean) | null>(null);
+  const lastAcceptedEditServicePriceRef = useRef("");
+  const [paymentExtLive, setPaymentExtLive] = useState<OrderPaymentExtV1 | null>(
+    null
+  );
   const [activeCoupons, setActiveCoupons] = useState<OfferModel[]>([]);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [couponModalError, setCouponModalError] = useState("");
+  const [modalCouponOfferId, setModalCouponOfferId] = useState("");
+  const offerIdBeforeCouponModalRef = useRef("");
   const [couponOptions, setCouponOptions] = useState<OptionType[]>([
     { value: "", label: "Select" },
   ]);
@@ -208,8 +217,8 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(false);
 
   const catalogSeqRef = useRef(0);
+  const orderLoadSeqRef = useRef(0);
   const initialOrderStatusRef = useRef(0);
-  const skipAutoPriceRef = useRef(true);
   const [apiServiceFees, setApiServiceFees] = useState<
     ServiceDropDownOption | undefined
   >(undefined);
@@ -249,19 +258,17 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const offerIdWatch = String(form.offer_id ?? "").trim();
   const serviceId = String(form.requested_services ?? "").trim();
   const hasServiceSelected = Boolean(serviceId);
-  const partnerSelected = Boolean(String(form.requested_partner ?? "").trim());
-
   useEffect(() => {
     setFormHydrated(false);
   }, [orderMongoId]);
 
   useEffect(() => {
-    let cancelled = false;
+    const seq = ++orderLoadSeqRef.current;
     (async () => {
       setLoadError("");
       setFormHydrated(false);
       const { order: row } = await fetchOrderById(orderMongoId);
-      if (cancelled) return;
+      if (seq !== orderLoadSeqRef.current) return;
       if (!row) {
         setLoadError("Could not load this order.");
         setOrderRow(null);
@@ -272,9 +279,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       setApiServiceFees(undefined);
       initialOrderStatusRef.current = row.order_status;
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [orderMongoId]);
 
   const franchiseIdForCatalog = useMemo(
@@ -357,22 +361,9 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
 
   useEffect(() => {
     if (!orderRow || catalogBusy || !franchisePinsLoadDone) return;
-    skipAutoPriceRef.current = true;
     reset(seedEditOrderFormFromRow(orderRow));
     setFormHydrated(true);
-    const t = window.setTimeout(() => {
-      skipAutoPriceRef.current = false;
-    }, 0);
-    return () => window.clearTimeout(t);
   }, [orderRow, catalogBusy, franchisePinsLoadDone, reset]);
-
-  const clearScheduleAndPriceFields = useCallback(() => {
-    setValue("requested_date", "", { shouldValidate: false });
-    setValue("requested_date_to", "", { shouldValidate: false });
-    setValue("requested_time_from", "", { shouldValidate: false });
-    setValue("requested_time_to", "", { shouldValidate: false });
-    setValue("service_price", "", { shouldValidate: false });
-  }, [setValue]);
 
   const applySelectFieldValue = useCallback(
     (name: keyof EditOrderFormValues, value: unknown) => {
@@ -457,74 +448,49 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     );
   }, [form.requested_partner, catalogPartnerRecords]);
 
-  const quoteCatalogServicesForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerServiceOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
-    if (!allow) return quoteCatalogServices;
-    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
-  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+  const quoteCatalogServicesForPartner = useMemo(
+    () =>
+      buildQuoteCatalogServicesForPartner(
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
-  const quoteCategoryOptionsForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerCategoryOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    return buildQuoteCategoryOptionsForPartner(
-      quoteCategoryOptions,
-      quoteCatalogServicesForPartner,
-      selectedPartnerCatalogRecord
-    );
-  }, [
-    quoteCategoryOptions,
-    quoteCatalogServicesForPartner,
-    selectedPartnerCatalogRecord,
-  ]);
+  const quoteCategoryOptionsForPartner = useMemo(
+    () =>
+      buildQuoteCategoryOptionsForSelectedPartner(
+        quoteCategoryOptions,
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCategoryOptions, quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(form.category_id ?? "").trim();
     const quoteServiceOptionsForCategory = !cid
       ? []
-      : quoteCatalogServicesForPartner.filter((o) => {
-          const ref = normalizeServiceCategoryRef(o.category_id);
-          return ref === cid;
-        });
+      : filterPartnerServicesForCategory(
+          quoteCatalogServicesForPartner,
+          selectedPartnerCatalogRecord,
+          cid
+        );
     const sid = String(form.requested_services ?? "").trim();
     const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
     return {
       quoteServiceOptionsForCategory,
-      scheduleMode: getQuoteScheduleModeFromServiceOption({
-        payment_type: opt?.payment_type,
-        label: opt?.label ?? "",
-      }),
+      scheduleMode: getQuoteScheduleModeForPartnerService(
+        opt,
+        selectedPartnerCatalogRecord,
+        sid
+      ),
     };
   }, [
     form.category_id,
     form.requested_services,
     quoteCatalogServicesForPartner,
-  ]);
-
-  const isScheduleComplete = useMemo(() => {
-    if (!hasServiceSelected) return false;
-    const d = String(form.requested_date ?? "").trim();
-    const dTo = String(form.requested_date_to ?? "").trim();
-    const tFrom = String(form.requested_time_from ?? "").trim();
-    const tTo = String(form.requested_time_to ?? "").trim();
-    if (scheduleMode === "range") {
-      return Boolean(d && dTo && tFrom && tTo);
-    }
-    return Boolean(d && tFrom && tTo);
-  }, [
-    hasServiceSelected,
-    scheduleMode,
-    form.requested_date,
-    form.requested_date_to,
-    form.requested_time_from,
-    form.requested_time_to,
+    selectedPartnerCatalogRecord,
   ]);
 
   const selectedServiceOption = useMemo(() => {
@@ -541,11 +507,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     return merged ?? apiServiceFees;
   }, [selectedServiceOption, selectedPartnerCatalogRecord, serviceId, apiServiceFees]);
 
-  const scheduleTimeIntervals = useMemo(() => {
-    const pay = String(feeOptionForPreview?.payment_type ?? "").toLowerCase();
-    if (pay.includes("hour")) return 60;
-    return 30;
-  }, [feeOptionForPreview?.payment_type]);
+  const editEndMinTime = useMemo(
+    () =>
+      scheduleEndTimeMinAfterStart(String(form.requested_time_from ?? "")),
+    [form.requested_time_from]
+  );
 
   const editPriceBreakdown = useMemo(
     () => computeQuotePriceBreakdown(form.service_price, feeOptionForPreview),
@@ -574,13 +540,41 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     );
   }, [offerIdWatch, activeCoupons]);
 
+  const editPaymentExtForCaps = useMemo(() => {
+    if (!orderRow) return null;
+    const primary = getPrimaryServiceItem(orderRow);
+    return paymentExtLive ?? resolvePaymentExtension(orderRow, primary);
+  }, [orderRow, paymentExtLive]);
+
   const couponApplyValidation = useMemo(() => {
     if (!selectedCouponOffer || !editPriceBreakdown) return null;
-    return validateCouponForPriceBreakdown(
+    const couponVal = validateCouponForPriceBreakdown(
       editPriceBreakdown,
       mapOfferModelToCouponInput(selectedCouponOffer)
     );
-  }, [selectedCouponOffer, editPriceBreakdown]);
+    if (!couponVal.valid) return couponVal;
+    if (!editPaymentExtForCaps) return couponVal;
+    const withCoupon = applyCouponToQuotePriceBreakdown(
+      editPriceBreakdown,
+      mapOfferModelToCouponInput(selectedCouponOffer),
+      feeOptionForPreview
+    );
+    const customerCap = Number(withCoupon?.grandTotal ?? 0);
+    const partnerCap = Math.max(
+      0,
+      Number(withCoupon?.serviceAfterCoupon ?? withCoupon?.base ?? 0)
+    );
+    return validatePaymentExtAgainstCaps(
+      editPaymentExtForCaps,
+      customerCap,
+      partnerCap
+    );
+  }, [
+    selectedCouponOffer,
+    editPriceBreakdown,
+    editPaymentExtForCaps,
+    feeOptionForPreview,
+  ]);
 
   const editPriceBreakdownWithCoupon = useMemo(() => {
     if (!editPriceBreakdown) return null;
@@ -604,45 +598,55 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     feeOptionForPreview,
   ]);
 
-  const editAmountSummaryDisplay = useMemo(() => {
-    if (!editPriceBreakdownWithCoupon) return null;
-    const partnerDisc = roundMoney(
-      editPriceBreakdownWithCoupon.partnerDiscountOnService ?? 0
-    );
-    const adminDisc = roundMoney(
-      editPriceBreakdownWithCoupon.adminDiscountOnCommission ?? 0
-    );
-    const appliedDiscount = roundMoney(
-      editPriceBreakdownWithCoupon.totalCouponDiscount ??
-        partnerDisc + adminDisc
-    );
-    return buildOrderAmountSummaryFromQuoteBreakdown(
-      editPriceBreakdownWithCoupon,
-      {
-        offer: {
-          totalOfferValue: appliedDiscount,
-          adminContribution: adminDisc,
-          partnerContribution: partnerDisc,
-          appliedDiscount,
-          offerName: selectedCouponOffer?.offerName,
-          offerCode: selectedCouponOffer?.offerId,
-        },
-        finalTotal: editPriceBreakdownWithCoupon.grandTotal,
-      }
-    );
-  }, [editPriceBreakdownWithCoupon, selectedCouponOffer]);
+  const endAmountSummaryDisplay = useMemo(() => {
+    if (!orderRow) return null;
+    const primary = getPrimaryServiceItem(orderRow);
+    const ext =
+      paymentExtLive ?? resolvePaymentExtension(orderRow, primary);
+    const finalTotal = orderPaymentInvoiceTotal(ext, orderRow, primary);
+    return buildOrderAmountSummaryFromOrder(orderRow, {
+      primary,
+      paymentExt: ext,
+      finalTotal,
+    });
+  }, [orderRow, paymentExtLive]);
 
-  const confirmApplyCouponFromModal = useCallback(() => {
-    const id = String(getValues("offer_id") ?? "").trim();
-    if (!id) {
+  useEffect(() => {
+    setPaymentExtLive(null);
+  }, [orderRow?._id]);
+
+  const modalSelectedCouponOffer = useMemo(() => {
+    const id = String(modalCouponOfferId ?? "").trim();
+    if (!id) return null;
+    return (
+      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
+      null
+    );
+  }, [modalCouponOfferId, activeCoupons]);
+
+  const closeCouponModal = useCallback(
+    (revertOfferId: boolean) => {
+      if (revertOfferId) {
+        setValue("offer_id", offerIdBeforeCouponModalRef.current, {
+          shouldValidate: false,
+        });
+      }
       setCouponModalError("");
       setOfferModalOpen(false);
+    },
+    [setValue]
+  );
+
+  const confirmApplyCouponFromModal = useCallback(() => {
+    const id = String(modalCouponOfferId ?? "").trim();
+    if (!id) {
+      setValue("offer_id", "", { shouldValidate: false });
+      closeCouponModal(false);
       return;
     }
     if (!editPriceBreakdown) {
       const msg = "Enter a valid service price before applying a coupon.";
       setCouponModalError(msg);
-      showErrorAlert(msg);
       return;
     }
     const offer =
@@ -651,7 +655,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     if (!offer) {
       const msg = "Selected coupon is no longer available.";
       setCouponModalError(msg);
-      showErrorAlert(msg);
       return;
     }
     const validation = validateCouponForPriceBreakdown(
@@ -660,45 +663,111 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     );
     if (!validation.valid) {
       setCouponModalError(validation.reason ?? "Cannot apply this coupon.");
-      showErrorAlert(validation.reason ?? "Cannot apply this coupon.");
       return;
     }
+    const withCoupon = applyCouponToQuotePriceBreakdown(
+      editPriceBreakdown,
+      mapOfferModelToCouponInput(offer),
+      feeOptionForPreview
+    );
+    const ext =
+      editPaymentExtForCaps ??
+      (orderRow
+        ? resolvePaymentExtension(orderRow, getPrimaryServiceItem(orderRow))
+        : null);
+    if (ext) {
+      const payCheck = validatePaymentExtAgainstCaps(
+        ext,
+        Number(withCoupon?.grandTotal ?? 0),
+        Math.max(
+          0,
+          Number(withCoupon?.serviceAfterCoupon ?? withCoupon?.base ?? 0)
+        )
+      );
+      if (!payCheck.valid) {
+        setCouponModalError(payCheck.reason ?? "Cannot apply this coupon.");
+        return;
+      }
+    }
+    setValue("offer_id", id, { shouldValidate: false });
     setCouponModalError("");
     setOfferModalOpen(false);
-  }, [activeCoupons, editPriceBreakdown, getValues]);
-
-  const schedulePricePreview = useMemo(() => {
-    if (!isScheduleComplete || !partnerSelected) return null;
-    const metrics = deriveQuoteScheduleMetrics({
-      scheduleMode,
-      requested_date: String(form.requested_date ?? ""),
-      requested_date_to: String(form.requested_date_to ?? ""),
-      requested_time: String(form.requested_time ?? ""),
-      requested_time_from: String(form.requested_time_from ?? ""),
-      requested_time_to: String(form.requested_time_to ?? ""),
-    });
-    if (!metrics) return null;
-    const row = getPartnerActiveServiceProvidingRow(
-      selectedPartnerCatalogRecord,
-      serviceId
-    );
-    return buildQuoteSchedulePricePreview(
-      row,
-      metrics,
-      AppConstant.currencySymbol
-    );
   }, [
-    isScheduleComplete,
-    partnerSelected,
-    scheduleMode,
-    form.requested_date,
-    form.requested_date_to,
-    form.requested_time,
-    form.requested_time_from,
-    form.requested_time_to,
-    selectedPartnerCatalogRecord,
-    serviceId,
+    activeCoupons,
+    closeCouponModal,
+    editPriceBreakdown,
+    editPaymentExtForCaps,
+    feeOptionForPreview,
+    modalCouponOfferId,
+    orderRow,
+    setValue,
   ]);
+
+  const commitEditServicePriceIfPaymentsAllow = useCallback(() => {
+    if (!orderRow) return;
+    const raw = String(form.service_price ?? "").trim();
+    const price = Number.parseFloat(raw);
+    if (Number.isNaN(price) || price < 0) return;
+    const ext =
+      editPaymentExtForCaps ??
+      resolvePaymentExtension(orderRow, getPrimaryServiceItem(orderRow));
+    if (!hasRecordedOrderPayments(ext)) {
+      lastAcceptedEditServicePriceRef.current = raw;
+      return;
+    }
+    const base = computeQuotePriceBreakdown(price, feeOptionForPreview);
+    if (!base) return;
+    const couponInput =
+      selectedCouponOffer &&
+      validateCouponForPriceBreakdown(
+        base,
+        mapOfferModelToCouponInput(selectedCouponOffer)
+      ).valid
+        ? mapOfferModelToCouponInput(selectedCouponOffer)
+        : null;
+    const full = applyCouponToQuotePriceBreakdown(
+      base,
+      couponInput,
+      feeOptionForPreview
+    );
+    const payCheck = validatePaymentExtAgainstCaps(
+      ext,
+      Number(full.grandTotal ?? 0),
+      Math.max(0, Number(full.serviceAfterCoupon ?? full.base ?? 0))
+    );
+    if (!payCheck.valid) {
+      showErrorAlert(
+        payCheck.reason ??
+          "Payment amounts exceed the new total. Reduce or remove payments before lowering the service price."
+      );
+      setValue("service_price", lastAcceptedEditServicePriceRef.current, {
+        shouldValidate: false,
+        shouldDirty: true,
+      });
+      return;
+    }
+    lastAcceptedEditServicePriceRef.current = raw;
+  }, [
+    orderRow,
+    form.service_price,
+    editPaymentExtForCaps,
+    feeOptionForPreview,
+    selectedCouponOffer,
+    setValue,
+  ]);
+
+  useEffect(() => {
+    if (!formHydrated) return;
+    const raw = String(form.service_price ?? "").trim();
+    const ext =
+      editPaymentExtForCaps ??
+      (orderRow
+        ? resolvePaymentExtension(orderRow, getPrimaryServiceItem(orderRow))
+        : null);
+    if (!ext || !hasRecordedOrderPayments(ext)) {
+      lastAcceptedEditServicePriceRef.current = raw;
+    }
+  }, [formHydrated, form.service_price, editPaymentExtForCaps, orderRow]);
 
   useEffect(() => {
     const from = String(form.requested_time_from ?? "").trim();
@@ -709,54 +778,8 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     }
   }, [form.requested_time_from, form.requested_time_to, setValue]);
 
-  const endTimeFilter = useCallback(
-    (time: Date) => {
-      const startStr = String(form.requested_time_from ?? "").trim();
-      if (!startStr) return true;
-      const startM = minutesFromScheduleTimeStorage(startStr);
-      if (startM == null) return true;
-      const cand = time.getHours() * 60 + time.getMinutes();
-      return cand > startM;
-    },
-    [form.requested_time_from]
-  );
-
   /** Edit: allow any calendar date (existing quotes may be in the past). Create keeps today+. */
   const scheduleDateAllowAll = useCallback(() => true, []);
-
-  useEffect(() => {
-    if (skipAutoPriceRef.current) return;
-    if (!isScheduleComplete || !partnerSelected) return;
-    const sid = serviceId;
-    if (!sid) return;
-    const row = getPartnerActiveServiceProvidingRow(
-      selectedPartnerCatalogRecord,
-      sid
-    );
-    const metrics = deriveQuoteScheduleMetrics({
-      scheduleMode,
-      requested_date: String(form.requested_date ?? ""),
-      requested_date_to: String(form.requested_date_to ?? ""),
-      requested_time: String(form.requested_time ?? ""),
-      requested_time_from: String(form.requested_time_from ?? ""),
-      requested_time_to: String(form.requested_time_to ?? ""),
-    });
-    if (!metrics) return;
-    const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
-    setValue("service_price", String(n), { shouldValidate: false });
-  }, [
-    isScheduleComplete,
-    partnerSelected,
-    serviceId,
-    scheduleMode,
-    form.requested_date,
-    form.requested_date_to,
-    form.requested_time,
-    form.requested_time_from,
-    form.requested_time_to,
-    selectedPartnerCatalogRecord,
-    setValue,
-  ]);
 
   const scheduleToDateFilter = useCallback(
     (date: Date) => {
@@ -917,18 +940,25 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       orderRow.address ?? ""
     );
 
-    if (!isTerminalOrderStatus && paymentSaveRef.current) {
-      const payOk = await paymentSaveRef.current();
-      if (!payOk) return;
+    const primaryItem = getPrimaryServiceItem(orderRow);
+    const paymentExt =
+      !isTerminalOrderStatus && primaryItem
+        ? (paymentExtLive ??
+          resolvePaymentExtension(orderRow, primaryItem))
+        : undefined;
+
+    if (paymentExt && paymentValidateRef.current && !paymentValidateRef.current()) {
+      return;
     }
 
     const payload = buildOrderEditAllUpdatePayload({
       order: orderRow,
       form: data,
       scheduleMode,
-      servicePrice: price,
+      servicePrice: paymentExt?.serviceAmount ?? price,
       addressLine,
       selectedAddressId,
+      paymentExt,
       invoiceTotal: editPriceBreakdownWithCoupon?.grandTotal ?? price,
     });
     if (!payload) {
@@ -1052,16 +1082,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const orderStatusNum = orderRow?.order_status ?? 0;
   const isTerminalOrderStatus =
     orderStatusNum === 3 || orderStatusNum === 4 || orderStatusNum === 5;
-
-  const refreshOrderAfterPaymentSave = useCallback(async () => {
-    const id = String(orderMongoId ?? "").trim();
-    if (!id) return;
-    const { order: row } = await fetchOrderById(id);
-    if (!row) return;
-    setOrderRow(row);
-    reset(seedEditOrderFormFromRow(row));
-    setPaymentEditorKey((k) => k + 1);
-  }, [orderMongoId, reset]);
 
   return (
     <Modal
@@ -1324,7 +1344,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
@@ -1347,8 +1367,9 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
-                              filterTime={endTimeFilter}
+                              minTime={editEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>
@@ -1393,7 +1414,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
@@ -1416,28 +1437,14 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
-                              filterTime={endTimeFilter}
+                              minTime={editEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>
                       )}
                     </Row>
-                    {schedulePricePreview ? (
-                      <div className="add-quote-schedule-preview">
-                        <span className="add-quote-schedule-preview-badge">
-                          {schedulePricePreview.billingLabel}
-                        </span>
-                        <div className="add-quote-schedule-preview-line">
-                          {schedulePricePreview.primaryLine}
-                        </div>
-                        {schedulePricePreview.secondaryLine ? (
-                          <div className="add-quote-schedule-preview-sub">
-                            {schedulePricePreview.secondaryLine}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
                 </>
               ) : null}
@@ -1481,6 +1488,9 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                             placeholder="e.g. 1200"
                             {...register("service_price", {
                               required: "Service price is required",
+                              onBlur: () => {
+                                commitEditServicePriceIfPaymentsAllow();
+                              },
                             })}
                           />
                         </InputGroup>
@@ -1554,45 +1564,53 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                 </Col>
               </Row>
 
-              {editAmountSummaryDisplay && hasServiceSelected ? (
-                <div className="add-quote-breakdown-end mt-3">
-                  <OrderAmountSummaryPanel display={editAmountSummaryDisplay}>
-                    {!lockedFields && !isTerminalOrderStatus ? (
-                      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 mt-2 border-top">
-                        <button
-                          type="button"
-                          className="btn btn-link p-0"
-                          style={{
-                            color: "var(--primary-color)",
-                            textDecoration: "underline",
-                            fontWeight: 600,
-                          }}
-                          onClick={() => {
-                            if (offerIdWatch) {
-                              setValue("offer_id", "", { shouldValidate: false });
-                            } else {
-                              setOfferModalOpen(true);
-                            }
-                          }}
-                        >
-                          {offerIdWatch ? "Remove coupon" : "Apply coupon"}
-                        </button>
-                      </div>
-                    ) : null}
-                  </OrderAmountSummaryPanel>
-                  {couponApplyValidation &&
-                  !couponApplyValidation.valid &&
-                  offerIdWatch ? (
-                    <div className="small text-danger mt-2" role="alert">
-                      {couponApplyValidation.reason}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </section>
 
+            {endAmountSummaryDisplay && hasServiceSelected ? (
+              <section
+                className="custom-other-details mt-4 mb-3"
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08))",
+                  backgroundColor: "var(--bg-color)",
+                }}
+              >
+                <h3 className="mb-3 pb-2 border-bottom">Payment information</h3>
+                <OrderAmountSummaryPanel
+                  display={endAmountSummaryDisplay}
+                  variant="view"
+                  style={{
+                    marginTop: 0,
+                    padding: 0,
+                    border: "none",
+                    background: "transparent",
+                  }}
+                >
+                  {!lockedFields && !isTerminalOrderStatus ? (
+                    <OrderCouponAction
+                      hasCoupon={Boolean(offerIdWatch)}
+                      onApply={() => {
+                        offerIdBeforeCouponModalRef.current = String(
+                          offerIdWatch ?? ""
+                        ).trim();
+                        setModalCouponOfferId(
+                          offerIdBeforeCouponModalRef.current
+                        );
+                        setCouponModalError("");
+                        setOfferModalOpen(true);
+                      }}
+                      onRemove={() =>
+                        setValue("offer_id", "", { shouldValidate: false })
+                      }
+                    />
+                  ) : null}
+                </OrderAmountSummaryPanel>
+              </section>
+            ) : null}
+
             {!isTerminalOrderStatus ? (
-              <section className="custom-other-details add-quote-form-section mt-4">
+              <section className="custom-other-details add-quote-form-section mt-3 mb-2">
                 <h6
                   className="mb-1 pb-2 border-bottom"
                   style={{ fontWeight: 600 }}
@@ -1600,18 +1618,17 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                   Payments & charges
                 </h6>
                 <p className="text-muted small mb-3">
-                  Services — here you can add additional service charges as extra
+                  Services — Here you can add additional service charges as extra
                   line items. Changes are saved when you click Update.
                 </p>
                 <OrderPaymentEditModal
-                  key={`order-pay-edit-${orderMongoId}-${paymentEditorKey}`}
+                  key={`order-pay-edit-${orderMongoId}`}
                   embedded
                   order={orderRow}
-                  saveRef={paymentSaveRef}
+                  validateRef={paymentValidateRef}
+                  onExtChange={setPaymentExtLive}
                   onClose={() => {}}
-                  onSaved={() => {
-                    void refreshOrderAfterPaymentSave();
-                  }}
+                  onSaved={() => {}}
                 />
               </section>
             ) : null}
@@ -1639,10 +1656,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       ) : null}
       <Modal
         show={offerModalOpen}
-        onHide={() => {
-          setCouponModalError("");
-          setOfferModalOpen(false);
-        }}
+        onHide={() => closeCouponModal(true)}
         centered
         enforceFocus={false}
       >
@@ -1674,10 +1688,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => {
-              setCouponModalError("");
-              setOfferModalOpen(false);
-            }}
+            onClick={() => closeCouponModal(true)}
           >
             Cancel
           </Button>

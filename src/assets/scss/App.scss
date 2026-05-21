@@ -2186,6 +2186,12 @@ body:has(.modal.show ~ .modal.show) {
   min-width: 16rem;
 }
 
+/* Orders list: longer placeholder (Order ID, User Name, Partner Name) */
+.custom-utilty-tools-inline.custom-utilty-tools-inline--orders-wide-search .custom-search-container {
+  width: 26rem;
+  min-width: 18rem;
+}
+
 /* Full-width filter bar — avoids tools-inline flex-end + .custom-utilty-box div flex breaking Row/Col */
 .financial-toolbar-filters {
   width: 100%;
@@ -2620,6 +2626,200 @@ body:has(.modal.show ~ .modal.show) {
   width: auto !important;
   max-width: none;
   white-space: normal;
+}
+
+/* Order / quote amount summary — neutral invoice-style breakdown */
+.order-amount-summary {
+  border-radius: 10px;
+  border: 1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1));
+  background-color: var(--bg-color);
+  padding: 1rem 1.125rem;
+}
+
+.order-amount-summary--view {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.order-amount-summary__heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--txt-color);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08));
+}
+
+.order-amount-summary__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.order-amount-summary__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  font-size: 0.9375rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.order-amount-summary__row:last-child {
+  border-bottom: none;
+}
+
+.order-amount-summary__label-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 0.5rem;
+}
+
+.order-amount-summary__label {
+  font-weight: 500;
+  color: var(--txt-color);
+  line-height: 1.4;
+}
+
+.order-amount-summary__detail {
+  font-size: 0.8125rem;
+  color: var(--txt-color);
+  opacity: 0.85;
+  margin-top: 0.2rem;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.order-amount-summary__offer-name {
+  font-weight: 400;
+  color: var(--txt-color);
+  font-size: 0.875rem;
+}
+
+.order-amount-summary__badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  vertical-align: middle;
+  color: var(--content-txt-color);
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--txtfld-border, rgba(0, 0, 0, 0.12));
+}
+
+.order-amount-summary__value {
+  font-weight: 600;
+  color: var(--content-txt-color);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.order-amount-summary__value--deduction {
+  font-weight: 600;
+  color: var(--txt-color);
+}
+
+.order-amount-summary__struck {
+  text-decoration: line-through;
+  color: var(--txt-color);
+  opacity: 0.65;
+  font-weight: 500;
+  font-size: 0.9em;
+  margin-right: 0.35rem;
+}
+
+.order-amount-summary__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem 1.125rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--txtfld-border, rgba(0, 0, 0, 0.14));
+}
+
+.order-amount-summary__total-label,
+.order-amount-summary__total-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--content-txt-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-amount-summary__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1));
+}
+
+.order-coupon-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  width: auto;
+  margin-left: auto;
+}
+
+.order-coupon-action--applied {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.order-coupon-action__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary-color, var(--content-txt-color));
+}
+
+.order-coupon-action__status .bi {
+  font-size: 1rem;
+}
+
+.order-coupon-action__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.order-coupon-action__btn--apply {
+  border-color: var(--primary-color, #8b1538);
+  color: var(--primary-color, #8b1538);
+}
+
+.order-coupon-action__btn--apply:hover:not(:disabled) {
+  background-color: var(--primary-color, #8b1538);
+  border-color: var(--primary-color, #8b1538);
+  color: #fff;
+}
+
+.order-payment-info-section {
+  margin-top: 1rem;
+}
+
+.order-amount-summary__total-value {
+  text-align: right;
+  white-space: nowrap;
 }
 
 .custom-personal-row-value a {

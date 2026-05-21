@@ -18,12 +18,11 @@ import {
   deriveQuoteScheduleMetrics,
   fetchFranchiseRelatedCatalog,
   fetchQuoteDetailById,
-  buildPartnerCategoryOptionsFromProviding,
-  buildPartnerServiceOptionsFromProviding,
-  buildQuoteCategoryOptionsForPartner,
+  buildQuoteCatalogServicesForPartner,
+  buildQuoteCategoryOptionsForSelectedPartner,
+  filterPartnerServicesForCategory,
   getPartnerActiveServiceProvidingRow,
-  getPartnerProvidingServiceIdSet,
-  getQuoteScheduleModeFromServiceOption,
+  getQuoteScheduleModeForPartnerService,
   mapRelatedCatalogToQuoteOptions,
   mergeQuoteServiceFeesForBreakdown,
   normalizeQuoteApiStatus,
@@ -39,6 +38,9 @@ import {
   computeQuotePriceBreakdown,
   QUOTE_MODAL_LAYOUT,
   QUOTE_SECTION_TITLE_CLASS,
+  SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  scheduleEndTimeMaxForDay,
+  scheduleEndTimeMinAfterStart,
   seedEditQuoteFormFromRow,
   setQuoteFranchiseCatalogSnapshot,
   useQuoteCustomerAddressPanel,
@@ -376,55 +378,49 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     );
   }, [form.requested_partner, catalogPartnerRecords]);
 
-  const quoteCatalogServicesForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerServiceOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
-    if (!allow) return quoteCatalogServices;
-    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
-  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+  const quoteCatalogServicesForPartner = useMemo(
+    () =>
+      buildQuoteCatalogServicesForPartner(
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
-  const quoteCategoryOptionsForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerCategoryOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    return buildQuoteCategoryOptionsForPartner(
-      quoteCategoryOptions,
-      quoteCatalogServicesForPartner,
-      selectedPartnerCatalogRecord
-    );
-  }, [
-    quoteCategoryOptions,
-    quoteCatalogServicesForPartner,
-    selectedPartnerCatalogRecord,
-  ]);
+  const quoteCategoryOptionsForPartner = useMemo(
+    () =>
+      buildQuoteCategoryOptionsForSelectedPartner(
+        quoteCategoryOptions,
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCategoryOptions, quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(form.category_id ?? "").trim();
     const quoteServiceOptionsForCategory = !cid
       ? []
-      : quoteCatalogServicesForPartner.filter((o) => {
-          const ref = normalizeServiceCategoryRef(o.category_id);
-          return ref === cid;
-        });
+      : filterPartnerServicesForCategory(
+          quoteCatalogServicesForPartner,
+          selectedPartnerCatalogRecord,
+          cid
+        );
     const sid = String(form.requested_services ?? "").trim();
     const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
     return {
       quoteServiceOptionsForCategory,
-      scheduleMode: getQuoteScheduleModeFromServiceOption({
-        payment_type: opt?.payment_type,
-        label: opt?.label ?? "",
-      }),
+      scheduleMode: getQuoteScheduleModeForPartnerService(
+        opt,
+        selectedPartnerCatalogRecord,
+        sid
+      ),
     };
   }, [
     form.category_id,
     form.requested_services,
     quoteCatalogServicesForPartner,
+    selectedPartnerCatalogRecord,
   ]);
 
   const isScheduleComplete = useMemo(() => {
@@ -460,11 +456,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     return merged ?? apiServiceFees;
   }, [selectedServiceOption, selectedPartnerCatalogRecord, serviceId, apiServiceFees]);
 
-  const scheduleTimeIntervals = useMemo(() => {
-    const pay = String(feeOptionForPreview?.payment_type ?? "").toLowerCase();
-    if (pay.includes("hour")) return 60;
-    return 30;
-  }, [feeOptionForPreview?.payment_type]);
+  const editEndMinTime = useMemo(
+    () =>
+      scheduleEndTimeMinAfterStart(String(form.requested_time_from ?? "")),
+    [form.requested_time_from]
+  );
 
   const editPriceBreakdown = useMemo(
     () => computeQuotePriceBreakdown(form.service_price, feeOptionForPreview),
@@ -486,10 +482,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       selectedPartnerCatalogRecord,
       serviceId
     );
+    const catalogPaymentType = String(
+      feeOptionForPreview?.payment_type ?? ""
+    ).trim();
     return buildQuoteSchedulePricePreview(
       row,
       metrics,
-      AppConstant.currencySymbol
+      AppConstant.currencySymbol,
+      catalogPaymentType
     );
   }, [
     isScheduleComplete,
@@ -502,6 +502,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.requested_time_to,
     selectedPartnerCatalogRecord,
     serviceId,
+    feeOptionForPreview?.payment_type,
   ]);
 
   useEffect(() => {
@@ -512,18 +513,6 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       setValue("requested_time_to", "", { shouldValidate: false });
     }
   }, [form.requested_time_from, form.requested_time_to, setValue]);
-
-  const endTimeFilter = useCallback(
-    (time: Date) => {
-      const startStr = String(form.requested_time_from ?? "").trim();
-      if (!startStr) return true;
-      const startM = minutesFromScheduleTimeStorage(startStr);
-      if (startM == null) return true;
-      const cand = time.getHours() * 60 + time.getMinutes();
-      return cand > startM;
-    },
-    [form.requested_time_from]
-  );
 
   /** Edit: allow any calendar date (existing quotes may be in the past). Create keeps today+. */
   const scheduleDateAllowAll = useCallback(() => true, []);
@@ -546,7 +535,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       requested_time_to: String(form.requested_time_to ?? ""),
     });
     if (!metrics) return;
-    const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
+    const catalogPaymentType = String(
+      feeOptionForPreview?.payment_type ?? ""
+    ).trim();
+    const n = row
+      ? computeAutoQuotePriceFromPartner(row, metrics, catalogPaymentType)
+      : 0;
     setValue("service_price", String(n), { shouldValidate: false });
   }, [
     isScheduleComplete,
@@ -559,6 +553,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.requested_time_from,
     form.requested_time_to,
     selectedPartnerCatalogRecord,
+    feeOptionForPreview?.payment_type,
     setValue,
   ]);
 
@@ -1304,7 +1299,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
@@ -1327,8 +1322,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
-                              filterTime={endTimeFilter}
+                              minTime={editEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>
@@ -1373,7 +1369,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
@@ -1396,8 +1392,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               setValue={setValue}
                               asCol={false}
                               labelSize={12}
-                              timeIntervals={scheduleTimeIntervals}
-                              filterTime={endTimeFilter}
+                              minTime={editEndMinTime}
+                              maxTime={scheduleEndTimeMaxForDay()}
+                              timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
                             />
                           </Col>
                         </>

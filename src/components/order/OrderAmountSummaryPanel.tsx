@@ -1,11 +1,12 @@
 import React from "react";
 import { AppConstant } from "../../lib/global/AppConstant";
+import { QUOTE_SECTION_TITLE_CLASS } from "../../lib/quote/quoteHelpers";
 import type { OrderAmountSummaryDisplay } from "../../lib/order/orderAmountSummary";
 import type { OtherChargeRow } from "../../lib/order/orderPaymentRows";
 
-/** Match order view / payment editor amount summary. */
+/** @deprecated Prefer `.order-amount-summary` classes; kept for callers passing inline `style`. */
 export const orderAmountSummaryShell: React.CSSProperties = {
-  borderRadius: "8px",
+  borderRadius: "10px",
   border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.1))",
   backgroundColor: "var(--bg-color)",
 };
@@ -13,55 +14,6 @@ export const orderAmountSummaryShell: React.CSSProperties = {
 export const orderAmountSummaryPanelWrap: React.CSSProperties = {
   ...orderAmountSummaryShell,
   padding: "14px 16px",
-  backgroundColor: "rgba(0,0,0,0.03)",
-};
-
-export const orderPaymentSummaryRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "baseline",
-  gap: "12px",
-  padding: "10px 0",
-  fontSize: "1.15rem",
-  borderBottom: "1px solid var(--txtfld-border, rgba(0,0,0,0.08))",
-};
-
-export const orderPaymentSummaryLabel: React.CSSProperties = {
-  fontSize: "1.15rem",
-  fontWeight: 600,
-  color: "var(--primary-txt-color, #1a1a1a)",
-};
-
-export const orderPaymentSummaryValue: React.CSSProperties = {
-  fontSize: "1.15rem",
-  fontWeight: 600,
-  color: "var(--primary-txt-color, #1a1a1a)",
-  textAlign: "right",
-  whiteSpace: "nowrap",
-};
-
-export const orderPaymentSummaryTotalWrap: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  paddingTop: "14px",
-  marginTop: "8px",
-  borderTop: "2px solid var(--txtfld-border, rgba(0,0,0,0.14))",
-};
-
-export const orderPaymentSummaryTotalLabel: React.CSSProperties = {
-  fontSize: "1.35rem",
-  fontWeight: 700,
-  color: "var(--primary-color, #0d6efd)",
-};
-
-export const orderPaymentSummaryTotalValue: React.CSSProperties = {
-  fontSize: "1.35rem",
-  fontWeight: 700,
-  color: "var(--primary-color, #0d6efd)",
-  textAlign: "right",
-  whiteSpace: "nowrap",
 };
 
 const sym = () => AppConstant.currencySymbol;
@@ -70,19 +22,19 @@ function money(n: number): string {
   return `${sym()}${n.toFixed(2)}`;
 }
 
-function AmountRow({
+function SummaryRow({
   label,
   amount,
   original,
   showStrike,
-  valueClassName = "",
+  valueModifier = "",
   labelExtra,
 }: {
   label: React.ReactNode;
   amount: number;
   original?: number;
   showStrike?: boolean;
-  valueClassName?: string;
+  valueModifier?: string;
   labelExtra?: React.ReactNode;
 }) {
   const struck =
@@ -91,25 +43,17 @@ function AmountRow({
     Math.abs(original - amount) > 0.009;
 
   return (
-    <div style={orderPaymentSummaryRow}>
-      <span style={orderPaymentSummaryLabel}>
+    <div className="order-amount-summary__row">
+      <span className="order-amount-summary__label">
         {label}
         {labelExtra}
       </span>
       <span
-        style={{
-          ...orderPaymentSummaryValue,
-          ...(valueClassName ? { color: valueClassName } : {}),
-        }}
+        className={`order-amount-summary__value ${valueModifier}`.trim()}
       >
         {struck ? (
           <>
-            <span
-              className="text-decoration-line-through text-muted me-2"
-              style={{ fontSize: "0.92em", fontWeight: 500 }}
-            >
-              {money(original!)}
-            </span>
+            <span className="order-amount-summary__struck">{money(original!)}</span>
             <span>{money(amount)}</span>
           </>
         ) : (
@@ -123,23 +67,22 @@ function AmountRow({
 function DeductionRow({
   label,
   amount,
+  detail,
 }: {
   label: React.ReactNode;
   amount: number;
+  detail?: React.ReactNode;
 }) {
   if (amount <= 0.009) return null;
   return (
-    <div style={orderPaymentSummaryRow}>
-      <span style={{ ...orderPaymentSummaryLabel, fontSize: "1.05rem" }}>
-        {label}
-      </span>
-      <span
-        style={{
-          ...orderPaymentSummaryValue,
-          color: "#198754",
-          fontSize: "1.05rem",
-        }}
-      >
+    <div className="order-amount-summary__row">
+      <div className="order-amount-summary__label-block">
+        <span className="order-amount-summary__label">{label}</span>
+        {detail ? (
+          <div className="order-amount-summary__detail">{detail}</div>
+        ) : null}
+      </div>
+      <span className="order-amount-summary__value order-amount-summary__value--deduction">
         −{money(amount)}
       </span>
     </div>
@@ -152,20 +95,24 @@ export type OrderAmountSummaryPanelProps = {
   finalTotalLabel?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** `view` = order/quote info modal (section title, calmer typography). */
+  variant?: "default" | "view";
   children?: React.ReactNode;
 };
 
 export default function OrderAmountSummaryPanel({
   display,
   title = "Amount summary",
-  finalTotalLabel = "Total Price",
+  finalTotalLabel = "Total price (incl. tax)",
   className = "",
   style,
+  variant = "default",
   children,
 }: OrderAmountSummaryPanelProps) {
   const { lines, otherCharges, offer, orderDiscount, refund, refundTotal, finalTotal } =
     display;
   const pctSym = AppConstant.percentageSymbol;
+  const isView = variant === "view";
 
   const serviceStrike =
     offer.partnerContribution > 0.009 ||
@@ -196,179 +143,142 @@ export default function OrderAmountSummaryPanel({
 
   const refundAmount = Math.max(refund.refundAmount, refundTotal);
 
+  const offerDiscount =
+    offer.appliedDiscount > 0.009
+      ? offer.appliedDiscount
+      : offer.partnerContribution + offer.adminContribution;
+
   return (
     <div
-      className={`rounded-3 p-3 mt-1 ${className}`.trim()}
-      style={{ ...orderAmountSummaryPanelWrap, ...style }}
+      className={`order-amount-summary${
+        isView ? " order-amount-summary--view" : ""
+      } ${className}`.trim()}
+      style={style}
     >
-      <div
-        className="fw-semibold text-uppercase small text-muted mb-3"
-        style={{ letterSpacing: "0.05em" }}
-      >
-        {title}
-      </div>
+      {isView ? (
+        <h6 className={QUOTE_SECTION_TITLE_CLASS}>{title}</h6>
+      ) : (
+        <div className="order-amount-summary__heading">{title}</div>
+      )}
 
-      <AmountRow
-        label="Service amount"
-        original={lines.serviceBefore}
-        amount={lines.serviceAfter}
-        showStrike={serviceStrike}
-      />
-
-      {otherCharges.map((c: OtherChargeRow) => (
-        <div key={c.id} style={orderPaymentSummaryRow}>
-          <div style={{ minWidth: 0, flex: "1 1 auto", paddingRight: "8px" }}>
-            <div style={{ ...orderPaymentSummaryLabel, fontSize: "1.05rem" }}>
-              {c.serviceName?.trim() ||
-                c.description?.trim() ||
-                "Additional charge"}
-            </div>
-            {c.serviceName?.trim() && c.description?.trim() ? (
-              <div className="text-muted small mt-1">{c.description.trim()}</div>
-            ) : null}
-          </div>
-          <span style={orderPaymentSummaryValue}>
-            {money(Number(c.amount || 0))}
-          </span>
-        </div>
-      ))}
-
-      {otherCharges.length > 1 ? (
-        <AmountRow
-          label="Additional charges (total)"
-          amount={otherSum}
+      <div className="order-amount-summary__body">
+        <SummaryRow
+          label="Service amount"
+          original={lines.serviceBefore}
+          amount={lines.serviceAfter}
+          showStrike={serviceStrike}
         />
-      ) : null}
 
-      <AmountRow
-        label={
-          <>
-            Admin commission ({lines.commissionPct}
-            {pctSym} on service
-            {otherSum > 0.009 ? " + additional charges" : ""})
-          </>
-        }
-        original={lines.commissionBefore}
-        amount={lines.commissionAfter}
-        showStrike={commissionStrike}
-      />
-
-      <AmountRow label="Subtotal (before tax)" amount={lines.subtotalBeforeTax} />
-
-      <AmountRow
-        label={
-          <>
-            Tax ({lines.taxPct}
-            {pctSym} on subtotal)
-          </>
-        }
-        amount={lines.taxAmount}
-      />
-
-      <AmountRow
-        label="Total (incl. tax)"
-        amount={lines.totalInclTax}
-        labelExtra={undefined}
-      />
-
-      {showOfferBlock ? (
-        <div style={orderPaymentSummaryRow}>
-          <span
-            style={{
-              ...orderPaymentSummaryLabel,
-              fontSize: "1.05rem",
-              minWidth: 0,
-              flex: "1 1 auto",
-              paddingRight: "8px",
-            }}
-          >
-            <span>Offer</span>
-            {offer.offerCode ? (
-              <span
-                className="rounded-pill border px-2 py-0 ms-2"
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  backgroundColor: "rgba(0,0,0,0.04)",
-                  verticalAlign: "middle",
-                }}
-              >
-                {offer.offerCode}
+        {otherCharges.map((c: OtherChargeRow) => (
+          <div key={c.id} className="order-amount-summary__row">
+            <div className="order-amount-summary__label-block">
+              <span className="order-amount-summary__label">
+                {c.serviceName?.trim() ||
+                  c.description?.trim() ||
+                  "Additional charge"}
               </span>
-            ) : null}
-            {offer.offerName?.trim() ? (
-              <span className="text-muted fw-normal ms-2">
-                {offer.offerName.trim()}
-              </span>
-            ) : null}
-            {(showPartnerOffer || showAdminOffer) && (
-              <span
-                className="text-muted fw-normal ms-2"
-                style={{ fontSize: "0.9rem" }}
-              >
-                {showPartnerOffer
-                  ? `Partner −${money(offer.partnerContribution)}`
-                  : ""}
-                {showPartnerOffer && showAdminOffer ? " · " : ""}
-                {showAdminOffer
-                  ? `Admin −${money(offer.adminContribution)}`
-                  : ""}
-              </span>
-            )}
-          </span>
-          <span
-            style={{
-              ...orderPaymentSummaryValue,
-              color: "#198754",
-              fontSize: "1.05rem",
-            }}
-          >
-            −
-            {money(
-              offer.appliedDiscount > 0.009
-                ? offer.appliedDiscount
-                : offer.partnerContribution + offer.adminContribution
-            )}
-          </span>
-        </div>
-      ) : null}
-
-      {orderDiscount > 0.009 ? (
-        <div style={orderPaymentSummaryRow}>
-          <span style={{ ...orderPaymentSummaryLabel, fontSize: "1.05rem" }}>
-            Discount
-          </span>
-          <span style={{ ...orderPaymentSummaryValue, color: "#198754" }}>
-            −{money(orderDiscount)}
-          </span>
-        </div>
-      ) : null}
-
-      {showRefund ? (
-        <div style={orderPaymentSummaryRow}>
-          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-            <span style={orderPaymentSummaryLabel}>Refund</span>
-            <div
-              className="text-muted small mt-1"
-              style={{ fontWeight: 500 }}
-            >
-              Admin commission {money(refund.adminCommission)}
-              <span className="mx-1">·</span>
-              Partner wallet {money(refund.partnerWallet)}
+              {c.serviceName?.trim() && c.description?.trim() ? (
+                <div className="order-amount-summary__detail">
+                  {c.description.trim()}
+                </div>
+              ) : null}
             </div>
+            <span className="order-amount-summary__value">
+              {money(Number(c.amount || 0))}
+            </span>
           </div>
-          <span style={{ ...orderPaymentSummaryValue, color: "#dc3545" }}>
-            −{money(refundAmount)}
-          </span>
-        </div>
-      ) : null}
+        ))}
 
-      <div style={orderPaymentSummaryTotalWrap}>
-        <span style={orderPaymentSummaryTotalLabel}>{finalTotalLabel}</span>
-        <span style={orderPaymentSummaryTotalValue}>{money(finalTotal)}</span>
+        {otherCharges.length > 1 ? (
+          <SummaryRow label="Additional charges (total)" amount={otherSum} />
+        ) : null}
+
+        <SummaryRow
+          label={
+            <>
+              Admin commission ({lines.commissionPct}
+              {pctSym} on service
+              {otherSum > 0.009 ? " + additional charges" : ""})
+            </>
+          }
+          original={lines.commissionBefore}
+          amount={lines.commissionAfter}
+          showStrike={commissionStrike}
+        />
+
+        <SummaryRow label="Subtotal (before tax)" amount={lines.subtotalBeforeTax} />
+
+        <SummaryRow
+          label={
+            <>
+              Tax ({lines.taxPct}
+              {pctSym} on subtotal)
+            </>
+          }
+          amount={lines.taxAmount}
+        />
+
+        {showOfferBlock ? (
+          <DeductionRow
+            label={
+              <>
+                Offer
+                {offer.offerCode ? (
+                  <span className="order-amount-summary__badge ms-2">
+                    {offer.offerCode}
+                  </span>
+                ) : null}
+                {offer.offerName?.trim() ? (
+                  <span className="order-amount-summary__offer-name ms-1">
+                    {offer.offerName.trim()}
+                  </span>
+                ) : null}
+              </>
+            }
+            amount={offerDiscount}
+            detail={
+              showPartnerOffer || showAdminOffer ? (
+                <>
+                  {showPartnerOffer
+                    ? `Partner −${money(offer.partnerContribution)}`
+                    : null}
+                  {showPartnerOffer && showAdminOffer ? " · " : null}
+                  {showAdminOffer
+                    ? `Admin −${money(offer.adminContribution)}`
+                    : null}
+                </>
+              ) : undefined
+            }
+          />
+        ) : null}
+
+        {orderDiscount > 0.009 ? (
+          <DeductionRow label="Discount" amount={orderDiscount} />
+        ) : null}
+
+        {showRefund ? (
+          <DeductionRow
+            label="Refund"
+            amount={refundAmount}
+            detail={
+              <>
+                Admin commission {money(refund.adminCommission)}
+                <span className="mx-1">·</span>
+                Partner wallet {money(refund.partnerWallet)}
+              </>
+            }
+          />
+        ) : null}
       </div>
 
-      {children}
+      <div className="order-amount-summary__total">
+        <span className="order-amount-summary__total-label">{finalTotalLabel}</span>
+        <span className="order-amount-summary__total-value">{money(finalTotal)}</span>
+      </div>
+
+      {children ? (
+        <div className="order-amount-summary__footer">{children}</div>
+      ) : null}
     </div>
   );
 }

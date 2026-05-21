@@ -4,6 +4,10 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
+import {
+  SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  scheduleTimeStorageToPickerDate,
+} from "../lib/quote/quoteHelpers";
 
 interface CustomTimePickerProps {
   label?: string;
@@ -13,8 +17,10 @@ interface CustomTimePickerProps {
   onChange: (date: Date | null) => void;
   placeholderText?: string;
   filterTime?: (date: Date) => boolean;
-  /** Minutes between selectable times (default 120). */
+  /** Minutes between selectable times (default 1). */
   timeIntervals?: number;
+  minTime?: Date;
+  maxTime?: Date;
   register: UseFormRegister<any>;
   validation?: any;
   error?: string | FieldError;
@@ -34,7 +40,9 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
   onChange,
   placeholderText = "Select a time",
   filterTime,
-  timeIntervals = 120,
+  timeIntervals = SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  minTime,
+  maxTime,
   error,
   asCol = true,
   setValue,
@@ -75,11 +83,13 @@ const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
         <div className="position-relative w-100">
           <DatePicker
             ref={datePickerRef}
-            selected={selectedTime ? new Date(selectedTime) : null}
+            selected={scheduleTimeStorageToPickerDate(selectedTime)}
             onChange={handleDateChange}
             showTimeSelect
             showTimeSelectOnly
             timeIntervals={timeIntervals}
+            {...(minTime ? { minTime } : {})}
+            {...(maxTime ? { maxTime } : {})}
             dateFormat="h:mm aa"
             placeholderText={placeholderText}
             className={`form-control ${

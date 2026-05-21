@@ -13,8 +13,10 @@ interface CustomTextFieldTimePicketProps {
   onChange: (date: Date | null) => void;
   placeholderText?: string;
   filterTime?: (date: Date) => boolean;
-  /** Minutes between times in the picker (passed to react-datepicker). Default 120. */
+  /** Minutes between times in the picker (default 1). */
   timeIntervals?: number;
+  minTime?: Date;
+  maxTime?: Date;
   register: any;
   validation?: any;
   error?: any;
@@ -35,6 +37,8 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
   placeholderText = "Select a time",
   filterTime,
   timeIntervals,
+  minTime,
+  maxTime,
   error,
   asCol = false,
   setValue,
@@ -66,6 +70,8 @@ const CustomTextFieldTimePicket: React.FC<CustomTextFieldTimePicketProps> = ({
           asCol={asCol}
           filterTime={filterTime}
           timeIntervals={timeIntervals}
+          minTime={minTime}
+          maxTime={maxTime}
           suppressHiddenRegister={suppressHiddenRegister}
           required={showRequiredMark}
         />

@@ -72,11 +72,32 @@ export function getQuoteScheduleModeFromServiceOption(opts: {
   payment_type?: string;
   label: string;
 }): QuoteServiceScheduleMode {
-  const key = extractMinDepositTypeKey(str(opts.payment_type));
+  const payType = str(opts.payment_type);
+  const key = extractMinDepositTypeKey(payType);
   if (key === "per_day" || key === "per_month") return "range";
   if (key === "per_hour" || key === "per_consultancy") return "hourly";
-  if (str(opts.payment_type)) return "hourly";
+  if (payType) return "hourly";
   return getQuoteServiceScheduleMode(str(opts.label));
+}
+
+/** Schedule layout from catalog option + partner `active_services_providing` row. */
+export function getQuoteScheduleModeForPartnerService(
+  serviceOption: { payment_type?: string; label?: string } | undefined,
+  partner: Record<string, unknown> | null | undefined,
+  serviceId: string | undefined | null
+): QuoteServiceScheduleMode {
+  const row = getPartnerActiveServiceProvidingRow(partner, serviceId);
+  const nested = row?.service as Record<string, unknown> | undefined;
+  return getQuoteScheduleModeFromServiceOption({
+    payment_type: firstNonEmptyPaymentType(
+      serviceOption?.payment_type,
+      row?.payment_type,
+      row?.min_deposit_type,
+      nested?.payment_type,
+      nested?.min_deposit_type
+    ),
+    label: str(serviceOption?.label ?? nested?.name ?? nested?.service_name),
+  });
 }
 
 export type QuoteListSort = ServerTableSortBy;
@@ -89,7 +110,17 @@ export type QuoteListFilters = {
   franchise_id?: string | null;
 };
 
-/** Raw `record` from `GET /franchise/related-catalog/:id`. */
+/**
+ * Raw `record` from `GET /franchise/related-catalog/:id`.
+ *
+ * Current API (partner-scoped catalog):
+ * - `franchise` — `_id`, `name`, `area_id[]`
+ * - `partners[]` — each with `active_services_providing[]` (nested `service`) and
+ *   `active_categories_providing[]` (nested `category`, `services[]` id list)
+ * - `employees[]`, `customers[]` (customers include `addresses[]` with `area_id`)
+ *
+ * Legacy optional top-level: `categories`, `services`, `franchise_categories`, `franchise_services`.
+ */
 export type FranchiseRelatedCatalogRecord = {
   franchise?: {
     _id?: string;
@@ -104,9 +135,7 @@ export type FranchiseRelatedCatalogRecord = {
   services?: unknown[];
   partners?: unknown[];
   employees?: unknown[];
-  /** End users scoped to this catalog response (staging shape). */
   customers?: unknown[];
-  /** Optional hydrated areas on the same response (pincodes — avoids GET /area/get). */
   areas?: unknown[];
   franchise_areas?: unknown[];
 };
@@ -268,6 +297,19 @@ function collectFranchiseActiveServiceIds(
       if (id) ids.add(id);
     }
   }
+  if (!ids.size) {
+    for (const partner of asObjectRecords(record.partners)) {
+      if (!isPartnerRecordEligible(partner)) continue;
+      for (const row of partnerServicesProvidingRows(partner)) {
+        const inner = row.service as Record<string, unknown> | undefined;
+        const sid =
+          normalizeMongoRef(row.service_id) ||
+          (inner ? normalizeMongoRef(inner._id ?? inner.id) : "") ||
+          str(row._id ?? row.id);
+        if (sid) ids.add(sid);
+      }
+    }
+  }
   return ids;
 }
 
@@ -405,19 +447,30 @@ function mergeServicesFromFranchiseServiceDocs(
   }
 }
 
-/** Partner catalog row enabled at partner level (`is_active` on providing row). */
+/** Partner catalog row enabled at partner level (`is_active` / `effective_active`). */
 function isPartnerProvidingRowEligible(row: Record<string, unknown>): boolean {
-  return row.is_active !== false && row.is_active !== 0;
+  if (row.is_active === false || row.is_active === 0) return false;
+  if (row.effective_active === false || row.effective_active === 0) return false;
+  return true;
 }
 
-/** Prefer `active_*_providing`; fall back to full `*_providing` when active list is empty. */
+function isPartnerRecordEligible(p: Record<string, unknown>): boolean {
+  if (p.is_active === false || p.is_active === 0) return false;
+  if (p.is_blocked === true) return false;
+  return true;
+}
+
+/**
+ * Partner service rows — when `active_services_providing` is present (including `[]`),
+ * use only that list (new related-catalog API). Legacy `services_providing` only if active key missing.
+ */
 function partnerServicesProvidingRows(
   partner: Record<string, unknown> | null | undefined
 ): Record<string, unknown>[] {
   if (!partner) return [];
   const active =
     partner.active_services_providing ?? partner.activeServicesProviding;
-  if (Array.isArray(active) && active.length > 0) {
+  if (Array.isArray(active)) {
     return asObjectRecords(active).filter(isPartnerProvidingRowEligible);
   }
   const all = partner.services_providing ?? partner.servicesProviding;
@@ -425,18 +478,109 @@ function partnerServicesProvidingRows(
   return asObjectRecords(all).filter(isPartnerProvidingRowEligible);
 }
 
+/** Same rules as {@link partnerServicesProvidingRows} for `active_categories_providing`. */
 function partnerCategoriesProvidingRows(
   partner: Record<string, unknown> | null | undefined
 ): Record<string, unknown>[] {
   if (!partner) return [];
   const active =
     partner.active_categories_providing ?? partner.activeCategoriesProviding;
-  if (Array.isArray(active) && active.length > 0) {
+  if (Array.isArray(active)) {
     return asObjectRecords(active).filter(isPartnerProvidingRowEligible);
   }
   const all = partner.categories_providing ?? partner.categoriesProviding;
   if (!Array.isArray(all)) return [];
   return asObjectRecords(all).filter(isPartnerProvidingRowEligible);
+}
+
+function franchiseCatalogHasLegacyTopLevelLists(
+  record: FranchiseRelatedCatalogRecord
+): boolean {
+  return (
+    asObjectRecords(record.categories).length > 0 ||
+    asObjectRecords(record.services).length > 0 ||
+    asObjectRecords(record.franchise_categories).length > 0 ||
+    asObjectRecords(record.franchise_services).length > 0
+  );
+}
+
+function mapRelatedCatalogEmployeesAndCustomers(
+  record: FranchiseRelatedCatalogRecord,
+  out: MappedFranchiseQuoteCatalog
+): void {
+  for (const e of asObjectRecords(record.employees)) {
+    const id = str(e._id ?? e.id);
+    if (!id) continue;
+    if (e.is_active === false || e.is_active === 0) continue;
+    if (e.is_blocked === true) continue;
+    out.quoteEmployeeRecords.push(e);
+    out.quoteEmployeeOptions.push({
+      value: id,
+      label: str(e.name ?? e.user_name ?? e.user_id) || id,
+    });
+  }
+  out.quoteEmployeeOptions.sort((a, b) => a.label.localeCompare(b.label));
+
+  out.quoteCustomerRecords = asObjectRecords(record.customers).filter((c) => {
+    if (c.is_active === false || c.is_active === 0) return false;
+    if (c.is_blocked === true) return false;
+    return true;
+  });
+
+  for (const u of out.quoteCustomerRecords) {
+    const id = str(u._id ?? u.id);
+    if (!id) continue;
+    const name = str(u.name) || id;
+    const email = str(u.email);
+    const label = email ? `${name} (${email})` : name;
+    out.quoteUserOptions.push({ value: id, label, user_name: name });
+  }
+  out.quoteUserOptions.sort((a, b) =>
+    a.user_name.localeCompare(b.user_name)
+  );
+}
+
+/** Service ids allowed under a partner category row (`active_categories_providing[].services`). */
+export function getPartnerCategoryAllowedServiceIds(
+  partner: Record<string, unknown> | null | undefined,
+  categoryId: string
+): Set<string> | null {
+  if (!partner) return null;
+  const cid = normalizeServiceCategoryRef(categoryId);
+  if (!cid) return null;
+  for (const row of partnerCategoriesProvidingRows(partner)) {
+    const nested = row.category as Record<string, unknown> | undefined;
+    const rowCid = normalizeServiceCategoryRef(
+      row.category_id ?? nested?._id ?? nested?.id
+    );
+    if (rowCid !== cid) continue;
+    if (!Array.isArray(row.services)) return null;
+    const out = new Set<string>();
+    for (const x of row.services as unknown[]) {
+      const id = normalizeMongoRef(x);
+      if (id) out.add(id);
+    }
+    return out;
+  }
+  return null;
+}
+
+/** Partner services for one category (category_id + optional `services[]` on category row). */
+export function filterPartnerServicesForCategory(
+  partnerServices: ServiceDropDownOption[],
+  partner: Record<string, unknown> | null | undefined,
+  categoryId: string
+): ServiceDropDownOption[] {
+  const cid = normalizeServiceCategoryRef(categoryId);
+  if (!cid) return [];
+  let list = partnerServices.filter(
+    (o) => normalizeServiceCategoryRef(o.category_id) === cid
+  );
+  const allowed = getPartnerCategoryAllowedServiceIds(partner, cid);
+  if (allowed != null) {
+    list = list.filter((o) => allowed.has(String(o.value)));
+  }
+  return list;
 }
 
 function pushPartnerServiceRowToCatalog(
@@ -445,6 +589,7 @@ function pushPartnerServiceRowToCatalog(
   seenSvc: Set<string>,
   services: ServiceDropDownOption[]
 ): void {
+  if (!isPartnerProvidingRowEligible(row)) return;
       const inner = row.service as Record<string, unknown> | undefined;
       const sid =
         normalizeMongoRef(row.service_id) ||
@@ -475,11 +620,11 @@ function pushPartnerServiceRowToCatalog(
             ? Number(inner.price)
             : undefined,
         category_id: catRef || undefined,
-        payment_type: str(
-          row.payment_type ??
-            inner?.payment_type ??
-            inner?.min_deposit_type ??
-            ""
+        payment_type: firstNonEmptyPaymentType(
+          row.payment_type,
+          row.min_deposit_type,
+          inner?.payment_type,
+          inner?.min_deposit_type
         ),
         ...quoteServiceFeeFieldsFromRow(inner, row),
       });
@@ -496,6 +641,7 @@ function mergePartnerProvidingIntoCatalog(
   services: ServiceDropDownOption[]
 ): void {
   for (const partner of asObjectRecords(record.partners)) {
+    if (!isPartnerRecordEligible(partner)) continue;
     for (const row of partnerCategoriesProvidingRows(partner)) {
       const nested = row.category as Record<string, unknown> | undefined;
       const cid = str(row.category_id ?? nested?._id ?? nested?.id);
@@ -558,6 +704,25 @@ export function mapRelatedCatalogToQuoteOptions(
   if (!record) return out;
 
   const catById = new Map<string, string>();
+  const seenSvc = new Set<string>();
+
+  /** New API: catalog only on `partners[].active_*_providing` (no top-level categories/services). */
+  const partnerOnlyCatalog =
+    asObjectRecords(record.partners).length > 0 &&
+    !franchiseCatalogHasLegacyTopLevelLists(record);
+
+  if (partnerOnlyCatalog) {
+    mergePartnerProvidingIntoCatalog(record, catById, seenSvc, out.quoteCatalogServices);
+    out.quoteCategoryOptions = Array.from(catById.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    out.quoteCatalogServices.sort((a, b) => a.label.localeCompare(b.label));
+    out.quotePartnerRecords = asObjectRecords(record.partners).filter(
+      isPartnerRecordEligible
+    );
+    mapRelatedCatalogEmployeesAndCustomers(record, out);
+    return out;
+  }
 
   for (const c of asObjectRecords(record.categories)) {
     const id = categoryIdFromHydratedRow(c);
@@ -576,8 +741,6 @@ export function mapRelatedCatalogToQuoteOptions(
   mergeCategoriesFromFranchiseCategoryDocs(record, catById);
 
   const franchiseActiveSvcIds = collectFranchiseActiveServiceIds(record);
-
-  const seenSvc = new Set<string>();
 
   for (const s of asObjectRecords(record.services)) {
     const inner = s.service as Record<string, unknown> | undefined;
@@ -637,6 +800,7 @@ export function mapRelatedCatalogToQuoteOptions(
     );
   }
 
+  /** Partner-only catalog API: offerings live on `partners[].active_*_providing`. */
   mergePartnerProvidingIntoCatalog(
     record,
     catById,
@@ -650,48 +814,66 @@ export function mapRelatedCatalogToQuoteOptions(
 
   out.quoteCatalogServices.sort((a, b) => a.label.localeCompare(b.label));
 
-  out.quotePartnerRecords = asObjectRecords(record.partners);
-
-  for (const e of asObjectRecords(record.employees)) {
-    const id = str(e._id ?? e.id);
-    if (!id) continue;
-    const active = e.is_active !== false && e.is_blocked !== true;
-    if ("is_active" in e && e.is_active === false) continue;
-    if (!active) continue;
-    out.quoteEmployeeRecords.push(e);
-    out.quoteEmployeeOptions.push({
-      value: id,
-      label: str(e.name ?? e.user_name ?? e.user_id) || id,
-    });
-  }
-  out.quoteEmployeeOptions.sort((a, b) => a.label.localeCompare(b.label));
-
-  out.quoteCustomerRecords = asObjectRecords(record.customers);
-
-  for (const u of out.quoteCustomerRecords) {
-    const id = str(u._id ?? u.id);
-    if (!id) continue;
-    const name = str(u.name) || id;
-    const email = str(u.email);
-    const label = email ? `${name} (${email})` : name;
-    out.quoteUserOptions.push({ value: id, label, user_name: name });
-  }
-  out.quoteUserOptions.sort((a, b) =>
-    a.user_name.localeCompare(b.user_name)
+  out.quotePartnerRecords = asObjectRecords(record.partners).filter(
+    isPartnerRecordEligible
   );
+
+  mapRelatedCatalogEmployeesAndCustomers(record, out);
 
   return out;
 }
 
+/** Related-catalog partner row includes `active_services_providing` (may be `[]`). */
+function partnerActiveServicesProvidingIsList(
+  partner: Record<string, unknown> | null | undefined
+): boolean {
+  if (!partner) return false;
+  const active =
+    partner.active_services_providing ?? partner.activeServicesProviding;
+  return Array.isArray(active);
+}
+
+/** Related-catalog partner row includes `active_categories_providing` (may be `[]`). */
+function partnerActiveCategoriesProvidingIsList(
+  partner: Record<string, unknown> | null | undefined
+): boolean {
+  if (!partner) return false;
+  const active =
+    partner.active_categories_providing ?? partner.activeCategoriesProviding;
+  return Array.isArray(active);
+}
+
+/**
+ * Partner explicitly has no offerings (`active_*_providing: []` on both lists).
+ * Differs from missing fields (legacy) where franchise-wide catalog may apply.
+ */
+export function partnerHasNoCatalogOfferings(
+  partner: Record<string, unknown> | null | undefined
+): boolean {
+  if (!partner) return false;
+  if (
+    !partnerActiveServicesProvidingIsList(partner) &&
+    !partnerActiveCategoriesProvidingIsList(partner)
+  ) {
+    return false;
+  }
+  return (
+    partnerServicesProvidingRows(partner).length === 0 &&
+    partnerCategoriesProvidingRows(partner).length === 0
+  );
+}
+
 /**
  * Service ids a partner is configured to provide (`active_services_providing`, etc.).
- * Returns `null` when missing or empty ⇒ **no restriction** (use full franchise catalog).
+ * - `null` ⇒ field missing (legacy) — caller may use full franchise catalog.
+ * - empty `Set` ⇒ explicit `[]` — partner offers no services.
  */
 export function getPartnerProvidingServiceIdSet(
   partner: Record<string, unknown> | null | undefined
 ): Set<string> | null {
+  if (!partner) return null;
+  const explicitList = partnerActiveServicesProvidingIsList(partner);
   const rows = partnerServicesProvidingRows(partner);
-  if (!rows.length) return null;
   const out = new Set<string>();
   for (const o of rows) {
     const inner = o.service as Record<string, unknown> | undefined;
@@ -701,7 +883,40 @@ export function getPartnerProvidingServiceIdSet(
       str(o._id ?? o.id);
     if (id) out.add(id);
   }
+  if (explicitList) return out;
+  if (!rows.length) return null;
   return out.size ? out : null;
+}
+
+/** Services dropdown for the selected partner (not whole franchise unless legacy row). */
+export function buildQuoteCatalogServicesForPartner(
+  quoteCatalogServices: ServiceDropDownOption[],
+  partner: Record<string, unknown> | null | undefined
+): ServiceDropDownOption[] {
+  if (!partner) return [];
+  const fromPartner = buildPartnerServiceOptionsFromProviding(partner);
+  if (fromPartner.length > 0) return fromPartner;
+  const allow = getPartnerProvidingServiceIdSet(partner);
+  if (allow === null) return quoteCatalogServices;
+  if (allow.size === 0) return [];
+  return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
+}
+
+/** Category dropdown for the selected partner. */
+export function buildQuoteCategoryOptionsForSelectedPartner(
+  quoteCategoryOptions: OptionType[],
+  quoteCatalogServices: ServiceDropDownOption[],
+  partner: Record<string, unknown> | null | undefined
+): OptionType[] {
+  if (!partner) return [];
+  const fromPartner = buildPartnerCategoryOptionsFromProviding(partner);
+  if (fromPartner.length > 0) return fromPartner;
+  if (partnerHasNoCatalogOfferings(partner)) return [];
+  return buildQuoteCategoryOptionsForPartner(
+    quoteCategoryOptions,
+    buildQuoteCatalogServicesForPartner(quoteCatalogServices, partner),
+    partner
+  );
 }
 
 /**
@@ -802,7 +1017,9 @@ export function buildQuoteCategoryOptionsForPartner(
 
   let base =
     catIdsFromServices.size === 0
-      ? allOptions
+      ? partnerHasNoCatalogOfferings(partner)
+        ? []
+        : allOptions
       : allOptions.filter((c) => catIdsFromServices.has(String(c.value)));
 
   if (partnerCatIds && partnerCatIds.size > 0) {
@@ -905,15 +1122,17 @@ export function mergeQuoteServiceFeesForBreakdown(
     minimum_deposit ??
     base.min_deposit_value;
 
-  const pay = str(
-    (pr.payment_type as unknown) ??
-      (nested?.payment_type as unknown) ??
-      ""
+  const pay = firstNonEmptyPaymentType(
+    pr.payment_type,
+    pr.min_deposit_type,
+    nested?.payment_type,
+    nested?.min_deposit_type
   );
-  const mdType = str(
-    (pr.min_deposit_type as unknown) ??
-      (nested?.min_deposit_type as unknown) ??
-      ""
+  const mdType = firstNonEmptyPaymentType(
+    pr.min_deposit_type,
+    pr.payment_type,
+    nested?.min_deposit_type,
+    nested?.payment_type
   );
 
   const out: ServiceDropDownOption = { ...base };
@@ -954,12 +1173,12 @@ export function deriveQuoteScheduleMetrics(input: {
   requested_time_from: string;
   requested_time_to: string;
 }): QuoteScheduleMetrics | null {
-  const from_date = str(input.requested_date);
+  const from_date = isoOrDateToYmd(str(input.requested_date));
   if (!from_date) return null;
 
-  let to_date = str(input.requested_date_to) || from_date;
+  let to_date = isoOrDateToYmd(str(input.requested_date_to)) || from_date;
   if (input.scheduleMode === "range") {
-    to_date = str(input.requested_date_to) || from_date;
+    to_date = isoOrDateToYmd(str(input.requested_date_to)) || from_date;
   } else {
     to_date = from_date;
   }
@@ -1012,18 +1231,53 @@ export function deriveQuoteScheduleMetrics(input: {
   };
 }
 
+/** Partner rate + billing type; nested `service` and catalog option fill gaps when partner fields are blank. */
+export function resolvePartnerServiceBillingFields(
+  row: Record<string, unknown>,
+  catalogPaymentType?: string
+): {
+  unit: number;
+  rawType: string;
+  key: string;
+} {
+  const nested = row.service as Record<string, unknown> | undefined;
+  const rowPrice = readFiniteNumber(row, "price");
+  const nestedPrice = nested ? readFiniteNumber(nested, "price") : undefined;
+  const unit =
+    rowPrice != null
+      ? rowPrice
+      : nestedPrice != null
+      ? nestedPrice
+      : 0;
+  const rawType = firstNonEmptyPaymentType(
+    row.payment_type,
+    row.min_deposit_type,
+    nested?.payment_type,
+    nested?.min_deposit_type,
+    catalogPaymentType
+  );
+  return {
+    unit: Number.isFinite(unit) ? unit : 0,
+    rawType,
+    key: extractMinDepositTypeKey(rawType),
+  };
+}
+
 /**
  * Suggested **pre-tax** service total from partner line (`price`, `payment_type`) × schedule.
  * Tax is shown in the Add Quote breakdown only; do not bake tax into this amount (avoids double counting with the breakdown).
  */
 export function computeAutoQuotePriceFromPartner(
   partnerServiceRow: Record<string, unknown> | null | undefined,
-  metrics: QuoteScheduleMetrics
+  metrics: QuoteScheduleMetrics,
+  catalogPaymentType?: string
 ): number {
   if (!partnerServiceRow) return 0;
-  const unit = Number(partnerServiceRow.price ?? 0);
+  const { unit, key } = resolvePartnerServiceBillingFields(
+    partnerServiceRow,
+    catalogPaymentType
+  );
   if (!Number.isFinite(unit)) return 0;
-  const key = extractMinDepositTypeKey(str(partnerServiceRow.payment_type));
   let sub = 0;
   if (key === "per_hour") {
     sub = unit * metrics.total_work_hours;
@@ -1053,13 +1307,15 @@ export type QuoteSchedulePricePreview = {
 export function buildQuoteSchedulePricePreview(
   partnerServiceRow: Record<string, unknown> | null | undefined,
   metrics: QuoteScheduleMetrics | null,
-  currencySymbol: string
+  currencySymbol: string,
+  catalogPaymentType?: string
 ): QuoteSchedulePricePreview | null {
   if (!partnerServiceRow || !metrics) return null;
-  const unit = Number(partnerServiceRow.price ?? 0);
+  const { unit, rawType, key } = resolvePartnerServiceBillingFields(
+    partnerServiceRow,
+    catalogPaymentType
+  );
   if (!Number.isFinite(unit) || unit < 0) return null;
-  const rawType = str(partnerServiceRow.payment_type);
-  const key = extractMinDepositTypeKey(rawType);
   const billingLabel = labelForMinDepositType(rawType) || key || "Billing";
   const sym = currencySymbol;
   const fmt = (n: number) =>
@@ -1337,6 +1593,15 @@ function str(v: unknown): string {
   return s === "undefined" || s === "null" || s === "[object Object]" ? "" : s;
 }
 
+/** First non-empty billing type (`??` does not skip empty strings from the API). */
+export function firstNonEmptyPaymentType(...candidates: unknown[]): string {
+  for (const c of candidates) {
+    const t = str(c);
+    if (t) return t;
+  }
+  return "";
+}
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return v != null && typeof v === "object" && !Array.isArray(v);
 }
@@ -1399,6 +1664,14 @@ function pad2(n: number): string {
 export function timeStorageToHHmm(storage: string | null | undefined): string {
   const t = str(storage);
   if (!t) return "09:00";
+  const m = t.match(/T(\d{1,2}):(\d{2})/);
+  if (m) {
+    const hh = Math.min(23, parseInt(m[1], 10));
+    const mm = Math.min(59, parseInt(m[2], 10));
+    if (Number.isFinite(hh) && Number.isFinite(mm)) {
+      return `${pad2(hh)}:${pad2(mm)}`;
+    }
+  }
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return "09:00";
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;

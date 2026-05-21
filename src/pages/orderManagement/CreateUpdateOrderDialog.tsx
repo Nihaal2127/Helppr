@@ -20,6 +20,7 @@ import {
   deriveOrderCustomerPaymentFields,
   isCustomerPaymentRowComplete,
   isPartnerPaymentRowComplete,
+  normalizePaymentExtForSubmit,
   roundMoney,
 } from "../../lib/order/orders";
 import { fetchCityDropDown } from "../../services/cityService";
@@ -67,6 +68,8 @@ import {
   sumPartnerAmounts,
   customerPaidBalanceForEdit,
   partnerPaidBalanceForEdit,
+  validatePaymentExtAgainstCaps,
+  hasRecordedOrderPayments,
 } from "../../lib/order/orders";
 import {
   computeQuotePriceBreakdown,
@@ -84,12 +87,12 @@ import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import {
   fetchFranchiseRelatedCatalog,
   mapRelatedCatalogToQuoteOptions,
-  buildPartnerCategoryOptionsFromProviding,
-  buildPartnerServiceOptionsFromProviding,
-  buildQuoteCategoryOptionsForPartner,
+  buildQuoteCatalogServicesForPartner,
+  buildQuoteCategoryOptionsForSelectedPartner,
+  filterPartnerServicesForCategory,
   getPartnerActiveServiceProvidingRow,
-  getPartnerProvidingServiceIdSet,
-  getQuoteScheduleModeFromServiceOption,
+  getQuoteScheduleModeForPartnerService,
+  mergeQuoteServiceFeesForBreakdown,
   deriveQuoteScheduleMetrics,
   buildQuoteSchedulePricePreview,
   computeAutoQuotePriceFromPartner,
@@ -111,6 +114,9 @@ import {
   parseIsoDateOnly,
   QUOTE_MODAL_LAYOUT,
   quoteScheduleTimePickerAllowAllHours,
+  SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
+  scheduleEndTimeMaxForDay,
+  scheduleEndTimeMinAfterStart,
   setQuoteFranchiseCatalogSnapshot,
   startOfLocalDay,
   startOfTodayLocal,
@@ -118,7 +124,9 @@ import {
   useQuoteCustomerAddressPanel,
 } from "../../lib/quote/quoteHelpers";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import OrderCouponAction from "../../components/order/OrderCouponAction";
 import { buildOrderAmountSummaryFromQuoteBreakdown } from "../../lib/order/orderAmountSummary";
+import { datePickerTimeToScheduleStorage } from "../../lib/order/orderTimeUtils";
 
 /** --- Service address cards --- */
 
@@ -1213,7 +1221,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                 handleInputChange(
                   index,
                   "service_from_time",
-                  date?.toISOString() || ""
+                  datePickerTimeToScheduleStorage(date)
                 )
               }
               placeholderText="Select Time"
@@ -1239,7 +1247,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                 handleInputChange(
                   index,
                   "service_to_time",
-                  date?.toISOString() || ""
+                  datePickerTimeToScheduleStorage(date)
                 )
               }
               placeholderText="Select Time"
@@ -1639,6 +1647,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   const createServicePriceWatch = watch("create_service_price") as
     | string
     | undefined;
+  const createScheduleDateToWatch = watch("service_date_to") as
+    | string
+    | undefined;
 
   const currentUserRole = getLocalStorage(AppConstant.userRole);
   const isSuperAdminOrStaff =
@@ -1654,6 +1665,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   const [showPartnerPaymentAddHint, setShowPartnerPaymentAddHint] =
     useState(false);
   const [couponModalError, setCouponModalError] = useState("");
+  /** Coupon picked in modal only; `offer_id` commits on successful Apply. */
+  const [modalCouponOfferId, setModalCouponOfferId] = useState("");
+  const offerIdBeforeCouponModalRef = useRef("");
   /** Payment summary: long offer breakdown hidden until user expands (reset when offer changes). */
   const [showOfferPaymentBreakdown, setShowOfferPaymentBreakdown] =
     useState(false);
@@ -1732,6 +1746,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       partnerPayments: [],
     })
   );
+  /** Last service price accepted while payments still fit caps (revert target). */
+  const lastAcceptedCreateServicePriceRef = useRef("");
 
   const fetchRef = useRef(false);
 
@@ -1837,55 +1853,49 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     );
   }, [createPartnerIdWatch, catalogPartnerRecords]);
 
-  const quoteCatalogServicesForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerServiceOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    const allow = getPartnerProvidingServiceIdSet(selectedPartnerCatalogRecord);
-    if (!allow) return quoteCatalogServices;
-    return quoteCatalogServices.filter((o) => allow.has(String(o.value)));
-  }, [quoteCatalogServices, selectedPartnerCatalogRecord]);
+  const quoteCatalogServicesForPartner = useMemo(
+    () =>
+      buildQuoteCatalogServicesForPartner(
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
-  const quoteCategoryOptionsForPartner = useMemo(() => {
-    if (!selectedPartnerCatalogRecord) return [];
-    const fromPartner = buildPartnerCategoryOptionsFromProviding(
-      selectedPartnerCatalogRecord
-    );
-    if (fromPartner.length > 0) return fromPartner;
-    return buildQuoteCategoryOptionsForPartner(
-      quoteCategoryOptions,
-      quoteCatalogServicesForPartner,
-      selectedPartnerCatalogRecord
-    );
-  }, [
-    quoteCategoryOptions,
-    quoteCatalogServicesForPartner,
-    selectedPartnerCatalogRecord,
-  ]);
+  const quoteCategoryOptionsForPartner = useMemo(
+    () =>
+      buildQuoteCategoryOptionsForSelectedPartner(
+        quoteCategoryOptions,
+        quoteCatalogServices,
+        selectedPartnerCatalogRecord
+      ),
+    [quoteCategoryOptions, quoteCatalogServices, selectedPartnerCatalogRecord]
+  );
 
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(createCategoryIdWatch ?? "").trim();
     const quoteServiceOptionsForCategory = !cid
       ? []
-      : quoteCatalogServicesForPartner.filter((o) => {
-          const ref = normalizeServiceCategoryRef(o.category_id);
-          return ref === cid;
-        });
+      : filterPartnerServicesForCategory(
+          quoteCatalogServicesForPartner,
+          selectedPartnerCatalogRecord,
+          cid
+        );
     const sid = String(createServiceIdWatch ?? "").trim();
     const opt = quoteServiceOptionsForCategory.find((o) => o.value === sid);
     return {
       quoteServiceOptionsForCategory,
-      scheduleMode: getQuoteScheduleModeFromServiceOption({
-        payment_type: opt?.payment_type,
-        label: opt?.label ?? "",
-      }),
+      scheduleMode: getQuoteScheduleModeForPartnerService(
+        opt,
+        selectedPartnerCatalogRecord,
+        sid
+      ),
     };
   }, [
     createCategoryIdWatch,
     createServiceIdWatch,
     quoteCatalogServicesForPartner,
+    selectedPartnerCatalogRecord,
   ]);
 
   const createCatalogUserOptions = useMemo<OptionType[]>(
@@ -1908,10 +1918,24 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     [quoteServiceOptionsForCategory, createOrderServiceId]
   );
 
+  const createOrderFeeOption = useMemo(
+    () =>
+      mergeQuoteServiceFeesForBreakdown(
+        selectedCreateServiceOption,
+        selectedPartnerCatalogRecord,
+        createOrderServiceId
+      ),
+    [
+      selectedCreateServiceOption,
+      selectedPartnerCatalogRecord,
+      createOrderServiceId,
+    ]
+  );
+
   const isCreateOrderScheduleComplete = useMemo(() => {
     if (!hasCreateOrderServiceSelected) return false;
     const d = String(serviceItems[0]?.service_date ?? "").trim();
-    const dTo = String(getValues("service_date_to") ?? "").trim();
+    const dTo = String(createScheduleDateToWatch ?? "").trim();
     const tFrom = String(serviceItems[0]?.service_from_time ?? "").trim();
     const tTo = String(serviceItems[0]?.service_to_time ?? "").trim();
     if (scheduleMode === "range") {
@@ -1922,7 +1946,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     hasCreateOrderServiceSelected,
     scheduleMode,
     serviceItems,
-    getValues,
+    createScheduleDateToWatch,
   ]);
 
   const createOrderSchedulePricePreview = useMemo(() => {
@@ -1938,44 +1962,37 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     const metrics = deriveQuoteScheduleMetrics({
       scheduleMode,
       requested_date: String(serviceItems[0]?.service_date ?? ""),
-      requested_date_to: String(getValues("service_date_to") ?? ""),
+      requested_date_to: String(createScheduleDateToWatch ?? ""),
       requested_time: "",
       requested_time_from: String(serviceItems[0]?.service_from_time ?? ""),
       requested_time_to: String(serviceItems[0]?.service_to_time ?? ""),
     });
     if (!metrics || !row) return null;
+    const catalogPaymentType = String(
+      createOrderFeeOption?.payment_type ?? ""
+    ).trim();
     return buildQuoteSchedulePricePreview(
       row,
       metrics,
-      AppConstant.currencySymbol
+      AppConstant.currencySymbol,
+      catalogPaymentType
     );
   }, [
     isCreateOrderScheduleComplete,
     createOrderPartnerSelected,
     createOrderServiceId,
     serviceItems,
-    getValues,
+    createScheduleDateToWatch,
     scheduleMode,
     selectedPartnerCatalogRecord,
+    createOrderFeeOption?.payment_type,
   ]);
 
-  const createOrderScheduleTimeIntervals = useMemo(() => {
-    const raw = String(selectedCreateServiceOption?.payment_type ?? "").trim();
-    const key = extractMinDepositTypeKey(raw);
-    if (key === "per_hour") return 60;
-    if (key === "per_consultancy") return 30;
-    return 30;
-  }, [selectedCreateServiceOption?.payment_type]);
-
-  const createOrderEndTimeFilter = useCallback(
-    (time: Date) => {
-      const startStr = String(serviceItems[0]?.service_from_time ?? "").trim();
-      if (!startStr) return true;
-      const startM = minutesFromScheduleTimeStorage(startStr);
-      if (startM == null) return true;
-      const cand = time.getHours() * 60 + time.getMinutes();
-      return cand > startM;
-    },
+  const createOrderEndMinTime = useMemo(
+    () =>
+      scheduleEndTimeMinAfterStart(
+        String(serviceItems[0]?.service_from_time ?? "")
+      ),
     [serviceItems]
   );
 
@@ -2155,14 +2172,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     };
   }, [createServiceIdWatch, quoteCatalogServicesForPartner]);
 
-  const createOrderFeeOption = useMemo(
-    () =>
-      quoteCatalogServicesForPartner.find(
-        (o) => o.value === String(createServiceIdWatch ?? "").trim()
-      ),
-    [quoteCatalogServicesForPartner, createServiceIdWatch]
-  );
-
   const selectedCouponOffer = useMemo(() => {
     const id = String(offerIdWatch ?? "").trim();
     if (!id) return null;
@@ -2203,11 +2212,33 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     if (isEditable || !selectedCouponOffer || !createOrderBasePriceBreakdown) {
       return null;
     }
-    return validateCouponForPriceBreakdown(
+    const couponVal = validateCouponForPriceBreakdown(
       createOrderBasePriceBreakdown,
       mapOfferModelToCouponInput(selectedCouponOffer)
     );
-  }, [isEditable, selectedCouponOffer, createOrderBasePriceBreakdown]);
+    if (!couponVal.valid) return couponVal;
+    const withCoupon = applyCouponToQuotePriceBreakdown(
+      createOrderBasePriceBreakdown,
+      mapOfferModelToCouponInput(selectedCouponOffer),
+      createOrderFeeOption
+    );
+    const customerCap = Number(withCoupon?.grandTotal ?? 0);
+    const partnerCap = Math.max(
+      0,
+      Number(withCoupon?.serviceAfterCoupon ?? withCoupon?.base ?? 0)
+    );
+    return validatePaymentExtAgainstCaps(
+      createPaymentExt,
+      customerCap,
+      partnerCap
+    );
+  }, [
+    isEditable,
+    selectedCouponOffer,
+    createOrderBasePriceBreakdown,
+    createOrderFeeOption,
+    createPaymentExt,
+  ]);
 
   const createOrderPriceBreakdown = useMemo(() => {
     if (!createOrderBasePriceBreakdown) return null;
@@ -2235,23 +2266,41 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     if (isEditable || offerModalOpen) return;
     const id = String(offerIdWatch ?? "").trim();
     if (!id || !couponApplyValidation || couponApplyValidation.valid) return;
-    showErrorAlert(
-      couponApplyValidation.reason ?? "Cannot apply this coupon."
-    );
     setValue("offer_id", "", { shouldValidate: false });
   }, [couponApplyValidation, offerIdWatch, isEditable, offerModalOpen, setValue]);
 
-  const confirmApplyCouponFromModal = useCallback(() => {
-    const id = String(getValues("offer_id") ?? "").trim();
-    if (!id) {
+  const modalSelectedCouponOffer = useMemo(() => {
+    const id = String(modalCouponOfferId ?? "").trim();
+    if (!id) return null;
+    return (
+      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
+      null
+    );
+  }, [modalCouponOfferId, activeCoupons]);
+
+  const closeCouponModal = useCallback(
+    (revertOfferId: boolean) => {
+      if (revertOfferId) {
+        setValue("offer_id", offerIdBeforeCouponModalRef.current, {
+          shouldValidate: false,
+        });
+      }
       setCouponModalError("");
       setOfferModalOpen(false);
+    },
+    [setValue]
+  );
+
+  const confirmApplyCouponFromModal = useCallback(() => {
+    const id = String(modalCouponOfferId ?? "").trim();
+    if (!id) {
+      setValue("offer_id", "", { shouldValidate: false });
+      closeCouponModal(false);
       return;
     }
     if (!createOrderBasePriceBreakdown) {
       const msg = "Enter a service price before applying a coupon.";
       setCouponModalError(msg);
-      showErrorAlert(msg);
       return;
     }
     const offer =
@@ -2260,7 +2309,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     if (!offer) {
       const msg = "Selected coupon is no longer available.";
       setCouponModalError(msg);
-      showErrorAlert(msg);
       return;
     }
     const validation = validateCouponForPriceBreakdown(
@@ -2269,12 +2317,37 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     );
     if (!validation.valid) {
       setCouponModalError(validation.reason ?? "Cannot apply this coupon.");
-      showErrorAlert(validation.reason ?? "Cannot apply this coupon.");
       return;
     }
+    const withCoupon = applyCouponToQuotePriceBreakdown(
+      createOrderBasePriceBreakdown,
+      mapOfferModelToCouponInput(offer),
+      createOrderFeeOption
+    );
+    const payCheck = validatePaymentExtAgainstCaps(
+      createPaymentExt,
+      Number(withCoupon?.grandTotal ?? 0),
+      Math.max(
+        0,
+        Number(withCoupon?.serviceAfterCoupon ?? withCoupon?.base ?? 0)
+      )
+    );
+    if (!payCheck.valid) {
+      setCouponModalError(payCheck.reason ?? "Cannot apply this coupon.");
+      return;
+    }
+    setValue("offer_id", id, { shouldValidate: false });
     setCouponModalError("");
     setOfferModalOpen(false);
-  }, [activeCoupons, createOrderBasePriceBreakdown, getValues]);
+  }, [
+    activeCoupons,
+    closeCouponModal,
+    createOrderBasePriceBreakdown,
+    createOrderFeeOption,
+    createPaymentExt,
+    modalCouponOfferId,
+    setValue,
+  ]);
 
   const calculateCreateServiceDetails = useCallback(
     (servicePrice: number) => {
@@ -2411,7 +2484,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   ]);
 
   const createScheduleDate = String(serviceItems[0]?.service_date ?? "");
-  const createScheduleDateTo = String(getValues("service_date_to") ?? "");
+  const createScheduleDateTo = String(createScheduleDateToWatch ?? "");
   const createScheduleTimeFrom = String(
     serviceItems[0]?.service_from_time ?? ""
   );
@@ -2436,7 +2509,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       requested_time_to: createScheduleTimeTo,
     });
     if (!metrics) return;
-    const n = row ? computeAutoQuotePriceFromPartner(row, metrics) : 0;
+    const catalogPaymentType = String(
+      createOrderFeeOption?.payment_type ?? ""
+    ).trim();
+    const n = row
+      ? computeAutoQuotePriceFromPartner(row, metrics, catalogPaymentType)
+      : 0;
     setValue("create_service_price", String(n), { shouldValidate: false });
   }, [
     isEditable,
@@ -2449,6 +2527,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     createScheduleTimeTo,
     scheduleMode,
     selectedPartnerCatalogRecord,
+    createOrderFeeOption?.payment_type,
     setValue,
   ]);
 
@@ -2653,6 +2732,71 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   );
   const canAddCustomerByBalance = createCustomerPaidBal.balance > 0.009;
   const canAddPartnerByBalance = createPartnerPaidBal.balance > 0.009;
+
+  const commitCreateServicePriceIfPaymentsAllow = useCallback(() => {
+    if (isEditable) return;
+    const raw = String(getValues("create_service_price") ?? "").trim();
+    if (!hasRecordedOrderPayments(createPaymentExt)) {
+      lastAcceptedCreateServicePriceRef.current = raw;
+      return;
+    }
+    if (parsedCreateServicePrice == null) return;
+    const base = computeQuotePriceBreakdown(
+      parsedCreateServicePrice,
+      createOrderFeeOption
+    );
+    if (!base) return;
+    const couponInput =
+      selectedCouponOffer &&
+      validateCouponForPriceBreakdown(
+        base,
+        mapOfferModelToCouponInput(selectedCouponOffer)
+      ).valid
+        ? mapOfferModelToCouponInput(selectedCouponOffer)
+        : null;
+    const full = applyCouponToQuotePriceBreakdown(
+      base,
+      couponInput,
+      createOrderFeeOption
+    );
+    const payCheck = validatePaymentExtAgainstCaps(
+      createPaymentExt,
+      Number(full.grandTotal ?? 0),
+      Math.max(0, Number(full.serviceAfterCoupon ?? full.base ?? 0))
+    );
+    if (!payCheck.valid) {
+      showErrorAlert(
+        payCheck.reason ??
+          "Payment amounts exceed the new total. Reduce or remove payments before lowering the service price."
+      );
+      setValue("create_service_price", lastAcceptedCreateServicePriceRef.current, {
+        shouldValidate: false,
+        shouldDirty: true,
+      });
+      return;
+    }
+    lastAcceptedCreateServicePriceRef.current = raw;
+  }, [
+    isEditable,
+    getValues,
+    createPaymentExt,
+    parsedCreateServicePrice,
+    createOrderFeeOption,
+    selectedCouponOffer,
+    setValue,
+  ]);
+
+  useEffect(() => {
+    if (isEditable) return;
+    const raw = String(createServicePriceWatch ?? "").trim();
+    if (!hasRecordedOrderPayments(createPaymentExt)) {
+      lastAcceptedCreateServicePriceRef.current = raw;
+      return;
+    }
+    if (!lastAcceptedCreateServicePriceRef.current && raw) {
+      lastAcceptedCreateServicePriceRef.current = raw;
+    }
+  }, [isEditable, createServicePriceWatch, createPaymentExt]);
 
   useEffect(() => {
     if (
@@ -2906,6 +3050,15 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           return;
         }
       }
+      const payCaps = validatePaymentExtAgainstCaps(
+        createPaymentExt,
+        createFinalTotal,
+        createPartnerCap
+      );
+      if (!payCaps.valid) {
+        showErrorAlert(payCaps.reason ?? "Payment amounts exceed allowed totals.");
+        return;
+      }
       const schedDate = String(serviceItems[0]?.service_date ?? "").trim();
       const schedTo = String(data.service_date_to ?? "").trim();
       const tFrom = String(serviceItems[0]?.service_from_time ?? "").trim();
@@ -3002,12 +3155,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       const price = Number.parseFloat(
         String(data.create_service_price ?? "").trim()
       );
-      const extForSave: OrderPaymentExtV1 = {
+      const extForSave: OrderPaymentExtV1 = normalizePaymentExtForSubmit({
         ...createPaymentExt,
         serviceAmount: paymentDetails.subTotal,
         taxPercent: createCatalogServiceTax.taxPct,
         commissionPercent: createCatalogServiceTax.commissionPct,
-      };
+      });
       const serviceId = String(data.requested_services ?? "").trim();
       const serviceOpt = quoteCatalogServicesForPartner.find(
         (o) => o.value === serviceId
@@ -3531,7 +3684,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                       label="To date"
                                       controlId="create-order-to-date"
                                       selectedDate={
-                                        getValues("service_date_to") || null
+                                        createScheduleDateToWatch || null
                                       }
                                       onChange={(date) => {
                                         patchCreateScheduleField(
@@ -3581,12 +3734,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     serviceItems[0]?.service_from_time || null
                             }
                                   onChange={(date) => {
-                                    const next = date
-                                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
-                                      : "";
                               patchCreateScheduleField(
                                 "service_from_time",
-                                      next
+                                      datePickerTimeToScheduleStorage(date)
                                     );
                                   }}
                             register={register}
@@ -3595,7 +3745,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                   labelSize={12}
                                   placeholderText="Start time"
                                   filterTime={quoteScheduleTimePickerAllowAllHours}
-                                  timeIntervals={createOrderScheduleTimeIntervals}
+                                  timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
+                                  suppressHiddenRegister
                                   required
                           />
                         </Col>
@@ -3607,21 +3758,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                     serviceItems[0]?.service_to_time || null
                             }
                                   onChange={(date) => {
-                                    const next = date
-                                      ? `2000-01-01T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`
-                                      : "";
                               patchCreateScheduleField(
                                 "service_to_time",
-                                      next
+                                      datePickerTimeToScheduleStorage(date)
                                     );
                                   }}
                             register={register}
                             setValue={setValue}
                                   asCol={false}
                                   labelSize={12}
-                                  placeholderText="End time"
-                                  filterTime={createOrderEndTimeFilter}
-                                  timeIntervals={createOrderScheduleTimeIntervals}
+                                  placeholderText="After start time"
+                                  minTime={createOrderEndMinTime}
+                                  maxTime={scheduleEndTimeMaxForDay()}
+                                  timeIntervals={SCHEDULE_TIME_PICKER_INTERVAL_MINUTES}
+                                  suppressHiddenRegister
                                   required
                                 />
                               </Col>
@@ -3687,6 +3837,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                               }
                                             );
                                           },
+                                          onBlur: () => {
+                                            commitCreateServicePriceIfPaymentsAllow();
+                                          },
                                         })}
                                       />
                                     </InputGroup>
@@ -3724,17 +3877,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
 
                   {hasCreateOrderServiceSelected &&
                   isCreateOrderScheduleComplete ? (
+                  <>
                   <section
                     className="custom-other-details mt-3"
                     style={sectionShell}
                   >
-                    <Row className="align-items-center mb-3 pb-2 border-bottom">
-                      <Col>
-                        <h3 className="mb-0">Payment information</h3>
-                      </Col>
-                    </Row>
-
-                    <div style={priceSummarySection}>
+                    <div
+                      className="order-payment-info-section"
+                      style={priceSummarySection}
+                    >
+                      <Row className="align-items-center mb-3 pb-2 border-bottom">
+                        <Col>
+                          <h3 className="mb-0">Payment information</h3>
+                        </Col>
+                      </Row>
                       {createOrderPriceBreakdown ? (
                         <OrderAmountSummaryPanel
                           display={buildOrderAmountSummaryFromQuoteBreakdown(
@@ -3769,50 +3925,34 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                             background: "transparent",
                           }}
                         >
-                          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 mt-2 border-top">
-                            <button
-                              type="button"
-                              className="btn btn-link p-0"
-                              style={{
-                                color: "var(--primary-color)",
-                                textDecoration: "underline",
-                                fontSize: FONT_LABEL,
-                                fontWeight: 600,
-                              }}
-                              onClick={() => {
-                                if ((offerIdWatch ?? "").trim()) {
-                                  setValue("offer_id", "", {
-                                    shouldValidate: true,
-                                    shouldDirty: true,
-                                  });
-                                } else {
-                                  setOfferModalOpen(true);
-                                }
-                              }}
-                            >
-                              {(offerIdWatch ?? "").trim()
-                                ? "Remove coupon"
-                                : "Apply coupon"}
-                            </button>
-                          </div>
+                          <OrderCouponAction
+                            hasCoupon={Boolean((offerIdWatch ?? "").trim())}
+                            onApply={() => {
+                              offerIdBeforeCouponModalRef.current = String(
+                                offerIdWatch ?? ""
+                              ).trim();
+                              setModalCouponOfferId(
+                                offerIdBeforeCouponModalRef.current
+                              );
+                              setCouponModalError("");
+                              setOfferModalOpen(true);
+                            }}
+                            onRemove={() =>
+                              setValue("offer_id", "", {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                              })
+                            }
+                          />
                         </OrderAmountSummaryPanel>
                       ) : null}
-                      {couponApplyValidation &&
-                      !couponApplyValidation.valid &&
-                      (offerIdWatch ?? "").trim() ? (
-                        <div
-                          className="small text-danger mt-2 px-1"
-                          role="alert"
-                        >
-                          {couponApplyValidation.reason}
-                        </div>
-                      ) : null}
                     </div>
+                  </section>
 
-                    <div
-                      className="custom-other-details mt-3"
-                      style={sectionShell}
-                    >
+                  <section
+                    className="custom-other-details mt-3"
+                    style={sectionShell}
+                  >
                       <Row className="align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap g-2">
                         <Col
                           xs="auto"
@@ -4148,12 +4288,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           </span>
                         </div>
                       </div>
-                    </div>
+                  </section>
 
-                    <div
-                      className="custom-other-details mt-3 mb-0"
-                      style={sectionShell}
-                    >
+                  <section
+                    className="custom-other-details mt-3 mb-0"
+                    style={sectionShell}
+                  >
                       <Row className="align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap g-2">
                         <Col
                           xs="auto"
@@ -4458,8 +4598,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                           </span>
                         </div>
                       </div>
-                    </div>
                   </section>
+                  </>
                   ) : null}
                 </>
               ) : (
@@ -4771,10 +4911,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       {!isEditable && (
         <Modal
           show={offerModalOpen}
-          onHide={() => {
-            setCouponModalError("");
-            setOfferModalOpen(false);
-          }}
+          onHide={() => closeCouponModal(true)}
           centered
           enforceFocus={false}
         >
@@ -4785,6 +4922,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           </Modal.Header>
           <Modal.Body className="px-4 pb-4 pt-0">
             <CustomTextFieldSelect
+              key={`create-coupon-modal-${modalCouponOfferId}`}
               label="Coupon"
               controlId="Coupon_modal"
               options={couponOptions}
@@ -4792,8 +4930,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
               register={register}
               fieldName="offer_id"
               error={errors.offer_id}
-              defaultValue={getValues("offer_id")}
-              setValue={setValue as (name: string, value: any) => void}
+              defaultValue={modalCouponOfferId}
+              setValue={(name: string, value: unknown) => {
+                if (name === "offer_id") {
+                  setModalCouponOfferId(String(value ?? "").trim());
+                  setCouponModalError("");
+                }
+              }}
               menuPortal
               onChange={() => setCouponModalError("")}
             />
@@ -4803,13 +4946,13 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
               </p>
             ) : null}
             {!couponModalError &&
-            (offerIdWatch ?? "").trim() &&
+            modalCouponOfferId.trim() &&
             createOrderBasePriceBreakdown &&
-            selectedCouponOffer ? (
+            modalSelectedCouponOffer ? (
               <p className="small text-muted mb-0 mt-2">
-                {selectedCouponOffer.offerType === "fixed"
-                  ? `Fixed coupon: partner ${AppConstant.currencySymbol}${selectedCouponOffer.partnerContribution}, admin ${AppConstant.currencySymbol}${selectedCouponOffer.adminContribution}`
-                  : `Percentage coupon: ${selectedCouponOffer.partnerContribution}% on service, ${selectedCouponOffer.adminContribution}% on commission`}
+                {modalSelectedCouponOffer.offerType === "fixed"
+                  ? `Fixed coupon: partner ${AppConstant.currencySymbol}${modalSelectedCouponOffer.partnerContribution}, admin ${AppConstant.currencySymbol}${modalSelectedCouponOffer.adminContribution}`
+                  : `Percentage coupon: ${modalSelectedCouponOffer.partnerContribution}% on service, ${modalSelectedCouponOffer.adminContribution}% on commission`}
               </p>
             ) : null}
           </Modal.Body>
@@ -4817,10 +4960,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
             <Button
               type="button"
               className="custom-btn-secondary me-2"
-              onClick={() => {
-                setCouponModalError("");
-                setOfferModalOpen(false);
-              }}
+              onClick={() => closeCouponModal(true)}
             >
               Cancel
             </Button>

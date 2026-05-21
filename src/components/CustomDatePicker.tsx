@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
+import { isoCalendarDateToPickerDate } from "../lib/quote/quoteHelpers";
 
 interface CustomDatePickerProps {
   label?: string;
@@ -82,7 +83,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
           <DatePicker
             ref={datePickerRef}
             open={isOpen}
-            selected={selectedDate ? new Date(selectedDate) : null}
+            selected={isoCalendarDateToPickerDate(selectedDate)}
             onChange={handleDateChange}
             onSelect={() => setIsOpen(false)}
             onClickOutside={() => setIsOpen(false)}
