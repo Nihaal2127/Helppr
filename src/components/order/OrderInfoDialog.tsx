@@ -182,7 +182,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
         paymentExt,
         partnerInvoice,
         serviceAmt,
-        !!orderDetails.is_paid
+        !!orderDetails.is_paid,
+        orderDetails
       ),
       /** User price (`total_price`) — beside User payments heading. */
       userAmount: userInvoice,

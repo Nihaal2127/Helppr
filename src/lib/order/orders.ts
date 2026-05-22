@@ -176,7 +176,11 @@ export interface OrderModel {
   order_status_info: OrderStatusInfoModel[] | [];
   /** Display / API: Paid | Unpaid | Partial — falls back to `is_paid` when absent */
   customer_payment_status?: string | null;
+  /** Some order APIs alias customer status as `user_payment_status`. */
+  user_payment_status?: string | null;
   partner_payment_status?: string | null;
+  partner_paid_amount?: number | null;
+  partner_due_amount?: number | null;
   refund_amount?: number | null;
   /** Some APIs use this alias for refund total */
   return_amount?: number | string | null;
@@ -373,7 +377,10 @@ export function buildCreateOrderPayload(input: {
   address: string;
   addressId?: string;
   orderDateYmd?: string;
+  /** Base service amount (e.g. hours × rate). Excludes tax, commission, coupons. */
   totalServiceCharge: number;
+  /** Invoice grand total for customer payment status; defaults to `totalServiceCharge`. */
+  invoiceTotal?: number;
   orderDescription?: string;
   offerId?: string;
   serviceItem: Pick<
@@ -399,6 +406,7 @@ export function buildCreateOrderPayload(input: {
     input.serviceItem.service_to_time ?? ""
   );
   const charge = input.totalServiceCharge;
+  const invoiceTotal = input.invoiceTotal ?? charge;
 
   const line: Record<string, unknown> = {
     user_id: input.userId,
@@ -436,7 +444,7 @@ export function buildCreateOrderPayload(input: {
   if (input.offerId?.trim()) body.offer_id = input.offerId.trim();
 
   const ext = input.paymentExt ? normalizePaymentExtForSubmit(input.paymentExt) : undefined;
-  const payMeta = deriveOrderCustomerPaymentFields(ext, charge);
+  const payMeta = deriveOrderCustomerPaymentFields(ext, invoiceTotal);
   /** New orders: API expects `is_paid: false` on create; paid flag is set on update. */
   body.is_paid = false;
   body.customer_payment_method = payMeta.customer_payment_method;
@@ -702,9 +710,19 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     "";
 
   const paymentStatusSlug = str(r.payment_status).toLowerCase();
+  const customerStatusRaw =
+    str(r.customer_payment_status) ||
+    str(r.user_payment_status) ||
+    str(r.payment_status);
   const customer_payment_status =
-    str(r.customer_payment_status) || str(r.payment_status) || null;
-  const partner_payment_status = str(r.partner_payment_status) || null;
+    customerStatusRaw ||
+    deriveCustomerPaymentStatusSlugFromRecord(r) ||
+    null;
+  const partnerStatusRaw = str(r.partner_payment_status);
+  const partner_payment_status =
+    partnerStatusRaw ||
+    derivePartnerPaymentStatusSlugFromRecord(r) ||
+    null;
   const desc =
     str(r.order_description) || str(r.comments) || str(r.comment) || null;
   const isPaidRaw = r.is_paid;
@@ -712,7 +730,7 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     isPaidRaw === true ||
     isPaidRaw === "true" ||
     paymentStatusSlug === "paid" ||
-    paymentStatusSlug === "partially_paid";
+    customer_payment_status === "paid";
 
   const partner_name = str(r.partner_name) || str(partnerRef?.name) || null;
   const category_name =
@@ -770,6 +788,9 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     customer_refunded_amount: apiMoney(r.customer_refunded_amount),
     customer_net_paid: apiMoney(r.customer_net_paid),
     customer_due_amount: apiMoney(r.customer_due_amount),
+    user_payment_status: str(r.user_payment_status) || null,
+    partner_paid_amount: apiMoney(r.partner_paid_amount),
+    partner_due_amount: apiMoney(r.partner_due_amount),
     customer_payment_status,
     partner_payment_status,
     partner_name,
@@ -1166,48 +1187,95 @@ export function getOrderCategoryName(order?: OrderModel): string {
   return "-";
 }
 
-export function getCustomerPaymentStatusLabel(order?: OrderModel): string {
+function deriveCustomerPaymentStatusSlugFromRecord(
+  r: Record<string, unknown>
+): string {
+  const due = apiMoney(r.customer_due_amount);
+  const paid =
+    apiMoney(r.customer_net_paid) || apiMoney(r.customer_paid_amount);
+  const total = apiMoney(r.total_price);
+  if (paid > 0.009 && due > 0.009) return "partially_paid";
+  if (
+    paid > 0.009 &&
+    due <= 0.05 &&
+    (total <= 0.009 || paid >= total - 0.05)
+  ) {
+    return "paid";
+  }
+  if (paid <= 0.009) return "unpaid";
+  return "";
+}
+
+function derivePartnerPaymentStatusSlugFromRecord(
+  r: Record<string, unknown>
+): string {
+  const paid = apiMoney(r.partner_paid_amount);
+  const due = apiMoney(r.partner_due_amount);
+  if (paid > 0.009 && due > 0.009) return "partially_paid";
+  if (due <= 0.05 && paid > 0.009) return "paid";
+  if (paid <= 0.009 && due > 0.009) return "unpaid";
+  if (paid > 0.009) return "partially_paid";
+  return "";
+}
+
+export function resolveCustomerPaymentStatusSlug(
+  order?: OrderModel | null
+): string {
+  if (!order) return "";
   const statusRaw =
-    order?.customer_payment_status?.trim() ||
-    order?.payment_status?.trim() ||
+    order.customer_payment_status?.trim() ||
+    order.user_payment_status?.trim() ||
+    order.payment_status?.trim() ||
     "";
   const slug = normalizeCustomerPaymentStatusSlug(statusRaw);
+  if (slug) return slug;
+  return deriveCustomerPaymentStatusSlugFromRecord(
+    order as unknown as Record<string, unknown>
+  );
+}
+
+export function resolvePartnerPaymentStatusSlug(
+  order?: OrderModel | null
+): string {
+  if (!order) return "";
+  const slug = normalizePartnerPaymentStatusSlug(order.partner_payment_status);
+  if (slug) return slug;
+  if (orderUsesApiPaymentLedger(order)) {
+    const paid = sumApiPaymentsByPayer(order, "partner");
+    const due = apiMoney(order.partner_due_amount);
+    if (paid > 0.009 && due > 0.009) return "partially_paid";
+    if (due <= 0.05 && paid > 0.009) return "paid";
+    if (paid <= 0.009 && due > 0.009) return "unpaid";
+    if (paid > 0.009) return "partially_paid";
+  }
+  return derivePartnerPaymentStatusSlugFromRecord(
+    order as unknown as Record<string, unknown>
+  );
+}
+
+export function getCustomerPaymentStatusLabel(order?: OrderModel): string {
+  const slug = resolveCustomerPaymentStatusSlug(order);
   if (slug) {
     const label = customerPaymentStatusLabelFromSlug(slug);
     if (label) return label;
   }
+  const statusRaw =
+    order?.customer_payment_status?.trim() ||
+    order?.user_payment_status?.trim() ||
+    order?.payment_status?.trim() ||
+    "";
   if (statusRaw) return statusRaw.replace(/_/g, " ");
-  if (order?.is_paid) return "Paid";
   return "Unpaid";
 }
 
 export function getPartnerPaymentStatusLabel(order?: OrderModel): string {
-  const slug = normalizePartnerPaymentStatusSlug(order?.partner_payment_status);
+  const slug = resolvePartnerPaymentStatusSlug(order);
   if (slug) {
     const label = partnerPaymentStatusLabelFromSlug(slug);
     if (label) return label;
   }
   const raw = order?.partner_payment_status?.trim();
-  if (raw) return raw;
-
-  if (order && orderUsesApiPaymentLedger(order)) {
-    const primary = getPrimaryServiceItem(order);
-    const partnerDue = roundMoney(
-      Math.max(
-        0,
-        Number(primary?.service_price ?? 0) ||
-          Number(order.service_price ?? 0) ||
-          Number(order.total_service_charge ?? 0)
-      )
-    );
-    const paid = sumApiPaymentsByPayer(order, "partner");
-    if (partnerDue > 0.009) {
-      if (paid >= partnerDue - 0.01) return "Paid";
-      if (paid > 0.009) return "Partially paid";
-      return "Unpaid";
-    }
-    if (paid > 0.009) return "Partially paid";
-  }
+  if (raw) return raw.replace(/_/g, " ");
 
   const items = order?.service_items ?? [];
   if (!items.length) return "-";
@@ -2304,9 +2372,28 @@ export function partnerPaidBalanceHeadline(
   ext: OrderPaymentExtV1,
   invoiceTotal: number,
   _serviceAmount: number,
-  orderIsPaid: boolean
+  _orderIsPaid: boolean,
+  order?: OrderModel
 ): { totalPaid: number; balance: number } {
   const inv = Math.max(0, Number(invoiceTotal) || 0);
+
+  if (order && orderUsesApiPaymentLedger(order)) {
+    const paidAmount = apiMoney(order.partner_paid_amount);
+    const dueAmount = apiMoney(order.partner_due_amount);
+    const rowSum = sumPartnerAmounts(ext.partnerPayments);
+
+    let totalPaid = 0;
+    if (paidAmount > 0.009) totalPaid = paidAmount;
+    else totalPaid = rowSum;
+
+    totalPaid = Math.min(inv, Math.max(0, roundMoney(totalPaid)));
+    const balance =
+      dueAmount > 0.009
+        ? roundMoney(dueAmount)
+        : Math.max(0, roundMoney(inv - totalPaid));
+    return { totalPaid, balance };
+  }
+
   const totalPaidRaw = hasPartnerPaymentTemplateRows(ext)
     ? sumTemplateSideCountedPayments(ext.partnerPayments, inv)
     : sumPartnerAmounts(ext.partnerPayments);

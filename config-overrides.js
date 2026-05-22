@@ -1,4 +1,6 @@
-module.exports = function override(config) {
+const path = require("path");
+
+module.exports = function override(config, env) {
   // Fix resolution of React JSX runtime in strict ESM modules like @floating-ui/react
   config.resolve = config.resolve || {};
   config.resolve.alias = {
@@ -12,6 +14,31 @@ module.exports = function override(config) {
     /Failed to parse source map/,
   ];
 
-  return config;
-}
+  if (env === "development") {
+    // Reuse compiled modules between restarts (big win on Windows + large src tree).
+    config.cache = {
+      type: "filesystem",
+      buildDependencies: {
+        config: [__filename],
+      },
+      cacheDirectory: path.resolve(__dirname, "node_modules/.cache/webpack"),
+    };
 
+    // Fewer chunks to build on first dev compile.
+    config.optimization = {
+      ...config.optimization,
+      removeAvailableModules: false,
+      removeEmptyChunks: false,
+      splitChunks: false,
+    };
+
+    // Type-check in the editor; full check still runs on `npm run build`.
+    config.plugins = config.plugins.filter(
+      (plugin) =>
+        plugin?.constructor?.name !== "ForkTsCheckerWebpackPlugin" &&
+        plugin?.constructor?.name !== "ForkTsCheckerWarningWebpackPlugin"
+    );
+  }
+
+  return config;
+};

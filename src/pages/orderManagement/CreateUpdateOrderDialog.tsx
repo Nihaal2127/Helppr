@@ -2653,11 +2653,11 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     if (isEditable) return;
     setCreatePaymentExt((prev) => ({
       ...prev,
-      serviceAmount: paymentDetails.subTotal,
+      serviceAmount: Math.max(0, parsedCreateServicePrice ?? 0),
       taxPercent: createCatalogServiceTax.taxPct,
       commissionPercent: createCatalogServiceTax.commissionPct,
     }));
-  }, [isEditable, createCatalogServiceTax, paymentDetails.subTotal]);
+  }, [isEditable, createCatalogServiceTax, parsedCreateServicePrice]);
 
   const previewCouponBreakdown = useMemo(() => {
     const id = (offerIdWatch ?? "").trim();
@@ -3167,9 +3167,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       const price = Number.parseFloat(
         String(data.create_service_price ?? "").trim()
       );
+      const baseServiceCharge = Math.max(0, parsedCreateServicePrice ?? price);
       const extForSave: OrderPaymentExtV1 = normalizePaymentExtForSubmit({
         ...createPaymentExt,
-        serviceAmount: paymentDetails.subTotal,
+        serviceAmount: baseServiceCharge,
         taxPercent: createCatalogServiceTax.taxPct,
         commissionPercent: createCatalogServiceTax.commissionPct,
       });
@@ -3195,12 +3196,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           data.created_by_id || getLocalStorage(AppConstant.createdById) || "",
         address: firstAddr || selectedUser?.address || "",
         addressId: createOrderAddressId.trim() || undefined,
-        totalServiceCharge: Math.max(
-          0,
-          Number(createFinalTotal) ||
-            Number(paymentDetails.totalPrice) ||
-            price
-        ),
+        totalServiceCharge: baseServiceCharge,
+        invoiceTotal: Math.max(0, createFinalTotal),
         orderDescription: (data.comments ?? "").trim() || undefined,
         offerId: data.offer_id ? String(data.offer_id) : undefined,
         serviceItem: {

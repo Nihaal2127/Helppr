@@ -26,6 +26,11 @@ import {
   displayStateName,
   stripKnownAddressParts,
 } from "../lib/quote/quoteAddressCore";
+import {
+  ceilWholeDaysInclusive,
+  ceilWholeHoursBetweenHHmm,
+  scheduleTotalWorkHours,
+} from "../lib/quote/scheduleBillingDuration";
 
 export type OptionType = { value: string; label: string };
 
@@ -1217,9 +1222,12 @@ export function deriveQuoteScheduleMetrics(input: {
     work_end_time = timeStorageToHHmm(input.requested_time_to);
   }
 
-  const work_hours_per_day = hoursBetweenHHmm(work_start_time, work_end_time);
-  const days = daysInclusive(from_date, to_date);
-  const total_work_hours = Math.round(work_hours_per_day * days * 10) / 10;
+  const work_hours_per_day = ceilWholeHoursBetweenHHmm(
+    work_start_time,
+    work_end_time
+  );
+  const days = ceilWholeDaysInclusive(from_date, to_date);
+  const total_work_hours = scheduleTotalWorkHours(work_hours_per_day, days);
   return {
     from_date,
     to_date,
@@ -1337,7 +1345,6 @@ export function buildQuoteSchedulePricePreview(
     return {
       billingLabel,
       primaryLine: `${fmt(unit)}/day × ${d} day(s) = ${fmt(sub)}`,
-      secondaryLine: `${metrics.work_start_time}–${metrics.work_end_time} each day`,
       preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
     };
   }
@@ -1365,7 +1372,6 @@ export function buildQuoteSchedulePricePreview(
   return {
     billingLabel,
     primaryLine: `${fmt(unit)}/day × ${d} day(s) = ${fmt(sub)}`,
-    secondaryLine: `${metrics.work_start_time}–${metrics.work_end_time} each day`,
     preTaxTotal: Math.max(0, Math.round(sub * 100) / 100),
   };
 }
@@ -1689,24 +1695,6 @@ export function amPmDisplayToHHmm(label: string | undefined | null): string {
   if (ap === "PM" && h !== 12) h += 12;
   if (ap === "AM" && h === 12) h = 0;
   return `${pad2(h)}:${pad2(min)}`;
-}
-
-function daysInclusive(fromYmd: string, toYmd: string): number {
-  const a = new Date(fromYmd + "T12:00:00");
-  const b = new Date(toYmd + "T12:00:00");
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 1;
-  const diff = Math.round((b.getTime() - a.getTime()) / 86400000);
-  return Math.max(1, diff + 1);
-}
-
-function hoursBetweenHHmm(start: string, end: string): number {
-  const [sh, sm] = start.split(":").map((x) => parseInt(x, 10));
-  const [eh, em] = end.split(":").map((x) => parseInt(x, 10));
-  if (!Number.isFinite(sh) || !Number.isFinite(eh)) return 8;
-  const t0 = sh * 60 + (sm || 0);
-  const t1 = eh * 60 + (em || 0);
-  const diff = (t1 - t0) / 60;
-  return Math.max(1, Number.isFinite(diff) ? diff : 8);
 }
 
 /**
@@ -2814,7 +2802,7 @@ export async function applyQuoteSchedulePatch(
   const we = amPmDisplayToHHmm(patch.scheduled_time_to);
   if (!ymd || !ws || !we) return false;
 
-  const perDay = hoursBetweenHHmm(ws, we);
+  const perDay = ceilWholeHoursBetweenHHmm(ws, we);
   const total = perDay;
 
   const ok = await updateQuote(id, {

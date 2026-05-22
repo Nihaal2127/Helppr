@@ -2,6 +2,11 @@
  * Order edit schedule metrics — duplicated from quoteService to avoid
  * orders.ts → quoteService → … → franchiseService circular imports.
  */
+import {
+  ceilWholeDaysInclusive,
+  ceilWholeHoursBetweenHHmm,
+  scheduleTotalWorkHours,
+} from "../quote/scheduleBillingDuration";
 
 export type OrderServiceScheduleMode = "single" | "range" | "hourly";
 
@@ -31,24 +36,6 @@ function timeStorageToHHmm(storage: string | null | undefined): string {
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return "09:00";
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function daysInclusive(fromYmd: string, toYmd: string): number {
-  const a = new Date(fromYmd + "T12:00:00");
-  const b = new Date(toYmd + "T12:00:00");
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 1;
-  const diff = Math.round((b.getTime() - a.getTime()) / 86400000);
-  return Math.max(1, diff + 1);
-}
-
-function hoursBetweenHHmm(start: string, end: string): number {
-  const [sh, sm] = start.split(":").map((x) => parseInt(x, 10));
-  const [eh, em] = end.split(":").map((x) => parseInt(x, 10));
-  if (!Number.isFinite(sh) || !Number.isFinite(eh)) return 8;
-  const t0 = sh * 60 + (sm || 0);
-  const t1 = eh * 60 + (em || 0);
-  const diff = (t1 - t0) / 60;
-  return Math.max(1, Number.isFinite(diff) ? diff : 8);
 }
 
 export function deriveOrderScheduleMetrics(input: {
@@ -103,9 +90,12 @@ export function deriveOrderScheduleMetrics(input: {
     work_end_time = timeStorageToHHmm(input.requested_time_to);
   }
 
-  const work_hours_per_day = hoursBetweenHHmm(work_start_time, work_end_time);
-  const days = daysInclusive(from_date, to_date);
-  const total_work_hours = Math.round(work_hours_per_day * days * 10) / 10;
+  const work_hours_per_day = ceilWholeHoursBetweenHHmm(
+    work_start_time,
+    work_end_time
+  );
+  const days = ceilWholeDaysInclusive(from_date, to_date);
+  const total_work_hours = scheduleTotalWorkHours(work_hours_per_day, days);
   return {
     from_date,
     to_date,
