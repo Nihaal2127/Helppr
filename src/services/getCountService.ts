@@ -18,6 +18,10 @@ const COUNT_RECORD_HINT_KEYS = [
   "in_progress_order",
 ];
 
+function isCountPayload(value: Record<string, unknown>): value is CountModel {
+  return COUNT_RECORD_HINT_KEYS.some((k) => k in value);
+}
+
 function extractCountRecord(
   inner: Record<string, unknown> | undefined,
   d: Record<string, unknown> | undefined
@@ -30,8 +34,7 @@ function extractCountRecord(
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return null;
   }
-  const hasHint = COUNT_RECORD_HINT_KEYS.some((k) => k in candidate);
-  if (hasHint) return candidate as CountModel;
+  if (isCountPayload(candidate)) return candidate;
   return null;
 }
 
