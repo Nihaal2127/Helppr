@@ -133,7 +133,7 @@ export const verificationStatusCell = (field: string | number) => {
   };
 };
 
-/** Tight label + value (fixed label width) — use inside `md={6}` pairs e.g. service address. */
+/** Tight label + value (fixed label width) - use inside md={6} pairs e.g. service address. */
 export function InfoDetailInlineRow({
   label,
   value,
