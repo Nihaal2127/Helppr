@@ -4,8 +4,10 @@ import { VerificationStatusEnum } from "../lib/global/VerificationStatusEnum";
 import { RoleEnum } from "../lib/global/RoleEnum";
 import { ResolveStatusEnum } from "../lib/global/ResolveStatusEnum";
 import { AppConstant } from "../lib/global/AppConstant";
+import { formatDate, formatDateTime } from "./dateFormat";
 
 export { getNavigate, setNavigate } from "./navigation";
+export { formatDate, formatDateTime };
 
 /** Order status labels for `DetailsOrderStatusRow` (kept here to avoid utility ↔ orderTypes cycle). */
 const ORDER_STATUS_LABELS = new Map<number, { label: string }>([
@@ -59,34 +61,6 @@ export const isSupportedImageFile = (file: File): boolean => {
   );
   const isWithinSupportedSize = file.size <= SUPPORTED_IMAGE_MAX_SIZE_BYTES;
   return hasSupportedExtension && hasSupportedMimeType && isWithinSupportedSize;
-};
-
-export const formatDate = (isoString: string): string => {
-  const date = new Date(isoString);
-  if (isNaN(date.getTime())) {
-    return "-"; //"Invalid Date";
-  }
-
-  const day = date.getDate();
-  const month = date.toLocaleString("en-GB", { month: "short" });
-  const year = date.getFullYear();
-
-  return `${day}-${month}-${year}`;
-};
-
-/** Localized date + time (e.g. for ledgers, activity rows). */
-export const formatDateTime = (isoString: string): string => {
-  const date = new Date(isoString);
-  if (isNaN(date.getTime())) {
-    return "—";
-  }
-  return date.toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 };
 
 export const textUnderlineCell =
@@ -166,7 +140,7 @@ export function InfoDetailInlineRow({
   className = "",
 }: {
   label: string;
-  value: React.ReactNode;
+  value: ReactNode;
   className?: string;
 }) {
   const display =
@@ -183,10 +157,36 @@ export function InfoDetailInlineRow({
   );
 }
 
-/** Label + value row — same compact layout as `InfoDetailInlineRow`. */
-export const DetailsRow = ({ title, value }: { title: string; value: any }) => (
-  <InfoDetailInlineRow label={title} value={value} />
-);
+/** Label + value row — uses `InfoDetailInlineRow`; `compact` for Partner Information columns. */
+export const DetailsRow = ({
+  title,
+  value,
+  compact,
+}: {
+  title: string;
+  value: any;
+  /** Narrow column stack (Partner Information left/right lists). */
+  compact?: boolean;
+}) => {
+  if (compact) {
+    const displayValue =
+      value === undefined || value === "" || value === null ? "-" : value;
+    return (
+      <div className="custom-personal-row custom-personal-row--compact d-flex align-items-start gap-2 py-1">
+        <div className="custom-personal-row-title flex-shrink-0">
+          {title}
+        </div>
+        <div
+          className="custom-personal-row-value flex-grow-1"
+          style={{ minWidth: 0 }}
+        >
+          {displayValue}
+        </div>
+      </div>
+    );
+  }
+  return <InfoDetailInlineRow label={title} value={value} />;
+};
 
 /** Two-column personal block: name/DOB, gender/email, phone/registered, optional last service. */
 export function PersonalAccountDetailsGrid({
@@ -198,6 +198,13 @@ export function PersonalAccountDetailsGrid({
   phone,
   registeredDate,
   lastServiceDate,
+  showPartnerFields,
+  experience,
+  stateName,
+  cityName,
+  pincode,
+  isActive,
+  address,
 }: {
   nameLabel: string;
   name?: string | null;
@@ -207,6 +214,14 @@ export function PersonalAccountDetailsGrid({
   phone?: string | null;
   registeredDate?: string | null;
   lastServiceDate?: string | null;
+  /** When true, renders experience/location/status/address rows (Partner Information). */
+  showPartnerFields?: boolean;
+  experience?: string | number | null;
+  stateName?: string | null;
+  cityName?: string | null;
+  pincode?: string | null;
+  isActive?: boolean;
+  address?: string | null;
 }) {
   const dobRaw = String(dateOfBirth ?? "").trim();
   const dobDisplay = dobRaw ? formatDate(dobRaw) : "—";
@@ -215,6 +230,44 @@ export function PersonalAccountDetailsGrid({
   const lastRaw = String(lastServiceDate ?? "").trim();
   const showLastService =
     Boolean(lastRaw) && !Number.isNaN(new Date(lastRaw).getTime());
+
+  if (showPartnerFields) {
+    const experienceDisplay =
+      experience !== null &&
+      experience !== undefined &&
+      String(experience).trim() !== ""
+        ? String(experience)
+        : "—";
+    const addressDisplay = String(address ?? "").trim() || "—";
+    const statusValue = (
+      <span className={isActive ? "custom-active" : "custom-inactive"}>
+        {isActive ? "Active" : "Inactive"}
+      </span>
+    );
+
+    return (
+      <div className="w-100 partner-personal-details-grid">
+        <Row className="g-3 mx-0 align-items-start">
+          <Col xs={12} md={6} className="partner-personal-col">
+            <DetailsRow compact title={nameLabel} value={name ?? "—"} />
+            <DetailsRow compact title="Gender" value={genderLabel ?? "—"} />
+            <DetailsRow compact title="Phone Number" value={phone ?? "—"} />
+            <DetailsRow compact title="Experience" value={experienceDisplay} />
+            <DetailsRow compact title="City" value={cityName ?? "—"} />
+            <DetailsRow compact title="Address" value={addressDisplay} />
+            <DetailsRow compact title="Status" value={statusValue} />
+          </Col>
+          <Col xs={12} md={6} className="partner-personal-col">
+            <DetailsRow compact title="Date of Birth" value={dobDisplay} />
+            <DetailsRow compact title="Email" value={email ?? "—"} />
+            <DetailsRow compact title="Registered Date" value={regDisplay} />
+            <DetailsRow compact title="State" value={stateName ?? "—"} />
+            <DetailsRow compact title="Postal Code" value={pincode ?? "—"} />
+          </Col>
+        </Row>
+      </div>
+    );
+  }
 
   return (
     <div className="w-100">
@@ -595,29 +648,4 @@ export const DetailsRowLinkDocument = ({
 
 export const getRoleLabel = (roleId: number): string => {
   return RoleEnum.get(roleId)?.label ?? "Unknown Role";
-};
-
-export const ShowDetailsRow = ({
-  title,
-  value,
-}: {
-  title: string;
-  value: any;
-}) => {
-  return (
-    <Col xs={4}>
-      <Row>
-        <Col sm={4}>
-          <label className="custom-profile-lable">{title}</label>
-        </Col>
-        <Col>
-          <label className="custom-personal-row-value">
-            {value === undefined || value === "" || value === null
-              ? "-"
-              : value}
-          </label>
-        </Col>
-      </Row>
-    </Col>
-  );
 };

@@ -4,7 +4,7 @@
 import { apiRequest } from "../global/remote/apiHelper";
 import { ApiPaths } from "../global/remote/apiPaths";
 import { showLog } from "../../helper/logger";
-import { formatDate } from "../../helper/utility";
+import { formatDate } from "../../helper/dateFormat";
 import { formatQuoteScheduledDisplay } from "../quote/quoteHelpers";
 import type { ServerTableSortBy } from "../global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../franchise/headerFranchisePreference";
@@ -1356,6 +1356,25 @@ export function getPartnerPaymentStatusLabel(order?: OrderModel): string {
   }
   const raw = order?.partner_payment_status?.trim();
   if (raw) return raw.replace(/_/g, " ");
+
+  if (order && orderUsesApiPaymentLedger(order)) {
+    const primary = getPrimaryServiceItem(order);
+    const partnerDue = roundMoney(
+      Math.max(
+        0,
+        Number(primary?.service_price ?? 0) ||
+          Number(order.service_price ?? 0) ||
+          Number(order.total_service_charge ?? 0)
+      )
+    );
+    const paid = sumApiPaymentsByPayer(order, "partner");
+    if (partnerDue > 0.009) {
+      if (paid >= partnerDue - 0.01) return "Paid";
+      if (paid > 0.009) return "Partially paid";
+      return "Unpaid";
+    }
+    if (paid > 0.009) return "Partially paid";
+  }
 
   const items = order?.service_items ?? [];
   if (!items.length) return "-";

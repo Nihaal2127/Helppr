@@ -10,6 +10,9 @@ interface CustomTextFieldRadioProps {
   defaultValue?: string | boolean | null;
   isEditable?: boolean;
   setValue: UseFormSetValue<any>;
+  labelSize?: number;
+  /** Align radios on same row as label (e.g. Gender on Add Partner). */
+  alignItemsCenter?: boolean;
 }
 
 const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
@@ -19,11 +22,17 @@ const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
   defaultValue,
   isEditable = false,
   setValue,
+  labelSize = 4,
+  alignItemsCenter = false,
 }) => {
+  const alignClass = alignItemsCenter ? "center" : "start";
   return (
-    <Row className="align-items-start">
-      <Col sm={4} className="d-flex align-items-start">
-        <label className="custom-profile-lable">{label}</label>
+    <Row className={`align-items-${alignClass}`}>
+      <Col
+        sm={labelSize}
+        className={`d-flex align-items-${alignClass}`}
+      >
+        <label className="custom-profile-lable mb-0">{label}</label>
       </Col>
       <Col>
         <CustomRadioSelection

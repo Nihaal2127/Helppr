@@ -135,6 +135,15 @@ export const normalizePhoneForUserCreate = (phone: string): string => {
   return t;
 };
 
+function formatDobForCreatePayload(value?: string | null): string | undefined {
+  const s = String(value ?? "").trim();
+  if (!s) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 10);
+}
+
 export type CreateWebManagementUserBody = {
   name: string;
   email: string;
@@ -156,6 +165,7 @@ export type CreateWebManagementUserBody = {
   accessible_screens?: AvailablePageEntry[];
   profile_url?: string;
   gender?: string;
+  date_of_birth?: string;
   /**
    * App-side name; request body sends `chat` (boolean).
    */
@@ -217,6 +227,8 @@ export const createWebManagementUser = async (
   if (body.city_id) requestBody.city_id = body.city_id;
   if (body.profile_url) requestBody.profile_url = body.profile_url;
   if (body.gender) requestBody.gender = String(body.gender).trim().toLowerCase();
+  const dob = formatDobForCreatePayload(body.date_of_birth);
+  if (dob) requestBody.date_of_birth = dob;
   if (body.chat_enabled !== undefined) {
     requestBody.chat = Boolean(body.chat_enabled);
   }

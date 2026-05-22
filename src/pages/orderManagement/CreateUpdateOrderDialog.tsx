@@ -10,7 +10,7 @@ import { Modal, Button, Row, Col, Form, Table, InputGroup } from "react-bootstra
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { OrderModel, OrderItemModel, orderPaymentModeSelectOptions } from "../../lib/order/orders";
 import type { ServiceAddressCard, AddressCityDropdownRow } from "../../lib/order/orders";
-import { ShowDetailsRow } from "../../helper/utility";
+import { ShowDetailsRow } from "../../components/ShowDetailsRow";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import {
   applyOrderScheduleMetricsToBody,

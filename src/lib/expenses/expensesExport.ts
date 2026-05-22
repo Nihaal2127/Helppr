@@ -1,5 +1,5 @@
 import { formatCurrency, paymentMethodLabel } from "../global/paymentAndCurrency";
-import { formatDate } from "../../helper/utility";
+import { formatDate } from "../../helper/dateFormat";
 import { ExpenseModel } from "../models/ExpenseModel";
 
 const HEADERS = [

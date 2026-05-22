@@ -235,16 +235,19 @@ function PartnerDetailsDialogView({
                     : profileIcon
                 }
                 alt="User profile"
-                width="160px"
-                height="160px"
+                width={160}
+                height={160}
+                className="partner-details-profile-img"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src !== profileIcon) img.src = profileIcon;
+                }}
               />
             </div>
 
-            <div
-              className="custom-personal-details"
-              style={{ flexWrap: "wrap" }}
-            >
+            <div className="custom-personal-details">
               <PersonalAccountDetailsGrid
+                showPartnerFields
                 nameLabel="Partner Name"
                 name={userDetails?.name}
                 dateOfBirth={userDetails?.date_of_birth}
@@ -253,82 +256,17 @@ function PartnerDetailsDialogView({
                 phone={userDetails?.phone_number}
                 registeredDate={userDetails?.created_at}
                 lastServiceDate={userDetails?.last_service_date}
+                experience={userDetails?.experience}
+                stateName={userDetails?.state_name}
+                cityName={userDetails?.city_name}
+                pincode={userDetails?.pincode}
+                isActive={userDetails?.is_active}
+                address={
+                  typeof userDetails?.address === "string"
+                    ? userDetails.address
+                    : ""
+                }
               />
-              <Row className="g-0 mt-1">
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Experience"
-                    value={
-                      userDetails?.experience !== undefined &&
-                      userDetails?.experience !== null &&
-                      String(userDetails.experience).trim() !== ""
-                        ? String(userDetails.experience)
-                        : "—"
-                    }
-                  />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow title="State" value={userDetails?.state_name} />
-                </Col>
-              </Row>
-              <Row className="g-0">
-                <Col xs={12} md={6}>
-                  <DetailsRow title="City" value={userDetails?.city_name ?? "—"} />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow title="Postal Code" value={userDetails?.pincode ?? "—"} />
-                </Col>
-              </Row>
-              <Row className="g-0">
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Status"
-                    value={
-                      <span
-                        className={
-                          userDetails?.is_active
-                            ? "custom-active"
-                            : "custom-inactive"
-                        }
-                      >
-                        {userDetails?.is_active ? "Active" : "Inactive"}
-                      </span>
-                    }
-                  />
-                </Col>
-              </Row>
-              <div
-                className="w-100"
-                style={{ flex: "1 1 100%", minWidth: "100%" }}
-              >
-                <Row
-                  className="row custom-personal-row gx-0 align-items-start"
-                  style={{ gap: "9rem" }}
-                >
-                  <Col
-                    xs={12}
-                    sm="auto"
-                    className="custom-personal-row-title pe-sm-3 mb-1 mb-sm-0"
-                  >
-                    Address
-                  </Col>
-                  <Col xs={12} sm style={{ minWidth: 0 }}>
-                    <div
-                      className="text-wrap"
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "normal",
-                        fontFamily: "Inter",
-                        color: "var(--txt-color)",
-                        whiteSpace: "normal",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {userDetails?.address?.trim() ? userDetails.address : "-"}
-                    </div>
-                  </Col>
-                </Row>
-              </div>
             </div>
             <img
               src={editIcon}

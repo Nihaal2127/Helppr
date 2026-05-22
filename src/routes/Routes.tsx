@@ -1,22 +1,48 @@
 import React from "react";
+import LazyRouteBoundary from "../components/LazyRouteBoundary";
 
-const lazyPage = (importer: () => Promise<any>) =>
-  React.lazy(() =>
-    importer().then((module: any) => {
-      const m = module ?? {};
-      if (m.default != null) {
-        return { default: m.default };
-      }
-      const keys = Object.keys(m).filter((k) => k !== "__esModule");
-      for (const k of keys) {
-        const exp = m[k];
-        if (typeof exp === "function") {
-          return { default: exp };
-        }
-      }
-      return { default: m.default };
-    })
+function resolveLazyModule(module: Record<string, unknown>): {
+  default: React.ComponentType<unknown>;
+} {
+  const m = module ?? {};
+  if (m.default != null && typeof m.default === "function") {
+    return { default: m.default as React.ComponentType<unknown> };
+  }
+  const keys = Object.keys(m).filter((k) => k !== "__esModule");
+  for (const k of keys) {
+    const exp = m[k];
+    if (typeof exp === "function") {
+      return { default: exp as React.ComponentType<unknown> };
+    }
+  }
+  throw new Error("Lazy route module has no component export");
+}
+
+async function importLazyRoute(
+  importer: () => Promise<Record<string, unknown>>,
+  attempt = 0
+): Promise<{ default: React.ComponentType<unknown> }> {
+  try {
+    const mod = await importer();
+    return resolveLazyModule(mod);
+  } catch (err) {
+    if (attempt < 1) {
+      await new Promise((r) => setTimeout(r, 150));
+      return importLazyRoute(importer, attempt + 1);
+    }
+    throw err;
+  }
+}
+
+const lazyPage = (importer: () => Promise<Record<string, unknown>>) => {
+  const LazyInner = React.lazy(() => importLazyRoute(importer));
+  const Wrapped: React.FC = () => (
+    <LazyRouteBoundary>
+      <LazyInner />
+    </LazyRouteBoundary>
   );
+  return Wrapped;
+};
 
 const Login = lazyPage(() => import("../pages/auth/Login"));
 const ForgotPassword = lazyPage(() => import("../pages/auth/ForgotPassword"));

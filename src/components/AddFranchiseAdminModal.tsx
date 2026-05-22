@@ -144,6 +144,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
       email: form.email.trim(),
       phone_number: rolePhoneFull,
       gender: form.gender,
+      date_of_birth: form.date_of_birth.trim() || undefined,
       profile_url: form.profile_url.trim() || undefined,
       roleType: "franchise_admin" as const,
       assignedFranchise: form.assignedFranchise || undefined,

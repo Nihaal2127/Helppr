@@ -427,10 +427,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
               />
             </div>
 
-            <div
-              className="custom-personal-details"
-              style={{ flexWrap: "wrap" }}
-            >
+            <div className="custom-personal-details">
               <PersonalAccountDetailsGrid
                 nameLabel="User Name"
                 name={userDetails?.name}

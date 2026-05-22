@@ -227,6 +227,7 @@ body {
 .filters-container .react-select-container {
   z-index: 99 !important;
 }
+
 .react-datepicker {
   z-index: 2501 !important;
 }
@@ -455,6 +456,7 @@ body {
 }
 
 @media (min-width: 992px) {
+
   .sidebar-mobile-toggle,
   .sidebar-backdrop {
     display: none !important;
@@ -544,7 +546,8 @@ body {
   box-sizing: border-box;
 }
 
-.custom-model-detail, .custom-order-model-detail {
+.custom-model-detail,
+.custom-order-model-detail {
   background-color: var(--bg-color);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   border-radius: 16px;
@@ -564,6 +567,7 @@ body {
   margin: 0;
   box-sizing: border-box;
 }
+
 .custom-order-model-detail {
   min-width: 90vw;
 }
@@ -640,7 +644,8 @@ body {
 }
 
 .modal-dialog.edit-partner-catalog-modal-vh .modal-content {
-  max-height: 90vh;   /* limit only when needed */
+  max-height: 90vh;
+  /* limit only when needed */
   display: flex;
   flex-direction: column;
 }
@@ -674,6 +679,180 @@ body {
     max-height: calc(90vh - 140px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Add Partner dialog — form spacing, header franchise, catalog rows */
+.modal-dialog.add-partner-modal {
+  .add-partner-modal-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 1rem;
+    padding-right: 3rem !important;
+
+    .modal-title {
+      flex: 0 0 auto;
+      margin-right: 0;
+      white-space: nowrap;
+    }
+
+    .add-partner-header-franchise {
+      flex: 0 1 280px;
+      min-width: 200px;
+      max-width: 300px;
+      margin-left: auto;
+      margin-right: 1.25rem;
+    }
+  }
+
+  .add-partner-form-row {
+    --bs-gutter-x: 2.5rem;
+
+    .row.align-items-start,
+    .row.align-items-center {
+      --bs-gutter-x: 0.75rem;
+    }
+
+    .custom-profile-lable {
+      white-space: nowrap;
+    }
+  }
+
+  .add-partner-form-row .form-group {
+    margin-top: 0 !important;
+  }
+
+  /* Categories & services — shared grid so Status and action buttons align across rows */
+  .add-partner-catalog-block {
+    overflow: hidden;
+  }
+
+  .add-partner-catalog-grid {
+    display: grid;
+    gap: 0.75rem 1rem;
+    align-items: end;
+  }
+
+  .add-partner-catalog-grid--category {
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--lb1-border);
+  }
+
+  .add-partner-catalog-field {
+    min-width: 0;
+  }
+
+  .add-partner-catalog-field--actions {
+    width: max-content;
+    max-width: max-content;
+  }
+
+  .add-partner-catalog-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-height: 38px;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  @media (min-width: 768px) and (max-width: 991.98px) {
+    .add-partner-catalog-grid--category {
+      grid-template-columns: 1fr max-content max-content;
+    }
+
+    .add-partner-catalog-grid--category .add-partner-catalog-field--category {
+      grid-column: 1 / -1;
+    }
+
+    .add-partner-catalog-grid--service {
+      grid-template-columns: 1fr 1fr max-content max-content;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--description {
+      grid-column: 1 / -1;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--service {
+      grid-column: 1;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--price {
+      grid-column: 2;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--status {
+      grid-column: 3;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--actions {
+      grid-column: 4;
+    }
+  }
+
+  @media (min-width: 992px) {
+    .add-partner-catalog-grid {
+      grid-template-columns:
+        minmax(0, 1fr) minmax(0, 1.65fr) minmax(88px, 0.7fr) max-content max-content;
+    }
+
+    .add-partner-catalog-grid--category .add-partner-catalog-field--category {
+      grid-column: 1 / 4;
+    }
+
+    .add-partner-catalog-grid--category .add-partner-catalog-field--status,
+    .add-partner-catalog-grid--service .add-partner-catalog-field--status {
+      grid-column: 4;
+    }
+
+    .add-partner-catalog-grid--category .add-partner-catalog-field--actions,
+    .add-partner-catalog-grid--service .add-partner-catalog-field--actions {
+      grid-column: 5;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--service {
+      grid-column: 1;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--description {
+      grid-column: 2;
+    }
+
+    .add-partner-catalog-grid--service .add-partner-catalog-field--price {
+      grid-column: 3;
+    }
+  }
+
+  .partner-catalog-status-inline--row {
+    width: 100%;
+    min-width: 0;
+
+    .partner-catalog-status-inline-inner {
+      display: flex;
+      flex-direction: column;
+      /* move items vertically */
+      align-items: flex-start;
+      gap: 0.5rem;
+      min-height: 38px;
+      margin-bottom: 12px;
+    }
+
+    .partner-catalog-status-label {
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.25;
+    }
+
+    .partner-catalog-status-radios {
+      flex-shrink: 0;
+
+      .form-check {
+        white-space: nowrap;
+      }
+    }
   }
 }
 
@@ -755,7 +934,7 @@ body:has(.modal.show ~ .modal.show) {
     transition: opacity 0.2s ease, filter 0.2s ease;
   }
 
-  .modal-backdrop.show ~ .modal ~ .modal-backdrop.show {
+  .modal-backdrop.show~.modal~.modal-backdrop.show {
     --bs-backdrop-opacity: 0.82;
   }
 }
@@ -1654,7 +1833,7 @@ body:has(.modal.show ~ .modal.show) {
   box-sizing: border-box;
 
   /* CustomTable root: bordered scroll area — flush to this wrapper */
-  > div:first-of-type {
+  >div:first-of-type {
     width: 100%;
     max-width: 100%;
     margin: 0;
@@ -1676,34 +1855,41 @@ body:has(.modal.show ~ .modal.show) {
       min-width: 52px !important;
       max-width: 72px;
     }
+
     &.my-franchise-col-name {
       min-width: 96px !important;
       max-width: 140px;
     }
+
     &.my-franchise-col-phone {
       min-width: 108px !important;
       max-width: 128px;
     }
+
     &.my-franchise-col-email {
       min-width: 140px !important;
       max-width: 200px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     &.my-franchise-col-chat {
       min-width: 100px !important;
       max-width: 120px;
       vertical-align: middle !important;
     }
+
     &.my-franchise-col-status {
       min-width: 122px !important;
       max-width: 150px;
     }
+
     &.my-franchise-col-active-toggle {
       min-width: 128px !important;
       max-width: 148px;
       vertical-align: middle !important;
     }
+
     &.my-franchise-col-actions {
       min-width: 88px !important;
       max-width: 120px;
@@ -1966,26 +2152,22 @@ body:has(.modal.show ~ .modal.show) {
   cursor: pointer;
 }
 
-.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on)
-  .form-check-input {
+.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input {
   background-color: #dc3545 !important;
   border-color: #b02a37 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on)
-  .form-check-input:focus {
+.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(220, 53, 69, 0.28);
   border-color: #dc3545 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on
-  .form-check-input {
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input {
   background-color: #198754 !important;
   border-color: #146c43 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on
-  .form-check-input:focus {
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(25, 135, 84, 0.32);
   border-color: #198754 !important;
 }
@@ -1995,8 +2177,7 @@ body:has(.modal.show ~ .modal.show) {
   opacity: 0.45;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on
-  .form-check-input:disabled {
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:disabled {
   background-color: #adb5bd !important;
   border-color: #6c757d !important;
 }
@@ -2167,7 +2348,7 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 /* Stack label + select inside each filter column (overrides .custom-utilty-box div { display:flex }) */
-.custom-utilty-tools-inline .custom-utility-control-slot > div {
+.custom-utilty-tools-inline .custom-utility-control-slot>div {
   display: flex !important;
   flex-direction: column;
   align-items: stretch;
@@ -2226,14 +2407,14 @@ body:has(.modal.show ~ .modal.show) {
   padding-bottom: 4px;
 }
 
-.order-payments-filters-row > [class*="col"].order-payments-filter-col:not(.order-payments-filter-col--date) {
+.order-payments-filters-row>[class*="col"].order-payments-filter-col:not(.order-payments-filter-col--date) {
   flex: 1 1 0 !important;
   min-width: 0 !important;
   max-width: none !important;
   z-index: 20;
 }
 
-.order-payments-filters-row > [class*="col"].order-payments-filter-col--date {
+.order-payments-filters-row>[class*="col"].order-payments-filter-col--date {
   flex: 0 1 7.25rem !important;
   min-width: 6.75rem !important;
   max-width: 8rem !important;
@@ -2519,9 +2700,50 @@ body:has(.modal.show ~ .modal.show) {
 
 .custom-personal-details {
   display: flex;
-  gap: 0rem 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
   flex: 1;
+  min-width: 0;
+  width: 100%;
   margin-top: 50px;
+}
+
+.custom-personal-details .custom-personal-row-value,
+.custom-personal-details .custom-personal-row>.col:not(.custom-personal-row-title) {
+  width: auto !important;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.partner-details-dialog .partner-details-profile-img {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+/* Partner Information: two stacked columns (left / right field lists) */
+.partner-personal-details-grid {
+  .partner-personal-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .custom-personal-row--compact .custom-personal-row-title {
+    width: 130px;
+    max-width: 40%;
+  }
+
+  .custom-personal-row--compact .custom-personal-row-value {
+    width: auto !important;
+    white-space: normal;
+    word-break: break-word;
+  }
 }
 
 .custom-personal-row {
@@ -2879,7 +3101,7 @@ body:has(.modal.show ~ .modal.show) {
     word-break: break-word;
   }
 
-  .custom-personal-row > label.col:not(.custom-personal-row-title) {
+  .custom-personal-row>label.col:not(.custom-personal-row-title) {
     width: auto !important;
     max-width: 100%;
     white-space: normal;
@@ -3034,6 +3256,7 @@ body:has(.modal.show ~ .modal.show) {
   background-color: var(--bg-color);
   margin-bottom: 20px;
 }
+
 .custom-dashboard-title {
   // color: var(--primary-txt-color);
   color: var(--primary-new-txt-color);
@@ -3043,7 +3266,7 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 .custom-dashboard-border {
-  flex: 1; 
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -3069,7 +3292,7 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 /* Dashboard page — stat cards and filters (desktop unchanged ≥992px) */
-.dashboard-page .custom-dashboard-card > .d-flex.gap-2 {
+.dashboard-page .custom-dashboard-card>.d-flex.gap-2 {
   flex-wrap: wrap;
 }
 
@@ -3090,7 +3313,7 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 @media (max-width: 991.98px) {
-  .dashboard-page .custom-dashboard-card > .d-flex.justify-content-between {
+  .dashboard-page .custom-dashboard-card>.d-flex.justify-content-between {
     flex-direction: column;
     align-items: flex-start !important;
   }
@@ -3102,8 +3325,8 @@ body:has(.modal.show ~ .modal.show) {
     // flex: 1 1 100%;
   }
 
-  .dashboard-page .dashboard-stats-row > [class*="col-"],
-  .dashboard-page .dashboard-charts-row > [class*="col-"] {
+  .dashboard-page .dashboard-stats-row>[class*="col-"],
+  .dashboard-page .dashboard-charts-row>[class*="col-"] {
     margin-bottom: 0;
   }
 }
@@ -3188,7 +3411,8 @@ body:has(.modal.show ~ .modal.show) {
 
 /* Today highlight */
 .fc-day-today {
-  background-color: rgba(239, 68, 68, 0.08) !important; /* using primary-new-color */
+  background-color: rgba(239, 68, 68, 0.08) !important;
+  /* using primary-new-color */
 }
 
 /* Grid */
@@ -3259,6 +3483,7 @@ body:has(.modal.show ~ .modal.show) {
 .fc-scroller {
   overflow: hidden !important;
 }
+
 .fc .fc-col-header-cell-cushion {
   color: var(--primary-new-color);
   text-decoration: none;
@@ -3348,7 +3573,7 @@ body:has(.modal.show ~ .modal.show) {
 
 /* Optional: subtle shadow like dashboard */
 .calendar-wrapper {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 /* Pin code hover card (Location Management - Areas table) */
@@ -3710,12 +3935,12 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 
-/* New css 30/03/2026 */ 
+/* New css 30/03/2026 */
 .box {
   height: auto;
 }
 
-.react-select__value-container  {
+.react-select__value-container {
   padding: 0 8px !important;
 }
 
@@ -3748,7 +3973,8 @@ body:has(.modal.show ~ .modal.show) {
 /* Icon styling */
 .settings-nav-btn i {
   font-size: 18px;
-  color: #a30000; /* same red theme */
+  color: #a30000;
+  /* same red theme */
 }
 
 /* Hover effect */
@@ -3761,7 +3987,7 @@ body:has(.modal.show ~ .modal.show) {
   transform: scale(0.95);
 }
 
-.group-chat-sender-icon{
+.group-chat-sender-icon {
   align-self: self-start;
   border-radius: 50%;
   color: #fff;
@@ -3793,10 +4019,12 @@ body:has(.modal.show ~ .modal.show) {
   .carousel-indicators {
     margin-bottom: 0 !important;
   }
+
   .carousel-indicators button {
     background-color: var(--btn-danger, #dc3545);
     opacity: 0.35;
   }
+
   .carousel-indicators button.active {
     opacity: 1;
   }
@@ -3906,7 +4134,7 @@ table.table td.subscription-plans-desc-cell {
     cursor: inherit;
   }
 
-  input:disabled ~ .form-check-label {
+  input:disabled~.form-check-label {
     cursor: not-allowed;
   }
 }
@@ -3980,6 +4208,7 @@ table.table td.subscription-plans-desc-cell {
 }
 
 .add-quote-address-card-wrap--muted {
+
   .add-quote-address-card-name,
   .add-quote-address-card-grid-value {
     color: rgba(26, 26, 26, 0.52);
@@ -3998,4 +4227,3 @@ table.table td.subscription-plans-desc-cell {
   line-height: 1.5;
   color: var(--placeholder-txt);
 }
-

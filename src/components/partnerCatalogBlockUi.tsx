@@ -61,6 +61,8 @@ type PartnerCatalogStatusToggleProps = {
   onChange: (active: boolean) => void;
   label?: string;
   disabled?: boolean;
+  /** Horizontal radios matching site `custom-radio-check` (Add Partner catalog rows). */
+  inline?: boolean;
 };
 
 export function PartnerCatalogStatusToggle({
@@ -69,30 +71,57 @@ export function PartnerCatalogStatusToggle({
   onChange,
   label = "Status",
   disabled = false,
+  inline = false,
 }: PartnerCatalogStatusToggleProps) {
+  const radios = (
+    <div
+      className="partner-catalog-status-radios d-flex align-items-center flex-nowrap"
+      style={{ gap: "8px" }}
+    >
+      <Form.Check
+        inline
+        type="radio"
+        id={`${instanceId}-active`}
+        name={instanceId}
+        label={<span className="custom-radio-text">Active</span>}
+        checked={value}
+        disabled={disabled}
+        className="custom-radio-check mb-0"
+        onChange={() => onChange(true)}
+      />
+      <Form.Check
+        inline
+        type="radio"
+        id={`${instanceId}-inactive`}
+        name={instanceId}
+        label={<span className="custom-radio-text">Inactive</span>}
+        checked={!value}
+        disabled={disabled}
+        className="custom-radio-check mb-0"
+        onChange={() => onChange(false)}
+      />
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="partner-catalog-status-inline partner-catalog-status-inline--row">
+        <div className="partner-catalog-status-inline-inner">
+          {label ? (
+            <Form.Label className="fw-medium mb-0 partner-catalog-status-label">
+              {label}
+            </Form.Label>
+          ) : null}
+          {radios}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Form.Group controlId={instanceId}>
       <Form.Label className="fw-medium mb-1">{label}</Form.Label>
-      <div className="d-flex flex-wrap gap-3">
-        <Form.Check
-          type="radio"
-          id={`${instanceId}-active`}
-          name={instanceId}
-          label="Active"
-          checked={value}
-          disabled={disabled}
-          onChange={() => onChange(true)}
-        />
-        <Form.Check
-          type="radio"
-          id={`${instanceId}-inactive`}
-          name={instanceId}
-          label="Inactive"
-          checked={!value}
-          disabled={disabled}
-          onChange={() => onChange(false)}
-        />
-      </div>
+      {radios}
     </Form.Group>
   );
 }

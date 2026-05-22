@@ -24,14 +24,16 @@ if (typeof window !== "undefined" && window.ResizeObserver) {
 }
 
 ReactDOM.render(
-  <BrowserRouter
-    future={{
-      v7_startTransition: true,
-      v7_relativeSplatPath: true,
-    }}
-  >
-    <App />
-  </BrowserRouter>,
+  <React.StrictMode>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>,
   document.getElementById("root")
 );
 

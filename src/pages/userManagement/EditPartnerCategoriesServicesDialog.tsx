@@ -239,19 +239,37 @@ function partnerServiceRefId(
   ref: string | { _id?: string; name?: string } | null | undefined
 ): string {
   if (ref == null) return "";
-  if (typeof ref === "object") return String(ref._id ?? "").trim();
+  if (typeof ref === "object") {
+    const obj = ref as { _id?: string; id?: string };
+    return String(obj._id ?? obj.id ?? "").trim();
+  }
   return String(ref).trim();
+}
+
+function partnerServiceRefName(
+  ref: string | { _id?: string; name?: string } | null | undefined,
+  fallbackId: string
+): string {
+  if (ref != null && typeof ref === "object" && String(ref.name ?? "").trim()) {
+    return String(ref.name).trim();
+  }
+  return fallbackId || "";
 }
 
 /** Build edit blocks from `partner_services` rows (user-by-id API). */
 function buildBlocksFromPartnerServices(
-  partnerServices: PartnerServiceApiRow[]
+  partnerServices: PartnerServiceApiRow[],
+  allServices: ServiceLite[] = []
 ): PartnerCategoryBlock[] {
   const blocks: PartnerCategoryBlock[] = [];
 
   for (const ps of partnerServices) {
-    const cid = partnerServiceRefId(ps.category_id);
     const sid = partnerServiceRefId(ps.service_id);
+    let cid = partnerServiceRefId(ps.category_id);
+    if (!cid && sid) {
+      const svc = allServices.find((s) => String(s._id) === String(sid));
+      if (svc?.category_id) cid = String(svc.category_id);
+    }
     const row: PartnerServiceRow = {
       id: newPartnerCatalogRowId(),
       serviceId: sid,
@@ -355,10 +373,67 @@ function EditPartnerCategoriesServicesDialogView({
     };
   }, [cityId]);
 
-  const categorySelectOptions = useMemo((): OptionType[] => {
-    const rest = categoryOptions.filter((c) => c.value !== "select-all");
-    return [{ value: "", label: "Select category" }, ...rest];
-  }, [categoryOptions]);
+  const partnerCategoryLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categoryOptions) {
+      const id = String(c.value ?? "").trim();
+      if (id && id !== "select-all") map.set(id, c.label);
+    }
+    for (const ps of user.partner_services ?? []) {
+      const cid = partnerServiceRefId(ps.category_id);
+      const name = partnerServiceRefName(ps.category_id, "");
+      if (cid && name) map.set(cid, name);
+    }
+    const catIds = (user.category_ids ?? []).map(String);
+    const catNames = user.category_names ?? [];
+    catIds.forEach((id, i) => {
+      const cid = String(id ?? "").trim();
+      const name =
+        catNames[i] != null && String(catNames[i]).trim()
+          ? String(catNames[i]).trim()
+          : "";
+      if (cid && name) map.set(cid, name);
+    });
+    for (const s of allServices) {
+      const cid = String(s.category_id ?? "").trim();
+      if (cid && s.category_name) map.set(cid, String(s.category_name));
+    }
+    return map;
+  }, [
+    categoryOptions,
+    user.partner_services,
+    user.category_ids,
+    user.category_names,
+    allServices,
+  ]);
+
+  const categorySelectOptionsForBlock = useCallback(
+    (block: PartnerCategoryBlock): OptionType[] => {
+      const rest = categoryOptions.filter((c) => c.value !== "select-all");
+      const taken = new Set(
+        blocks
+          .filter(
+            (b) =>
+              b.id !== block.id && String(b.categoryId ?? "").trim() !== ""
+          )
+          .map((b) => String(b.categoryId))
+      );
+      const filtered = rest.filter((c) => !taken.has(String(c.value)));
+      const opts: OptionType[] = [
+        { value: "", label: "Select category" },
+        ...filtered,
+      ];
+      const currentCid = String(block.categoryId ?? "").trim();
+      if (currentCid && !opts.some((o) => String(o.value) === currentCid)) {
+        opts.push({
+          value: currentCid,
+          label: partnerCategoryLabelById.get(currentCid) ?? currentCid,
+        });
+      }
+      return opts;
+    },
+    [categoryOptions, blocks, partnerCategoryLabelById]
+  );
 
   /** Per row: hide services already chosen on sibling rows; keep this row’s selection visible. */
   const serviceOptionsForPartnerBlockRow = useCallback(
@@ -415,7 +490,7 @@ function EditPartnerCategoriesServicesDialogView({
     const partnerServices = user.partner_services;
     if (Array.isArray(partnerServices) && partnerServices.length > 0) {
       didInit.current = true;
-      setBlocks(buildBlocksFromPartnerServices(partnerServices));
+      setBlocks(buildBlocksFromPartnerServices(partnerServices, allServices));
       return;
     }
 
@@ -439,6 +514,29 @@ function EditPartnerCategoriesServicesDialogView({
     user.service_descriptions,
     user.service_prices,
   ]);
+
+  /** When services catalog loads, fill category from service if API row omitted `category_id`. */
+  useEffect(() => {
+    if (allServices.length === 0) return;
+    setBlocks((prev) => {
+      let changed = false;
+      const next = prev.map((block) => {
+        const cid = String(block.categoryId ?? "").trim();
+        if (cid) return block;
+        for (const row of block.serviceRows) {
+          const sid = String(row.serviceId ?? "").trim();
+          if (!sid) continue;
+          const svc = allServices.find((s) => String(s._id) === sid);
+          if (svc?.category_id) {
+            changed = true;
+            return { ...block, categoryId: String(svc.category_id) };
+          }
+        }
+        return block;
+      });
+      return changed ? next : prev;
+    });
+  }, [allServices]);
 
   const addCategoryBlock = useCallback(() => {
     setBlocks((prev) => [...prev, emptyPartnerCatalogBlock("")]);
@@ -661,7 +759,7 @@ function EditPartnerCategoriesServicesDialogView({
                   <PartnerSingleSelect
                     instanceId={`${block.id}-category`}
                     label="Category"
-                    options={categorySelectOptions}
+                    options={categorySelectOptionsForBlock(block)}
                     value={block.categoryId}
                     placeholder="Select category"
                     onChange={(cid) => updateBlockCategory(block.id, cid)}

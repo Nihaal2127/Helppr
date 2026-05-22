@@ -1306,15 +1306,25 @@ function AddEditUserDialogView({
         onHide={onClose}
         centered
         {...(isAddPartner ? { size: "xl" as const } : {})}
-        dialogClassName="custom-big-modal"
+        dialogClassName={
+          isAddPartner
+            ? "custom-big-modal add-partner-modal add-edit-user-dialog-vh"
+            : "custom-big-modal"
+        }
         enforceFocus={!(isAddPartner || isPartnerEdit)}
       >
-        <Modal.Header className="py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2">
-          <Modal.Title as="h5" className="custom-modal-title me-auto mb-0">
+        <Modal.Header
+          className={
+            isAddPartner
+              ? "py-3 px-4 border-bottom-0 add-partner-modal-header"
+              : "py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2"
+          }
+        >
+          <Modal.Title as="h5" className="custom-modal-title mb-0">
             {isEditable ? "Update" : "Add"} {getRoleLabel(role)}
           </Modal.Title>
           {isAddPartner && isSuperAdminOrStaff ? (
-            <div style={{ minWidth: "220px", maxWidth: "300px", flex: "1 1 220px" }}>
+            <div className="add-partner-header-franchise">
               <CustomTextFieldSelect
                 label="Franchise"
                 controlId="add_partner_franchise_id"
@@ -1329,10 +1339,11 @@ function AddEditUserDialogView({
                 includeEmptyOption
                 emptyOptionLabel="Select franchise"
                 noRowBottomMargin
+                labelSize={3}
               />
             </div>
           ) : null}
-          <CustomCloseButton onClose={onClose} />
+          <CustomCloseButton onClose={onClose} inline={isAddPartner} />
         </Modal.Header>
         <Modal.Body className="px-4 pb-4 pt-0">
           <form
@@ -1358,7 +1369,7 @@ function AddEditUserDialogView({
             ) : null}
             {isAddPartner ? (
               <>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextField
                       label="Name"
@@ -1367,6 +1378,7 @@ function AddEditUserDialogView({
                       register={register}
                       error={errors.name}
                       validation={{ required: "Name is required" }}
+                      labelSize={3}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1389,10 +1401,11 @@ function AddEditUserDialogView({
                       placeholderText="Select date of birth"
                       validation={{ required: "Date of birth is required" }}
                       error={errors.date_of_birth}
+                      labelSize={3}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextFieldRadio
                       label="Gender"
@@ -1405,6 +1418,8 @@ function AddEditUserDialogView({
                       defaultValue={String(watch("gender") ?? "male")}
                       isEditable={true}
                       setValue={setValue}
+                      labelSize={3}
+                      alignItemsCenter
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1415,10 +1430,11 @@ function AddEditUserDialogView({
                       register={register}
                       error={errors.email}
                       validation={{ required: "Email is required" }}
+                      labelSize={3}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextFieldIndiaMobile
                       label="Phone No"
@@ -1427,6 +1443,7 @@ function AddEditUserDialogView({
                       register={register}
                       error={errors.phone_number}
                       validation={{ required: "Phone no is required" }}
+                      labelSize={3}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1437,10 +1454,11 @@ function AddEditUserDialogView({
                       register={register}
                       error={errors.experience}
                       validation={{ required: "Experience is required" }}
+                      labelSize={3}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="State"
@@ -1454,6 +1472,7 @@ function AddEditUserDialogView({
                       setValue={setValue as (name: string, value: any) => void}
                       menuPortal
                       placeholder="Select state"
+                      labelSize={3}
                       onChange={(e) =>
                         onStateChangeClearLocationChain(e.target.value)
                       }
@@ -1472,12 +1491,13 @@ function AddEditUserDialogView({
                       setValue={setValue as (name: string, value: any) => void}
                       menuPortal
                       placeholder="Select city"
+                      labelSize={3}
                       isDisabled={!String(watch("state_id") ?? "").trim()}
                       onChange={() => onCityChangeClearAreaPin()}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="Area"
@@ -1494,6 +1514,7 @@ function AddEditUserDialogView({
                       setValue={setValue as (name: string, value: any) => void}
                       menuPortal
                       placeholder="Select area"
+                      labelSize={3}
                       isDisabled={!String(watch("city_id") ?? "").trim()}
                     />
                   </Col>
@@ -1513,11 +1534,12 @@ function AddEditUserDialogView({
                       setValue={setValue as (name: string, value: any) => void}
                       menuPortal
                       placeholder="Select pincode"
+                      labelSize={3}
                       isDisabled={!String(watch("area_id") ?? "").trim()}
                     />
                   </Col>
                 </Row>
-                <Row className="g-2 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12}>
                     <CustomTextField
                       label="Address"
@@ -1527,11 +1549,12 @@ function AddEditUserDialogView({
                       error={errors.address}
                       validation={{ required: "Address is required" }}
                       as="textarea"
-                      rows={2}
+                      // rows={2}
+                      labelSize={2}
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-4 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomTextField
                       label="Password"
@@ -1542,6 +1565,7 @@ function AddEditUserDialogView({
                       validation={{ required: "Password is required" }}
                       inputType="password"
                       autoComplete="new-password"
+                      labelSize={3}
                       value={watch("password") ?? ""}
                       onChange={(value) =>
                         setValue("password", value, {
@@ -1566,6 +1590,7 @@ function AddEditUserDialogView({
                       }}
                       inputType="password"
                       autoComplete="new-password"
+                      labelSize={3}
                       value={watch("confirm_password") ?? ""}
                       onChange={(value) =>
                         setValue("confirm_password", value, {
@@ -1576,7 +1601,7 @@ function AddEditUserDialogView({
                     />
                   </Col>
                 </Row>
-                <Row className="g-3 mb-2">
+                <Row className="g-5 add-partner-form-row">
                   <Col xs={12} md={6}>
                     <CustomImageUploader
                       label="Profile Photo"
@@ -1991,22 +2016,22 @@ function AddEditUserDialogView({
                   {addPartnerCatalogLocked ? (
                     <p className="text-muted small mb-3">
                       {isSuperAdminOrStaff
-                        ? "Select a franchise in the header to enable category and service fields."
+                        ? "Select a franchise in the header to enable category and services fields."
                         : "Unable to resolve your franchise for the catalogue. Please contact support."}
                     </p>
                   ) : null}
                   {safePartnerCatalogBlocks.map((block) => (
                     <div
                       key={block.id}
-                      className="rounded-3 border px-3 py-3 mb-4"
+                      className="add-partner-catalog-block rounded-3 border px-3 py-3 mb-4"
                       style={{
                         borderColor: "var(--lb1-border)",
                         backgroundColor: "var(--bg-color)",
                         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                       }}
                     >
-                      <Row className="g-3 align-items-end mb-3">
-                        <Col xs={12} md={5} lg={4}>
+                      <div className="add-partner-catalog-grid add-partner-catalog-grid--category mb-3">
+                        <div className="add-partner-catalog-field add-partner-catalog-field--category">
                           <PartnerSingleSelect
                             instanceId={`${block.id}-category`}
                             label="Category"
@@ -2018,9 +2043,10 @@ function AddEditUserDialogView({
                               updateBlockCategory(block.id, cid)
                             }
                           />
-                        </Col>
-                        <Col xs={12} md={4} lg={3}>
+                        </div>
+                        <div className="add-partner-catalog-field add-partner-catalog-field--status">
                           <PartnerCatalogStatusToggle
+                            inline
                             instanceId={`${block.id}-category-status`}
                             value={block.is_active !== false}
                             onChange={(active) =>
@@ -2028,51 +2054,53 @@ function AddEditUserDialogView({
                             }
                             disabled={addPartnerCatalogLocked}
                           />
-                        </Col>
-                        <Col
-                          xs="auto"
-                          className="d-flex align-items-end gap-2 pb-1"
-                        >
-                          <button
-                            type="button"
-                            title="Add another category block"
-                            aria-label="Add another category block"
-                            style={partnerCatalogOutlineAddBtn}
-                            disabled={!canAddPartnerCategoryBlock}
-                            onClick={addCategoryBlock}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onMouseEnter={(e) => hoverIconBtn(e, true)}
-                            onMouseLeave={(e) => hoverIconBtn(e, false)}
-                          >
-                            <i className="bi bi-plus fs-6" aria-hidden />
-                          </button>
-                          {safePartnerCatalogBlocks.length > 1 ? (
+                        </div>
+                        <div className="add-partner-catalog-field add-partner-catalog-field--actions">
+                          <div className="add-partner-catalog-actions">
                             <button
                               type="button"
-                              title="Remove this category block"
-                              aria-label="Remove this category block"
-                              style={partnerCatalogOutlineDeleteBtn}
-                              onClick={() => removeCategoryBlock(block.id)}
+                              title="Add another category block"
+                              aria-label="Add another category block"
+                              style={partnerCatalogOutlineAddBtn}
+                              disabled={!canAddPartnerCategoryBlock}
+                              onClick={addCategoryBlock}
                               onMouseDown={(e) => e.preventDefault()}
                               onMouseEnter={(e) => hoverIconBtn(e, true)}
                               onMouseLeave={(e) => hoverIconBtn(e, false)}
                             >
-                              <i className="bi bi-trash fs-6" aria-hidden />
+                              <i className="bi bi-plus fs-6" aria-hidden />
                             </button>
-                          ) : null}
-                        </Col>
-                      </Row>
+                            {safePartnerCatalogBlocks.length > 1 ? (
+                              <button
+                                type="button"
+                                title="Remove this category block"
+                                aria-label="Remove this category block"
+                                style={partnerCatalogOutlineDeleteBtn}
+                                onClick={() => removeCategoryBlock(block.id)}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                onMouseLeave={(e) => hoverIconBtn(e, false)}
+                              >
+                                <i
+                                  className="bi bi-trash fs-6"
+                                  aria-hidden
+                                />
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
 
                       {(block.serviceRows ?? []).map((row) => {
                         const categoryActive = block.is_active !== false;
                         const serviceActive =
                           categoryActive && row.is_active !== false;
                         return (
-                        <Row
+                        <div
                           key={row.id}
-                          className="g-3 align-items-start mb-2"
+                          className="add-partner-catalog-grid add-partner-catalog-grid--service mb-2"
                         >
-                          <Col xs={12} md={3} lg={2}>
+                          <div className="add-partner-catalog-field add-partner-catalog-field--service">
                             <PartnerSingleSelect
                               instanceId={`${block.id}-${row.id}-service`}
                               label="Service"
@@ -2106,8 +2134,8 @@ function AddEditUserDialogView({
                                 });
                               }}
                             />
-                          </Col>
-                          <Col xs={12} md={4} lg={4}>
+                          </div>
+                          <div className="add-partner-catalog-field add-partner-catalog-field--description">
                             <Form.Group
                               controlId={`desc-${block.id}-${row.id}`}
                             >
@@ -2133,24 +2161,8 @@ function AddEditUserDialogView({
                                 }
                               />
                             </Form.Group>
-                          </Col>
-                          <Col xs={12} md={2} lg={2}>
-                            <PartnerCatalogStatusToggle
-                              instanceId={`${block.id}-${row.id}-service-status`}
-                              label="Status"
-                              value={serviceActive}
-                              disabled={
-                                addPartnerCatalogLocked || !categoryActive
-                              }
-                              onChange={(active) => {
-                                if (!categoryActive) return;
-                                updateServiceRow(block.id, row.id, {
-                                  is_active: active,
-                                });
-                              }}
-                            />
-                          </Col>
-                          <Col xs={12} md={2} lg={2}>
+                          </div>
+                          <div className="add-partner-catalog-field add-partner-catalog-field--price">
                             <Form.Group
                               controlId={`price-${block.id}-${row.id}`}
                             >
@@ -2220,44 +2232,61 @@ function AddEditUserDialogView({
                                 );
                               })()}
                             </Form.Group>
-                          </Col>
-                          <Col
-                            xs={12}
-                            md={12}
-                            lg="auto"
-                            className="d-flex flex-row align-items-end justify-content-end gap-2 pt-2 pt-md-4"
-                          >
-                            <button
-                              type="button"
-                              title="Add another service in this category"
-                              aria-label="Add another service in this category"
-                              style={partnerCatalogOutlineAddBtn}
-                              disabled={!canAddPartnerServiceRow(block, row)}
-                              onClick={() => addServiceRow(block.id)}
-                              onMouseDown={(e) => e.preventDefault()}
-                              onMouseEnter={(e) => hoverIconBtn(e, true)}
-                              onMouseLeave={(e) => hoverIconBtn(e, false)}
-                            >
-                              <i className="bi bi-plus fs-6" aria-hidden />
-                            </button>
-                            {(block.serviceRows ?? []).length > 1 ? (
+                          </div>
+                          <div className="add-partner-catalog-field add-partner-catalog-field--status">
+                            <PartnerCatalogStatusToggle
+                              inline
+                              instanceId={`${block.id}-${row.id}-service-status`}
+                              label="Status"
+                              value={serviceActive}
+                              disabled={
+                                addPartnerCatalogLocked || !categoryActive
+                              }
+                              onChange={(active) => {
+                                if (!categoryActive) return;
+                                updateServiceRow(block.id, row.id, {
+                                  is_active: active,
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="add-partner-catalog-field add-partner-catalog-field--actions">
+                            <div className="add-partner-catalog-actions">
                               <button
                                 type="button"
-                                title="Remove this service row"
-                                aria-label="Remove this service row"
-                                style={partnerCatalogOutlineDeleteBtn}
-                                onClick={() =>
-                                  removeServiceRow(block.id, row.id)
-                                }
+                                title="Add another service in this category"
+                                aria-label="Add another service in this category"
+                                style={partnerCatalogOutlineAddBtn}
+                                disabled={!canAddPartnerServiceRow(block, row)}
+                                onClick={() => addServiceRow(block.id)}
                                 onMouseDown={(e) => e.preventDefault()}
                                 onMouseEnter={(e) => hoverIconBtn(e, true)}
                                 onMouseLeave={(e) => hoverIconBtn(e, false)}
                               >
-                                <i className="bi bi-trash fs-6" aria-hidden />
+                                <i className="bi bi-plus fs-6" aria-hidden />
                               </button>
-                            ) : null}
-                          </Col>
-                        </Row>
+                              {(block.serviceRows ?? []).length > 1 ? (
+                                <button
+                                  type="button"
+                                  title="Remove this service row"
+                                  aria-label="Remove this service row"
+                                  style={partnerCatalogOutlineDeleteBtn}
+                                  onClick={() =>
+                                    removeServiceRow(block.id, row.id)
+                                  }
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                  onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                >
+                                  <i
+                                    className="bi bi-trash fs-6"
+                                    aria-hidden
+                                  />
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
                       );
                       })}
                     </div>
