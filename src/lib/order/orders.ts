@@ -30,10 +30,10 @@ import {
   parseCompositeServiceAddressLine,
 } from "../quote/quoteAddressCore";
 import type { QuoteAddressRowUi } from "../quote/quoteAddressCore";
+import type { OrderScheduleMetrics } from "./orderScheduleMetrics";
 import {
   deriveOrderScheduleMetrics,
   normalizeOrderApiDateYmd,
-  type OrderScheduleMetrics,
 } from "./orderScheduleMetrics";
 import { workTimeToTimeStorage } from "./orderTimeUtils";
 import {

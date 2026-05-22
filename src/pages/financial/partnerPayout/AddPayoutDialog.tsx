@@ -8,12 +8,10 @@ import { openDialog } from "../../../lib/global/DialogManager";
 import {
   createPartnerPayout,
   fetchPartnerPayoutPartners,
-  type PartnerPayoutPartnerOption,
 } from "../../../services/partnerPayoutService";
-import {
-  PARTNER_PAYOUT_CREATE_METHODS,
-  type PartnerPayoutPaymentMethod,
-} from "../../../lib/financial/partnerPayoutPayment";
+import type { PartnerPayoutPartnerOption } from "../../../services/partnerPayoutService";
+import { PARTNER_PAYOUT_CREATE_METHODS } from "../../../lib/financial/partnerPayoutPayment";
+import type { PartnerPayoutPaymentMethod } from "../../../lib/financial/partnerPayoutPayment";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 

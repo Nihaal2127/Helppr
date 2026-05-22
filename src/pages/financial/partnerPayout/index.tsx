@@ -14,10 +14,8 @@ import { formatDate } from "../../../helper/utility";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
-import {
-  fetchPartnerPayoutList,
-  type PartnerPayoutListRow,
-} from "../../../services/partnerPayoutService";
+import { fetchPartnerPayoutList } from "../../../services/partnerPayoutService";
+import type { PartnerPayoutListRow } from "../../../services/partnerPayoutService";
 import AddPayoutDialog from "./AddPayoutDialog";
 import { toIsoCalendarDate } from "../../../lib/quote/quoteHelpers";
 import {

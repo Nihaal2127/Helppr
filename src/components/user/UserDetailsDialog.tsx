@@ -30,6 +30,7 @@ import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../CustomConfirmDialog";
 import deleteIcon from "../../assets/icons/delete_red.svg";
+import { showUserDetailsDialog } from "./showUserDetailsDialog";
 
 type UserDetailsDialogProps = {
   userId: string;
@@ -603,8 +604,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
     </>
   );
 };
-
-import { showUserDetailsDialog } from "./showUserDetailsDialog";
 
 UserDetailsDialog.show = showUserDetailsDialog;
 

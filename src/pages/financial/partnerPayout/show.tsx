@@ -11,10 +11,10 @@ import CustomDatePicker from "../../../components/CustomDatePicker";
 import { formatDate } from "../../../helper/utility";
 import { showOrderInfoDialog } from "../../../components/order";
 import { AppConstant } from "../../../lib/global/AppConstant";
-import {
-  fetchPartnerPayoutShow,
-  type PartnerPayoutLedgerRow,
-  type PartnerPayoutShowPartner,
+import { fetchPartnerPayoutShow } from "../../../services/partnerPayoutService";
+import type {
+  PartnerPayoutLedgerRow,
+  PartnerPayoutShowPartner,
 } from "../../../services/partnerPayoutService";
 import { partnerPayoutPaymentMethodLabel } from "../../../lib/financial/partnerPayoutPayment";
 import {
