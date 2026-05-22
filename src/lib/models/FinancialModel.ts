@@ -28,6 +28,8 @@ export interface FinancialModel {
   partner_commison_platform_fee: number | 0;
   service_price: number | 0;
   total_price: number | 0;
+  /** From `GET /order/financial-payments/*` when API sends `total_amount`. */
+  total_amount?: number | null;
   partner_earning: number | 0;
   admin_earning: number | 0;
   /** Order payments list — tax as percentage when API sends it */

@@ -4,15 +4,19 @@ import { FinancialModel } from "../lib/models/FinancialModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
+import {
+  mapFinancialPaymentRecord,
+  mapFinancialPaymentRecords,
+} from "./financialOrderPaymentsMapper";
 
 export type FinancialListFilters = {
   /** Table search — sent as `search` query param. */
   search?: string;
   /** @deprecated use `search` */
   keyword?: string;
-  /** `completed` | `in_progress` */
+  /** `in_progress` | `completed` | `cancelled` | `refunded` */
   order_status?: string;
-  /** Legacy order_service filter only */
+  /** Legacy — not sent to financial-payments API */
   service_status?: string;
   user_id?: string;
   partner_id?: string;
@@ -39,7 +43,7 @@ function parseListPayload(response: {
   totalItems?: number;
 } {
   if (!response.success) {
-    showLog(response.message || "Failed to fetch financials");
+    showLog(response.message || "Failed to fetch financial order payments");
     return {
       response: false,
       financials: [],
@@ -53,7 +57,10 @@ function parseListPayload(response: {
     d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
       ? (d.data as Record<string, unknown>)
       : null;
-  const records = (inner?.records ?? d.records ?? []) as FinancialModel[];
+  const recordsRaw = (inner?.records ?? d.records ?? []) as unknown[];
+  const records = mapFinancialPaymentRecords(
+    Array.isArray(recordsRaw) ? recordsRaw : []
+  );
   const totalPagesVal = Number(inner?.totalPages ?? d.totalPages ?? 0);
   const totalItemsRaw = inner?.totalItems ?? d.totalItems;
   const totalItemsParsed =
@@ -75,12 +82,116 @@ function parseListPayload(response: {
   };
 }
 
-function buildFinancialQueryParams(
+/** Query params for `GET /api/order/financial-payments/getAll` (Postman §23A). */
+function buildFinancialPaymentsQueryParams(
   page: number,
   pageSize: number,
   filters: FinancialListFilters,
-  sortBy: ServerTableSortBy,
-  opts?: { includeOrderServiceFields?: boolean }
+  sortBy: ServerTableSortBy
+): URLSearchParams {
+  const primarySort = sortBy[0];
+  const fidRaw = String(filters.franchise_id ?? "").trim();
+  const franchiseId =
+    fidRaw && fidRaw.toLowerCase() !== "all" && sessionMayUseFranchiseIdApiFilter()
+      ? fidRaw
+      : "";
+
+  const searchText = (filters.search ?? filters.keyword)?.trim();
+
+  const sortByField = primarySort?.id
+    ? String(primarySort.id)
+    : filters.sort?.trim() || "created_at";
+
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(pageSize),
+    ...(searchText && { search: searchText }),
+    ...(filters.order_status && { order_status: filters.order_status }),
+    ...(filters.customer_payment_status && {
+      customer_payment_status: filters.customer_payment_status,
+    }),
+    ...(filters.partner_payment_status && {
+      partner_payment_status: filters.partner_payment_status,
+    }),
+    ...(filters.from_date && { from_date: filters.from_date }),
+    ...(filters.to_date && { to_date: filters.to_date }),
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
+    sort_by: sortByField,
+    sort_order: primarySort ? (primarySort.desc ? "desc" : "asc") : "desc",
+  });
+
+  return params;
+}
+
+/** `GET /api/order/financial-payments/getAll` — Financial → Order Payments grid. */
+export const fetchFinancial = async (
+  page: number,
+  pageSize: number,
+  filters: FinancialListFilters,
+  requestOpts?: { skipLoader?: boolean },
+  sortBy: ServerTableSortBy = []
+): Promise<{
+  response: boolean;
+  financials: FinancialModel[];
+  totalPages: number;
+  totalItems?: number;
+}> => {
+  const params = buildFinancialPaymentsQueryParams(
+    page,
+    pageSize,
+    filters,
+    sortBy
+  );
+
+  const response = await apiRequest(
+    `${ApiPaths.ORDER_FINANCIAL_PAYMENTS_GET_ALL()}?${params.toString()}`,
+    "GET",
+    undefined,
+    false,
+    requestOpts?.skipLoader ?? false
+  );
+
+  return parseListPayload(response);
+};
+
+/** `GET /api/order/financial-payments/get/:id` — same shape as one list row. */
+export const fetchFinancialOrderById = async (
+  id: string,
+  requestOpts?: { skipLoader?: boolean }
+): Promise<{ response: boolean; record: FinancialModel | null }> => {
+  const response = await apiRequest(
+    ApiPaths.ORDER_FINANCIAL_PAYMENTS_GET_BY_ID(id),
+    "GET",
+    undefined,
+    false,
+    requestOpts?.skipLoader ?? true
+  );
+  if (!response.success) {
+    return { response: false, record: null };
+  }
+  const d = response.data ?? {};
+  const inner =
+    d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
+      ? d.data
+      : d;
+  const raw =
+    (inner as { record?: Record<string, unknown> }).record ??
+    (inner as Record<string, unknown>);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { response: true, record: null };
+  }
+  return {
+    response: true,
+    record: mapFinancialPaymentRecord(raw as Record<string, unknown>),
+  };
+};
+
+/** `GET /order_service/getAll` — Partner Payments page & payout pending lines. */
+function buildOrderServiceQueryParams(
+  page: number,
+  pageSize: number,
+  filters: FinancialListFilters,
+  sortBy: ServerTableSortBy
 ): URLSearchParams {
   const primarySort = sortBy[0];
   const fidRaw = String(filters.franchise_id ?? "").trim();
@@ -96,18 +207,13 @@ function buildFinancialQueryParams(
     limit: String(pageSize),
     ...(searchText && { search: searchText }),
     ...(filters.order_status && { order_status: filters.order_status }),
-    ...(opts?.includeOrderServiceFields &&
-      filters.service_status && { service_status: filters.service_status }),
-    ...(opts?.includeOrderServiceFields &&
-      filters.user_id && { user_id: filters.user_id }),
-    ...(opts?.includeOrderServiceFields &&
-      filters.partner_id && { partner_id: filters.partner_id }),
-    ...(opts?.includeOrderServiceFields &&
-      filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
-    ...(opts?.includeOrderServiceFields &&
-      filters.partner_paid_status && {
-        partner_paid_status: filters.partner_paid_status,
-      }),
+    ...(filters.service_status && { service_status: filters.service_status }),
+    ...(filters.user_id && { user_id: filters.user_id }),
+    ...(filters.partner_id && { partner_id: filters.partner_id }),
+    ...(filters.is_paid && { is_paid: filters.is_paid.toLowerCase() }),
+    ...(filters.partner_paid_status && {
+      partner_paid_status: filters.partner_paid_status,
+    }),
     ...(filters.sort && { sort: filters.sort }),
     ...(primarySort?.id && { sort_by: primarySort.id }),
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
@@ -127,61 +233,6 @@ function buildFinancialQueryParams(
   return params;
 }
 
-/** `GET /financial-order/getAll` — Financial → Order Payments (Postman Financial orders). */
-export const fetchFinancial = async (
-  page: number,
-  pageSize: number,
-  filters: FinancialListFilters,
-  requestOpts?: { skipLoader?: boolean },
-  sortBy: ServerTableSortBy = []
-): Promise<{
-  response: boolean;
-  financials: FinancialModel[];
-  totalPages: number;
-  totalItems?: number;
-}> => {
-  const params = buildFinancialQueryParams(page, pageSize, filters, sortBy, {
-    includeOrderServiceFields: false,
-  });
-
-  const response = await apiRequest(
-    `${ApiPaths.FINANCIAL_ORDER_GET_ALL()}?${params.toString()}`,
-    "GET",
-    undefined,
-    false,
-    requestOpts?.skipLoader ?? false
-  );
-
-  return parseListPayload(response);
-};
-
-/** `GET /financial-order/get/:id` */
-export const fetchFinancialOrderById = async (
-  id: string,
-  requestOpts?: { skipLoader?: boolean }
-): Promise<{ response: boolean; record: FinancialModel | null }> => {
-  const response = await apiRequest(
-    ApiPaths.FINANCIAL_ORDER_GET_BY_ID(id),
-    "GET",
-    undefined,
-    false,
-    requestOpts?.skipLoader ?? true
-  );
-  if (!response.success) {
-    return { response: false, record: null };
-  }
-  const d = response.data ?? {};
-  const inner =
-    d.data != null && typeof d.data === "object" && !Array.isArray(d.data)
-      ? d.data
-      : d;
-  const record =
-    (inner as { record?: FinancialModel }).record ??
-    (inner as FinancialModel);
-  return { response: true, record: record ?? null };
-};
-
-/** `GET /order_service/getAll` — Partner Payments page & payout pending lines. */
 export const fetchOrderServiceFinancial = async (
   page: number,
   pageSize: number,
@@ -194,9 +245,7 @@ export const fetchOrderServiceFinancial = async (
   totalPages: number;
   totalItems?: number;
 }> => {
-  const params = buildFinancialQueryParams(page, pageSize, filters, sortBy, {
-    includeOrderServiceFields: true,
-  });
+  const params = buildOrderServiceQueryParams(page, pageSize, filters, sortBy);
 
   const response = await apiRequest(
     `${ApiPaths.GET_ORDER_SERVICE_ALL()}?${params.toString()}`,
@@ -209,7 +258,7 @@ export const fetchOrderServiceFinancial = async (
   return parseListPayload(response);
 };
 
-/** Paginated financial-order rows (all pages). */
+/** Paginated financial-payments rows (all pages). */
 export async function fetchAllFinancialRowsMatching(
   filters: FinancialListFilters,
   batchSize = 250,

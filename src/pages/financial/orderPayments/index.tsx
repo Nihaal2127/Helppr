@@ -39,205 +39,27 @@ import {
   partnerPaymentStatusLabelFromSlug,
 } from "../../../lib/financial/paymentStatus";
 
-/** Live `GET /financial-order/getAll` (set true only for offline UI work). */
-const USE_MOCK_ORDER_PAYMENTS = false;
-
-const MOCK_ORDER_PAYMENTS_ROWS: FinancialModel[] = [
-  {
-    _id: "mock-op-1",
-    order_id: "ord-1001",
-    order_unique_id: "ORD-1001",
-    user_id: "user-1",
-    user_name: "Arjun Sharma",
-    partner_id: "partner-1",
-    partner_name: "Rahul Service Pro",
-    category_id: "cat-1",
-    service_status: 3,
-    order_status: "completed",
-    payment_mode_id: 1,
-    service_id: "svc-1",
-    service_date: "2026-04-20",
-    service_from_time: "10:00",
-    service_to_time: "11:00",
-    sub_total: 900,
-    tax: 162,
-    user_paltform_fee: 0,
-    partner_commison_platform_fee: 0,
-    service_price: 900,
-    total_price: 1062,
-    partner_earning: 820,
-    admin_earning: 242,
-    commission_percentage: 10,
-    tax_percentage: 18,
-    customer_paid_amount: 1062,
-    customer_pending_amount: 0,
-    total_service_amount: 900,
-    paid_to_partner: 600,
-    pending_to_partner: 300,
-    is_paid: true,
-    cancellation_reasone: null,
-    rating: 0,
-    service_name: "AC Service",
-    category_name: "Home Services",
-    deleted_at: null,
-    created_at: "2026-04-20T10:00:00.000Z",
-    updated_at: "2026-04-20T10:00:00.000Z",
-  },
-  {
-    _id: "mock-op-2",
-    order_id: "ord-1002",
-    order_unique_id: "ORD-1002",
-    user_id: "user-2",
-    user_name: "Nisha Verma",
-    partner_id: "partner-2",
-    partner_name: "Mech Experts",
-    category_id: "cat-2",
-    service_status: 2,
-    order_status: "in_progress",
-    payment_mode_id: 1,
-    service_id: "svc-2",
-    service_date: "2026-04-22",
-    service_from_time: "14:00",
-    service_to_time: "15:00",
-    sub_total: 1200,
-    tax: 216,
-    user_paltform_fee: 0,
-    partner_commison_platform_fee: 0,
-    service_price: 1200,
-    total_price: 1416,
-    partner_earning: 1080,
-    admin_earning: 336,
-    commission_percentage: 10,
-    tax_percentage: 18,
-    customer_paid_amount: 500,
-    customer_pending_amount: 916,
-    total_service_amount: 1200,
-    paid_to_partner: 0,
-    pending_to_partner: 1200,
-    is_paid: false,
-    cancellation_reasone: null,
-    rating: 0,
-    service_name: "Washing Machine Repair",
-    category_name: "Home Services",
-    deleted_at: null,
-    created_at: "2026-04-22T14:00:00.000Z",
-    updated_at: "2026-04-22T14:00:00.000Z",
-  },
-  {
-    _id: "mock-op-3",
-    order_id: "ord-1003",
-    order_unique_id: "ORD-1003",
-    user_id: "user-3",
-    user_name: "Sanjay Kumar",
-    partner_id: "partner-3",
-    partner_name: "QuickFix Crew",
-    category_id: "cat-3",
-    service_status: 3,
-    order_status: "completed",
-    payment_mode_id: 1,
-    service_id: "svc-3",
-    service_date: "2026-04-24",
-    service_from_time: "09:00",
-    service_to_time: "10:00",
-    sub_total: 700,
-    tax: 126,
-    user_paltform_fee: 0,
-    partner_commison_platform_fee: 0,
-    service_price: 700,
-    total_price: 826,
-    partner_earning: 620,
-    admin_earning: 206,
-    commission_percentage: 10,
-    tax_percentage: 18,
-    customer_paid_amount: 826,
-    customer_pending_amount: 0,
-    total_service_amount: 700,
-    paid_to_partner: 700,
-    pending_to_partner: 0,
-    is_paid: true,
-    cancellation_reasone: null,
-    rating: 0,
-    service_name: "Electrician Visit",
-    category_name: "Electrical",
-    deleted_at: null,
-    created_at: "2026-04-24T09:00:00.000Z",
-    updated_at: "2026-04-24T09:00:00.000Z",
-  },
-];
-
-function applyMockFilters(
-  rows: FinancialModel[],
-  filters: FinancialListFilters
-): FinancialModel[] {
-  return rows.filter((r) => {
-    if (filters.order_status) {
-      const rowStatus =
-        r.order_status?.trim().toLowerCase() ??
-        (Number(r.service_status) === 3
-          ? "completed"
-          : Number(r.service_status) === 2
-            ? "in_progress"
-            : "");
-      if (rowStatus !== filters.order_status) return false;
-    }
-    const customerSlug =
-      r.customer_payment_status?.trim().toLowerCase() ??
-      ((Number(r.customer_pending_amount) || 0) <= 0
-        ? "paid"
-        : (Number(r.customer_paid_amount) || 0) > 0
-          ? "partially_paid"
-          : "unpaid");
-    const partnerSlug =
-      r.partner_payment_status?.trim().toLowerCase() ??
-      ((Number(r.pending_to_partner) || 0) <= 0
-        ? "paid"
-        : (Number(r.paid_to_partner) || 0) > 0
-          ? "partially_paid"
-          : "unpaid");
-    if (
-      filters.customer_payment_status &&
-      customerSlug !== filters.customer_payment_status
-    )
-      return false;
-    if (
-      filters.partner_payment_status &&
-      partnerSlug !== filters.partner_payment_status
-    )
-      return false;
-    if (filters.from_date && (r.service_date ?? "") < filters.from_date)
-      return false;
-    if (filters.to_date && (r.service_date ?? "") > filters.to_date)
-      return false;
-    const searchQ = (filters.search ?? filters.keyword)?.trim();
-    if (searchQ) {
-      const k = searchQ.toLowerCase();
-      const hay = [
-        r.order_unique_id ?? "",
-        r.user_name ?? "",
-        r.partner_name ?? "",
-        r.service_name ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      if (!hay.includes(k)) return false;
-    }
-    return true;
-  });
-}
-
 const ORDER_STATUS_OPTIONS = [
   { value: "", label: "All" },
-  { value: "completed", label: "Completed" },
   { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "refunded", label: "Refunded" },
 ] as const;
+
+function resolveOrderMongoId(row: FinancialModel): string {
+  return String(row.order_id ?? row._id ?? "").trim();
+}
 
 function serviceLineOrderStatusLabel(row: FinancialModel): string {
   const slug = row.order_status?.trim().toLowerCase();
   if (slug === "completed") return "Completed";
   if (slug === "in_progress") return "In progress";
+  if (slug === "cancelled") return "Cancelled";
+  if (slug === "refunded") return "Refunded";
   if (Number(row.service_status) === 3) return "Completed";
   if (Number(row.service_status) === 2) return "In progress";
-  return "—";
+  return slug ? slug.replace(/_/g, " ") : "—";
 }
 
 function buildListFilters(p: {
@@ -359,31 +181,6 @@ const OrderPayments = () => {
   }, [fromDate, toDate, headerFranchiseId]);
 
   useEffect(() => {
-    if (USE_MOCK_ORDER_PAYMENTS) {
-      const scoped = applyMockFilters(
-        MOCK_ORDER_PAYMENTS_ROWS,
-        dateScopeFilters
-      );
-      let totalPartnerPending = 128000;
-      let totalUserPending = 135000;
-      for (const r of scoped) {
-        totalPartnerPending += Number(r.pending_to_partner) || 0;
-        totalUserPending += Number(r.customer_pending_amount) || 0;
-      }
-      setSummary({
-        completedOrders: scoped.filter(
-          (r) =>
-            r.order_status === "completed" || Number(r.service_status) === 3
-        ).length,
-        inProgressOrders: scoped.filter(
-          (r) =>
-            r.order_status === "in_progress" || Number(r.service_status) === 2
-        ).length,
-        totalPartnerPending: Math.round(totalPartnerPending * 100) / 100,
-        totalUserPending: Math.round(totalUserPending * 100) / 100,
-      });
-      return;
-    }
     let cancelled = false;
     (async () => {
       const fid = franchiseIdForApiQuery(headerFranchiseId);
@@ -429,15 +226,6 @@ const OrderPayments = () => {
         toDate: p.toDate,
         franchiseId: headerFranchiseId,
       });
-      if (USE_MOCK_ORDER_PAYMENTS) {
-        const rows = applyMockFilters(MOCK_ORDER_PAYMENTS_ROWS, merged);
-        const start = (page - 1) * size;
-        const end = start + size;
-        setFinancialList(rows.slice(start, end));
-        setTotalPages(Math.max(1, Math.ceil(rows.length / size)));
-        fetchRef.current = false;
-        return;
-      }
       const {
         response,
         financials,
@@ -607,7 +395,8 @@ const OrderPayments = () => {
         Header: "Order ID",
         accessor: "order_unique_id",
         Cell: textUnderlineCell("order_unique_id", (row) => {
-          showOrderInfoDialog(row.order_id, () => {});
+          const oid = resolveOrderMongoId(row);
+          if (oid) showOrderInfoDialog(oid, () => {});
         }),
       },
       {
@@ -671,7 +460,16 @@ const OrderPayments = () => {
         Header: "Total Amount",
         accessor: "total_price",
         sort: true,
-        Cell: priceCell("total_price"),
+        Cell: ({ row }: { row: { original: FinancialModel } }) => {
+          const v = row.original.total_price ?? row.original.total_amount;
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
+        },
       },
       {
         Header: "Commission (%)",

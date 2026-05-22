@@ -116,16 +116,12 @@ export const ApiPaths = {
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
   CREATE_TAX_OTHER_CHARGES: "/tax/create",
   UPDATE_TAX_OTHER_CHARGES: (id: string) => `/tax/update/${id}`,
-  /** Financial — Order Payments list (Postman: Financial orders → getAll). */
-  FINANCIAL_ORDER_GET_ALL: () => `/financial-order/getAll`,
-  FINANCIAL_ORDER_GET_BY_ID: (id: string) => `/financial-order/get/${id}`,
-  FINANCIAL_ORDER_CREATE: `/financial-order/create`,
-  FINANCIAL_ORDER_UPDATE: (id: string) => `/financial-order/update/${id}`,
-  FINANCIAL_ORDER_DELETE: (id: string) => `/financial-order/delete/${id}`,
+  /** Financial — Order Payments grid (Postman §23A — one row per order). */
+  ORDER_FINANCIAL_PAYMENTS_GET_ALL: () => `/order/financial-payments/getAll`,
+  ORDER_FINANCIAL_PAYMENTS_GET_BY_ID: (id: string) =>
+    `/order/financial-payments/get/${id}`,
   /** Legacy line-item list (Partner Payments page, payout pending lines). */
   GET_ORDER_SERVICE_ALL: () => `/order_service/getAll`,
-  /** @deprecated use FINANCIAL_ORDER_GET_ALL */
-  GET_FINANCIAL: () => `/financial-order/getAll`,
   EXPORT_ORDER_PAYMENTS: `/export/orders_payments`,
   EXPORT_PARTNER_PAYMENTS: `/export/partner_payments`,
   GET_TICKET: () => `/ticket/getAll`,
