@@ -107,10 +107,13 @@ export const ApiPaths = {
   GET_COMISSION_ORDER: () => `/order/getComissionOrder`,
   PAY_COMISSION: "/order_service/payComission",
   /** Manual wallet payout (amount, payment method, description). Align path with backend. */
-  PARTNER_WALLET_PAYOUT: "/order_service/partnerWalletPayout",
-  /** GET ?partner_id=&page=&limit — admin Cash/Razorpay payout history for a partner. Align with backend. */
-  PARTNER_WALLET_PAYOUT_HISTORY: () =>
-    `/order_service/partnerWalletPayoutHistory`,
+  /** Partner payout — wallet list (Postman §37). */
+  PARTNER_PAYOUT_GET_ALL: () => `/partner_payout/getAll`,
+  /** Dropdown for “Add payout” modal. */
+  PARTNER_PAYOUT_PARTNERS: () => `/partner_payout/partners`,
+  /** Ledger credits/debits for one partner (`?id=` Mongo partner `_id`). */
+  PARTNER_PAYOUT_SHOW: () => `/partner_payout/show`,
+  PARTNER_PAYOUT_CREATE: "/partner_payout/create",
   /** Record offline refund split (admin commission vs partner wallet). Align with backend. */
   ORDER_REFUND: "/order/refund",
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,

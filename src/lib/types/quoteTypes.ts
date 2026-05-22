@@ -42,7 +42,21 @@ export type QuoteRow = {
   to_date?: string;
   work_start_time?: string;
   work_end_time?: string;
+  work_hours_per_day?: number;
+  total_work_hours?: number;
+  /** Base service charge (scheduled service total). */
+  total_service_charge?: number;
   service_price?: number;
+  commission_percent?: number;
+  commission_amount?: number;
+  tax_percent?: number;
+  tax_amount?: number;
+  sub_total?: number;
+  total_price?: number;
+  minimum_deposit_percent?: number;
+  minimum_deposit_amount?: number;
+  cancellation_reason?: string;
+  rejection_reason?: string;
   scheduled_date?: string;
   service_from_time?: string;
   service_to_time?: string;

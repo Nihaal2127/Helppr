@@ -53,6 +53,15 @@ export function mapFinancialPaymentRecord(
     raw.customer_payment_status ?? raw.user_payment_status
   );
   const partnerStatus = str(raw.partner_payment_status);
+  const partnerInfo =
+    raw.partner_info != null && typeof raw.partner_info === "object"
+      ? (raw.partner_info as Record<string, unknown>)
+      : null;
+  const partnerMongoId = str(
+    raw.partner_mongo_id ??
+      raw.partner_user_mongo_id ??
+      partnerInfo?._id
+  );
 
   return {
     ...(raw as unknown as FinancialModel),
@@ -63,6 +72,7 @@ export function mapFinancialPaymentRecord(
     user_unique_id: str(raw.user_unique_id) || null,
     user_name: str(raw.user_name ?? raw.customer_name) || null,
     partner_id: str(raw.partner_id) || null,
+    partner_mongo_id: partnerMongoId || null,
     partner_unique_id: str(raw.partner_unique_id) || null,
     partner_name: str(raw.partner_name) || null,
     category_id: str(raw.category_id) || null,

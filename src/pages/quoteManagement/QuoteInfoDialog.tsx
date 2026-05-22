@@ -8,6 +8,7 @@ import {
   computeQuotePriceBreakdown,
   formatQuoteRupees,
   formatQuoteScheduleForView,
+  quotePriceBreakdownFromRow,
   getQuoteServiceAddressDisplay,
   mergeQuoteViewData,
   QUOTE_MODAL_LAYOUT,
@@ -111,6 +112,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
         status: displayQuote.status,
         requested_date: displayQuote.requested_date,
         requested_time: displayQuote.requested_time,
+        from_date: displayQuote.from_date,
+        to_date: displayQuote.to_date,
+        work_start_time: displayQuote.work_start_time,
+        work_end_time: displayQuote.work_end_time,
         scheduled_date: displayQuote.scheduled_date,
         scheduled_time_from: displayQuote.scheduled_time_from,
         scheduled_time_to: displayQuote.scheduled_time_to,
@@ -119,6 +124,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
       displayQuote.status,
       displayQuote.requested_date,
       displayQuote.requested_time,
+      displayQuote.from_date,
+      displayQuote.to_date,
+      displayQuote.work_start_time,
+      displayQuote.work_end_time,
       displayQuote.scheduled_date,
       displayQuote.scheduled_time_from,
       displayQuote.scheduled_time_to,
@@ -148,11 +157,16 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
 
   const canEditQuote = !isSuccess && Boolean(quoteMongoId);
 
-  const priceBreakdown = useMemo(
-    () =>
-      computeQuotePriceBreakdown(displayQuote.service_price ?? 0, serviceFees),
-    [displayQuote.service_price, serviceFees]
-  );
+  const priceBreakdown = useMemo(() => {
+    const fromApi = quotePriceBreakdownFromRow(displayQuote);
+    if (fromApi) return fromApi;
+    return computeQuotePriceBreakdown(
+      displayQuote.total_service_charge ??
+        displayQuote.service_price ??
+        0,
+      serviceFees
+    );
+  }, [displayQuote, serviceFees]);
 
   const serviceAddress = useMemo(
     () => getQuoteServiceAddressDisplay(displayQuote),
@@ -224,11 +238,23 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
             </Col>
             <Col xs={12} md={6} className="info-detail-fields-col">
               <DetailsRow
-                title="Service price"
+                title="Service charge"
                 value={
-                  displayQuote.service_price != null &&
-                  Number.isFinite(displayQuote.service_price)
-                    ? formatQuoteRupees(displayQuote.service_price)
+                  displayQuote.total_service_charge != null &&
+                  Number.isFinite(displayQuote.total_service_charge)
+                    ? formatQuoteRupees(displayQuote.total_service_charge)
+                    : displayQuote.service_price != null &&
+                        Number.isFinite(displayQuote.service_price)
+                      ? formatQuoteRupees(displayQuote.service_price)
+                      : undefined
+                }
+              />
+              <DetailsRow
+                title="Total price"
+                value={
+                  displayQuote.total_price != null &&
+                  Number.isFinite(displayQuote.total_price)
+                    ? formatQuoteRupees(displayQuote.total_price)
                     : undefined
                 }
               />

@@ -1,49 +1,39 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Col, Row } from "react-bootstrap";
-import { useForm, UseFormRegister } from "react-hook-form";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import { FinancialSubPageBackButton } from "../../../components/FinancialSubPageNav";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomTable from "../../../components/CustomTable";
+import CustomActionColumn from "../../../components/CustomActionColumn";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
-import { fetchUser } from "../../../services/userService";
-import { UserModel } from "../../../lib/models/UserModel";
-import CustomActionColumn from "../../../components/CustomActionColumn";
 import { ROUTES } from "../../../routes/Routes";
+import { formatDate } from "../../../helper/utility";
 import { AppConstant } from "../../../lib/global/AppConstant";
-import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
-import { FRANCHISE_HEADER_ALL } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
 import {
-  formatDate,
-  priceCell,
-  textUnderlineCell,
-} from "../../../helper/utility";
-import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
-import { PartnerDetailsDialog } from "../../../components/partner";
+  fetchPartnerPayoutList,
+  type PartnerPayoutListRow,
+} from "../../../services/partnerPayoutService";
 import AddPayoutDialog from "./AddPayoutDialog";
-import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
+import { toIsoCalendarDate } from "../../../lib/quote/quoteHelpers";
 import {
   patchPartnerPayoutSearchParams,
   readPartnerPayoutListUrl,
-  sortToUrl,
 } from "../../../lib/financial/partnerPayoutUrl";
+import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 
-const WALLET_STATUS_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "cleared", label: "Cleared" },
-] as const;
-
-const PartnerPayout = () => {
+function ShowPartnerPayout() {
   const navigate = useNavigate();
+  const {
+    register: headerRegister,
+    setValue: setHeaderValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const { register: headerRegister, setValue: setHeaderValue, watch } =
-    useForm<{ franchise_id: string }>({
-      defaultValues: franchiseHeaderFormDefaults(),
-    });
 
   const url = useMemo(
     () => readPartnerPayoutListUrl(searchParams),
@@ -60,7 +50,59 @@ const PartnerPayout = () => {
     [setSearchParams]
   );
 
-  const headerFranchiseId = String(watch("franchise_id") ?? FRANCHISE_HEADER_ALL);
+  const [records, setRecords] = useState<PartnerPayoutListRow[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<ServerTableSortBy>([
+    { id: "partner_name", desc: false },
+  ]);
+
+  const franchiseIdForApi = useMemo(
+    () => franchiseIdForApiQuery(headerFranchiseId),
+    [headerFranchiseId]
+  );
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { response, records: rows, totalPages: tp } =
+        await fetchPartnerPayoutList(
+          url.page,
+          url.limit,
+          {
+            search: url.search,
+            wallet_status: url.walletStatus,
+            from_date: url.fromDate,
+            to_date: url.toDate,
+            franchise_id: franchiseIdForApi,
+          },
+          sortBy,
+          { skipLoader: true }
+        );
+      if (response) {
+        setRecords(rows);
+        setTotalPages(Math.max(1, tp || 1));
+      } else {
+        setRecords([]);
+        setTotalPages(1);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    franchiseIdForApi,
+    url.page,
+    url.limit,
+    url.search,
+    url.walletStatus,
+    url.fromDate,
+    url.toDate,
+    sortBy,
+  ]);
+
+  useEffect(() => {
+    void loadList();
+  }, [loadList]);
 
   useEffect(() => {
     const fid = url.franchiseId;
@@ -70,87 +112,109 @@ const PartnerPayout = () => {
   }, [url.franchiseId, headerFranchiseId, setHeaderValue]);
 
   useEffect(() => {
-    const next =
-      headerFranchiseId && headerFranchiseId !== FRANCHISE_HEADER_ALL
-        ? headerFranchiseId
-        : undefined;
-    const cur = url.franchiseId || undefined;
-    if (next !== cur) {
-      patchUrl({ franchise_id: next, page: 1 });
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    if (fid !== url.franchiseId) {
+      patchUrl({ franchise_id: fid || undefined, page: 1 });
     }
   }, [headerFranchiseId, url.franchiseId, patchUrl]);
 
-  const [partnerList, setPartnerList] = React.useState<UserModel[]>([]);
-  const [totalPages, setTotalPages] = React.useState(0);
-  const fetchRef = useRef(false);
-
-  const fetchData = useCallback(async () => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    const fid =
-      url.franchiseId && url.franchiseId !== FRANCHISE_HEADER_ALL
-        ? url.franchiseId
-        : undefined;
-    const {
-      response,
-      users,
-      totalPages: tp,
-    } = await fetchUser(
-      false,
-      2,
-      url.page,
-      url.limit,
-      {
-        search: url.search,
-        keyword: url.search,
-        status: "true",
-        wallet_status: url.walletStatus,
-        ...(url.fromDate ? { from_date: url.fromDate } : {}),
-        ...(url.toDate ? { to_date: url.toDate } : {}),
-        ...(fid ? { franchise_id: fid } : {}),
-      },
-      url.sortBy
-    );
-    if (response) {
-      setPartnerList(users);
-      setTotalPages(tp);
-    }
-    fetchRef.current = false;
-  }, [url]);
-
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
-
-  const handleServerSortChange = useCallback(
-    (next: ServerTableSortBy) => {
-      patchUrl({ ...sortToUrl(next), page: 1 });
+  const handleViewPartner = useCallback(
+    (row: PartnerPayoutListRow) => {
+      const mongoId = row._id?.trim();
+      if (!mongoId) return;
+      navigate(
+        `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(mongoId)}`
+      );
     },
-    [patchUrl]
+    [navigate]
+  );
+
+  const columns = useMemo(
+    () => [
+      {
+        Header: "SR No",
+        id: "sr",
+        accessor: "_id",
+        disableSortBy: true,
+        Cell: ({ row }: { row: { index: number } }) =>
+          (url.page - 1) * url.limit + row.index + 1,
+      },
+      {
+        Header: "Partner ID",
+        accessor: "partner_id",
+        className: "text-start",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => (
+          <span className="font-monospace user-select-all">
+            {row.original.partner_id || "—"}
+          </span>
+        ),
+      },
+      {
+        Header: "Partner Name",
+        accessor: "partner_name",
+        className: "text-start",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) =>
+          row.original.partner_name?.trim() || "—",
+      },
+      {
+        Header: "Total Wallet Amount",
+        accessor: "total_wallet_amount",
+        className: "text-end",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => {
+          const n = Number(row.original.total_wallet_amount) || 0;
+          return `${AppConstant.currencySymbol}${n.toFixed(2)}`;
+        },
+      },
+      {
+        Header: "Last Withdraw Amount",
+        accessor: "last_withdraw_amount",
+        className: "text-end",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => {
+          const n = Number(row.original.last_withdraw_amount) || 0;
+          return `${AppConstant.currencySymbol}${n.toFixed(2)}`;
+        },
+      },
+      {
+        Header: "Last Withdraw Date",
+        accessor: "last_withdraw_date",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => {
+          const raw = row.original.last_withdraw_date;
+          if (!raw) return "—";
+          const d = formatDate(raw);
+          return d !== "-" ? d : raw;
+        },
+      },
+      {
+        Header: "Wallet Status",
+        accessor: "wallet_status",
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => {
+          const s = String(row.original.wallet_status ?? "").toLowerCase();
+          if (s === "paid") return "Paid";
+          if (s === "pending") return "Pending";
+          return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
+        },
+      },
+      {
+        Header: "Actions",
+        id: "actions",
+        accessor: "_id",
+        disableSortBy: true,
+        Cell: ({ row }: { row: { original: PartnerPayoutListRow } }) => (
+          <CustomActionColumn
+            row={row}
+            onView={(r) => handleViewPartner(r.original)}
+          />
+        ),
+      },
+    ],
+    [url.page, url.limit, handleViewPartner]
   );
 
   const filtersActive =
-    url.walletStatus !== "all" ||
+    !!url.search ||
     !!url.fromDate ||
     !!url.toDate ||
-    !!url.search;
-
-  const handleVoidPartnerPayout = useCallback(
-    (partner: UserModel) => {
-      openConfirmDialog(
-        `Are you sure you want to void this payout for ${
-          partner.user_id ?? partner.name ?? "this partner"
-        }?`,
-        "Void",
-        "Cancel",
-        async () => {
-          fetchRef.current = false;
-          await fetchData();
-        }
-      );
-    },
-    [fetchData]
-  );
+    url.walletStatus !== "all";
 
   const filterControls = (
     <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mb-3 align-items-end">
@@ -159,7 +223,11 @@ const PartnerPayout = () => {
           label="Wallet Status"
           controlId="wallet_status_filter"
           register={headerRegister as unknown as UseFormRegister<any>}
-          options={[...WALLET_STATUS_OPTIONS]}
+          options={[
+            { value: "all", label: "All" },
+            { value: "pending", label: "Pending" },
+            { value: "paid", label: "Paid" },
+          ]}
           fieldName="wallet_status_filter"
           defaultValue={url.walletStatus}
           setValue={
@@ -171,19 +239,18 @@ const PartnerPayout = () => {
           }
           asCol={false}
           noBottomMargin
-          onChange={(e) => {
-            patchUrl({ wallet_status: e.target.value, page: 1 });
-          }}
+          onChange={(e) =>
+            patchUrl({ wallet_status: e.target.value, page: 1 })
+          }
         />
       </Col>
-
       <Col>
         <CustomDatePicker
           label="From Date"
           controlId="from_date_filter"
           selectedDate={url.fromDate || null}
           onChange={(date) => {
-            const value = date ? date.toISOString().slice(0, 10) : "";
+            const value = toIsoCalendarDate(date) ?? "";
             patchUrl({ from_date: value || undefined, page: 1 });
           }}
           register={headerRegister as unknown as UseFormRegister<any>}
@@ -194,14 +261,13 @@ const PartnerPayout = () => {
           filterDate={() => true}
         />
       </Col>
-
       <Col>
         <CustomDatePicker
           label="To Date"
           controlId="to_date_filter"
           selectedDate={url.toDate || null}
           onChange={(date) => {
-            const value = date ? date.toISOString().slice(0, 10) : "";
+            const value = toIsoCalendarDate(date) ?? "";
             patchUrl({ to_date: value || undefined, page: 1 });
           }}
           register={headerRegister as unknown as UseFormRegister<any>}
@@ -212,7 +278,6 @@ const PartnerPayout = () => {
           filterDate={() => true}
         />
       </Col>
-
       <Col xs="auto" className="d-flex align-items-end">
         <Button
           variant="outline-secondary"
@@ -223,11 +288,9 @@ const PartnerPayout = () => {
           onClick={() => {
             patchUrl({
               search: undefined,
-              wallet_status: undefined,
               from_date: undefined,
               to_date: undefined,
-              sort_by: undefined,
-              sort_order: undefined,
+              wallet_status: undefined,
               page: 1,
             });
           }}
@@ -236,75 +299,6 @@ const PartnerPayout = () => {
         </Button>
       </Col>
     </Row>
-  );
-
-  const partnerColumns = React.useMemo(
-    () => [
-      {
-        Header: "SR No",
-        accessor: "serial_no",
-        Cell: ({ row }: { row: { index: number } }) =>
-          (url.page - 1) * url.limit + row.index + 1,
-      },
-      {
-        Header: "Partner ID",
-        accessor: "user_id",
-        sort: true,
-        Cell: textUnderlineCell("user_id", (row) => {
-          PartnerDetailsDialog.show(row._id, () => {});
-        }),
-      },
-      { Header: "Partner Name", accessor: "name", sort: true },
-      {
-        Header: "Total wallet amount",
-        accessor: "total_wallet_amount",
-        Cell: ({ row }: { row: { original: UserModel } }) => {
-          const v =
-            row.original.total_wallet_amount ?? row.original.total_amount;
-          return (
-            <span>
-              {v !== undefined && v !== null
-                ? `${AppConstant.currencySymbol}${v}`
-                : "-"}
-            </span>
-          );
-        },
-      },
-      {
-        Header: "Last withdraw amount",
-        accessor: "last_withdraw_amount",
-        Cell: priceCell("last_withdraw_amount"),
-      },
-      {
-        Header: "Last withdraw date",
-        accessor: "last_withdraw_date",
-        Cell: ({ row }: { row: { original: UserModel } }) => {
-          const raw =
-            row.original.last_withdraw_date ||
-            row.original.last_paid_date ||
-            "";
-          return formatDate(raw);
-        },
-      },
-      {
-        Header: "Action",
-        accessor: "action",
-        Cell: ({ row }: { row: { original: UserModel } }) => (
-          <CustomActionColumn
-            row={row}
-            onView={(r) =>
-              navigate(
-                `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(
-                  r.original._id
-                )}`
-              )
-            }
-            onDelete={() => handleVoidPartnerPayout(row.original)}
-          />
-        ),
-      },
-    ],
-    [url.page, url.limit, navigate, handleVoidPartnerPayout]
   );
 
   return (
@@ -319,13 +313,10 @@ const PartnerPayout = () => {
             type="button"
             className="custom-btn-secondary w-auto btn btn-primary"
             onClick={() =>
-              AddPayoutDialog.show(() => {
-                fetchRef.current = false;
-                void fetchData();
-              })
+              AddPayoutDialog.show(() => void loadList(), franchiseIdForApi)
             }
           >
-            Add New Payout
+            Add Payout
           </Button>
         }
       />
@@ -344,8 +335,8 @@ const PartnerPayout = () => {
       {filterControls}
 
       <CustomTable
-        columns={partnerColumns}
-        data={partnerList}
+        columns={columns}
+        data={records}
         pageSize={url.limit}
         currentPage={url.page}
         totalPages={totalPages}
@@ -353,13 +344,20 @@ const PartnerPayout = () => {
         onLimitChange={(ps: number) => {
           patchUrl({ limit: ps, page: 1 });
         }}
+        isLoading={loading}
         manualSortBy
-        sortBy={url.sortBy}
-        onSortChange={handleServerSortChange}
+        sortBy={sortBy}
+        onSortChange={(next) => {
+          setSortBy(next);
+          patchUrl({ page: 1 });
+        }}
         theadClass="table-light"
+        tableClass="partner-payout-react-table"
+        dynamicRowBackground={false}
       />
     </div>
   );
-};
+}
 
-export default PartnerPayout;
+export { ShowPartnerPayout };
+export default ShowPartnerPayout;

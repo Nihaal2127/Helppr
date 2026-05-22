@@ -981,10 +981,7 @@ const QuoteManagement = () => {
       ),
     };
 
-    const scheduleSortAccessor =
-      selectedTab === "success" || selectedTab === "accepted"
-        ? "scheduled_date"
-        : "requested_date";
+    const dateSortAccessor = "from_date";
 
     const cols: any[] = [
       {
@@ -1025,13 +1022,20 @@ const QuoteManagement = () => {
       },
       { Header: "User Name", accessor: "user_name", sort: true },
       {
-        Header: "Price",
-        accessor: "service_price",
-        Cell: ({ row }: { row: any }) => `₹${row.original.service_price ?? 0}`,
+        Header: "Total price",
+        accessor: "total_price",
+        Cell: ({ row }: { row: any }) => {
+          const n =
+            row.original.total_price ??
+            row.original.service_price ??
+            0;
+          return `₹${Number(n).toFixed(2)}`;
+        },
       },
       {
-        Header: "Schedule date and time",
-        accessor: scheduleSortAccessor,
+        Header: "Date",
+        accessor: dateSortAccessor,
+        sort: true,
         Cell: ({ row }: { row: any }) => (
           <span style={{ whiteSpace: "pre-line" }}>
             {formatQuoteScheduleForTable(row.original as QuoteRow, selectedTab)}
@@ -1295,9 +1299,7 @@ const QuoteManagement = () => {
         controlSlot={
           <>
             <div style={{ minWidth: "220px" }}>
-              <Form.Label className="mb-1 fw-medium">
-                Schedule from date
-              </Form.Label>
+              <Form.Label className="mb-1 fw-medium">From date</Form.Label>
               <CustomDatePicker
                 label=""
                 controlId="from_date"
@@ -1322,14 +1324,12 @@ const QuoteManagement = () => {
                 }
                 asCol={false}
                 groupClassName="mb-0 w-100"
-                placeholderText="Schedule from date"
+                placeholderText="From date"
                 filterDate={() => true}
               />
             </div>
             <div style={{ minWidth: "220px" }}>
-              <Form.Label className="mb-1 fw-medium">
-                Schedule to date
-              </Form.Label>
+              <Form.Label className="mb-1 fw-medium">To date</Form.Label>
               <CustomDatePicker
                 label=""
                 controlId="to_date"
@@ -1347,7 +1347,7 @@ const QuoteManagement = () => {
                 }
                 asCol={false}
                 groupClassName="mb-0 w-100"
-                placeholderText="Schedule to date"
+                placeholderText="To date"
                 filterDate={(date) => {
                   if (!fromDate) return true;
                   const from = parseIsoDateOnly(fromDate);

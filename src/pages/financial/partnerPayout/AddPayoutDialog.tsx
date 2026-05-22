@@ -1,113 +1,66 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, Button, Row, Col, Spinner } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { openDialog } from "../../../lib/global/DialogManager";
-import { fetchUser } from "../../../services/userService";
-import { fetchAllOrderServiceRowsMatching } from "../../../services/financialService";
-import { submitPartnerWalletPayout } from "../../../services/partnerPayoutService";
-import { PARTNER_PAYOUT_PAYMENT_METHODS } from "../../../lib/financial/partnerPayoutPayment";
-import type { PartnerPayoutPaymentMethod } from "../../../lib/financial/partnerPayoutPayment";
-import { FinancialModel } from "../../../lib/models/FinancialModel";
-import { UserModel } from "../../../lib/models/UserModel";
+import {
+  createPartnerPayout,
+  fetchPartnerPayoutPartners,
+  type PartnerPayoutPartnerOption,
+} from "../../../services/partnerPayoutService";
+import {
+  PARTNER_PAYOUT_CREATE_METHODS,
+  type PartnerPayoutPaymentMethod,
+} from "../../../lib/financial/partnerPayoutPayment";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 
 type AddPayoutDialogProps = {
   onClose: () => void;
   onSuccess: () => void;
+  franchiseId?: string;
 };
 
 const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
-  show: (onSuccess: () => void) => void;
-} = ({ onClose, onSuccess }) => {
+  show: (onSuccess: () => void, franchiseId?: string) => void;
+} = ({ onClose, onSuccess, franchiseId }) => {
   const { register, setValue } = useForm();
-  const [partners, setPartners] = useState<UserModel[]>([]);
-  const [partnerId, setPartnerId] = useState("");
-  const [pendingRows, setPendingRows] = useState<FinancialModel[]>([]);
+  const [partners, setPartners] = useState<PartnerPayoutPartnerOption[]>([]);
+  const [partnerMongoId, setPartnerMongoId] = useState("");
   const [loadingPartners, setLoadingPartners] = useState(true);
-  const [loadingPending, setLoadingPending] = useState(false);
   const [amount, setAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] =
     useState<PartnerPayoutPaymentMethod>("cash");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const selected = partners.find((p) => p._id === partnerMongoId);
+  const payableBalance = Number(selected?.payable_balance ?? 0);
+  const enterParsed = Number.isFinite(amount) && amount >= 0 ? amount : 0;
+  const balanceAfter = Math.max(0, payableBalance - enterParsed);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingPartners(true);
-      /**
-       * `getPartnerDropDown` requires `service_id` — it is for “partners who can do this service”
-       * (e.g. order assignment). Payout needs every active partner, same source as Partner Payout grid:
-       * `getAll` with type 2 (partner).
-       */
-      const pageSize = 250;
-      const first = await fetchUser(false, 2, 1, pageSize, { status: "true" });
+      const { response, partners: list } = await fetchPartnerPayoutPartners({
+        franchise_id: franchiseId,
+        limit: 250,
+      });
       if (cancelled) return;
-      if (!first.response) {
-        setPartners([]);
-        setLoadingPartners(false);
-        return;
-      }
-      let all = [...first.users];
-      for (let page = 2; page <= first.totalPages; page++) {
-        const next = await fetchUser(false, 2, page, pageSize, {
-          status: "true",
-        });
-        if (cancelled) return;
-        if (next.response) {
-          all = all.concat(next.users);
-        }
-      }
-      setPartners(all);
+      setPartners(response ? list : []);
       setLoadingPartners(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const loadPending = useCallback(async (pid: string) => {
-    if (!pid) {
-      setPendingRows([]);
-      return;
-    }
-    setLoadingPending(true);
-    try {
-      const rows = await fetchAllOrderServiceRowsMatching(
-        {
-          partner_id: pid,
-          partner_paid_status: "1",
-          service_status: "3",
-        },
-        250
-      );
-      setPendingRows(rows ?? []);
-    } finally {
-      setLoadingPending(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPending(partnerId);
-  }, [partnerId, loadPending]);
-
-  const totalPending = pendingRows.reduce(
-    (s, r) => s + (Number(r.partner_earning) || 0),
-    0
-  );
-
-  /** Same pool as “Total Pending Amount” — amount available to pay out from pending lines. */
-  const walletAmount = totalPending;
-  const enterParsed = Number.isFinite(amount) && amount >= 0 ? amount : 0;
-  const pendingAfterPayout = Math.max(0, walletAmount - enterParsed);
+  }, [franchiseId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!partnerId) {
+    if (!partnerMongoId) {
       showErrorAlert("Please select a partner.");
       return;
     }
@@ -116,26 +69,32 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
       showErrorAlert("Please enter a valid amount greater than zero.");
       return;
     }
-    if (!loadingPending && totalPending <= 0) {
-      showErrorAlert("No pending partner earnings found for this partner.");
+    if (payableBalance <= 0) {
+      showErrorAlert("No payable balance for this partner.");
       return;
     }
-    if (!loadingPending && num > walletAmount + 0.0001) {
+    if (num > payableBalance + 0.0001) {
       showErrorAlert(
-        `Amount cannot exceed wallet amount (${
+        `Amount cannot exceed payable balance (${
           AppConstant.currencySymbol
-        }${walletAmount.toFixed(2)}).`
+        }${payableBalance.toFixed(2)}).`
       );
+      return;
+    }
+    const desc = description.trim();
+    if (!desc) {
+      showErrorAlert("Description is required.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const ok = await submitPartnerWalletPayout({
-        partner_id: partnerId,
-        amount: num,
+      const ok = await createPartnerPayout({
+        partner_id: partnerMongoId,
+        pay_now_amount: num,
         payment_method: paymentMethod,
-        description: description.trim() || undefined,
+        description: desc,
+        franchise_id: franchiseId,
       });
       if (ok) {
         onClose();
@@ -149,9 +108,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   const sym = AppConstant.currencySymbol;
   const partnerOptions = partners.map((p) => ({
     value: p._id,
-    label: `${p.user_id ?? p._id}${p.name ? ` — ${p.name}` : ""}`,
+    label: `${p.partner_id || p._id}${p.partner_name ? ` — ${p.partner_name}` : ""}`,
   }));
-  const paymentMethodOptions = [...PARTNER_PAYOUT_PAYMENT_METHODS];
+  const paymentMethodOptions = [...PARTNER_PAYOUT_CREATE_METHODS];
 
   return (
     <Modal show size="lg" onHide={onClose} centered scrollable>
@@ -169,12 +128,12 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                 <Spinner animation="border" size="sm" />
               ) : (
                 <CustomFormSelect
-                  label="Partner ID"
-                  controlId="partner ID"
+                  label="Partner"
+                  controlId="partner_id"
                   register={register as unknown as UseFormRegister<any>}
                   options={partnerOptions}
                   fieldName="partner_id"
-                  defaultValue={partnerId}
+                  defaultValue={partnerMongoId}
                   setValue={
                     setValue as (
                       name: string,
@@ -184,83 +143,28 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                   }
                   asCol={false}
                   menuPortal
-                  onChange={(e) => setPartnerId(e.target.value)}
+                  onChange={(e) => setPartnerMongoId(e.target.value)}
                 />
               )}
             </Col>
 
-            {partnerId ? (
+            {partnerMongoId ? (
               <>
                 <Col xs={12}>
                   <div className="border rounded p-3 bg-light mb-2">
-                    <div className="fw-semibold mb-2">Total wallet amount</div>
-                    {loadingPending ? (
-                      <Spinner animation="border" size="sm" />
-                    ) : (
-                      <div
-                        className="fs-5"
-                        style={{ color: "var(--primary-txt-color)" }}
-                      >
-                        {sym}
-                        {totalPending.toFixed(2)}
-                      </div>
-                    )}
+                    <div className="fw-semibold mb-2">Payable balance</div>
+                    <div
+                      className="fs-5"
+                      style={{ color: "var(--primary-txt-color)" }}
+                    >
+                      {sym}
+                      {payableBalance.toFixed(2)}
+                    </div>
                   </div>
                 </Col>
 
-                {/* <Col xs={12}>
-                  <div className="fw-semibold mb-2 small">Order-wise pending</div>
-                  {loadingPending ? (
-                    <Spinner animation="border" size="sm" />
-                  ) : pendingRows.length === 0 ? (
-                    <p className="text-muted small mb-0">No pending lines for this partner.</p>
-                  ) : (
-                    <div className="table-responsive border rounded" style={{ maxHeight: "220px" }}>
-                      <Table size="sm" className="mb-0 align-middle">
-                        <thead className="table-light">
-                          <tr>
-                            <th>Order ID</th>
-                            <th>Service</th>
-                            <th>Service date</th>
-                            <th className="text-end">Pending</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pendingRows.map((r) => (
-                            <tr key={r._id}>
-                              <td>{r.order_unique_id ?? r.order_id ?? "—"}</td>
-                              <td>{r.service_name ?? "—"}</td>
-                              <td className="text-nowrap">{formatDate(r.service_date ?? "")}</td>
-                              <td className="text-end">
-                                {sym}
-                                {(Number(r.partner_earning) || 0).toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </div>
-                  )}
-                </Col> */}
-
                 <Col xs={12}>
                   <Row className="g-3 align-items-end">
-                    {/* <Col xs={12} md={4}>
-                      <CustomFormInput
-                        label="Wallet amount"
-                        controlId="wallet_amount"
-                        placeholder="Wallet amount"
-                        register={register}
-                        asCol={false}
-                        value={
-                          loadingPending
-                            ? "Loading..."
-                            : `${sym}${walletAmount.toFixed(2)}`
-                        }
-                        isEditable={false}
-                        inputClassName="custom-form-input--read-only"
-                      />
-                    </Col> */}
                     <Col xs={12} md={4}>
                       <CustomFormInput
                         label="Pay Now"
@@ -290,15 +194,10 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                         placeholder="Balance"
                         register={register}
                         asCol={false}
-                        value={
-                          loadingPending
-                            ? "Loading..."
-                            : `${sym}${pendingAfterPayout.toFixed(2)}`
-                        }
+                        value={`${sym}${balanceAfter.toFixed(2)}`}
                         isEditable={false}
                         inputClassName="custom-form-input--read-only"
                       />
-                      {/* <Form.Text className="text-muted">Wallet amount − enter amount</Form.Text> */}
                     </Col>
                     <Col xs={12} md={4}>
                       <CustomFormSelect
@@ -355,11 +254,11 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                 Cancel
               </Button>
 
-              {partnerId ? (
+              {partnerMongoId ? (
                 <Button
                   type="submit"
                   className="custom-btn-primary"
-                  disabled={submitting || loadingPartners || loadingPending}
+                  disabled={submitting || loadingPartners}
                 >
                   {submitting ? "Submitting…" : "Submit"}
                 </Button>
@@ -372,9 +271,13 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   );
 };
 
-AddPayoutDialog.show = (onSuccess: () => void) => {
+AddPayoutDialog.show = (onSuccess: () => void, franchiseId?: string) => {
   openDialog("add-partner-payout-modal", (close) => (
-    <AddPayoutDialog onClose={close} onSuccess={onSuccess} />
+    <AddPayoutDialog
+      onClose={close}
+      onSuccess={onSuccess}
+      franchiseId={franchiseId}
+    />
   ));
 };
 

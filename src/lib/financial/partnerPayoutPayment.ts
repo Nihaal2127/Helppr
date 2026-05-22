@@ -5,7 +5,18 @@ import type { PaymentMethodSlug } from "../global/paymentAndCurrency";
 
 export const PARTNER_PAYOUT_PAYMENT_METHODS = PAYMENT_METHODS;
 
-export type PartnerPayoutPaymentMethod = PaymentMethodSlug;
+/** Methods accepted by `POST /api/partner_payout/create` (Postman §37). */
+export const PARTNER_PAYOUT_CREATE_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "upi", label: "UPI" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "cheque", label: "Cheque" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type PartnerPayoutPaymentMethod =
+  | PaymentMethodSlug
+  | (typeof PARTNER_PAYOUT_CREATE_METHODS)[number]["value"];
 
 export function partnerPayoutPaymentMethodLabel(
   method: string | null | undefined

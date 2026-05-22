@@ -10,6 +10,8 @@ export interface FinancialModel {
   user_name?: string | null;
   user_info?: Partial<UserModel> | null;
   partner_id: string | null;
+  /** Partner Mongo `_id` for `/api/partner_payout/show` (when API sends it). */
+  partner_mongo_id?: string | null;
   partner_unique_id?: string | null;
   partner_name?: string | null;
   partner_info?: Partial<UserModel> | null;

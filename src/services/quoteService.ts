@@ -326,6 +326,18 @@ function readFiniteNumber(
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** Reads first finite number from API quote row (camelCase + snake_case). */
+function readQuoteAmount(
+  row: Record<string, unknown>,
+  ...keys: string[]
+): number | undefined {
+  for (const key of keys) {
+    const n = readFiniteNumber(row, key);
+    if (n !== undefined) return n;
+  }
+  return undefined;
+}
+
 /** Tax / commission / min-deposit fields from hydrated `service` or mapping row (for Add Quote breakdown). */
 function quoteServiceFeeFieldsFromRow(
   inner: Record<string, unknown> | undefined,
@@ -1954,21 +1966,60 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     to_date: toD || undefined,
     work_start_time: ws || undefined,
     work_end_time: we || undefined,
-    service_price: (() => {
-      for (const key of [
-        "service_price",
-        "servicePrice",
-        "price",
-        "total_price",
-        "total_amount",
-      ] as const) {
-        const raw = r[key];
-        if (raw == null || raw === "") continue;
-        const n = Number(raw);
-        if (Number.isFinite(n)) return n;
-      }
-      return undefined;
-    })(),
+    work_hours_per_day: readQuoteAmount(
+      r,
+      "work_hours_per_day",
+      "workHoursPerDay"
+    ),
+    total_work_hours: readQuoteAmount(
+      r,
+      "total_work_hours",
+      "totalWorkHours"
+    ),
+    total_service_charge: readQuoteAmount(
+      r,
+      "total_service_charge",
+      "totalServiceCharge"
+    ),
+    service_price:
+      readQuoteAmount(r, "service_price", "servicePrice", "price") ??
+      readQuoteAmount(r, "total_service_charge", "totalServiceCharge"),
+    commission_percent: readQuoteAmount(
+      r,
+      "commission_percent",
+      "commissionPercent",
+      "commission_percentage"
+    ),
+    commission_amount: readQuoteAmount(
+      r,
+      "commission_amount",
+      "commissionAmount"
+    ),
+    tax_percent: readQuoteAmount(
+      r,
+      "tax_percent",
+      "taxPercent",
+      "tax_percentage"
+    ),
+    tax_amount: readQuoteAmount(r, "tax_amount", "taxAmount"),
+    sub_total: readQuoteAmount(r, "sub_total", "subTotal", "subtotal"),
+    total_price: readQuoteAmount(
+      r,
+      "total_price",
+      "totalPrice",
+      "grand_total"
+    ),
+    minimum_deposit_percent: readQuoteAmount(
+      r,
+      "minimum_deposit_percent",
+      "minimumDepositPercent"
+    ),
+    minimum_deposit_amount: readQuoteAmount(
+      r,
+      "minimum_deposit_amount",
+      "minimumDepositAmount",
+      "minimum_deposit"
+    ),
     scheduled_date: str(
       r.scheduled_date ?? r.scheduledDate ?? r.scheduled_service_date
     ),
@@ -1980,7 +2031,15 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     service_to_time: str(
       r.scheduled_time_to ?? r.service_to_time ?? r.scheduled_end_time
     ),
-    order_id: str(r.order_id ?? r.orderId) || undefined,
+    order_id: (() => {
+      const oid = r.order_id ?? r.orderId;
+      if (oid == null || oid === "") return undefined;
+      return str(oid) || undefined;
+    })(),
+    cancellation_reason:
+      str(r.cancellation_reason ?? r.cancellationReason) || undefined,
+    rejection_reason:
+      str(r.rejection_reason ?? r.rejectionReason) || undefined,
     services: str(r.services ?? r.service_summary) || undefined,
     order_status: str(r.order_status) || undefined,
     payment_method: str(r.payment_method) || undefined,
@@ -2128,10 +2187,16 @@ function sortValueForColumn(row: QuoteRow, sortId: string): string | number {
       return row.partner_name ?? "";
     case "user_name":
       return row.user_name ?? "";
+    case "total_price":
+      return row.total_price ?? row.service_price ?? 0;
     case "service_price":
-      return row.service_price ?? 0;
+      return row.service_price ?? row.total_price ?? 0;
+    case "from_date":
+      return row.from_date ?? row.requested_date ?? row.scheduled_date ?? "";
+    case "to_date":
+      return row.to_date ?? row.from_date ?? "";
     case "requested_date":
-      return row.requested_date ?? "";
+      return row.requested_date ?? row.from_date ?? "";
     case "requested_time":
       return row.requested_time ?? "";
     case "services":

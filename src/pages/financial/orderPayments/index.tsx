@@ -435,11 +435,15 @@ const OrderPayments = () => {
                 textDecorationThickness: "1px",
                 cursor: "pointer",
               }}
-              onClick={() =>
+              onClick={() => {
+                const pid =
+                  row.original.partner_mongo_id?.trim() ||
+                  row.original.partner_id?.trim();
+                if (!pid) return;
                 navigate(
-                  `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${row.original.partner_id}`
-                )
-              }
+                  `${ROUTES.PARTNER_PAYOUT_SHOW.path}?id=${encodeURIComponent(pid)}`
+                );
+              }}
             >
               {label}
             </span>

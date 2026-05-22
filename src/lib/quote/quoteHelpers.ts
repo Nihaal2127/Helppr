@@ -346,6 +346,79 @@ export function computeQuotePriceBreakdown(
   };
 }
 
+export type QuoteRowPriceFields = Pick<
+  QuoteRow,
+  | "total_service_charge"
+  | "service_price"
+  | "commission_percent"
+  | "commission_amount"
+  | "tax_percent"
+  | "tax_amount"
+  | "sub_total"
+  | "total_price"
+  | "minimum_deposit_percent"
+  | "minimum_deposit_amount"
+>;
+
+/** True when GET quote returned server-computed totals (`total_price`). */
+export function quoteHasApiPriceBreakdown(
+  row: Partial<QuoteRowPriceFields>
+): boolean {
+  return (
+    row.total_price != null && Number.isFinite(Number(row.total_price))
+  );
+}
+
+/** Map API quote price fields → amount breakdown panel (view / list). */
+export function quotePriceBreakdownFromRow(
+  row: Partial<QuoteRowPriceFields>
+): QuotePriceBreakdown | null {
+  if (!quoteHasApiPriceBreakdown(row)) return null;
+
+  const base = Number(
+    row.total_service_charge ?? row.service_price ?? 0
+  );
+  const commissionAmount = Number(row.commission_amount ?? 0);
+  const commissionPct = Number(row.commission_percent ?? 0);
+  const subtotalBeforeTax = Number(
+    row.sub_total ??
+      roundQuoteMoney(
+        (Number.isFinite(base) ? base : 0) +
+          (Number.isFinite(commissionAmount) ? commissionAmount : 0)
+      )
+  );
+  const taxAmount = Number(row.tax_amount ?? 0);
+  const taxPct = Number(row.tax_percent ?? 0);
+  const grandTotal = Number(row.total_price ?? 0);
+  const minPct = row.minimum_deposit_percent;
+  const minAmt = row.minimum_deposit_amount;
+  const sym = AppConstant.percentageSymbol;
+
+  let minDepositTitle = "Minimum deposit";
+  let minDepositNote = "";
+  if (minPct != null && Number.isFinite(minPct) && minPct > 0) {
+    minDepositNote = `(${minPct}${sym} of total)`;
+  }
+
+  return {
+    base: Number.isFinite(base) ? base : 0,
+    commissionPct: Number.isFinite(commissionPct) ? commissionPct : 0,
+    commissionAmount: Number.isFinite(commissionAmount)
+      ? commissionAmount
+      : 0,
+    subtotalBeforeTax: Number.isFinite(subtotalBeforeTax)
+      ? subtotalBeforeTax
+      : 0,
+    taxPct: Number.isFinite(taxPct) ? taxPct : 0,
+    taxAmount: Number.isFinite(taxAmount) ? taxAmount : 0,
+    grandTotal: Number.isFinite(grandTotal) ? grandTotal : 0,
+    minDepositTitle,
+    minDepositAmount:
+      minAmt != null && Number.isFinite(minAmt) ? minAmt : 0,
+    minDepositNote,
+  };
+}
+
 /** --- View --- */
 
 /** Shared quote view shape (modal + list mapping). */
@@ -368,6 +441,12 @@ export type QuoteViewData = {
   category_name?: string;
   requested_date: string;
   requested_time: string;
+  from_date?: string;
+  to_date?: string;
+  work_start_time?: string;
+  work_end_time?: string;
+  work_hours_per_day?: number;
+  total_work_hours?: number;
   door_no: string;
   street: string;
   city: string;
@@ -392,7 +471,16 @@ export type QuoteViewData = {
   employee_name?: string;
   employee_phone?: string;
   employee_email?: string;
+  total_service_charge?: number;
   service_price?: number;
+  commission_percent?: number;
+  commission_amount?: number;
+  tax_percent?: number;
+  tax_amount?: number;
+  sub_total?: number;
+  total_price?: number;
+  minimum_deposit_percent?: number;
+  minimum_deposit_amount?: number;
   scheduled_date?: string;
   scheduled_time_from?: string;
   scheduled_time_to?: string;
@@ -406,6 +494,8 @@ export type QuoteViewData = {
   payment_reference?: string;
   payment_date?: string;
   description?: string;
+  cancellation_reason?: string;
+  rejection_reason?: string;
 };
 
 export type QuoteServiceAddressDisplay = {
@@ -609,6 +699,12 @@ export function mergeQuoteViewData(
     description: coalesceText(fresh.description, keep.description) || undefined,
     requested_date: coalesceText(fresh.requested_date, keep.requested_date),
     requested_time: coalesceText(fresh.requested_time, keep.requested_time),
+    from_date: coalesceText(fresh.from_date, keep.from_date) || undefined,
+    to_date: coalesceText(fresh.to_date, keep.to_date) || undefined,
+    work_start_time:
+      coalesceText(fresh.work_start_time, keep.work_start_time) || undefined,
+    work_end_time:
+      coalesceText(fresh.work_end_time, keep.work_end_time) || undefined,
     scheduled_date:
       coalesceText(fresh.scheduled_date, keep.scheduled_date) || undefined,
     scheduled_time_from:
@@ -640,10 +736,57 @@ export function mergeQuoteViewData(
       coalesceText(fresh.street, keep.street) ||
       undefined,
     street: coalesceText(fresh.street, keep.street),
+    total_service_charge:
+      fresh.total_service_charge != null &&
+      Number.isFinite(fresh.total_service_charge)
+        ? fresh.total_service_charge
+        : keep.total_service_charge,
     service_price:
       fresh.service_price != null && Number.isFinite(fresh.service_price)
         ? fresh.service_price
         : keep.service_price,
+    commission_percent:
+      fresh.commission_percent != null &&
+      Number.isFinite(fresh.commission_percent)
+        ? fresh.commission_percent
+        : keep.commission_percent,
+    commission_amount:
+      fresh.commission_amount != null &&
+      Number.isFinite(fresh.commission_amount)
+        ? fresh.commission_amount
+        : keep.commission_amount,
+    tax_percent:
+      fresh.tax_percent != null && Number.isFinite(fresh.tax_percent)
+        ? fresh.tax_percent
+        : keep.tax_percent,
+    tax_amount:
+      fresh.tax_amount != null && Number.isFinite(fresh.tax_amount)
+        ? fresh.tax_amount
+        : keep.tax_amount,
+    sub_total:
+      fresh.sub_total != null && Number.isFinite(fresh.sub_total)
+        ? fresh.sub_total
+        : keep.sub_total,
+    total_price:
+      fresh.total_price != null && Number.isFinite(fresh.total_price)
+        ? fresh.total_price
+        : keep.total_price,
+    minimum_deposit_percent:
+      fresh.minimum_deposit_percent != null &&
+      Number.isFinite(fresh.minimum_deposit_percent)
+        ? fresh.minimum_deposit_percent
+        : keep.minimum_deposit_percent,
+    minimum_deposit_amount:
+      fresh.minimum_deposit_amount != null &&
+      Number.isFinite(fresh.minimum_deposit_amount)
+        ? fresh.minimum_deposit_amount
+        : keep.minimum_deposit_amount,
+    final_price:
+      fresh.final_price != null && Number.isFinite(fresh.final_price)
+        ? fresh.final_price
+        : fresh.total_price != null && Number.isFinite(fresh.total_price)
+          ? fresh.total_price
+          : keep.final_price,
   };
 }
 
@@ -670,6 +813,12 @@ export function toQuoteViewData(row: QuoteRow): QuoteViewData {
     category_name: row.category_name,
     requested_date: row.requested_date,
     requested_time: row.requested_time,
+    from_date: row.from_date,
+    to_date: row.to_date,
+    work_start_time: row.work_start_time,
+    work_end_time: row.work_end_time,
+    work_hours_per_day: row.work_hours_per_day,
+    total_work_hours: row.total_work_hours,
     door_no: row.door_no,
     street: row.street,
     city: row.city,
@@ -688,7 +837,17 @@ export function toQuoteViewData(row: QuoteRow): QuoteViewData {
     franchise_id: row.franchise_id,
     franchise_name: row.franchise_name,
     address_id: row.address_id,
+    total_service_charge: row.total_service_charge,
     service_price: row.service_price,
+    commission_percent: row.commission_percent,
+    commission_amount: row.commission_amount,
+    tax_percent: row.tax_percent,
+    tax_amount: row.tax_amount,
+    sub_total: row.sub_total,
+    total_price: row.total_price,
+    minimum_deposit_percent: row.minimum_deposit_percent,
+    minimum_deposit_amount: row.minimum_deposit_amount,
+    final_price: row.total_price ?? row.service_price,
     scheduled_date: row.scheduled_date,
     scheduled_time_from: row.service_from_time,
     scheduled_time_to: row.service_to_time,
@@ -700,6 +859,8 @@ export function toQuoteViewData(row: QuoteRow): QuoteViewData {
     payment_reference: row.payment_reference,
     payment_date: row.payment_date,
     description: row.description,
+    cancellation_reason: row.cancellation_reason,
+    rejection_reason: row.rejection_reason,
   };
 }
 
@@ -1194,6 +1355,24 @@ function buildRangeLines(
   return `From: ${left}\nTo: ${right}`;
 }
 
+function buildSingleDayDateOnly(dateIso: string): string {
+  return formatDayDdMmmYyyy(dateIso) || "-";
+}
+
+function buildRangeDateOnly(fromDateIso: string, toDateIso: string): string {
+  const d1 = formatDayDdMmmYyyy(fromDateIso);
+  const d2 = formatDayDdMmmYyyy(toDateIso);
+  if (!d1) return "-";
+  if (!d2 || d1 === d2) return d1;
+  return `${d1} to ${d2}`;
+}
+
+function formatQuoteDateOnlyFromParts(parts: string[]): string {
+  if (parts.length === 0) return "-";
+  if (parts.length === 1) return buildSingleDayDateOnly(parts[0]);
+  return buildRangeDateOnly(parts[0], parts[1]);
+}
+
 /** New / pending / failed rows: requested_date + requested_time */
 export function formatQuoteRequestedSchedule(row: {
   requested_date?: string;
@@ -1230,32 +1409,52 @@ export function formatQuoteScheduledDisplay(row: {
   return buildRangeLines(parts[0], parts[1], from, to);
 }
 
+/** Quote list table — dates only (no times). */
 export function formatQuoteScheduleForTable(
   row: QuoteRow,
   tab: QuoteTabKey
 ): string {
-  if (tab === "success" || tab === "accepted") {
-    const scheduled = formatQuoteScheduledDisplay({
-      scheduled_date: row.scheduled_date,
-      service_from_time: row.service_from_time,
-      service_to_time: row.service_to_time,
-    });
-    if (scheduled !== "-") return scheduled;
+  const fromYmd = row.from_date ? ymdChunk(row.from_date) : "";
+  const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
+  if (fromYmd) {
+    if (toYmd && toYmd !== fromYmd) {
+      return buildRangeDateOnly(fromYmd, toYmd);
+    }
+    return buildSingleDayDateOnly(fromYmd);
   }
-  return formatQuoteRequestedSchedule({
-    requested_date: row.requested_date,
-    requested_time: row.requested_time,
-  });
+
+  if (tab === "success" || tab === "accepted") {
+    const parts = splitDateParts(row.scheduled_date);
+    if (parts.length > 0) return formatQuoteDateOnlyFromParts(parts);
+  }
+
+  const parts = splitDateParts(row.requested_date);
+  return formatQuoteDateOnlyFromParts(parts);
 }
 
 export function formatQuoteScheduleForView(row: {
   status: string;
   requested_date: string;
   requested_time: string;
+  from_date?: string;
+  to_date?: string;
+  work_start_time?: string;
+  work_end_time?: string;
   scheduled_date?: string;
   scheduled_time_from?: string;
   scheduled_time_to?: string;
 }): string {
+  const fromYmd = row.from_date ? ymdChunk(row.from_date) : "";
+  if (fromYmd) {
+    const toYmd = row.to_date ? ymdChunk(row.to_date) : fromYmd;
+    const ws = String(row.work_start_time ?? "").trim();
+    const we = String(row.work_end_time ?? "").trim();
+    if (toYmd && toYmd !== fromYmd) {
+      return buildRangeLines(fromYmd, toYmd, ws, we);
+    }
+    return buildSingleDayLine(fromYmd, ws, we);
+  }
+
   const key = String(row.status ?? "").toLowerCase();
   if (key === "success" || key === "accepted") {
     const scheduled = formatQuoteScheduledDisplay({
@@ -1406,10 +1605,11 @@ export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
     requested_time: "",
     requested_time_from,
     requested_time_to,
-    service_price:
-      row.service_price != null && Number.isFinite(row.service_price)
-        ? String(row.service_price)
-        : "",
+    service_price: (() => {
+      const n =
+        row.total_service_charge ?? row.service_price;
+      return n != null && Number.isFinite(n) ? String(n) : "";
+    })(),
     description: String(row.description ?? "").trim(),
     quote_status: statusKey || "new",
   };
