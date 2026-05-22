@@ -13,6 +13,8 @@ import type { ServiceAddressCard, AddressCityDropdownRow } from "../../lib/order
 import { ShowDetailsRow } from "../../helper/utility";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import {
+  applyOrderScheduleMetricsToBody,
+  applyOrderTopLevelScheduleDates,
   buildCreateOrderPayload,
   canAddAnotherCustomerPayment,
   canAddAnotherPartnerPayment,
@@ -129,6 +131,7 @@ import {
   useQuoteCustomerAddressPanel,
 } from "../../lib/quote/quoteHelpers";
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
+import { deriveOrderScheduleMetrics } from "../../lib/order/orderScheduleMetrics";
 import OrderCouponAction from "../../components/order/OrderCouponAction";
 import { buildOrderAmountSummaryFromQuoteBreakdown } from "../../lib/order/orderAmountSummary";
 import { datePickerTimeToScheduleStorage } from "../../lib/order/orderTimeUtils";
@@ -3142,7 +3145,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         createPaymentExt,
         Number(order?.total_price ?? paymentDetails.totalPrice ?? 0)
       );
-      const payload = {
+      const schedDate = String(payloadServiceItems[0]?.service_date ?? "").trim();
+      const schedTo = String(data.service_date_to ?? "").trim();
+      const tFrom = String(payloadServiceItems[0]?.service_from_time ?? "").trim();
+      const tTo = String(payloadServiceItems[0]?.service_to_time ?? "").trim();
+      const editMetrics = deriveOrderScheduleMetrics({
+        scheduleMode,
+        requested_date: schedDate,
+        requested_date_to: schedTo || schedDate,
+        requested_time: "",
+        requested_time_from: tFrom,
+        requested_time_to: tTo,
+      });
+      const payload: Record<string, unknown> = {
         user_id: selectedUser?._id,
         user_unique_id: selectedUser?.user_id,
         city_id: resolvedCityId,
@@ -3162,6 +3177,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         is_paid: editPayMeta.is_paid,
         customer_payment_method: editPayMeta.customer_payment_method,
       };
+      if (editMetrics) {
+        applyOrderScheduleMetricsToBody(payload, editMetrics);
+      } else if (schedDate) {
+        applyOrderTopLevelScheduleDates(payload, {
+          from_date: schedDate,
+          to_date: schedTo || schedDate,
+        });
+      }
       response = await createOrUpdateOrder(payload, true, order?._id);
     } else {
       const price = Number.parseFloat(
@@ -3183,6 +3206,14 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         normalizeServiceCategoryRef(serviceOpt?.category_id) ||
         "";
       const primaryLine = payloadServiceItems[0];
+      const createMetrics = deriveOrderScheduleMetrics({
+        scheduleMode,
+        requested_date: String(primaryLine?.service_date ?? "").trim(),
+        requested_date_to: String(data.service_date_to ?? "").trim(),
+        requested_time: "",
+        requested_time_from: String(primaryLine?.service_from_time ?? "").trim(),
+        requested_time_to: String(primaryLine?.service_to_time ?? "").trim(),
+      });
       const payload = buildCreateOrderPayload({
         userId: selectedUser!._id,
         userUniqueId: selectedUser?.user_id
@@ -3196,6 +3227,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           data.created_by_id || getLocalStorage(AppConstant.createdById) || "",
         address: firstAddr || selectedUser?.address || "",
         addressId: createOrderAddressId.trim() || undefined,
+        scheduleMetrics: createMetrics,
         totalServiceCharge: baseServiceCharge,
         invoiceTotal: Math.max(0, createFinalTotal),
         orderDescription: (data.comments ?? "").trim() || undefined,

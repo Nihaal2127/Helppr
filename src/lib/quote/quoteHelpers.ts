@@ -1066,9 +1066,22 @@ function normalizeQuoteApiStatusLocal(raw: unknown): string {
 }
 /** --- Schedule --- */
 
-/** e.g. `12 Apr 2026` */
+/** e.g. `12 Apr 2026` — YMD strings use local calendar date (no UTC day shift). */
 function formatDayDdMmmYyyy(iso: string): string {
-  const d = new Date(iso);
+  const raw = (iso ?? "").trim();
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymd) {
+    const y = parseInt(ymd[1], 10);
+    const mo = parseInt(ymd[2], 10) - 1;
+    const dayNum = parseInt(ymd[3], 10);
+    const d = new Date(y, mo, dayNum);
+    if (!Number.isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, "0");
+      const mon = d.toLocaleString("en-GB", { month: "short" });
+      return `${day} ${mon} ${y}`;
+    }
+  }
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return "";
   const day = String(d.getDate()).padStart(2, "0");
   const mon = d.toLocaleString("en-GB", { month: "short" });
@@ -1076,9 +1089,20 @@ function formatDayDdMmmYyyy(iso: string): string {
   return `${day} ${mon} ${yr}`;
 }
 
-/** Parses `10:30 AM` or 24h `17:00` → Date on 2000-01-01 for formatting */
+/**
+ * Parses display/storage time → Date on 2000-01-01 for formatting.
+ * Supports `10:30 AM`, `17:00`, and ISO fragments (`2000-01-01T11:23:00.000Z`).
+ */
 function parseTimeToSameDayDate(t: string): Date | null {
   const trimmed = t.trim();
+  const isoM = trimmed.match(/T(\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?Z?$/i);
+  if (isoM) {
+    const h = parseInt(isoM[1], 10);
+    const min = parseInt(isoM[2], 10);
+    if (h >= 0 && h <= 23 && min >= 0 && min <= 59) {
+      return new Date(2000, 0, 1, h, min, 0, 0);
+    }
+  }
   const m12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (m12) {
     let h = parseInt(m12[1], 10);

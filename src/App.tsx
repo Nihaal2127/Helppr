@@ -16,9 +16,9 @@ import { ROUTES } from "./routes/Routes";
 
 import { ToastContainer } from "react-toastify";
 
-import { requestPermission } from "./services/firebaseMessagingService";
-
 import { setNavigate } from "./helper/navigation";
+
+import { runWhenIdle } from "./lib/global/runWhenIdle";
 
 import Sidebar from "./layout/Sidebar";
 
@@ -184,7 +184,9 @@ function App() {
 
   const navigate = useNavigate();
 
-  setNavigate(navigate);
+  useEffect(() => {
+    setNavigate(navigate);
+  }, [navigate]);
 
   const is404Page = location.pathname === "/404";
 
@@ -214,15 +216,19 @@ function App() {
 
   useEffect(() => {
 
-    const fetchPermission = async () => {
+    if (!isAuthenticated || isAuthRoute) return;
 
-      await requestPermission();
+    return runWhenIdle(() => {
 
-    };
+      void import("./services/firebaseMessagingService").then(
 
-    fetchPermission();
+        ({ requestPermission }) => requestPermission()
 
-  }, []);
+      );
+
+    });
+
+  }, [isAuthenticated, isAuthRoute]);
 
 
 

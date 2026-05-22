@@ -289,7 +289,7 @@ function mapFranchiseRow(
 }
 
 /** Same query string → one network round-trip (e.g. `CustomHeader` + quote page both mount together). */
-const FRANCHISE_DROPDOWN_CACHE_MS = 45_000;
+const FRANCHISE_DROPDOWN_CACHE_MS = 5 * 60 * 1000;
 
 type FranchiseDropdownCacheEntry = {
   data: FranchiseDropDownOption[];
@@ -330,9 +330,17 @@ function normalizeFranchiseDropdownRecords(payload: unknown): any[] {
   return [];
 }
 
+type FranchiseByIdLightCacheEntry = {
+  name: string;
+  expiresAt: number;
+};
+const franchiseByIdLightCache = new Map<string, FranchiseByIdLightCacheEntry>();
+const FRANCHISE_BY_ID_LIGHT_CACHE_MS = 10 * 60 * 1000;
+
 /** Call after creating/updating a franchise so the next dropdown fetch is fresh. */
 export function clearFranchiseDropdownCache(): void {
   franchiseDropdownCache.clear();
+  franchiseByIdLightCache.clear();
 }
 
 async function fetchFranchiseDropDownUncached(
@@ -520,6 +528,12 @@ export const fetchFranchiseById = async (
   const targetId = String(id ?? "").trim();
   if (!targetId) return null;
   const skipAdmin = options?.skipAdminContactEnrichment === true;
+  if (skipAdmin) {
+    const cached = franchiseByIdLightCache.get(targetId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { _id: targetId, name: cached.name } as FranchiseModel;
+    }
+  }
   const response = await apiRequest(
     ApiPaths.GET_FRANCHISE_BY_ID(targetId),
     "GET",
@@ -544,7 +558,17 @@ export const fetchFranchiseById = async (
   const adminContacts = skipAdmin
     ? undefined
     : await getFranchiseAdminContactsCached();
-  return mapFranchiseRow(raw, adminContacts);
+  const mapped = mapFranchiseRow(raw, adminContacts);
+  if (skipAdmin && mapped) {
+    const name = String(mapped.name ?? "").trim();
+    if (name) {
+      franchiseByIdLightCache.set(targetId, {
+        name,
+        expiresAt: Date.now() + FRANCHISE_BY_ID_LIGHT_CACHE_MS,
+      });
+    }
+  }
+  return mapped;
 };
 
 export const fetchFranchise = async (

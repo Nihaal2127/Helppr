@@ -15,7 +15,7 @@ import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { ROUTES } from "../../routes/Routes";
 import { formatDate } from "../../helper/utility";
-import { UserDetailsDialog } from "../../components/user";
+import { showUserDetailsDialog } from "../../components/user";
 import {
   contactTypeLabel,
   disputeStatusUiLabel,
@@ -98,14 +98,14 @@ const DisputeChatListPage = () => {
               cursor: "pointer",
             }}
             onClick={() =>
-              UserDetailsDialog.show(row.original.created_by_id, () =>
+              showUserDetailsDialog(row.original.created_by_id, () =>
                 fetchData({})
               )
             }
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                UserDetailsDialog.show(row.original.created_by_id, () =>
+                showUserDetailsDialog(row.original.created_by_id, () =>
                   fetchData({})
                 );
               }

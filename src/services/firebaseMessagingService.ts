@@ -22,6 +22,8 @@ type MessagingInstance = ReturnType<typeof getMessaging>;
 
 let messagingInstance: MessagingInstance | null = null;
 let messagingInitPromise: Promise<MessagingInstance | null> | null = null;
+let foregroundMessageListenerAttached = false;
+let permissionRequestInFlight: Promise<string | void> | null = null;
 
 /**
  * Firebase Messaging must not be initialized at module load: unsupported browsers
@@ -54,66 +56,96 @@ async function getMessagingWhenSupported(): Promise<MessagingInstance | null> {
   return messagingInitPromise;
 }
 
-export const requestPermission = async () => {
-  try {
-    const messaging = await getMessagingWhenSupported();
-    if (!messaging) {
-      return;
-    }
-
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-      showLog("Notifications or Service Worker API not available.");
-      return;
-    }
-
-    const permission = await Notification.requestPermission();
-
-    if (permission === "granted") {
-      const swReg = await navigator.serviceWorker.register(
-        "/firebase-messaging-sw.js"
-      );
-
-      const token = await getToken(messaging, {
-        vapidKey:
-          "BLxRotJ_pgm3JdzjDifCxSCabbm9S70cUuUasqpfSO0Ib6wBoaAJQ7gBdrdQkwwmK3V1IEMbUidJUvRXZWqNMbk",
-        serviceWorkerRegistration: swReg,
+function attachForegroundMessageListener(messaging: MessagingInstance): void {
+  if (foregroundMessageListenerAttached) return;
+  foregroundMessageListenerAttached = true;
+  onMessage(messaging, (payload) => {
+    const { title, body } = payload?.notification || {};
+    if (Notification.permission === "granted") {
+      new Notification(title || "Notification", {
+        body: body || "",
+        icon: "/notification/icon-192x192.png",
       });
-
-      showLog("FCM Token:", token);
-      void onMessageListener(messaging);
-      return token;
+      const notificationAudio = new Audio("/notification/notify.wav");
+      notificationAudio.load();
+      notificationAudio
+        .play()
+        .then(() => {
+          notificationAudio?.pause();
+          notificationAudio.currentTime = 0;
+          showLog("✅ Notification sound unlocked");
+        })
+        .catch((err) => {
+          showLog("⚠️ Failed to unlock audio:", err);
+        });
     } else {
-      showLog("Notification permission not granted.");
+      showLog("Foreground Notification permission not granted");
     }
-  } catch (err) {
-    showLog("Error getting FCM token:", err);
+  });
+}
+
+async function registerMessagingToken(
+  messaging: MessagingInstance
+): Promise<string | void> {
+  const swReg = await navigator.serviceWorker.register(
+    "/firebase-messaging-sw.js"
+  );
+  const token = await getToken(messaging, {
+    vapidKey:
+      "BLxRotJ_pgm3JdzjDifCxSCabbm9S70cUuUasqpfSO0Ib6wBoaAJQ7gBdrdQkwwmK3V1IEMbUidJUvRXZWqNMbk",
+    serviceWorkerRegistration: swReg,
+  });
+  showLog("FCM Token:", token);
+  attachForegroundMessageListener(messaging);
+  return token;
+}
+
+export const requestPermission = async () => {
+  if (permissionRequestInFlight) {
+    return permissionRequestInFlight;
+  }
+
+  permissionRequestInFlight = (async () => {
+    try {
+      const messaging = await getMessagingWhenSupported();
+      if (!messaging) {
+        return;
+      }
+
+      if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+        showLog("Notifications or Service Worker API not available.");
+        return;
+      }
+
+      const existing = Notification.permission;
+      if (existing === "denied") {
+        showLog("Notification permission denied.");
+        return;
+      }
+
+      const permission =
+        existing === "granted"
+          ? "granted"
+          : await Notification.requestPermission();
+
+      if (permission === "granted") {
+        return registerMessagingToken(messaging);
+      }
+      showLog("Notification permission not granted.");
+    } catch (err) {
+      showLog("Error getting FCM token:", err);
+    }
+  })();
+
+  try {
+    return await permissionRequestInFlight;
+  } finally {
+    permissionRequestInFlight = null;
   }
 };
 
-export const onMessageListener = (messaging: MessagingInstance) =>
-  new Promise((resolve) => {
-    onMessage(messaging, (payload) => {
-      resolve(payload);
-      const { title, body } = payload?.notification || {};
-      if (Notification.permission === "granted") {
-        new Notification(title || "Notification", {
-          body: body || "",
-          icon: "/notification/icon-192x192.png",
-        });
-        const notificationAudio = new Audio("/notification/notify.wav");
-        notificationAudio.load();
-        notificationAudio
-          .play()
-          .then(() => {
-            notificationAudio?.pause();
-            notificationAudio.currentTime = 0;
-            showLog("✅ Notification sound unlocked");
-          })
-          .catch((err) => {
-            showLog("⚠️ Failed to unlock audio:", err);
-          });
-      } else {
-        showLog("Foreground Notification permission not granted");
-      }
-    });
-  });
+/** @deprecated Use internal listener via `requestPermission`; kept for API compatibility. */
+export const onMessageListener = (messaging: MessagingInstance) => {
+  attachForegroundMessageListener(messaging);
+  return Promise.resolve(null);
+};

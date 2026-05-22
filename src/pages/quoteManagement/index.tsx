@@ -662,7 +662,10 @@ const QuoteManagement = () => {
   }, [headerFranchiseScope]);
 
   const refreshCountsThenFetchQuotes = useCallback(() => {
-    return refreshQuoteSummaryFromGetCount().then(() => fetchData());
+    return Promise.all([
+      refreshQuoteSummaryFromGetCount(),
+      fetchData(),
+    ]).then(() => undefined);
   }, [fetchData, refreshQuoteSummaryFromGetCount]);
 
   const handleServerSortChange = useCallback(
@@ -902,15 +905,13 @@ const QuoteManagement = () => {
     setAddQuoteValue,
   ]);
 
-  /** Tab badge totals: only when header franchise filter changes (same payload covers all tabs). */
+  /** Tab badges + table list load in parallel (same deps — avoids serial API waterfall). */
   useEffect(() => {
-    void refreshQuoteSummaryFromGetCount();
-  }, [refreshQuoteSummaryFromGetCount]);
-
-  /** Quote table: tab, page, sort, filters, franchise scope — without re-posting `getCount` each time. */
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    void Promise.all([
+      refreshQuoteSummaryFromGetCount(),
+      fetchData(),
+    ]);
+  }, [refreshQuoteSummaryFromGetCount, fetchData]);
 
   useEffect(
     () => () => {
@@ -1287,8 +1288,9 @@ const QuoteManagement = () => {
       <CustomUtilityBox
         key={utilitySearchKey}
         title="Quotes"
-        searchHint={"Search service"}
+        searchHint={"Search service name, partner name, user name"}
         toolsInlineRow
+        toolsInlineClassName="custom-utilty-tools-inline--quotes-wide-search"
         hideMoreIcon
         controlSlot={
           <>
@@ -1481,7 +1483,7 @@ const QuoteManagement = () => {
                       setValue={
                         setAddQuoteValue as (name: string, value: any) => void
                       }
-                      placeholder="Search user"
+                      placeholder="Search user name or mobile"
                       menuPortal
                       isClearable
                       onChange={(e) => {
@@ -1746,7 +1748,7 @@ const QuoteManagement = () => {
                               });
                             }
                           }}
-                          placeholder="Select partner"
+                          placeholder="Search partner name"
                           menuPortal
                           isClearable
                           isDisabled={addQuoteFieldsLocked}
@@ -1865,7 +1867,7 @@ const QuoteManagement = () => {
                               ? "Select partner first"
                               : !addQuote.category_id
                               ? "Select category first"
-                              : "Select service"
+                              : "Search service name"
                           }
                           menuPortal
                           isClearable
@@ -1930,7 +1932,7 @@ const QuoteManagement = () => {
                               });
                             }
                           }}
-                          placeholder="Select partner"
+                          placeholder="Search partner name"
                           menuPortal
                           isClearable
                           isDisabled={addQuoteFieldsLocked}
@@ -2049,7 +2051,7 @@ const QuoteManagement = () => {
                               ? "Select partner first"
                               : !addQuote.category_id
                               ? "Select category first"
-                              : "Select service"
+                              : "Search service name"
                           }
                           menuPortal
                           isClearable

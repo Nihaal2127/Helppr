@@ -21,7 +21,7 @@ import {
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
-import { UserDetailsDialog } from "../../components/user";
+import { showUserDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog } from "../../components/partner";
 import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
@@ -244,7 +244,7 @@ const UserManagement = () => {
 
   const userShow = useCallback(
     (userId: string) => {
-      UserDetailsDialog.show(userId, () => {
+      showUserDetailsDialog(userId, () => {
         void refreshData("box-user");
       });
     },

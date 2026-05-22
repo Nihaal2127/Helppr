@@ -4,6 +4,37 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { showLog } from "../helper/utility";
 import { franchiseIdForUserGetAll } from "../lib/franchise/headerFranchisePreference";
 
+const COUNT_RECORD_HINT_KEYS = [
+  "total_user",
+  "total_partner",
+  "total_franchise",
+  "order_in_progress",
+  "quote_new",
+  "total_service",
+  "total_category",
+  "total_state",
+  "received_amount",
+  "pending_order",
+  "in_progress_order",
+];
+
+function extractCountRecord(
+  inner: Record<string, unknown> | undefined,
+  d: Record<string, unknown> | undefined
+): CountModel | null {
+  const explicit =
+    (inner?.record as CountModel | null | undefined) ??
+    (d?.record as CountModel | null | undefined);
+  if (explicit && typeof explicit === "object") return explicit;
+  const candidate = inner ?? d;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+  const hasHint = COUNT_RECORD_HINT_KEYS.some((k) => k in candidate);
+  if (hasHint) return candidate as CountModel;
+  return null;
+}
+
 /** Optional fields merged into `POST /getCount` after `type` (when super admin / staff scope dashboards by franchise). */
 export type GetCountExtra = {
   franchise_id?: string;
@@ -63,10 +94,7 @@ export const getCount = async (
         !Array.isArray(d.data)
           ? (d.data as Record<string, unknown>)
           : d;
-      const record =
-        (inner?.record as CountModel | null | undefined) ??
-        (d?.record as CountModel | null | undefined) ??
-        null;
+      const record = extractCountRecord(inner, d);
       return {
         countModel: record,
         responseCount: true,

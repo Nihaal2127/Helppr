@@ -24,14 +24,6 @@ module.exports = function override(config, env) {
       cacheDirectory: path.resolve(__dirname, "node_modules/.cache/webpack"),
     };
 
-    // Fewer chunks to build on first dev compile.
-    config.optimization = {
-      ...config.optimization,
-      removeAvailableModules: false,
-      removeEmptyChunks: false,
-      splitChunks: false,
-    };
-
     // Type-check in the editor; full check still runs on `npm run build`.
     config.plugins = config.plugins.filter(
       (plugin) =>

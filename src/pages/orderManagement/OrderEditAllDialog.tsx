@@ -6,7 +6,7 @@ import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicke
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { openDialog } from "../../lib/global/DialogManager";
-import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { showErrorAlert } from "../../lib/global/alertHelper";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
@@ -973,7 +973,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       return;
     }
 
-    showSuccessAlert("Order updated.");
     onSaved?.();
     onClose();
   };

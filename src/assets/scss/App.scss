@@ -2192,6 +2192,12 @@ body:has(.modal.show ~ .modal.show) {
   min-width: 18rem;
 }
 
+/* Quotes list: longer placeholder (service, partner, user name) */
+.custom-utilty-tools-inline.custom-utilty-tools-inline--quotes-wide-search .custom-search-container {
+  width: 28rem;
+  min-width: 20rem;
+}
+
 /* Full-width filter bar — avoids tools-inline flex-end + .custom-utilty-box div flex breaking Row/Col */
 .financial-toolbar-filters {
   width: 100%;

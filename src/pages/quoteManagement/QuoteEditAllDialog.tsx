@@ -899,7 +899,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     requiredMessage="Please select a user"
                     defaultValue={form.user_id}
                     setValue={setValue as (name: string, value: unknown) => void}
-                    placeholder="Search user"
+                    placeholder="Search user name or mobile"
                     menuPortal
                     isClearable={false}
                     isDisabled
@@ -1005,7 +1005,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             value
                           );
                         }}
-                        placeholder="Select partner"
+                        placeholder="Search partner name"
                         menuPortal
                         isClearable
                         isDisabled={lockedFields}
@@ -1084,7 +1084,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             ? "Select partner first"
                             : !form.category_id
                             ? "Select category first"
-                            : "Select service"
+                            : "Search service name"
                         }
                         menuPortal
                         isClearable
@@ -1128,7 +1128,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           value
                         );
                       }}
-                      placeholder="Select partner"
+                      placeholder="Search partner name"
                       menuPortal
                       isClearable
                       isDisabled={lockedFields}
@@ -1205,7 +1205,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           ? "Select partner first"
                           : !form.category_id
                           ? "Select category first"
-                          : "Select service"
+                          : "Search service name"
                       }
                       menuPortal
                       isClearable

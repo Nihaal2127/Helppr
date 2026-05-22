@@ -26,13 +26,35 @@ function str(v: unknown): string {
   return s === "undefined" || s === "null" || s === "[object Object]" ? "" : s;
 }
 
+/** API top-level dates: `YYYY-MM-DD` (accepts ISO datetime strings). */
+export function normalizeOrderApiDateYmd(value: unknown): string {
+  const t = str(value);
+  if (!t) return "";
+  if (t.length >= 10 && t[4] === "-") return t.slice(0, 10);
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** Wall-clock HH:mm from schedule storage / API ISO (`2000-01-01T11:23:00.000Z`). */
 function timeStorageToHHmm(storage: string | null | undefined): string {
   const t = str(storage);
   if (!t) return "09:00";
+  const isoM = t.match(/T(\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?Z?$/i);
+  if (isoM) {
+    return `${pad2(parseInt(isoM[1], 10))}:${pad2(parseInt(isoM[2], 10))}`;
+  }
+  const m24 = t.match(/^(\d{1,2}):(\d{2})/);
+  if (m24) {
+    return `${pad2(parseInt(m24[1], 10))}:${pad2(parseInt(m24[2], 10))}`;
+  }
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return "09:00";
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -46,12 +68,13 @@ export function deriveOrderScheduleMetrics(input: {
   requested_time_from: string;
   requested_time_to: string;
 }): OrderScheduleMetrics | null {
-  const from_date = str(input.requested_date);
+  const from_date = normalizeOrderApiDateYmd(input.requested_date);
   if (!from_date) return null;
 
-  let to_date = str(input.requested_date_to) || from_date;
+  let to_date =
+    normalizeOrderApiDateYmd(input.requested_date_to) || from_date;
   if (input.scheduleMode === "range") {
-    to_date = str(input.requested_date_to) || from_date;
+    to_date = normalizeOrderApiDateYmd(input.requested_date_to) || from_date;
   } else {
     to_date = from_date;
   }

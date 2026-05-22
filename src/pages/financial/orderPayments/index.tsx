@@ -29,7 +29,7 @@ import {
 import { getCount } from "../../../services/getCountService";
 import { FinancialModel } from "../../../lib/models/FinancialModel";
 import { showOrderInfoDialog } from "../../../components/order";
-import { UserDetailsDialog } from "../../../components/user";
+import { showUserDetailsDialog } from "../../../components/user";
 import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import {
@@ -625,7 +625,7 @@ const OrderPayments = () => {
               }}
               onClick={() => {
                 const id = row.original.user_id;
-                if (id) UserDetailsDialog.show(id, () => {});
+                if (id) showUserDetailsDialog(id, () => {});
               }}
             >
               {label}

@@ -19,8 +19,7 @@ import {
 } from "../../services/orderService";
 import type { OrderTabKey } from "../../services/orderService";
 import { showOrderInfoDialog } from "../../components/order";
-import CreateUpdateOrderDialog from "./CreateUpdateOrderDialog";
-import { UserDetailsDialog } from "../../components/user";
+import { showUserDetailsDialog } from "../../components/user";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import OrderRowActions from "./OrderRowActions";
 import { useForm, UseFormRegister } from "react-hook-form";
@@ -120,10 +119,28 @@ const OrderManagement = () => {
       countModel != null
         ? (countModel as unknown as Record<string, unknown>)
         : null;
-    const mapped =
+    let mapped =
       responseCount && rec ? mapOrderTabCountsFromRecord(rec) : null;
+    if (!mapped && responseCount && countModel) {
+      const m = countModel;
+      const direct: Partial<Record<OrderTabKey, number>> = {};
+      if (m.order_in_progress != null) direct[2] = Number(m.order_in_progress);
+      if (m.order_completed != null) direct[3] = Number(m.order_completed);
+      if (m.order_cancelled != null) direct[4] = Number(m.order_cancelled);
+      if (m.order_refunded != null) direct[5] = Number(m.order_refunded);
+      if (Object.keys(direct).length > 0) {
+        for (const k of ORDER_TAB_KEYS) {
+          if (direct[k] === undefined) direct[k] = 0;
+        }
+        mapped = direct;
+      }
+    }
     if (mapped) {
       setOrderCountsByTab(mapped);
+      return;
+    }
+    if (!responseCount) {
+      setOrderCountsByTab({});
       return;
     }
     const results = await Promise.all(
@@ -143,17 +160,12 @@ const OrderManagement = () => {
   }, [headerFranchiseId, fromDate, toDate, listFilters]);
 
   const bumpListsAndTabCounts = useCallback(async () => {
-    await reloadTabCounts();
-    await refreshData();
+    await Promise.all([reloadTabCounts(), refreshData()]);
   }, [reloadTabCounts, refreshData]);
 
   useEffect(() => {
-    void refreshData();
-  }, [refreshData, currentPage, selectedStatus]);
-
-  useEffect(() => {
-    void reloadTabCounts();
-  }, [reloadTabCounts]);
+    void Promise.all([reloadTabCounts(), refreshData()]);
+  }, [reloadTabCounts, refreshData, currentPage, selectedStatus]);
 
   const handleFilterChange = async (filters: {
     keyword?: string;
@@ -189,7 +201,7 @@ const OrderManagement = () => {
 
   const userShow = useCallback(
     (userId: string) => {
-      UserDetailsDialog.show(userId, () => {
+      showUserDetailsDialog(userId, () => {
         void bumpListsAndTabCounts();
       });
     },
@@ -312,11 +324,13 @@ const OrderManagement = () => {
             <button
               type="button"
               className="custom-btn-secondary custom-header-action-btn"
-              onClick={() =>
-                CreateUpdateOrderDialog.show(false, null, () =>
-                  bumpListsAndTabCounts()
-                )
-              }
+              onClick={() => {
+                void import("./CreateUpdateOrderDialog").then((mod) =>
+                  mod.default.show(false, null, () => {
+                    void bumpListsAndTabCounts();
+                  })
+                );
+              }}
             >
               Create Order
             </button>

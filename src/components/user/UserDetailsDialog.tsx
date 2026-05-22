@@ -607,15 +607,9 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
   );
 };
 
-UserDetailsDialog.show = (userId: string, onRefreshData: () => void) => {
-  openDialog("user-details-modal", (close) => (
-    <UserDetailsDialog
-      userId={userId}
-      onClose={close}
-      onRefreshData={onRefreshData}
-    />
-  ));
-};
+import { showUserDetailsDialog } from "./showUserDetailsDialog";
+
+UserDetailsDialog.show = showUserDetailsDialog;
 
 export default UserDetailsDialog;
 

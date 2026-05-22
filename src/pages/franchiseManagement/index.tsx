@@ -267,73 +267,87 @@ const FranchiseManagement = () => {
     () => new Map()
   );
 
-  /** One-time catalog hydrate (default lists only) — avoids duplicate getAll chains for is_request / is_rejected. */
+  /** One-time catalog hydrate — deferred + parallel so first paint is not blocked by many getAll pages. */
   useEffect(() => {
     if (catalogBootstrapStartedRef.current) return;
     catalogBootstrapStartedRef.current = true;
     let cancelled = false;
-    void (async () => {
-      const catMap = new Map<string, string>();
-      const svcMap = new Map<string, string>();
-      const limit = 200;
-      const loadCategories = async () => {
-        let page = 1;
-        for (;;) {
-          const res = await fetchCategory(page, limit, {}, []);
-          if (cancelled) return;
-          if (!res.response) break;
-          for (const c of res.categories) {
-            const id = String(
-              (c as { _id?: string; id?: string })._id ??
-                (c as { _id?: string; id?: string }).id ??
-                ""
-            ).trim();
-            const name = String(
-              (c as { name?: string; label?: string }).name ??
-                (c as { name?: string; label?: string }).label ??
-                ""
-            ).trim();
-            if (id) catMap.set(id, name || id);
+    const runBootstrap = () => {
+      void (async () => {
+        const catMap = new Map<string, string>();
+        const svcMap = new Map<string, string>();
+        const limit = 200;
+        const loadCategories = async () => {
+          let page = 1;
+          for (;;) {
+            const res = await fetchCategory(page, limit, {}, []);
+            if (cancelled) return;
+            if (!res.response) break;
+            for (const c of res.categories) {
+              const id = String(
+                (c as { _id?: string; id?: string })._id ??
+                  (c as { _id?: string; id?: string }).id ??
+                  ""
+              ).trim();
+              const name = String(
+                (c as { name?: string; label?: string }).name ??
+                  (c as { name?: string; label?: string }).label ??
+                  ""
+              ).trim();
+              if (id) catMap.set(id, name || id);
+            }
+            if (!res.totalPages || page >= res.totalPages) break;
+            page += 1;
+            if (page > 50) break;
           }
-          if (!res.totalPages || page >= res.totalPages) break;
-          page += 1;
-          if (page > 50) break;
-        }
-      };
-      const loadServices = async () => {
-        let page = 1;
-        for (;;) {
-          const res = await fetchService(page, limit, {}, []);
-          if (cancelled) return;
-          if (!res.response) break;
-          for (const s of res.services) {
-            const id = String(
-              (s as { _id?: string; id?: string })._id ??
-                (s as { _id?: string; id?: string }).id ??
-                ""
-            ).trim();
-            const name = String(
-              (s as { name?: string; label?: string }).name ??
-                (s as { name?: string; label?: string }).label ??
-                ""
-            ).trim();
-            if (id) svcMap.set(id, name || id);
+        };
+        const loadServices = async () => {
+          let page = 1;
+          for (;;) {
+            const res = await fetchService(page, limit, {}, []);
+            if (cancelled) return;
+            if (!res.response) break;
+            for (const s of res.services) {
+              const id = String(
+                (s as { _id?: string; id?: string })._id ??
+                  (s as { _id?: string; id?: string }).id ??
+                  ""
+              ).trim();
+              const name = String(
+                (s as { name?: string; label?: string }).name ??
+                  (s as { name?: string; label?: string }).label ??
+                  ""
+              ).trim();
+              if (id) svcMap.set(id, name || id);
+            }
+            if (!res.totalPages || page >= res.totalPages) break;
+            page += 1;
+            if (page > 50) break;
           }
-          if (!res.totalPages || page >= res.totalPages) break;
-          page += 1;
-          if (page > 50) break;
+        };
+        await Promise.all([loadCategories(), loadServices()]);
+        if (!cancelled && isMountedRef.current) {
+          setCategoryById(catMap);
+          setServiceById(svcMap);
         }
-      };
-      await loadCategories();
-      if (cancelled) return;
-      await loadServices();
-      if (!cancelled && isMountedRef.current) {
-        setCategoryById(catMap);
-        setServiceById(svcMap);
-      }
-    })();
+      })();
+    };
+    const cancelIdle =
+      typeof window !== "undefined" &&
+      typeof window.requestIdleCallback === "function"
+        ? (() => {
+            const id = window.requestIdleCallback(runBootstrap, {
+              timeout: 6000,
+            });
+            return () => window.cancelIdleCallback(id);
+          })()
+        : (() => {
+            const t = window.setTimeout(runBootstrap, 1500);
+            return () => window.clearTimeout(t);
+          })();
     return () => {
       cancelled = true;
+      cancelIdle();
     };
   }, []);
 

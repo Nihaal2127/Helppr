@@ -11,7 +11,7 @@ import { fetchTicket, deleteTicket } from "../../services/ticketService";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import TicketDetailsDialog from "./TicketDetailsDialog";
-import { UserDetailsDialog } from "../../components/user";
+import { showUserDetailsDialog } from "../../components/user";
 import { exportData } from "../../services/exportService";
 import { ApiPaths } from "../../lib/global/remote/apiPaths";
 import { ROUTES } from "../../routes/Routes";
@@ -154,7 +154,7 @@ const TicketManagement = () => {
         Header: "User ID",
         accessor: "user_unique_id",
         Cell: textUnderlineCell("user_unique_id", (row) => {
-          UserDetailsDialog.show(row.created_by_id, () => refreshData());
+          showUserDetailsDialog(row.created_by_id, () => refreshData());
         }),
       },
       { Header: "Created Name", accessor: "created_by_name" },

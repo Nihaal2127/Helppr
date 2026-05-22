@@ -30,7 +30,11 @@ import {
   parseCompositeServiceAddressLine,
 } from "../quote/quoteAddressCore";
 import type { QuoteAddressRowUi } from "../quote/quoteAddressCore";
-import { deriveOrderScheduleMetrics } from "./orderScheduleMetrics";
+import {
+  deriveOrderScheduleMetrics,
+  normalizeOrderApiDateYmd,
+  type OrderScheduleMetrics,
+} from "./orderScheduleMetrics";
 import { workTimeToTimeStorage } from "./orderTimeUtils";
 import {
   normalizePaymentMethod,
@@ -148,6 +152,14 @@ export interface OrderModel {
   service_items: OrderItemModel[];
   order_status: number;
   order_date: string;
+  /** Job schedule start (`YYYY-MM-DD`) — top-level on create/update. */
+  from_date?: string | null;
+  /** Job schedule end (`YYYY-MM-DD`) — top-level on create/update. */
+  to_date?: string | null;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
+  work_hours_per_day?: number | null;
+  total_work_hours?: number | null;
   total_price: number;
   comment: string | null;
   is_paid: boolean;
@@ -365,6 +377,38 @@ function mapPartnerPaymentsToApi(
     });
 }
 
+/** Top-level `order_date` / `from_date` / `to_date` (Help-PR order create & update). */
+export function applyOrderTopLevelScheduleDates(
+  body: Record<string, unknown>,
+  dates: { from_date: string; to_date: string; order_date?: string }
+): void {
+  const from = normalizeOrderApiDateYmd(dates.from_date);
+  const to = normalizeOrderApiDateYmd(dates.to_date) || from;
+  const order = normalizeOrderApiDateYmd(dates.order_date ?? from) || from;
+  if (from) {
+    body.from_date = from;
+    body.order_date = order || from;
+  }
+  if (to) body.to_date = to;
+}
+
+/** Header schedule fields from derived metrics (`order_date` = `from_date`). */
+export function applyOrderScheduleMetricsToBody(
+  body: Record<string, unknown>,
+  metrics?: OrderScheduleMetrics | null
+): void {
+  if (!metrics) return;
+  applyOrderTopLevelScheduleDates(body, {
+    from_date: metrics.from_date,
+    to_date: metrics.to_date,
+    order_date: metrics.from_date,
+  });
+  body.work_start_time = metrics.work_start_time;
+  body.work_end_time = metrics.work_end_time;
+  body.work_hours_per_day = metrics.work_hours_per_day;
+  body.total_work_hours = metrics.total_work_hours;
+}
+
 /** POST /api/order/create — Help-PR Orders Postman. */
 export function buildCreateOrderPayload(input: {
   userId: string;
@@ -377,6 +421,8 @@ export function buildCreateOrderPayload(input: {
   address: string;
   addressId?: string;
   orderDateYmd?: string;
+  /** When set, top-level schedule + work times come from metrics (`order_date` = `from_date`). */
+  scheduleMetrics?: OrderScheduleMetrics | null;
   /** Base service amount (e.g. hours × rate). Excludes tax, commission, coupons. */
   totalServiceCharge: number;
   /** Invoice grand total for customer payment status; defaults to `totalServiceCharge`. */
@@ -390,9 +436,14 @@ export function buildCreateOrderPayload(input: {
   paymentExt?: OrderPaymentExtV1;
 }): Record<string, unknown> {
   const orderDate =
-    input.orderDateYmd?.trim() ||
+    input.scheduleMetrics?.from_date ||
+    normalizeOrderApiDateYmd(input.orderDateYmd) ||
     ymdFromIso(new Date().toISOString()) ||
     ymdFromIso(String(input.serviceItem.service_date ?? ""));
+  const scheduleTo =
+    input.scheduleMetrics?.to_date ||
+    normalizeOrderApiDateYmd(input.orderDateYmd) ||
+    orderDate;
   const rawDate = String(input.serviceItem.service_date ?? orderDate).trim();
   const serviceDate = /^\d{4}-\d{2}-\d{2}T/.test(rawDate)
     ? rawDate
@@ -430,7 +481,6 @@ export function buildCreateOrderPayload(input: {
     created_by_id: input.createdById,
     payment_mode_id: "",
     transaction_id: "",
-    order_date: orderDate,
     address: input.address,
     total_service_charge: charge,
     service_id: input.serviceId,
@@ -442,6 +492,16 @@ export function buildCreateOrderPayload(input: {
 
   if (input.addressId?.trim()) body.address_id = input.addressId.trim();
   if (input.offerId?.trim()) body.offer_id = input.offerId.trim();
+
+  if (input.scheduleMetrics) {
+    applyOrderScheduleMetricsToBody(body, input.scheduleMetrics);
+  } else {
+    applyOrderTopLevelScheduleDates(body, {
+      from_date: orderDate,
+      to_date: scheduleTo,
+      order_date: orderDate,
+    });
+  }
 
   const ext = input.paymentExt ? normalizePaymentExtForSubmit(input.paymentExt) : undefined;
   const payMeta = deriveOrderCustomerPaymentFields(ext, invoiceTotal);
@@ -783,6 +843,16 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       : [],
     comment: desc,
     order_description: str(r.order_description) || null,
+    order_date:
+      normalizeOrderApiDateYmd(r.order_date) ||
+      normalizeOrderApiDateYmd(r.from_date) ||
+      str(r.order_date),
+    from_date: normalizeOrderApiDateYmd(r.from_date) || null,
+    to_date: normalizeOrderApiDateYmd(r.to_date) || null,
+    work_start_time: str(r.work_start_time) || null,
+    work_end_time: str(r.work_end_time) || null,
+    work_hours_per_day: Number(r.work_hours_per_day) || 0,
+    total_work_hours: Number(r.total_work_hours) || 0,
     payment_status: str(r.payment_status) || null,
     customer_paid_amount: apiMoney(r.customer_paid_amount),
     customer_refunded_amount: apiMoney(r.customer_refunded_amount),
@@ -870,24 +940,29 @@ export function mapOrderTabCountsFromRecord(
     2,
     "order_in_progress",
     "in_progress",
+    "in_progress_order",
     "orders_in_progress",
     "order_status_2",
     "status_2",
-    "total_order_in_progress"
+    "total_order_in_progress",
+    "total_in_progress_orders"
   );
   assign(
     3,
     "order_completed",
     "completed",
+    "completed_order",
     "orders_completed",
     "order_status_3",
     "status_3",
-    "total_order_completed"
+    "total_order_completed",
+    "total_completed_orders"
   );
   assign(
     4,
     "order_cancelled",
     "cancelled",
+    "cancelled_order",
     "orders_cancelled",
     "order_status_4",
     "status_4",
@@ -902,6 +977,11 @@ export function mapOrderTabCountsFromRecord(
     "status_5",
     "total_order_refunded"
   );
+  // Numeric status keys returned by some API shapes
+  assign(2, "2");
+  assign(3, "3");
+  assign(4, "4");
+  assign(5, "5");
   if (Object.keys(out).length === 0) return null;
   for (const k of ORDER_TAB_KEYS) {
     if (out[k] === undefined) out[k] = 0;
@@ -1304,15 +1384,31 @@ export const ORDER_PARTNER_PAYMENT_STATUS_OPTIONS: { value: string; label: strin
     { value: "Completed", label: "Completed" },
   ];
 
-export function formatServiceScheduleLine(item?: OrderItemModel): string {
-  if (!item) return "-";
+export function formatServiceScheduleLine(
+  item?: OrderItemModel,
+  order?: OrderModel
+): string {
+  const primary = item ?? getPrimaryServiceItem(order);
+  if (!primary) return "-";
+  const fromYmd =
+    normalizeOrderApiDateYmd(order?.from_date) ||
+    ymdChunk(String(primary.service_date ?? "")) ||
+    normalizeOrderApiDateYmd(order?.order_date);
+  const toYmd =
+    normalizeOrderApiDateYmd(order?.to_date) || fromYmd;
+  let scheduled_date = fromYmd;
+  if (toYmd && toYmd !== fromYmd) {
+    scheduled_date = `${fromYmd} to ${toYmd}`;
+  }
+  const fromRaw = String(primary.service_from_time ?? "").trim();
+  const toRaw = String(primary.service_to_time ?? "").trim();
   const scheduled = formatQuoteScheduledDisplay({
-    scheduled_date: item.service_date,
-    service_from_time: item.service_from_time,
-    service_to_time: item.service_to_time,
+    scheduled_date: scheduled_date || fromYmd,
+    service_from_time: fromRaw,
+    service_to_time: toRaw,
   });
   if (scheduled !== "-") return scheduled;
-  const d = item.service_date ? formatDate(item.service_date) : "";
+  const d = fromYmd ? formatDate(fromYmd) : "";
   return d || "-";
 }
 
@@ -2609,10 +2705,14 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
     requested_partner: partnerId,
     employee_id: String(order.created_by_id ?? "").trim(),
     category_id: categoryId,
-    requested_date: primary?.service_date ? ymdChunk(primary.service_date) : "",
-    requested_date_to: (order as OrderModel & { to_date?: string | null }).to_date
-      ? ymdChunk(String((order as OrderModel & { to_date?: string | null }).to_date))
-      : "",
+    requested_date:
+      normalizeOrderApiDateYmd(order.from_date) ||
+      (primary?.service_date ? ymdChunk(primary.service_date) : "") ||
+      normalizeOrderApiDateYmd(order.order_date),
+    requested_date_to:
+      normalizeOrderApiDateYmd(order.to_date) ||
+      normalizeOrderApiDateYmd(order.from_date) ||
+      "",
     requested_time: "",
     requested_time_from: workTimeToTimeStorage(primary?.service_from_time ?? ""),
     requested_time_to: workTimeToTimeStorage(primary?.service_to_time ?? ""),
@@ -2701,14 +2801,11 @@ export function buildOrderEditAllUpdatePayload(input: {
     service_id: serviceId,
     address: addressLine || order.address,
     order_description: String(form.description ?? "").trim() || undefined,
-    from_date: metrics.from_date,
-    to_date: metrics.to_date,
-    work_start_time: metrics.work_start_time,
-    work_end_time: metrics.work_end_time,
     order_status: statusSlug,
     total_service_charge: servicePrice,
     service_items: { update: [lineUpdate] },
   };
+  applyOrderScheduleMetricsToBody(payload, metrics);
 
   if (userId) payload.user_id = userId;
   if (customerPaySlug) payload.customer_payment_status = customerPaySlug;

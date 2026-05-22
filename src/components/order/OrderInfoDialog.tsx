@@ -15,8 +15,8 @@ import {
 } from "../../helper/utility";
 import { fetchOrderById } from "../../lib/order/orders";
 import { AppConstant } from "../../lib/global/AppConstant";
-import { openDialog } from "../../lib/global/DialogManager";
 import QuoteInfoPersonSection from "../quote/QuoteInfoPersonSection";
+import { showOrderInfoDialog as openOrderInfoDialog } from "./showOrderInfoDialog";
 import {
   formatServiceScheduleLine,
   getCustomerPaymentStatusLabel,
@@ -256,7 +256,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
               <Col xs={12} md={6} className="info-detail-fields-col">
                 <DetailsRow
                   title="Schedule Date/time"
-                  value={formatServiceScheduleLine(primary)}
+                  value={formatServiceScheduleLine(primary, orderDetails)}
                 />
                 <DetailsRow
                   title="Partner Payment Status"
@@ -561,20 +561,6 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   );
 };
 
-/** Prefer this over `OrderInfoDialog.show` — stable under HMR and avoids undefined `.show` on default import. */
-export function showOrderInfoDialog(
-  orderId: string,
-  onRefreshData: () => void
-) {
-  openDialog("order-details-modal", (close) => (
-    <OrderInfoDialog
-      orderId={orderId}
-      onClose={close}
-      onRefreshData={onRefreshData}
-    />
-  ));
-}
-
-OrderInfoDialog.show = showOrderInfoDialog;
+OrderInfoDialog.show = openOrderInfoDialog;
 
 export default OrderInfoDialog;
