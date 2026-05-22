@@ -18,8 +18,9 @@ const COUNT_RECORD_HINT_KEYS = [
   "in_progress_order",
 ];
 
-function isCountPayload(value: Record<string, unknown>): value is CountModel {
-  return COUNT_RECORD_HINT_KEYS.some((k) => k in value);
+/** API count payloads are dynamic; coerce after hint-key check (avoids unsafe direct casts). */
+function coerceCountModel(raw: Record<string, unknown>): CountModel {
+  return JSON.parse(JSON.stringify(raw)) as CountModel;
 }
 
 function extractCountRecord(
@@ -34,7 +35,8 @@ function extractCountRecord(
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return null;
   }
-  if (isCountPayload(candidate)) return candidate;
+  const hasHint = COUNT_RECORD_HINT_KEYS.some((k) => k in candidate);
+  if (hasHint) return coerceCountModel(candidate);
   return null;
 }
 
