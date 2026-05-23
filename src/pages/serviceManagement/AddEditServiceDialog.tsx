@@ -20,12 +20,19 @@ import {
 } from "../../services/servicesService";
 import { createOrUpdateDocument } from "../../services/documentUploadService";
 import { openDialog } from "../../lib/global/DialogManager";
-import { FullDetailsRow } from "../../helper/utility";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
   extractMinDepositTypeKey,
   getMinDepositViewParts,
 } from "../../lib/service/serviceMinDepositDisplay";
+import {
+  FullDetailsRow,
+  formatRequestedBy,
+  isCatalogRequestRow,
+  mapApprovalStatusFromRecord,
+  requestApprovalStatusColor,
+  requestApprovalStatusLabel,
+} from "../../helper/utility";
 
 function mapPaymentTypeToMinDepositType(s: ServiceModel | null): string {
   if (!s) return "";
@@ -42,25 +49,12 @@ function mapMinimumDepositValue(s: ServiceModel | null): string {
   return String(v);
 }
 
-/** Maps API `approval_status` and legacy `is_rejected` to form values. */
 function mapApprovalStatusFromService(
   s: ServiceModel | null
 ): "pending" | "approved" | "rejected" {
-  if (!s) return "approved";
-  const any = s as any;
-  const raw = String(any.approval_status ?? "").trim().toLowerCase();
-  if (raw === "pending") return "pending";
-  if (raw === "approved" || raw === "approve") return "approved";
-  if (raw === "rejected" || raw === "reject") return "rejected";
-  if (any.is_rejected === true) return "rejected";
-  // Pending rows often send `is_rejected: false` (meaning "not rejected yet"); do not treat as approved before `is_request`.
-  if (any.is_request === true) return "pending";
-  if (any.is_rejected === false) return "approved";
-  return any.is_active === false ? "rejected" : "approved";
-}
-
-function requestStatusLabel(status: "pending" | "approved" | "rejected") {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return mapApprovalStatusFromRecord(
+    s ? (s as unknown as Record<string, unknown>) : null
+  );
 }
 
 function isTruthyFormBool(v: unknown): boolean {
@@ -498,39 +492,37 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                 <FullDetailsRow title="Min deposit" value={minDepositForView} />
               </Col>
               {!hideStatusInView ? (
-                (service as any).is_request ? (
+                isCatalogRequestRow(service as unknown as Record<string, unknown>) ? (
                   <>
                     <Col xs={12} md={6}>
                       <FullDetailsRow
                         title="Approval status"
-                        value={requestStatusLabel(
-                          mapApprovalStatusFromService(service)
-                        )}
+                        value={
+                          <span
+                            style={{
+                              color: requestApprovalStatusColor(
+                                mapApprovalStatusFromService(service)
+                              ),
+                              fontWeight: 600,
+                            }}
+                          >
+                            {requestApprovalStatusLabel(
+                              mapApprovalStatusFromService(service)
+                            )}
+                          </span>
+                        }
                       />
                     </Col>
                     <Col xs={12} md={6}>
                       <FullDetailsRow
                         title="Requested by"
-                        value={
-                          (service as any).requested_by
-                            ? typeof (service as any).requested_by ===
-                                "object" &&
-                              (service as any).requested_by !== null
-                              ? String(
-                                  (service as any).requested_by.name ??
-                                    (service as any).requested_by.id ??
-                                    "-"
-                                )
-                              : String((service as any).requested_by)
-                            : "-"
-                        }
+                        value={formatRequestedBy((service as any).requested_by)}
                       />
                     </Col>
-                    {mapApprovalStatusFromService(service) === "rejected" &&
-                    String((service as any)?.rejection_reason ?? "").trim() ? (
-                      <Col xs={12} md={12}>
+                    {String((service as any)?.rejection_reason ?? "").trim() ? (
+                      <Col xs={12}>
                         <FullDetailsRow
-                          title="Rejection note"
+                          title="Rejection reason"
                           value={String(
                             (service as any).rejection_reason ?? ""
                           ).trim()}

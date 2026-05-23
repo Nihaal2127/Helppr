@@ -11,7 +11,15 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CategoryModel } from "../../lib/models/CategoryModel";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { CustomRadioSelection } from "../../components/CustomRadioSelection";
-import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
+import {
+  FullDetailsRow,
+  getStatusOptions,
+  formatRequestedBy,
+  isCatalogRequestRow,
+  mapApprovalStatusFromRecord,
+  requestApprovalStatusColor,
+  requestApprovalStatusLabel,
+} from "../../helper/utility";
 import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
@@ -43,24 +51,12 @@ type CategoryFormValues = Omit<CategoryModel, "is_active"> & {
   rejection_reason?: string;
 };
 
-/** Maps API `approval_status` and legacy `is_rejected` (requested rows). */
 function mapApprovalStatusFromCategory(
   c: CategoryModel | null
 ): "pending" | "approved" | "rejected" {
-  if (!c) return "approved";
-  const any = c as CategoryModel & { is_request?: boolean };
-  const raw = String(any.approval_status ?? "").trim().toLowerCase();
-  if (raw === "pending") return "pending";
-  if (raw === "approved" || raw === "approve") return "approved";
-  if (raw === "rejected" || raw === "reject") return "rejected";
-  if (any.is_rejected === true) return "rejected";
-  if (any.is_request === true) return "pending";
-  if (any.is_rejected === false) return "approved";
-  return any.is_active === false ? "rejected" : "approved";
-}
-
-function requestStatusLabel(status: "pending" | "approved" | "rejected") {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return mapApprovalStatusFromRecord(
+    c ? (c as unknown as Record<string, unknown>) : null
+  );
 }
 
 const SELECT_ALL_OPTION = "select-all";
@@ -406,7 +402,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     return [];
   }, [category, serviceOptions, serviceIds]);
 
-  const isRequestCategory = Boolean(category?.is_request);
+  const isRequestCategory = isCatalogRequestRow(
+    category as unknown as Record<string, unknown>
+  );
   const approvalStatusWatch = watch("approval_status");
   const approvalStatusDefaultForEdit =
     mapApprovalStatusFromCategory(category);
@@ -579,7 +577,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                           fontWeight: 600,
                         }}
                       >
-                        {requestStatusLabel(
+                        {requestApprovalStatusLabel(
                           mapApprovalStatusFromCategory(category)
                         )}
                       </span>
@@ -610,26 +608,20 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 <Col xs={12} md={6}>
                   <FullDetailsRow
                     title="Requested by"
-                    value={(() => {
-                      const rb = (category as CategoryModel).requested_by;
-                      if (!rb) return "-";
-                      if (typeof rb === "object" && rb !== null) {
-                        return String(rb.name ?? rb.id ?? "-");
-                      }
-                      return String(rb);
-                    })()}
+                    value={formatRequestedBy(
+                      (category as CategoryModel).requested_by
+                    )}
                   />
                 </Col>
               </Row>
             ) : null}
 
             {isRequestCategory &&
-            mapApprovalStatusFromCategory(category) === "rejected" &&
             String((category as any)?.rejection_reason ?? "").trim() ? (
               <Row className="g-3 mt-1">
                 <Col xs={12}>
                   <FullDetailsRow
-                    title="Rejection note"
+                    title="Rejection reason"
                     value={String(
                       (category as any)?.rejection_reason ?? ""
                     ).trim()}

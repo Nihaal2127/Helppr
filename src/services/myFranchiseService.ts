@@ -80,6 +80,7 @@ export type RequestedServiceRow = {
   image_url?: string;
   status: RequestedApprovalStatus;
   rejection_reason?: string;
+  requested_by?: { id?: string; name?: string } | string;
 };
 
 export type RequestedCategoryRow = {
@@ -91,6 +92,7 @@ export type RequestedCategoryRow = {
   image_url?: string;
   status: RequestedApprovalStatus;
   rejection_reason?: string;
+  requested_by?: { id?: string; name?: string } | string;
 };
 
 type MyFranchiseBoxData = {
@@ -136,6 +138,7 @@ function mapApiRequestedServiceRow(raw: any): RequestedServiceRow {
   const rec =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const rejection = String(rec.rejection_reason ?? "").trim();
+  const requestedBy = rec.requested_by;
   return {
     _id: String(raw?._id ?? ""),
     name: String(raw?.name ?? "").trim() || "-",
@@ -145,6 +148,9 @@ function mapApiRequestedServiceRow(raw: any): RequestedServiceRow {
     image_url: raw?.image_url ? String(raw.image_url) : undefined,
     status: mapRequestedApprovalStatusFromApi(rec),
     ...(rejection ? { rejection_reason: rejection } : {}),
+    ...(requestedBy != null && requestedBy !== ""
+      ? { requested_by: requestedBy as RequestedServiceRow["requested_by"] }
+      : {}),
   };
 }
 
@@ -152,6 +158,7 @@ function mapApiRequestedCategoryRow(raw: any): RequestedCategoryRow {
   const rec =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const rejection = String(rec.rejection_reason ?? "").trim();
+  const requestedBy = rec.requested_by;
   return {
     _id: String(raw?._id ?? ""),
     name: String(raw?.name ?? "").trim() || "-",
@@ -165,6 +172,9 @@ function mapApiRequestedCategoryRow(raw: any): RequestedCategoryRow {
     image_url: raw?.image_url ? String(raw.image_url) : undefined,
     status: mapRequestedApprovalStatusFromApi(rec),
     ...(rejection ? { rejection_reason: rejection } : {}),
+    ...(requestedBy != null && requestedBy !== ""
+      ? { requested_by: requestedBy as RequestedCategoryRow["requested_by"] }
+      : {}),
   };
 }
 

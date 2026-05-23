@@ -90,13 +90,6 @@ function buildListFilters(p: {
   return out;
 }
 
-const ORDER_PAYMENTS_STAT_CARD_STYLE: React.CSSProperties = {
-  borderColor: "var(--lb-border)",
-  cursor: "default",
-  maxWidth: "100%",
-  boxSizing: "border-box",
-};
-
 function formatInrGroupedAmount(amount: number): string {
   const n = Number.isFinite(amount) ? amount : 0;
   return n.toLocaleString("en-IN", {
@@ -104,6 +97,13 @@ function formatInrGroupedAmount(amount: number): string {
     maximumFractionDigits: 2,
   });
 }
+
+const ORDER_PAYMENTS_STAT_CARD_STYLE: React.CSSProperties = {
+  borderColor: "var(--lb-border)",
+  cursor: "default",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+};
 
 const OrderPayments = () => {
   const navigate = useNavigate();
@@ -602,16 +602,16 @@ const OrderPayments = () => {
         setValue={setHeaderValue as (name: string, value: any) => void}
       />
 
-      <div className="row g-2">
+      <div className="row g-2 order-payments-summary-row">
         <div className="col-md-3">
           <div
-            className="custom-box-count"
+            className="order-payments-stat-card"
             style={ORDER_PAYMENTS_STAT_CARD_STYLE}
           >
-            <div className="box-rw-clr2" style={{ textDecoration: "none" }}>
+            <div className="order-payments-stat-card__label box-rw-clr2">
               Total completed orders
             </div>
-            <span className="custom-box-count-span mt-2">
+            <span className="order-payments-stat-card__value">
               {summary.completedOrders}
             </span>
           </div>
@@ -619,13 +619,13 @@ const OrderPayments = () => {
 
         <div className="col-md-3">
           <div
-            className="custom-box-count"
+            className="order-payments-stat-card"
             style={ORDER_PAYMENTS_STAT_CARD_STYLE}
           >
-            <div className="box-rw-clr3" style={{ textDecoration: "none" }}>
+            <div className="order-payments-stat-card__label box-rw-clr3">
               Total in progress orders
             </div>
-            <span className="custom-box-count-span mt-2">
+            <span className="order-payments-stat-card__value">
               {summary.inProgressOrders}
             </span>
           </div>
@@ -633,17 +633,20 @@ const OrderPayments = () => {
 
         <div className="col-md-3">
           <div
-            className="custom-box-count"
-            style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
+            className="order-payments-stat-card"
+            style={{
+              ...ORDER_PAYMENTS_STAT_CARD_STYLE,
+              pointerEvents: "none",
+            }}
             role="status"
             aria-label={`Total partner pending amount ${
               AppConstant.currencySymbol
             }${formatInrGroupedAmount(summary.totalPartnerPending)}`}
           >
-            <div className="box-rw-clr4" style={{ textDecoration: "none" }}>
+            <div className="order-payments-stat-card__label box-rw-clr4">
               Total partner pending amount
             </div>
-            <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
+            <span className="order-payments-stat-card__value d-inline-flex align-items-baseline gap-1">
               <span aria-hidden="true">{AppConstant.currencySymbol}</span>
               <span>{formatInrGroupedAmount(summary.totalPartnerPending)}</span>
             </span>
@@ -652,17 +655,20 @@ const OrderPayments = () => {
 
         <div className="col-md-3">
           <div
-            className="custom-box-count"
-            style={{ ...ORDER_PAYMENTS_STAT_CARD_STYLE, pointerEvents: "none" }}
+            className="order-payments-stat-card"
+            style={{
+              ...ORDER_PAYMENTS_STAT_CARD_STYLE,
+              pointerEvents: "none",
+            }}
             role="status"
             aria-label={`Total user pending amount ${
               AppConstant.currencySymbol
             }${formatInrGroupedAmount(summary.totalUserPending)}`}
           >
-            <div className="box-rw-clr1" style={{ textDecoration: "none" }}>
+            <div className="order-payments-stat-card__label box-rw-clr1">
               Total user pending amount
             </div>
-            <span className="custom-box-count-span mt-2 d-inline-flex align-items-baseline gap-1">
+            <span className="order-payments-stat-card__value d-inline-flex align-items-baseline gap-1">
               <span aria-hidden="true">{AppConstant.currencySymbol}</span>
               <span>{formatInrGroupedAmount(summary.totalUserPending)}</span>
             </span>

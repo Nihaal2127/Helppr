@@ -649,3 +649,106 @@ export const DetailsRowLinkDocument = ({
 export const getRoleLabel = (roleId: number): string => {
   return RoleEnum.get(roleId)?.label ?? "Unknown Role";
 };
+
+// --- Catalog request moderation (category/service approval rows) ---
+
+export type RequestApprovalStatus = "pending" | "approved" | "rejected";
+
+const CATALOG_MODERATION_KEYS = [
+  "approval_status",
+  "is_request",
+  "is_rejected",
+  "requested_by",
+  "rejection_reason",
+] as const;
+
+/** Row is a partner/admin service or category request (not plain catalog). */
+export function isCatalogRequestRow(
+  record: Record<string, unknown> | null | undefined
+): boolean {
+  if (!record) return false;
+  if (record.is_request === true) return true;
+  if (record.requested_by != null && record.requested_by !== "") return true;
+  const ap = String(record.approval_status ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    ap === "pending" ||
+    ap === "approved" ||
+    ap === "approve" ||
+    ap === "rejected" ||
+    ap === "reject"
+  );
+}
+
+export function mapApprovalStatusFromRecord(
+  record: Record<string, unknown> | null | undefined
+): RequestApprovalStatus {
+  if (!record) return "approved";
+  const raw = String(record.approval_status ?? "")
+    .trim()
+    .toLowerCase();
+  if (raw === "pending") return "pending";
+  if (raw === "approved" || raw === "approve") return "approved";
+  if (raw === "rejected" || raw === "reject") return "rejected";
+  if (record.is_rejected === true) return "rejected";
+  if (record.is_request === true) return "pending";
+  if (record.is_rejected === false) return "approved";
+  return record.is_active === false ? "rejected" : "approved";
+}
+
+export function requestApprovalStatusLabel(
+  status: RequestApprovalStatus
+): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function requestApprovalStatusColor(
+  status: RequestApprovalStatus
+): string {
+  if (status === "approved") return "#198754";
+  if (status === "rejected") return "#dc3545";
+  return "#fd7e14";
+}
+
+export function formatRequestedBy(value: unknown): string {
+  if (value == null || value === "") return "-";
+  if (typeof value === "object") {
+    const o = value as { name?: string; id?: string };
+    return String(o.name ?? o.id ?? "-");
+  }
+  return String(value);
+}
+
+function mergeModerationDetail(
+  row: Record<string, unknown>,
+  api: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...row, ...api };
+  for (const key of CATALOG_MODERATION_KEYS) {
+    if (
+      (out[key] === undefined || out[key] === null) &&
+      row[key] !== undefined
+    ) {
+      out[key] = row[key];
+    }
+  }
+  if (!String(out.desc ?? "").trim() && row.description) {
+    out.desc = row.description;
+  }
+  return out;
+}
+
+export function mergeServiceDetailForDialog<T extends Record<string, unknown>>(
+  row: Record<string, unknown>,
+  api: T
+): T {
+  return mergeModerationDetail(row, api) as T;
+}
+
+export function mergeCategoryDetailForDialog<T extends Record<string, unknown>>(
+  row: Record<string, unknown>,
+  api: T
+): T {
+  return mergeModerationDetail(row, api) as T;
+}

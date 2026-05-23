@@ -918,11 +918,11 @@ const MyFranchise = () => {
       case "box-services":
         return servicesViewMode === "catalog"
           ? "Search service name, category"
-          : "Search service name, description etc.";
+          : "Search service name";
       case "box-categories":
         return categoriesViewMode === "catalog"
-          ? "Search category name, services"
-          : "Search category name, description etc.";
+          ? "Search category name"
+          : "Search category name";
       default:
         return "Search";
     }

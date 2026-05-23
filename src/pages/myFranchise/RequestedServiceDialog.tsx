@@ -5,7 +5,14 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader from "../../components/CustomImageUploader";
-import { FullDetailsRow } from "../../helper/utility";
+import {
+  FullDetailsRow,
+  formatRequestedBy,
+  mapApprovalStatusFromRecord,
+  mergeServiceDetailForDialog,
+  requestApprovalStatusColor,
+  requestApprovalStatusLabel,
+} from "../../helper/utility";
 import { openDialog } from "../../lib/global/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
@@ -15,6 +22,7 @@ import {
   updateRequestedService,
 } from "../../services/myFranchiseService";
 import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchServiceById } from "../../services/servicesService";
 import sampleServiceViewImage from "../../assets/icons/profile.svg";
 
 type CategoryOption = { value: string; label: string };
@@ -58,6 +66,10 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
 
   const [isEditing, setIsEditing] = useState(isAdd);
   const [fileInputs, setFileInputs] = useState<File[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<Record<string, unknown> | null>(
+    null
+  );
   const [effectiveCategoryOptions, setEffectiveCategoryOptions] =
     useState<CategoryOption[]>(categoryOptions);
 
@@ -85,7 +97,39 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
   useEffect(() => {
     setIsEditing(isAdd);
     setFileInputs([]);
+    setDetailRecord(null);
   }, [isAdd, request?._id]);
+
+  useEffect(() => {
+    if (isAdd || !request?._id) return;
+    let cancelled = false;
+    setDetailLoading(true);
+    void (async () => {
+      try {
+        const { response, service } = await fetchServiceById(request._id);
+        if (cancelled) return;
+        if (response && service) {
+          setDetailRecord(
+            mergeServiceDetailForDialog(
+              request as unknown as Record<string, unknown>,
+              service
+            ) as unknown as Record<string, unknown>
+          );
+        } else {
+          setDetailRecord(request as unknown as Record<string, unknown>);
+        }
+      } catch {
+        if (!cancelled) {
+          setDetailRecord(request as unknown as Record<string, unknown>);
+        }
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdd, request]);
 
   const {
     register,
@@ -197,9 +241,32 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
     ? "Edit service request"
     : "Service Request Details";
 
-  const renderViewBody = () => {
+  const viewSource = useMemo(() => {
     if (!request) return null;
-    const img = resolveImageSrc(request.image_url);
+    const detail = detailRecord ?? (request as unknown as Record<string, unknown>);
+    const approvalStatus = mapApprovalStatusFromRecord(detail);
+    const rejectionReason = String(detail.rejection_reason ?? "").trim();
+    const description = String(
+      detail.desc ?? detail.description ?? request.description ?? ""
+    ).trim();
+    return {
+      name: String(detail.name ?? request.name ?? "-"),
+      category_name: String(
+        detail.category_name ?? request.category_name ?? "-"
+      ),
+      service_id: String(detail.service_id ?? "").trim(),
+      approvalStatus,
+      requested_by: detail.requested_by ?? request.requested_by,
+      rejectionReason,
+      description,
+      image_url: String(detail.image_url ?? request.image_url ?? ""),
+      canEdit: approvalStatus === "pending",
+    };
+  }, [request, detailRecord]);
+
+  const renderViewBody = () => {
+    if (!request || !viewSource) return null;
+    const img = resolveImageSrc(viewSource.image_url);
     const displayImg = img ?? sampleServiceViewImage;
     return (
       <section
@@ -208,33 +275,65 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
       >
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h3 className="mb-0">Service Information</h3>
-          <i
-            className="bi bi-pencil-fill fs-6 text-danger"
-            style={{ cursor: "pointer" }}
-            role="button"
-            aria-label="Edit request"
-            onClick={() => setIsEditing(true)}
-          />
+          {viewSource.canEdit ? (
+            <i
+              className="bi bi-pencil-fill fs-6 text-danger"
+              style={{ cursor: "pointer" }}
+              role="button"
+              aria-label="Edit request"
+              onClick={() => setIsEditing(true)}
+            />
+          ) : null}
         </div>
+
+        {detailLoading ? (
+          <p className="text-muted small mb-3">Loading details…</p>
+        ) : null}
 
         <Row className="g-3">
           <Col xs={12} md={6}>
-            <FullDetailsRow title="Service name" value={request.name ?? "-"} />
+            <FullDetailsRow title="Service name" value={viewSource.name} />
           </Col>
           <Col xs={12} md={6}>
             <FullDetailsRow
               title="Category"
-              value={request.category_name ?? "-"}
+              value={viewSource.category_name}
+            />
+          </Col>
+          {viewSource.service_id ? (
+            <Col xs={12} md={6}>
+              <FullDetailsRow title="Service ID" value={viewSource.service_id} />
+            </Col>
+          ) : null}
+          <Col xs={12} md={6}>
+            <FullDetailsRow
+              title="Approval status"
+              value={
+                <span
+                  style={{
+                    color: requestApprovalStatusColor(viewSource.approvalStatus),
+                    fontWeight: 600,
+                  }}
+                >
+                  {requestApprovalStatusLabel(viewSource.approvalStatus)}
+                </span>
+              }
             />
           </Col>
           <Col xs={12} md={6}>
             <FullDetailsRow
-              title="Status"
-              value={
-                <span style={{ color: "orange", fontWeight: 600 }}>Pending</span>
-              }
+              title="Requested by"
+              value={formatRequestedBy(viewSource.requested_by)}
             />
           </Col>
+          {viewSource.rejectionReason ? (
+            <Col xs={12}>
+              <FullDetailsRow
+                title="Rejection reason"
+                value={viewSource.rejectionReason}
+              />
+            </Col>
+          ) : null}
         </Row>
 
         <Row className="g-3 mt-1">
@@ -250,18 +349,17 @@ const RequestedServiceDialog: React.FC<RequestedServiceDialogProps> & {
             </p>
             <div
               className="mb-0 w-100"
-              title={String(request.description ?? "").trim() || undefined}
+              title={viewSource.description || undefined}
               style={{
                 color: "var(--content-txt-color)",
                 fontSize: "0.95rem",
                 lineHeight: 1.45,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
                 minWidth: 0,
               }}
             >
-              {request.description?.trim() ? request.description : "-"}
+              {viewSource.description || "-"}
             </div>
           </Col>
         </Row>

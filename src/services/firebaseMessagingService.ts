@@ -56,6 +56,49 @@ async function getMessagingWhenSupported(): Promise<MessagingInstance | null> {
   return messagingInitPromise;
 }
 
+const FIREBASE_MESSAGING_SW = "/firebase-messaging-sw.js";
+
+async function waitForServiceWorkerActivation(
+  registration: ServiceWorkerRegistration
+): Promise<ServiceWorkerRegistration> {
+  if (registration.active) {
+    return registration;
+  }
+
+  const worker = registration.installing ?? registration.waiting;
+  if (worker) {
+    await new Promise<void>((resolve, reject) => {
+      const onStateChange = () => {
+        if (worker.state === "activated") {
+          worker.removeEventListener("statechange", onStateChange);
+          resolve();
+        } else if (worker.state === "redundant") {
+          worker.removeEventListener("statechange", onStateChange);
+          reject(
+            new Error("Firebase messaging service worker failed to activate")
+          );
+        }
+      };
+      worker.addEventListener("statechange", onStateChange);
+      if (worker.state === "activated") {
+        worker.removeEventListener("statechange", onStateChange);
+        resolve();
+      }
+    });
+    return registration;
+  }
+
+  await navigator.serviceWorker.ready;
+  return registration;
+}
+
+async function registerFirebaseMessagingServiceWorker(): Promise<ServiceWorkerRegistration> {
+  const registration = await navigator.serviceWorker.register(
+    FIREBASE_MESSAGING_SW
+  );
+  return waitForServiceWorkerActivation(registration);
+}
+
 function attachForegroundMessageListener(messaging: MessagingInstance): void {
   if (foregroundMessageListenerAttached) return;
   foregroundMessageListenerAttached = true;
@@ -87,17 +130,19 @@ function attachForegroundMessageListener(messaging: MessagingInstance): void {
 async function registerMessagingToken(
   messaging: MessagingInstance
 ): Promise<string | void> {
-  const swReg = await navigator.serviceWorker.register(
-    "/firebase-messaging-sw.js"
-  );
-  const token = await getToken(messaging, {
-    vapidKey:
-      "BLxRotJ_pgm3JdzjDifCxSCabbm9S70cUuUasqpfSO0Ib6wBoaAJQ7gBdrdQkwwmK3V1IEMbUidJUvRXZWqNMbk",
-    serviceWorkerRegistration: swReg,
-  });
-  showLog("FCM Token:", token);
-  attachForegroundMessageListener(messaging);
-  return token;
+  try {
+    const swReg = await registerFirebaseMessagingServiceWorker();
+    const token = await getToken(messaging, {
+      vapidKey:
+        "BLxRotJ_pgm3JdzjDifCxSCabbm9S70cUuUasqpfSO0Ib6wBoaAJQ7gBdrdQkwwmK3V1IEMbUidJUvRXZWqNMbk",
+      serviceWorkerRegistration: swReg,
+    });
+    showLog("FCM Token:", token);
+    attachForegroundMessageListener(messaging);
+    return token;
+  } catch (err) {
+    showLog("Failed to register FCM token:", err);
+  }
 }
 
 export const requestPermission = async () => {

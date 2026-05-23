@@ -2436,6 +2436,49 @@ body:has(.modal.show ~ .modal.show) {
   font-size: 0.8125rem;
 }
 
+/* Order Payments — summary stat cards (equal height row) */
+.order-payments-summary-row {
+  margin-bottom: 0.25rem;
+
+  > [class*="col"] {
+    display: flex;
+  }
+}
+
+.order-payments-stat-card {
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--lb-border);
+  border-radius: 10px;
+  background: var(--bg-color, #fff);
+  box-sizing: border-box;
+  cursor: default;
+}
+
+.order-payments-stat-card__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  min-height: 2.7em;
+  margin-bottom: 0.625rem;
+  text-decoration: none !important;
+  cursor: default;
+}
+
+.order-payments-stat-card__value {
+  margin-top: auto;
+  color: var(--content-txt-color);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: "Inter", sans-serif;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
 .custom-search-container {
   position: relative;
   display: inline-block;
@@ -2832,22 +2875,69 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 /* Quote/order person blocks: Name + Phone on one row; Email below. */
-.quote-info-person-fields-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 1.25rem;
-  row-gap: 0.15rem;
-  margin-bottom: 0.15rem;
+.quote-info-person-layout {
+  column-gap: 1.5rem;
 }
 
-@media (max-width: 575.98px) {
-  .quote-info-person-fields-row {
-    grid-template-columns: 1fr;
+.quote-info-person-avatar {
+  padding-top: 0.125rem;
+}
+
+.quote-info-person-inline-cols {
+  display: grid;
+  grid-template-columns: 10.25rem minmax(0, 1fr) 10.25rem minmax(0, 1fr);
+  column-gap: 2rem;
+  row-gap: 0;
+  align-items: start;
+  margin-bottom: 0.35rem;
+}
+
+.quote-info-person-full-col {
+  display: grid;
+  grid-template-columns: 10.25rem minmax(0, 1fr);
+  column-gap: 2rem;
+  row-gap: 0.35rem;
+  align-items: start;
+}
+
+.quote-info-person-fields .info-detail-inline-label,
+.quote-info-person-fields .info-detail-inline-value,
+.quote-info-person-fields .custom-personal-row-value {
+  min-width: 0;
+}
+
+.quote-info-person-fields .info-detail-inline-value,
+.quote-info-person-fields .custom-personal-row-value {
+  width: auto !important;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.quote-info-person-fields .info-detail-inline-value--long-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 767.98px) {
+  .quote-info-person-inline-cols {
+    grid-template-columns: 10.25rem minmax(0, 1fr);
+    row-gap: 0.35rem;
   }
 }
 
-.quote-info-person-fields-col {
-  min-width: 0;
+@media (max-width: 575.98px) {
+  .quote-info-person-inline-cols,
+  .quote-info-person-full-col {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.25rem;
+  }
+
+  .quote-info-person-inline-cols .info-detail-inline-label,
+  .quote-info-person-full-col .info-detail-inline-label {
+    max-width: none;
+  }
 }
 
 .info-detail-inline-row .custom-personal-row-value {
@@ -3087,11 +3177,27 @@ body:has(.modal.show ~ .modal.show) {
   font-family: "Inter";
 }
 
-/* Service / category read-only modal: grid-friendly rows (overrides fixed value width) */
+/* Service / category read-only modal: label + value close together (not 50/50 cols) */
 .modal-readonly-details {
   .custom-personal-row {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, 11.5rem) minmax(0, 1fr);
+    column-gap: 0.75rem;
+    align-items: start;
     margin-left: 0;
     margin-right: 0;
+    min-height: 0;
+  }
+
+  .custom-personal-row > .col {
+    flex: none;
+    width: auto !important;
+    max-width: none;
+    padding: 0;
+  }
+
+  .custom-personal-row-title {
+    margin-bottom: 0;
   }
 
   .custom-personal-row-value {
@@ -3099,6 +3205,7 @@ body:has(.modal.show ~ .modal.show) {
     max-width: 100%;
     white-space: normal;
     word-break: break-word;
+    text-align: left;
   }
 
   .custom-personal-row>label.col:not(.custom-personal-row-title) {
@@ -3106,6 +3213,7 @@ body:has(.modal.show ~ .modal.show) {
     max-width: 100%;
     white-space: normal;
     word-break: break-word;
+    text-align: left;
   }
 }
 

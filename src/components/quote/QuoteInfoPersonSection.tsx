@@ -30,7 +30,7 @@ function displayValue(value: React.ReactNode): React.ReactNode {
   return value;
 }
 
-function PersonFieldRow({
+function PersonFieldCells({
   label,
   value,
   longText = false,
@@ -42,18 +42,18 @@ function PersonFieldRow({
   const isLong =
     longText || String(label).toLowerCase().includes("email");
   return (
-    <div
-      className={`info-detail-inline-row custom-personal-row${
-        isLong ? " info-detail-inline-row--long-text" : ""
-      }`}
-    >
+    <>
       <span className="info-detail-inline-label custom-personal-row-title">
         {label}
       </span>
-      <span className="info-detail-inline-value custom-personal-row-value text-break">
+      <span
+        className={`info-detail-inline-value custom-personal-row-value text-break${
+          isLong ? " info-detail-inline-value--long-text" : ""
+        }`}
+      >
         {displayValue(value)}
       </span>
-    </div>
+    </>
   );
 }
 
@@ -80,8 +80,8 @@ export default function QuoteInfoPersonSection({
   return (
     <section className="border rounded p-3 mb-3 quote-info-person-section">
       <h6 className={QUOTE_SECTION_TITLE_CLASS}>{title}</h6>
-      <div className="d-flex flex-column flex-md-row align-items-start gap-3">
-        <div className="flex-shrink-0 text-center text-md-start">
+      <div className="d-flex flex-column flex-md-row align-items-start gap-3 quote-info-person-layout">
+        <div className="flex-shrink-0 text-center text-md-start quote-info-person-avatar">
           <img
             src={resolveQuoteProfileSrc(profileUrl)}
             alt=""
@@ -92,33 +92,27 @@ export default function QuoteInfoPersonSection({
         </div>
         <div className="flex-grow-1 min-w-0 w-100 quote-info-person-fields">
           {leftFields.length > 0 || rightFields.length > 0 ? (
-            <div className="quote-info-person-fields-row">
-              <div className="quote-info-person-fields-col info-detail-fields-col">
-                {leftFields.map((field) => (
-                  <PersonFieldRow
-                    key={field.label}
-                    label={field.label}
-                    value={field.value}
-                  />
-                ))}
-              </div>
-              {rightFields.length > 0 ? (
-                <div className="quote-info-person-fields-col info-detail-fields-col">
-                  {rightFields.map((field) => (
-                    <PersonFieldRow
-                      key={field.label}
-                      label={field.label}
-                      value={field.value}
-                    />
-                  ))}
-                </div>
-              ) : null}
+            <div className="quote-info-person-inline-cols">
+              {leftFields.map((field) => (
+                <PersonFieldCells
+                  key={field.label}
+                  label={field.label}
+                  value={field.value}
+                />
+              ))}
+              {rightFields.map((field) => (
+                <PersonFieldCells
+                  key={field.label}
+                  label={field.label}
+                  value={field.value}
+                />
+              ))}
             </div>
           ) : null}
           {fullWidthFields.length > 0 ? (
-            <div className="info-detail-fields-col">
+            <div className="quote-info-person-full-col">
               {fullWidthFields.map((field) => (
-                <PersonFieldRow
+                <PersonFieldCells
                   key={field.label}
                   label={field.label}
                   value={field.value}

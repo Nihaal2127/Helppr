@@ -41,6 +41,51 @@ import {
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
 const SERVICE_ROW_ID_KEYS = ["_id", "service_id", "id"] as const;
 
+const CATALOG_MODERATION_KEYS = [
+  "approval_status",
+  "is_request",
+  "is_rejected",
+  "requested_by",
+  "rejection_reason",
+] as const;
+
+/** Prefer GET-by-id fields; keep list-row moderation fields if the API omits them. */
+function mergeModerationDetail<T extends object>(
+  row: Record<string, unknown>,
+  api: T
+): T {
+  const out: Record<string, unknown> = {
+    ...(row as object),
+    ...(api as object),
+  };
+  for (const key of CATALOG_MODERATION_KEYS) {
+    if (
+      (out[key] === undefined || out[key] === null) &&
+      row[key] !== undefined
+    ) {
+      out[key] = row[key];
+    }
+  }
+  if (!String(out.desc ?? "").trim() && row.description) {
+    out.desc = row.description;
+  }
+  return out as T;
+}
+
+function mergeServiceDetailForDialog(
+  row: Record<string, unknown>,
+  api: ServiceModel
+): ServiceModel {
+  return mergeModerationDetail(row, api);
+}
+
+function mergeCategoryDetailForDialog<T extends object>(
+  row: Record<string, unknown>,
+  api: T
+): T {
+  return mergeModerationDetail(row, api);
+}
+
 function recordIdFromRow(
   row: { original?: Record<string, unknown> },
   keys: readonly string[]
@@ -52,29 +97,6 @@ function recordIdFromRow(
     if (v != null && String(v).trim() !== "") return String(v).trim();
   }
   return "";
-}
-
-/** Prefer GET-by-id fields; keep list-row moderation fields if the API omits them. */
-function mergeServiceDetailForDialog(
-  row: Record<string, unknown>,
-  api: ServiceModel
-): ServiceModel {
-  const out: Record<string, unknown> = { ...row, ...api };
-  for (const key of [
-    "approval_status",
-    "is_request",
-    "is_rejected",
-    "requested_by",
-    "rejection_reason",
-  ]) {
-    if (
-      (out[key] === undefined || out[key] === null) &&
-      row[key] !== undefined
-    ) {
-      out[key] = row[key];
-    }
-  }
-  return out as unknown as ServiceModel;
 }
 
 function coerceCatalogRowActive(value: unknown): boolean {
@@ -639,9 +661,13 @@ const ServiceManagement = () => {
                 return;
               }
               const { response, category } = await fetchCategoryById(cid);
+              const record =
+                response && category
+                  ? mergeCategoryDetailForDialog(row.original, category)
+                  : row.original;
               AddEditCategoryDialog.show(
                 true,
-                response && category ? category : row.original,
+                record,
                 openRequestedCategory,
                 true
               );
@@ -770,11 +796,11 @@ const ServiceManagement = () => {
           }
           searchHint={`${
             showRequestedCategory
-              ? "Search Category name, Description etc."
+              ? "Search Category name"
               : showRequestedService
-              ? "Search Service name, Description etc."
+              ? "Search Service name"
               : selectedBox === "box-category"
-              ? "Search Category name, Description etc."
+              ? "Search Category name"
               : "Search Service name, Category"
           }`}
           onSearch={(value) => {
