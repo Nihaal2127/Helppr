@@ -2163,7 +2163,7 @@ body:has(.modal.show ~ .modal.show) {
   }
 }
 
-/* Franchise employee add/edit form — full-width rows, DOB aligned with other fields */
+/* Franchise employee add/edit form — label left, control right (matches CustomTextField) */
 .franchise-employee-form-fields {
   margin: 0;
 
@@ -2171,19 +2171,25 @@ body:has(.modal.show ~ .modal.show) {
     min-width: 0;
   }
 
-  .franchise-employee-dob-field {
-    margin-bottom: 0.75rem;
+  .franchise-employee-field-row {
+    margin-bottom: 0;
+  }
 
-    .form-label {
-      margin-bottom: 0.35rem;
-      font-weight: 600;
-      color: var(--content-txt-color, #1a1a1a);
-    }
+  .franchise-employee-dob-field {
+    margin-bottom: 0;
 
     .full-width-date-picker {
       width: 100%;
       min-height: 35px;
+      margin-bottom: 0;
+      border-color: var(--primary-color);
+      border-radius: 8px;
+      font-size: 14px;
     }
+  }
+
+  .franchise-employee-field-row .custom-profile-lable {
+    padding-top: 0.35rem;
   }
 }
 

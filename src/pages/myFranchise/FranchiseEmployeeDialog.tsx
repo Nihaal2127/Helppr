@@ -425,22 +425,29 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           />
         </div>
         <div className="col-12">
-          <CustomDatePicker
-            label="Date of Birth"
-            controlId="franchise_emp_date_of_birth"
-            asCol={false}
-            birthDatePicker
-            selectedDate={dateOfBirth ? dateOfBirth : null}
-            placeholderText="Select date of birth"
-            register={register}
-            setValue={setValue}
-            groupClassName="mb-3 w-100 franchise-employee-dob-field"
-            onChange={(date) => {
-              const value = date ? dateToLocalYmd(date) : "";
-              setDateOfBirth(value);
-              setValue("franchise_emp_date_of_birth", value);
-            }}
-          />
+          <Row className="align-items-start franchise-employee-field-row">
+            <Col sm={4} className="d-flex align-items-start">
+              <label className="custom-profile-lable mb-0">Date of Birth</label>
+            </Col>
+            <Col>
+              <CustomDatePicker
+                label=""
+                controlId="franchise_emp_date_of_birth"
+                asCol={false}
+                birthDatePicker
+                selectedDate={dateOfBirth ? dateOfBirth : null}
+                placeholderText="Select date of birth"
+                register={register}
+                setValue={setValue}
+                groupClassName="mb-0 w-100 franchise-employee-dob-field"
+                onChange={(date) => {
+                  const value = date ? dateToLocalYmd(date) : "";
+                  setDateOfBirth(value);
+                  setValue("franchise_emp_date_of_birth", value);
+                }}
+              />
+            </Col>
+          </Row>
         </div>
         <div className="col-12">
           <CustomTextField
@@ -473,10 +480,19 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           />
         </div>
         <div className="col-12">
-          <GenderRadioField
-            value={gender}
-            onChange={(next) => setGender(next)}
-          />
+          <Row className="align-items-start franchise-employee-field-row">
+            <Col sm={4} className="d-flex align-items-start">
+              <label className="custom-profile-lable mb-0">Gender</label>
+            </Col>
+            <Col>
+              <GenderRadioField
+                value={gender}
+                showLabel={false}
+                className="mb-0"
+                onChange={(next) => setGender(next)}
+              />
+            </Col>
+          </Row>
         </div>
         {isAdd ? (
           <>

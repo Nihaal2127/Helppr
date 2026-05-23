@@ -8,16 +8,21 @@ type GenderRadioFieldProps = {
   value: GenderValue | "";
   onChange: (next: GenderValue) => void;
   className?: string;
+  /** When false, omit the built-in label (use an external row label). */
+  showLabel?: boolean;
 };
 
 const GenderRadioField: React.FC<GenderRadioFieldProps> = ({
   value,
   onChange,
   className,
+  showLabel = true,
 }) => {
   return (
-    <Form.Group className={className} style={{ marginTop: "6px" }}>
-      <Form.Label className="fw-medium mb-1">Gender</Form.Label>
+    <Form.Group className={className} style={{ marginTop: showLabel ? "6px" : 0 }}>
+      {showLabel ? (
+        <Form.Label className="fw-medium mb-1">Gender</Form.Label>
+      ) : null}
       <div className="d-flex flex-wrap" style={{ gap: "12px" }}>
         {GENDER_OPTIONS.map((opt) => (
           <Form.Check
