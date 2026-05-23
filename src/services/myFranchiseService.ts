@@ -8,6 +8,7 @@ import { showErrorAlert } from "../lib/global/alertHelper";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import { apiDocumentId } from "../helper/utility";
+import { normalizeCalendarYmd } from "../helper/dateFormat";
 import { genderForApiPayload } from "../lib/user/genderOptions";
 import {
   createOrUpdateUser,
@@ -44,12 +45,7 @@ export type EmployeeRow = {
 };
 
 function dobForApiPayload(value?: string | null): string | undefined {
-  const s = String(value ?? "").trim();
-  if (!s) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return undefined;
-  return d.toISOString().slice(0, 10);
+  return normalizeCalendarYmd(value);
 }
 
 function dobFromApiRaw(raw: Record<string, unknown>): string | undefined {

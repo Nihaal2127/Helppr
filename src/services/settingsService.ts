@@ -25,18 +25,14 @@ import {
 } from "./userService";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { fetchFranchiseById } from "./franchiseService";
+import { normalizeCalendarYmd } from "../helper/dateFormat";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 function dobForApiPayload(value?: string | null): string | undefined {
-  const s = String(value ?? "").trim();
-  if (!s) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return undefined;
-  return d.toISOString().slice(0, 10);
+  return normalizeCalendarYmd(value);
 }
 
 function dobFromApiRaw(raw: Record<string, unknown>): string | undefined {

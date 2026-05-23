@@ -14,6 +14,7 @@ import { fetchSubscriptionPlanDropDown } from "../../../services/partnerManageme
 import { fetchUser } from "../../../services/userService";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 import type { PartnerSubscriptionModel } from "../../../lib/types/partnerManagementTypes";
+import { dateToLocalYmd } from "../../../helper/dateFormat";
 
 type AddEditPartnerSubscriptionDialogProps = {
   isEditable: boolean;
@@ -378,7 +379,7 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
     if (v == null || v === "") return null;
     if (typeof v === "string") return v.length >= 10 ? v.slice(0, 10) : v;
     if (v instanceof Date && !Number.isNaN(v.getTime()))
-      return v.toISOString().slice(0, 10);
+      return dateToLocalYmd(v);
     return null;
   };
 
@@ -567,7 +568,7 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                     controlId="subscription_start_date"
                     selectedDate={toYmdString(subscriptionStartStr)}
                     onChange={(date) => {
-                      const value = date ? date.toISOString().slice(0, 10) : "";
+                      const value = date ? dateToLocalYmd(date) : "";
                       setValue("subscription_start_date", value, {
                         shouldValidate: true,
                         shouldDirty: true,
@@ -592,7 +593,7 @@ const AddEditPartnerSubscriptionDialog: React.FC<AddEditPartnerSubscriptionDialo
                     controlId="subscription_end_date"
                     selectedDate={toYmdString(subscriptionEndStr)}
                     onChange={(date) => {
-                      const value = date ? date.toISOString().slice(0, 10) : "";
+                      const value = date ? dateToLocalYmd(date) : "";
                       setValue("subscription_end_date", value, {
                         shouldValidate: true,
                         shouldDirty: true,

@@ -25,6 +25,7 @@ import {
   voidOffer,
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
+import { dateToLocalYmd } from "../../../helper/dateFormat";
 
 const emptyForm = {
   offerName: "",
@@ -264,7 +265,7 @@ const OffersManagement = () => {
           controlId="offers_start_date_filter"
           selectedDate={fromDate || null}
           onChange={(date) => {
-            const next = date ? date.toISOString().slice(0, 10) : "";
+            const next = date ? dateToLocalYmd(date) : "";
             setFromDate(next);
           }}
           register={register}
@@ -281,7 +282,7 @@ const OffersManagement = () => {
           controlId="offers_end_date_filter"
           selectedDate={toDate || null}
           onChange={(date) => {
-            const next = date ? date.toISOString().slice(0, 10) : "";
+            const next = date ? dateToLocalYmd(date) : "";
             setToDate(next);
           }}
           register={register}
@@ -530,7 +531,7 @@ const OffersManagement = () => {
                   controlId="offer_start_date"
                   selectedDate={form.startDate || null}
                   onChange={(date) => {
-                    const next = date ? date.toISOString().slice(0, 10) : "";
+                    const next = date ? dateToLocalYmd(date) : "";
                     setForm((p) => ({ ...p, startDate: next }));
                   }}
                   register={register}
@@ -548,7 +549,7 @@ const OffersManagement = () => {
                   controlId="offer_end_date"
                   selectedDate={form.endDate || null}
                   onChange={(date) => {
-                    const next = date ? date.toISOString().slice(0, 10) : "";
+                    const next = date ? dateToLocalYmd(date) : "";
                     setForm((p) => ({ ...p, endDate: next }));
                   }}
                   register={register}

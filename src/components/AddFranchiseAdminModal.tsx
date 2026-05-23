@@ -23,6 +23,7 @@ import { showErrorAlert } from "../lib/global/alertHelper";
 import { openDialog } from "../lib/global/DialogManager";
 import GenderRadioField from "./GenderRadioField";
 import CustomDatePicker from "./CustomDatePicker";
+import { dateToLocalYmd } from "../helper/dateFormat";
 
 const MODAL_DOM_ID = "add-franchise-admin-nested-dialog";
 
@@ -225,7 +226,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               register={register}
               setValue={setValue}
               onChange={(date) => {
-                const value = date ? date.toISOString().slice(0, 10) : "";
+                const value = date ? dateToLocalYmd(date) : "";
                 setForm((p) => ({ ...p, date_of_birth: value }));
                 setValue("nested_role_date_of_birth", value);
               }}

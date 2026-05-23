@@ -739,16 +739,16 @@ function mergeModerationDetail(
   return out;
 }
 
-export function mergeServiceDetailForDialog<T extends Record<string, unknown>>(
+export function mergeServiceDetailForDialog<T extends object>(
   row: Record<string, unknown>,
   api: T
 ): T {
-  return mergeModerationDetail(row, api) as T;
+  return mergeModerationDetail(row, api as Record<string, unknown>) as T;
 }
 
-export function mergeCategoryDetailForDialog<T extends Record<string, unknown>>(
+export function mergeCategoryDetailForDialog<T extends object>(
   row: Record<string, unknown>,
   api: T
 ): T {
-  return mergeModerationDetail(row, api) as T;
+  return mergeModerationDetail(row, api as Record<string, unknown>) as T;
 }

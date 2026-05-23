@@ -2,6 +2,7 @@ import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { UserModel } from "../lib/models/UserModel";
 import { showLog } from "../helper/utility";
+import { normalizeCalendarYmd } from "../helper/dateFormat";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import {
   getLocalStorage,
@@ -136,12 +137,7 @@ export const normalizePhoneForUserCreate = (phone: string): string => {
 };
 
 function formatDobForCreatePayload(value?: string | null): string | undefined {
-  const s = String(value ?? "").trim();
-  if (!s) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return undefined;
-  return d.toISOString().slice(0, 10);
+  return normalizeCalendarYmd(value);
 }
 
 export type CreateWebManagementUserBody = {

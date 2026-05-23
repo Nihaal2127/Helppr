@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FieldError, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { FieldLabelText, isValidationRequired } from "./RequiredFieldMark";
+import { dateToLocalYmd } from "../helper/dateFormat";
 import { isoCalendarDateToPickerDate } from "../lib/quote/quoteHelpers";
 
 interface CustomDatePickerProps {
@@ -68,7 +69,8 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     : undefined;
 
   const handleDateChange = (date: Date | null) => {
-    setValue(controlId, date || null, { shouldValidate: true });
+    const ymd = date ? dateToLocalYmd(date) : "";
+    setValue(controlId, ymd || null, { shouldValidate: true });
     onChange(date);
     setIsOpen(false);
   };

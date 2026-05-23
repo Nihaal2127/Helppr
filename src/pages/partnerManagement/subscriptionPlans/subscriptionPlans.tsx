@@ -14,6 +14,7 @@ import { capitalizeString, statusCell } from "../../../helper/utility";
 import CustomTable from "../../../components/CustomTable";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import CustomDatePicker from "../../../components/CustomDatePicker";
+import { dateToLocalYmd } from "../../../helper/dateFormat";
 import AddEditSubscriptionPlanDialog, {
   SubscriptionPlanModel,
 } from "./AddEditSubscriptionPlanDialog";
@@ -421,7 +422,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           controlId="partner_sub_start_date_filter"
           selectedDate={partnerFilters.fromDate || null}
           onChange={(date) => {
-            const value = date ? date.toISOString().slice(0, 10) : "";
+            const value = date ? dateToLocalYmd(date) : "";
             handlePartnerSubscriptionFilterChange({ fromDate: value });
           }}
           register={register as unknown as UseFormRegister<any>}
@@ -444,7 +445,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           controlId="partner_sub_end_date_filter"
           selectedDate={partnerFilters.toDate || null}
           onChange={(date) => {
-            const value = date ? date.toISOString().slice(0, 10) : "";
+            const value = date ? dateToLocalYmd(date) : "";
             handlePartnerSubscriptionFilterChange({ toDate: value });
           }}
           register={register as unknown as UseFormRegister<any>}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
@@ -9,6 +9,7 @@ import CustomDatePicker from "../../components/CustomDatePicker";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import GenderRadioField from "../../components/GenderRadioField";
 import { formatDate, getStatusOptions } from "../../helper/utility";
+import { dateToLocalYmd } from "../../helper/dateFormat";
 import { openDialog } from "../../lib/global/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
@@ -40,13 +41,6 @@ import profilePlaceholder from "../../assets/icons/profile.svg";
 
 type GenderField = "male" | "female" | "others";
 
-function dateToLocalYmd(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function dobToYmd(value: unknown): string {
   if (value == null || value === "") return "";
   if (typeof value === "string") {
@@ -54,7 +48,7 @@ function dobToYmd(value: unknown): string {
     return s.length >= 10 ? s.slice(0, 10) : s;
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    return dateToLocalYmd(value);
   }
   return "";
 }
@@ -437,13 +431,12 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
                 birthDatePicker
                 selectedDate={dateOfBirth ? dateOfBirth : null}
                 placeholderText="Select date of birth"
-                register={register}
-                setValue={setValue}
+                register={register as unknown as UseFormRegister<any>}
+                setValue={setValue as unknown as UseFormSetValue<any>}
                 groupClassName="mb-0 w-100 franchise-employee-dob-field"
                 onChange={(date) => {
                   const value = date ? dateToLocalYmd(date) : "";
                   setDateOfBirth(value);
-                  setValue("franchise_emp_date_of_birth", value);
                 }}
               />
             </Col>

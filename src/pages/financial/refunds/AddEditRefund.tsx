@@ -13,6 +13,7 @@ import CustomCloseButton from "../../../components/CustomCloseButton";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import "./AddEditRefund.scss";
+import { todayLocalYmd } from "../../../helper/dateFormat";
 
 export type RefundRow = {
   _id: string;
@@ -20,20 +21,23 @@ export type RefundRow = {
   order_unique_id: string;
   user_name: string;
   total_amount: number;
+  user_paid?: number;
   refund_amount?: number;
   from_admin_commission?: number;
   from_partner_wallet?: number;
   created_at?: string | null;
 };
 
-/** One row per order for the refund modal — same source as refunds list (`fetchOrder`). */
+/** One row from `GET /api/refund/eligible-orders`. */
 export type RefundOrderOption = {
   _id: string;
   order_unique_id: string;
   user_name: string;
   total_amount: number;
-  admin_earning: number;
-  partner_wallet_total: number;
+  user_paid: number;
+  refundable_amount: number;
+  admin_payable_amount: number;
+  partner_payable_amount: number;
 };
 
 export type RefundFormPayload = {
@@ -46,6 +50,7 @@ export type RefundFormPayload = {
   from_partner_wallet: number;
   created_at: string;
   refund_type: "total" | "partial" | null;
+  notes?: string;
 };
 
 type AddEditRefundProps = {
@@ -62,6 +67,37 @@ const REFUND_TYPE_OPTIONS = [
   { value: "total", label: "Total" },
   { value: "partial", label: "Partial" },
 ];
+
+function parseAmount(raw: string): number {
+  const n = Number(String(raw).trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatAmountInput(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "";
+  const fixed = n.toFixed(2);
+  return fixed.replace(/\.?0+$/, "") || "0";
+}
+
+function clampAmount(value: number, max: number): number {
+  const safe = Number.isFinite(value) ? value : 0;
+  const cap = Number.isFinite(max) && max > 0 ? max : 0;
+  return Math.min(Math.max(0, safe), cap);
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Admin + partner recovery cannot exceed the refund paid to the customer. */
+function splitExceedsRefund(
+  admin: number,
+  partner: number,
+  refund: number
+): boolean {
+  if (refund <= 0) return false;
+  return roundMoney(admin + partner) > roundMoney(refund) + 0.01;
+}
 
 const AddEditRefund: React.FC<AddEditRefundProps> = ({
   show,
@@ -89,16 +125,28 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
     [orderOptions, selectedOrderId]
   );
 
+  const maxRefundable = useMemo(() => {
+    if (!selectedOrder) return 0;
+    return (
+      selectedOrder.refundable_amount > 0
+        ? selectedOrder.refundable_amount
+        : selectedOrder.user_paid
+    );
+  }, [selectedOrder]);
+
   const computedAmounts = useMemo(() => {
     if (!selectedOrder) return null;
     return {
-      refund_amount: selectedOrder.total_amount,
-      from_admin_commission: selectedOrder.admin_earning,
-      from_partner_wallet: selectedOrder.partner_wallet_total,
+      refund_amount: maxRefundable,
+      from_admin_commission: selectedOrder.admin_payable_amount,
+      from_partner_wallet: selectedOrder.partner_payable_amount,
     };
-  }, [selectedOrder]);
+  }, [selectedOrder, maxRefundable]);
 
   const sym = AppConstant.currencySymbol;
+
+  const adminCap = selectedOrder?.admin_payable_amount ?? 0;
+  const partnerCap = selectedOrder?.partner_payable_amount ?? 0;
 
   const sanitizeAmountInput = useCallback((raw: string) => {
     const cleaned = raw.replace(/[^0-9.]/g, "");
@@ -107,11 +155,130 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
     return rest.length > 0 ? `${whole}.${fractional}` : whole;
   }, []);
 
-  const seedPartialFromOrder = useCallback((order: RefundOrderOption) => {
+  const updatePartialField = useCallback(
+    (
+      field: "refund_amount" | "from_admin_commission" | "from_partner_wallet",
+      raw: string
+    ) => {
+      if (!selectedOrder) return;
+
+      const sanitized = sanitizeAmountInput(raw);
+      if (sanitized === "" || sanitized === ".") {
+        setPartialDraft((d) => ({ ...d, [field]: sanitized }));
+        return;
+      }
+
+      const parsed = parseAmount(sanitized);
+      const refundBase = clampAmount(
+        parseAmount(partialDraft.refund_amount),
+        maxRefundable
+      );
+      const adminBase =
+        partialDraft.from_admin_commission.trim() === ""
+          ? 0
+          : parseAmount(partialDraft.from_admin_commission);
+      const partnerBase =
+        partialDraft.from_partner_wallet.trim() === ""
+          ? 0
+          : parseAmount(partialDraft.from_partner_wallet);
+
+      if (field === "refund_amount") {
+        const refund = clampAmount(parsed, maxRefundable);
+        let admin = adminBase;
+        let partner = partnerBase;
+        if (refund > 0) {
+          admin = clampAmount(admin, Math.min(adminCap, refund));
+          partner = clampAmount(
+            partner,
+            Math.min(partnerCap, Math.max(0, refund - admin))
+          );
+        }
+        setPartialDraft({
+          refund_amount: formatAmountInput(refund),
+          from_admin_commission:
+            partialDraft.from_admin_commission.trim() !== ""
+              ? formatAmountInput(admin)
+              : "",
+          from_partner_wallet:
+            partialDraft.from_partner_wallet.trim() !== ""
+              ? formatAmountInput(partner)
+              : "",
+        });
+        return;
+      }
+
+      if (field === "from_admin_commission") {
+        const refund = refundBase > 0 ? refundBase : maxRefundable;
+        const maxAdmin = Math.min(
+          adminCap,
+          Math.max(0, refund - partnerBase)
+        );
+        const admin = clampAmount(parsed, maxAdmin);
+        setPartialDraft((d) => ({
+          ...d,
+          from_admin_commission: formatAmountInput(admin),
+        }));
+        return;
+      }
+
+      const refund = refundBase > 0 ? refundBase : maxRefundable;
+      const maxPartner = Math.min(
+        partnerCap,
+        Math.max(0, refund - adminBase)
+      );
+      const partner = clampAmount(parsed, maxPartner);
+      setPartialDraft((d) => ({
+        ...d,
+        from_partner_wallet: formatAmountInput(partner),
+      }));
+    },
+    [
+      selectedOrder,
+      sanitizeAmountInput,
+      maxRefundable,
+      adminCap,
+      partnerCap,
+      partialDraft.refund_amount,
+      partialDraft.from_admin_commission,
+      partialDraft.from_partner_wallet,
+    ]
+  );
+
+  const partialCanSubmit = useMemo(() => {
+    if (refundType !== "partial") return true;
+    const refund = parseAmount(partialDraft.refund_amount);
+    if (refund <= 0 || refund > maxRefundable + 0.0001) return false;
+
+    const admin =
+      partialDraft.from_admin_commission.trim() === ""
+        ? 0
+        : parseAmount(partialDraft.from_admin_commission);
+    const partner =
+      partialDraft.from_partner_wallet.trim() === ""
+        ? 0
+        : parseAmount(partialDraft.from_partner_wallet);
+
+    if (admin < 0 || partner < 0) return false;
+    if (admin > adminCap + 0.0001 || partner > partnerCap + 0.0001) {
+      return false;
+    }
+    if (splitExceedsRefund(admin, partner, refund)) return false;
+    return true;
+  }, [
+    refundType,
+    partialDraft.refund_amount,
+    partialDraft.from_admin_commission,
+    partialDraft.from_partner_wallet,
+    maxRefundable,
+    adminCap,
+    partnerCap,
+  ]);
+
+  const seedPartialFromOrder = useCallback((_order: RefundOrderOption) => {
     setPartialDraft({
-      refund_amount: String(order.total_amount),
-      from_admin_commission: String(order.admin_earning),
-      from_partner_wallet: String(order.partner_wallet_total),
+      refund_amount: "",
+      from_admin_commission: "",
+      from_partner_wallet: "",
     });
   }, []);
 
@@ -156,11 +323,11 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
           from_admin_commission:
             refundData.from_admin_commission !== undefined
               ? String(refundData.from_admin_commission)
-              : String(match.admin_earning),
+              : String(match.admin_payable_amount),
           from_partner_wallet:
             refundData.from_partner_wallet !== undefined
               ? String(refundData.from_partner_wallet)
-              : String(match.partner_wallet_total),
+              : String(match.partner_payable_amount),
         });
         setDate(
           refundData.created_at ? refundData.created_at.slice(0, 10) : ""
@@ -169,14 +336,14 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
       }
       if (justOpened && orderOptions.length > 0) {
         resetForm();
-        setDate(new Date().toISOString().slice(0, 10));
+        setDate(todayLocalYmd());
       }
       return;
     }
 
     if (justOpened) {
       resetForm();
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(todayLocalYmd());
     }
   }, [show, refundData, orderOptions, resetForm]);
 
@@ -227,7 +394,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
       return;
     }
 
-    const totalAmt = selectedOrder.total_amount;
+    const cap = maxRefundable;
     let refundNum: number;
     let adminNum: number;
     let partnerNum: number;
@@ -238,44 +405,66 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
       adminNum = computedAmounts.from_admin_commission;
       partnerNum = computedAmounts.from_partner_wallet;
     } else {
+      if (!partialDraft.refund_amount.trim()) {
+        showErrorAlert("Please enter a refund amount.");
+        return;
+      }
+      refundNum = clampAmount(parseAmount(partialDraft.refund_amount), cap);
+      if (refundNum <= 0) {
+        showErrorAlert("Please enter a valid refund amount greater than zero.");
+        return;
+      }
+
+      adminNum =
+        partialDraft.from_admin_commission.trim() === ""
+          ? 0
+          : parseAmount(partialDraft.from_admin_commission);
+      partnerNum =
+        partialDraft.from_partner_wallet.trim() === ""
+          ? 0
+          : parseAmount(partialDraft.from_partner_wallet);
       if (
-        !partialDraft.refund_amount.trim() ||
-        Number(partialDraft.refund_amount) < 0
+        Number.isNaN(adminNum) ||
+        Number.isNaN(partnerNum) ||
+        adminNum < 0 ||
+        partnerNum < 0
       ) {
-        showErrorAlert("Please enter a valid Refund Amount.");
-        return;
-      }
-      refundNum = Number(partialDraft.refund_amount);
-      if (Number.isNaN(refundNum)) {
-        showErrorAlert("Please enter a valid Refund Amount.");
-        return;
-      }
-      if (
-        partialDraft.from_admin_commission.trim() === "" ||
-        Number(partialDraft.from_admin_commission) < 0
-      ) {
-        showErrorAlert("Please enter a valid Admin Commission amount.");
-        return;
-      }
-      if (
-        partialDraft.from_partner_wallet.trim() === "" ||
-        Number(partialDraft.from_partner_wallet) < 0
-      ) {
-        showErrorAlert("Please enter a valid Partner Wallet amount.");
-        return;
-      }
-      adminNum = Number(partialDraft.from_admin_commission);
-      partnerNum = Number(partialDraft.from_partner_wallet);
-      if (Number.isNaN(adminNum) || Number.isNaN(partnerNum)) {
         showErrorAlert("Please enter valid numeric amounts.");
         return;
       }
-      if (refundNum > totalAmt + 0.0001) {
+
+      if (adminNum > selectedOrder.admin_payable_amount + 0.0001) {
         showErrorAlert(
-          `Refund Amount cannot exceed Total Amount (${sym}${totalAmt.toFixed(
+          `Admin contribution cannot exceed ${sym}${selectedOrder.admin_payable_amount.toFixed(
             2
-          )}).`
+          )}.`
         );
+        return;
+      }
+      if (partnerNum > selectedOrder.partner_payable_amount + 0.0001) {
+        showErrorAlert(
+          `Partner contribution cannot exceed ${sym}${selectedOrder.partner_payable_amount.toFixed(
+            2
+          )}.`
+        );
+        return;
+      }
+      if (splitExceedsRefund(adminNum, partnerNum, refundNum)) {
+        showErrorAlert(
+          `Admin (${sym}${adminNum.toFixed(
+            2
+          )}) + Partner (${sym}${partnerNum.toFixed(
+            2
+          )}) cannot exceed the refund amount (${sym}${refundNum.toFixed(2)}).`
+        );
+        return;
+      }
+    }
+
+    if (refundType === "total") {
+      const splitSum = adminNum + partnerNum;
+      if (Math.abs(splitSum - refundNum) > 0.01) {
+        showErrorAlert("Refund split does not match refundable settlement.");
         return;
       }
     }
@@ -289,7 +478,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
       order_id: selectedOrder._id,
       order_unique_id: selectedOrder.order_unique_id,
       user_name: selectedOrder.user_name,
-      total_amount: totalAmt,
+      total_amount: selectedOrder.total_amount,
       refund_amount: refundNum,
       from_admin_commission: adminNum,
       from_partner_wallet: partnerNum,
@@ -403,6 +592,24 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                         />
                       </Col>
                       <Col xs={12} md={4}>
+                        <CustomFormInput
+                          label="User Paid"
+                          controlId="display_user_paid"
+                          placeholder=""
+                          {...readOnlyAmountProps}
+                          value={`${sym}${selectedOrder.user_paid.toFixed(2)}`}
+                        />
+                      </Col>
+                      <Col xs={12} md={4}>
+                        <CustomFormInput
+                          label="Refundable"
+                          controlId="display_refundable"
+                          placeholder=""
+                          {...readOnlyAmountProps}
+                          value={`${sym}${maxRefundable.toFixed(2)}`}
+                        />
+                      </Col>
+                      <Col xs={12} md={4}>
                         <CustomFormSelect
                           label="Refund type"
                           controlId="refund_type_select"
@@ -431,6 +638,51 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                   computedAmounts &&
                   refundType != null && (
                     <Col xs={12}>
+                      <div className="add-edit-refund-limits border rounded p-3 mb-3">
+                        <div className="fw-semibold small text-uppercase text-muted mb-2">
+                          Refund limits (this order)
+                        </div>
+                        <ul className="add-edit-refund-limits-list mb-0 ps-3 small">
+                          <li>
+                            <span className="text-muted">Maximum refund:</span>{" "}
+                            <strong>
+                              {sym}
+                              {maxRefundable.toFixed(2)}
+                            </strong>
+                          </li>
+                          <li>
+                            <span className="text-muted">
+                              From admin commission (max):
+                            </span>{" "}
+                            <strong>
+                              {sym}
+                              {adminCap.toFixed(2)}
+                            </strong>
+                          </li>
+                          <li>
+                            <span className="text-muted">
+                              From partner wallet (max):
+                            </span>{" "}
+                            <strong>
+                              {sym}
+                              {partnerCap.toFixed(2)}
+                            </strong>
+                          </li>
+                          <li className="text-muted">
+                            Partial refund is allowed — enter any refund up to
+                            the maximum. Admin + Partner combined cannot exceed
+                            the refund amount.
+                            {adminCap + partnerCap > 0.0001 && (
+                              <>
+                                {" "}
+                                Full settlement reference: {sym}
+                                {(adminCap + partnerCap).toFixed(2)}.
+                              </>
+                            )}
+                          </li>
+                        </ul>
+                      </div>
+
                       <div className="border rounded p-3 bg-light add-edit-refund-inline-fields">
                         <div className="fw-semibold mb-3 small text-uppercase text-muted">
                           Refund breakdown
@@ -449,18 +701,15 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                               />
                             ) : (
                               <CustomFormInput
-                                label="Refund Amount"
+                                label={`Refund Amount (max ${sym}${maxRefundable.toFixed(2)})`}
                                 controlId="refund_amount_edit"
-                                placeholder="0.00"
+                                placeholder={`Max ${sym}${maxRefundable.toFixed(2)}`}
                                 register={register}
                                 asCol={false}
                                 inputType="text"
                                 value={partialDraft.refund_amount}
                                 onChange={(v) =>
-                                  setPartialDraft((d) => ({
-                                    ...d,
-                                    refund_amount: sanitizeAmountInput(v),
-                                  }))
+                                  updatePartialField("refund_amount", v)
                                 }
                               />
                             )}
@@ -478,19 +727,15 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                               />
                             ) : (
                               <CustomFormInput
-                                label="Admin Commission"
+                                label={`Admin Commission (max ${sym}${adminCap.toFixed(2)})`}
                                 controlId="admin_commission_edit"
-                                placeholder="0.00"
+                                placeholder={`Max ${sym}${adminCap.toFixed(2)}`}
                                 register={register}
                                 asCol={false}
                                 inputType="text"
                                 value={partialDraft.from_admin_commission}
                                 onChange={(v) =>
-                                  setPartialDraft((d) => ({
-                                    ...d,
-                                    from_admin_commission:
-                                      sanitizeAmountInput(v),
-                                  }))
+                                  updatePartialField("from_admin_commission", v)
                                 }
                               />
                             )}
@@ -508,23 +753,21 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                               />
                             ) : (
                               <CustomFormInput
-                                label="Partner Wallet"
+                                label={`Partner Wallet (max ${sym}${partnerCap.toFixed(2)})`}
                                 controlId="partner_wallet_edit"
-                                placeholder="0.00"
+                                placeholder={`Max ${sym}${partnerCap.toFixed(2)}`}
                                 register={register}
                                 asCol={false}
                                 inputType="text"
                                 value={partialDraft.from_partner_wallet}
                                 onChange={(v) =>
-                                  setPartialDraft((d) => ({
-                                    ...d,
-                                    from_partner_wallet: sanitizeAmountInput(v),
-                                  }))
+                                  updatePartialField("from_partner_wallet", v)
                                 }
                               />
                             )}
                           </Col>
                         </Row>
+
                       </div>
                     </Col>
                   )}
@@ -544,7 +787,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
             className="btn-danger"
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting || !selectedOrder}
+            disabled={isSubmitting || !selectedOrder || !partialCanSubmit}
           >
             {isSubmitting ? "Processing..." : "Refund"}
           </Button>

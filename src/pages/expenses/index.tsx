@@ -38,12 +38,10 @@ import { readHeaderFranchisePreference } from "../../lib/franchise/headerFranchi
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
 import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import { fetchUserById } from "../../services/userService";
+import { normalizeCalendarYmd } from "../../helper/dateFormat";
 
 const toDateInputValue = (iso?: string): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return normalizeCalendarYmd(iso) ?? "";
 };
 
 type ExpenseFormState = {

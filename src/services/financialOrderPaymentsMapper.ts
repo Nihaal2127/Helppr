@@ -104,6 +104,8 @@ export function mapFinancialPaymentRecord(
           : null,
     commission_percent:
       raw.commission_percent != null ? num(raw.commission_percent) : null,
+    commission_amount:
+      raw.commission_amount != null ? num(raw.commission_amount) : null,
     tax_percentage:
       raw.tax_percentage != null
         ? num(raw.tax_percentage)
@@ -111,6 +113,7 @@ export function mapFinancialPaymentRecord(
           ? num(raw.tax_percent)
           : null,
     tax_percent: raw.tax_percent != null ? num(raw.tax_percent) : null,
+    tax_amount: raw.tax_amount != null ? num(raw.tax_amount) : null,
     is_paid: bool(raw.is_paid) || customerStatus === "paid",
     partner_earning: num(raw.partner_earning),
     admin_earning: num(raw.admin_earning),

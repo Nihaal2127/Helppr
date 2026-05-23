@@ -36,4 +36,13 @@
       margin-bottom: 0 !important;
     }
   }
+
+  .add-edit-refund-limits {
+    background: var(--bs-light, #f8f9fa);
+    border-color: var(--lb-border, #dee2e6) !important;
+  }
+
+  .add-edit-refund-limits-list li + li {
+    margin-top: 0.35rem;
+  }
 }

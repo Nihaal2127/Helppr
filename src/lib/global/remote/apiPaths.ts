@@ -114,7 +114,12 @@ export const ApiPaths = {
   /** Ledger credits/debits for one partner (`?id=` Mongo partner `_id`). */
   PARTNER_PAYOUT_SHOW: () => `/partner_payout/show`,
   PARTNER_PAYOUT_CREATE: "/partner_payout/create",
-  /** Record offline refund split (admin commission vs partner wallet). Align with backend. */
+  /** Financial — Order refunds (Postman §38 — `/api/refund/*`). */
+  REFUND_GET_ALL: () => `/refund/getAll`,
+  REFUND_ELIGIBLE_ORDERS: () => `/refund/eligible-orders`,
+  REFUND_GET_BY_ID: (id: string) => `/refund/getById/${id}`,
+  REFUND_CREATE: "/refund/create",
+  /** @deprecated Legacy order refund — use `REFUND_CREATE`. */
   ORDER_REFUND: "/order/refund",
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,
   CREATE_TAX_OTHER_CHARGES: "/tax/create",

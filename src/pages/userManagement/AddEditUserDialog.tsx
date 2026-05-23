@@ -37,6 +37,7 @@ import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import { dateToLocalYmd } from "../../helper/dateFormat";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
@@ -1295,7 +1296,7 @@ function AddEditUserDialogView({
     if (v == null || v === "") return null;
     if (typeof v === "string") return v.length >= 10 ? v.slice(0, 10) : v;
     if (v instanceof Date && !Number.isNaN(v.getTime()))
-      return v.toISOString().slice(0, 10);
+      return dateToLocalYmd(v);
     return null;
   };
 
@@ -1389,7 +1390,7 @@ function AddEditUserDialogView({
                       birthDatePicker
                       onChange={(date) => {
                         const value = date
-                          ? date.toISOString().slice(0, 10)
+                          ? dateToLocalYmd(date)
                           : "";
                         setValue("date_of_birth", value, {
                           shouldValidate: true,
@@ -1665,7 +1666,7 @@ function AddEditUserDialogView({
                         selectedDate={toYmdString(subscriptionStartStr)}
                         onChange={(date) => {
                           const value = date
-                            ? date.toISOString().slice(0, 10)
+                            ? dateToLocalYmd(date)
                             : "";
                           setValue("subscription_start_date", value, {
                             shouldValidate: true,
@@ -1691,7 +1692,7 @@ function AddEditUserDialogView({
                         selectedDate={toYmdString(subscriptionEndStr)}
                         onChange={(date) => {
                           const value = date
-                            ? date.toISOString().slice(0, 10)
+                            ? dateToLocalYmd(date)
                             : "";
                           setValue("subscription_end_date", value, {
                             shouldValidate: true,
@@ -1738,7 +1739,7 @@ function AddEditUserDialogView({
                     birthDatePicker
                     onChange={(date) => {
                       const value = date
-                        ? date.toISOString().slice(0, 10)
+                        ? dateToLocalYmd(date)
                         : "";
                       setValue("date_of_birth", value, {
                         shouldValidate: true,
@@ -1777,7 +1778,7 @@ function AddEditUserDialogView({
                       birthDatePicker
                       onChange={(date) => {
                         const value = date
-                          ? date.toISOString().slice(0, 10)
+                          ? dateToLocalYmd(date)
                           : "";
                         setValue("date_of_birth", value, {
                           shouldValidate: true,

@@ -13,6 +13,7 @@ import {
 import { partnerSubscriptionPlansSeed } from "../mockData/partnerSubscriptionPlansSeedData";
 import type { SubscriptionPlanModel } from "../lib/models/SubscriptionPlanModel";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
+import { todayLocalYmd } from "../helper/dateFormat";
 import { capitalizeString } from "../helper/utility";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
@@ -1017,7 +1018,7 @@ export function addPartnerPostMock(payload: {
       description: payload.description.trim(),
       media_type: payload.media_type,
       location: (payload.location ?? "").trim() || "-",
-      uploaded_date: new Date().toISOString().slice(0, 10),
+      uploaded_date: todayLocalYmd(),
       status: "pending",
     },
     ...mockPosts,

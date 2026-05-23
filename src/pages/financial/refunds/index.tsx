@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -6,19 +6,24 @@ import { FinancialSubPageBackButton } from "../../../components/FinancialSubPage
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomTable from "../../../components/CustomTable";
 import CustomDatePicker from "../../../components/CustomDatePicker";
-import CustomActionColumn from "../../../components/CustomActionColumn";
 import { AppConstant } from "../../../lib/global/AppConstant";
-import { franchiseHeaderFormDefaults } from "../../../lib/franchise/headerFranchisePreference";
-import { deleteOrder, fetchOrder } from "../../../lib/order/orders";
-import { OrderModel } from "../../../lib/order/orders";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
 import { showSuccessAlert } from "../../../lib/global/alertHelper";
 import { formatDate } from "../../../helper/utility";
+import {
+  createRefund,
+  fetchRefundEligibleOrders,
+  fetchRefundList,
+} from "../../../services/refundService";
+import type {
+  RefundEligibleOrder,
+  RefundListRow,
+} from "../../../services/refundService";
 import AddEditRefund, {
   RefundFormPayload,
-  RefundOrderOption,
   RefundRow,
 } from "./AddEditRefund";
-import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 
 function money(n: number | null | undefined): string {
   if (n === undefined || n === null || Number.isNaN(Number(n))) return "—";
@@ -33,12 +38,40 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
   return `${y}-${m}-${d}`;
 };
 
+function listRowToTableRow(row: RefundListRow): RefundRow {
+  return {
+    _id: row._id,
+    order_id: row.order_mongo_id || row.order_id,
+    order_unique_id: row.order_unique_id,
+    user_name: row.user_name,
+    total_amount: row.total_amount,
+    user_paid: row.user_paid,
+    refund_amount: row.refund_amount,
+    from_admin_commission: row.from_admin_commission,
+    from_partner_wallet: row.from_partner_wallet,
+    created_at: row.date,
+  };
+}
+
+function eligibleToOption(o: RefundEligibleOrder) {
+  return {
+    _id: o._id,
+    order_unique_id: o.order_unique_id,
+    user_name: o.user_name,
+    total_amount: o.total_amount,
+    user_paid: o.user_paid,
+    refundable_amount: o.refundable_amount,
+    admin_payable_amount: o.admin_payable_amount,
+    partner_payable_amount: o.partner_payable_amount,
+  };
+}
+
 const RefundsPage = () => {
-  const { register: headerRegister, setValue: setHeaderValue } = useForm<{
-    franchise_id: string;
-  }>({
-    defaultValues: franchiseHeaderFormDefaults(),
-  });
+  const {
+    register: headerRegister,
+    setValue: setHeaderValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
 
   const { register: quoteFilterRegister, setValue: setQuoteFilterValue } =
     useForm<{
@@ -48,13 +81,18 @@ const RefundsPage = () => {
       defaultValues: { from_date: "", to_date: "" },
     });
 
-  const fetchRef = useRef(false);
+  const franchiseIdForApi = useMemo(
+    () => franchiseIdForApiQuery(headerFranchiseId),
+    [headerFranchiseId]
+  );
 
-  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [refundRows, setRefundRows] = useState<RefundRow[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
   const [refundOrderOptions, setRefundOrderOptions] = useState<
-    RefundOrderOption[]
+    ReturnType<typeof eligibleToOption>[]
   >([]);
+  const [eligibleLoading, setEligibleLoading] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [submittingRefund, setSubmittingRefund] = useState(false);
 
@@ -66,137 +104,88 @@ const RefundsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const loadRefundRows = useCallback(async () => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
-    setOrdersLoading(true);
-
+  const loadRefundList = useCallback(async () => {
+    setLoading(true);
     try {
-      const { response, orders } = await fetchOrder(1, 200, {});
+      const keyword = searchValue.trim();
+      const { response, records, totalPages: tp } = await fetchRefundList(
+        currentPage,
+        pageSize,
+        {
+          ...(keyword && { order_id: keyword, user_name: keyword }),
+          from_date: fromDate ?? undefined,
+          to_date: toDate ?? undefined,
+          franchise_id: franchiseIdForApi,
+        },
+        [{ id: "refund_date", desc: true }],
+        { skipLoader: true }
+      );
       if (response) {
-        const list = orders ?? [];
-        const mappedRows: RefundRow[] = list.map((o: OrderModel) => ({
-          _id: o._id || `${Date.now()}-${Math.random()}`,
-          order_id: o._id || "",
-          order_unique_id: o.unique_id ?? o._id ?? "-",
-          user_name: o.user_name || "-",
-          total_amount: Number(o.total_price) || 0,
-          refund_amount: undefined,
-          from_admin_commission: undefined,
-          from_partner_wallet: undefined,
-          created_at: o.created_at || o.updated_at || null,
-        }));
-
-        const orderOpts: RefundOrderOption[] = list.map((o: OrderModel) => {
-          const partner_wallet_total = (o.service_items || []).reduce(
-            (sum, item) => sum + (Number(item.partner_earning) || 0),
-            0
-          );
-          return {
-            _id: o._id || "",
-            order_unique_id: o.unique_id ?? o._id ?? "-",
-            user_name: o.user_name || "-",
-            total_amount: Number(o.total_price) || 0,
-            admin_earning: Number(o.admin_earning) || 0,
-            partner_wallet_total,
-          };
-        });
-
-        setRefundRows(mappedRows);
-        setRefundOrderOptions(orderOpts);
+        setRefundRows(records.map(listRowToTableRow));
+        setTotalPages(Math.max(1, tp || 1));
+      } else {
+        setRefundRows([]);
+        setTotalPages(1);
       }
     } finally {
-      setOrdersLoading(false);
-      fetchRef.current = false;
+      setLoading(false);
     }
-  }, []);
+  }, [
+    currentPage,
+    pageSize,
+    searchValue,
+    fromDate,
+    toDate,
+    franchiseIdForApi,
+  ]);
+
+  const loadEligibleOrders = useCallback(async () => {
+    setEligibleLoading(true);
+    try {
+      const { response, orders } = await fetchRefundEligibleOrders({
+        franchise_id: franchiseIdForApi,
+        limit: 250,
+      });
+      if (response) {
+        setRefundOrderOptions(orders.map(eligibleToOption));
+      } else {
+        setRefundOrderOptions([]);
+      }
+    } finally {
+      setEligibleLoading(false);
+    }
+  }, [franchiseIdForApi]);
 
   useEffect(() => {
-    void loadRefundRows();
-  }, [loadRefundRows]);
+    void loadRefundList();
+  }, [loadRefundList]);
 
-  const handleVoidOrder = useCallback(
-    (row: RefundRow) => {
-      const id = row.order_id || row._id;
-      const display = row.order_unique_id ?? id ?? "-";
+  useEffect(() => {
+    if (!showRefundModal) return;
+    void loadEligibleOrders();
+  }, [showRefundModal, loadEligibleOrders]);
 
-      if (!id) return;
-
-      openConfirmDialog(
-        `Are you sure you want to void this order (${display})?`,
-        "Void",
-        "Cancel",
-        async () => {
-          await deleteOrder(String(id));
-          setCurrentPage(1);
-          await loadRefundRows();
-        }
-      );
-    },
-    [loadRefundRows]
-  );
-
-  const filteredRows = useMemo(() => {
-    let list = [...refundRows];
-
-    if (fromDate) {
-      const fromTs = new Date(fromDate).setHours(0, 0, 0, 0);
-      list = list.filter((item) => {
-        if (!item.created_at) return true;
-        return new Date(item.created_at).getTime() >= fromTs;
-      });
-    }
-
-    if (toDate) {
-      const toTs = new Date(toDate).setHours(23, 59, 59, 999);
-      list = list.filter((item) => {
-        if (!item.created_at) return true;
-        return new Date(item.created_at).getTime() <= toTs;
-      });
-    }
-
-    if (searchValue.trim()) {
-      const keyword = searchValue.trim().toLowerCase();
-      list = list.filter((item) => {
-        return (
-          String(item.order_unique_id).toLowerCase().includes(keyword) ||
-          String(item.user_name).toLowerCase().includes(keyword)
-        );
-      });
-    }
-
-    return list;
-  }, [refundRows, fromDate, toDate, searchValue]);
-
-  const totalPages = useMemo(() => {
-    if (!filteredRows.length) return 0;
-    return Math.ceil(filteredRows.length / pageSize);
-  }, [filteredRows, pageSize]);
-
-  const pagedRows = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [filteredRows, currentPage, pageSize]);
+  const handleOpenRefundModal = () => {
+    setShowRefundModal(true);
+  };
 
   const handleRefundSave = async (payload: RefundFormPayload) => {
     setSubmittingRefund(true);
-
     try {
-      const newRow: RefundRow = {
-        _id: `${Date.now()}`,
+      const ok = await createRefund({
         order_id: payload.order_id,
-        order_unique_id: payload.order_unique_id,
-        user_name: payload.user_name,
-        total_amount: payload.total_amount,
         refund_amount: payload.refund_amount,
         from_admin_commission: payload.from_admin_commission,
         from_partner_wallet: payload.from_partner_wallet,
-        created_at: payload.created_at,
-      };
+        date: payload.created_at,
+        notes: payload.notes,
+      });
+      if (!ok) return;
 
-      setRefundRows((prev) => [newRow, ...prev]);
       setShowRefundModal(false);
-      showSuccessAlert("Refund added successfully.");
+      showSuccessAlert("Refund recorded successfully.");
+      setCurrentPage(1);
+      await loadRefundList();
     } finally {
       setSubmittingRefund(false);
     }
@@ -207,7 +196,7 @@ const RefundsPage = () => {
       {
         Header: "S.No",
         accessor: "serial_no",
-        Cell: ({ row }: { row: any }) =>
+        Cell: ({ row }: { row: { index: number } }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
       {
@@ -218,55 +207,41 @@ const RefundsPage = () => {
       {
         Header: "Total Amount",
         accessor: "total_amount",
-        Cell: ({ row }: { row: any }) => money(row.original.total_amount),
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
+          money(row.original.total_amount),
       },
       {
         Header: "User Paid",
         accessor: "user_paid",
-        Cell: ({ row }: { row: any }) => money(row.original.user_paid),
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
+          money(row.original.user_paid),
       },
       {
         Header: "Refund Amount",
         accessor: "refund_amount",
-        Cell: ({ row }: { row: any }) =>
-          row.original.refund_amount !== undefined
-            ? money(row.original.refund_amount)
-            : "—",
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
+          money(row.original.refund_amount),
       },
       {
         Header: "From Admin Commission",
         accessor: "from_admin_commission",
-        Cell: ({ row }: { row: any }) =>
-          row.original.from_admin_commission !== undefined
-            ? money(row.original.from_admin_commission)
-            : "—",
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
+          money(row.original.from_admin_commission),
       },
       {
         Header: "From Partner Wallet",
         accessor: "from_partner_wallet",
-        Cell: ({ row }: { row: any }) =>
-          row.original.from_partner_wallet !== undefined
-            ? money(row.original.from_partner_wallet)
-            : "—",
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
+          money(row.original.from_partner_wallet),
       },
       {
         Header: "Date",
         accessor: "created_at",
-        Cell: ({ row }: { row: any }) =>
+        Cell: ({ row }: { row: { original: RefundRow } }) =>
           formatDate(row.original.created_at || ""),
       },
-      {
-        Header: "Action",
-        accessor: "action",
-        Cell: ({ row }: { row: { original: RefundRow } }) => (
-          <CustomActionColumn
-            row={row}
-            onDelete={() => handleVoidOrder(row.original)}
-          />
-        ),
-      },
     ],
-    [currentPage, pageSize, handleVoidOrder]
+    [currentPage, pageSize]
   );
 
   return (
@@ -280,7 +255,7 @@ const RefundsPage = () => {
           <Button
             type="button"
             className="custom-btn-secondary w-auto btn btn-primary"
-            onClick={() => setShowRefundModal(true)}
+            onClick={handleOpenRefundModal}
           >
             Add Refund
           </Button>
@@ -370,14 +345,14 @@ const RefundsPage = () => {
         syncKeyword={searchValue}
       />
 
-      {ordersLoading ? (
+      {loading ? (
         <div className="bg-white border rounded p-4 text-center">
           Loading...
         </div>
       ) : (
         <CustomTable
           columns={refundColumns}
-          data={pagedRows}
+          data={refundRows}
           pageSize={pageSize}
           currentPage={currentPage}
           totalPages={totalPages}
@@ -394,7 +369,7 @@ const RefundsPage = () => {
         show={showRefundModal}
         onHide={() => setShowRefundModal(false)}
         orderOptions={refundOrderOptions}
-        ordersLoading={ordersLoading}
+        ordersLoading={eligibleLoading}
         refundData={null}
         onSave={handleRefundSave}
         isSubmitting={submittingRefund}

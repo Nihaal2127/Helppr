@@ -1,6 +1,7 @@
 import { UserModel } from "../models/UserModel";
 import { AppConstant } from "../global/AppConstant";
 import { getLocalStorage } from "../global/localStorageHelper";
+import { normalizeCalendarYmd } from "../../helper/dateFormat";
 import { genderForApiPayload } from "./genderOptions";
 import { sanitizeIndianPincodeInput } from "./pincodeValidation";
 import { normalizePartnerServicesForUpdate } from "../../components/partnerCatalogBlockUi";
@@ -14,12 +15,7 @@ const USER_TYPE = {
 } as const;
 
 function formatDobForApi(value: unknown): string {
-  const s = String(value ?? "").trim();
-  if (!s) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return normalizeCalendarYmd(String(value ?? "")) ?? "";
 }
 
 function isAddressActive(value: unknown): boolean {

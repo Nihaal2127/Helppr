@@ -18,6 +18,7 @@ import {
   priceCell,
   textUnderlineCell,
 } from "../../../helper/utility";
+import { dateToLocalYmd } from "../../../helper/dateFormat";
 import { AppConstant } from "../../../lib/global/AppConstant";
 import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
@@ -96,6 +97,23 @@ function formatInrGroupedAmount(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function amountWithPercentLabel(
+  amount: number | null | undefined,
+  percent: number | null | undefined
+): string {
+  const sym = AppConstant.currencySymbol;
+  const amountNum =
+    amount != null && Number.isFinite(Number(amount)) ? Number(amount) : null;
+  const pctNum =
+    percent != null && Number.isFinite(Number(percent)) ? Number(percent) : null;
+
+  if (amountNum == null && pctNum == null) return "-";
+  if (amountNum == null) return `${pctNum}%`;
+  const amountStr = `${sym}${formatInrGroupedAmount(amountNum)}`;
+  if (pctNum == null) return amountStr;
+  return `${amountStr} (${pctNum}%)`;
 }
 
 const ORDER_PAYMENTS_STAT_CARD_STYLE: React.CSSProperties = {
@@ -476,21 +494,35 @@ const OrderPayments = () => {
         },
       },
       {
-        Header: "Commission (%)",
-        accessor: "commission_percentage",
+        Header: "Commission",
+        accessor: "commission_amount",
+        sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const v =
-            row.original.commission_percentage ??
-            row.original.commission_percent;
-          return v != null ? `${v}%` : "-";
+          const o = row.original;
+          return (
+            <span>
+              {amountWithPercentLabel(
+                o.commission_amount,
+                o.commission_percentage ?? o.commission_percent
+              )}
+            </span>
+          );
         },
       },
       {
-        Header: "Tax (%)",
-        accessor: "tax_percentage",
+        Header: "Tax",
+        accessor: "tax_amount",
+        sort: true,
         Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const v = row.original.tax_percentage ?? row.original.tax_percent;
-          return v != null ? `${v}%` : "-";
+          const o = row.original;
+          return (
+            <span>
+              {amountWithPercentLabel(
+                o.tax_amount ?? o.tax,
+                o.tax_percentage ?? o.tax_percent
+              )}
+            </span>
+          );
         },
       },
       {
@@ -690,7 +722,7 @@ const OrderPayments = () => {
                 controlId="from_date_filter"
                 selectedDate={fromDate || null}
                 onChange={(e) => {
-                  const value = e ? e.toISOString().slice(0, 10) : "";
+                  const value = e ? dateToLocalYmd(e) : "";
                   setFromDate(value);
                   listParamsRef.current.fromDate = value;
                   bumpFilters();
@@ -716,7 +748,7 @@ const OrderPayments = () => {
                 controlId="to_date_filter"
                 selectedDate={toDate || null}
                 onChange={(e) => {
-                  const value = e ? e.toISOString().slice(0, 10) : "";
+                  const value = e ? dateToLocalYmd(e) : "";
                   setToDate(value);
                   listParamsRef.current.toDate = value;
                   bumpFilters();

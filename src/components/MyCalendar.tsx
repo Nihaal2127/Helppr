@@ -18,6 +18,7 @@ import { CustomFormInput } from "./CustomFormInput";
 import CustomFormSelect from "./CustomFormSelect";
 import CustomDatePicker from "./CustomDatePicker";
 import CustomUtilityBox from "./CustomUtilityBox";
+import { dateToLocalYmd, todayLocalYmd } from "../helper/dateFormat";
 
 interface CalendarEvent {
   id: string;
@@ -158,7 +159,7 @@ const MyCalendar: React.FC = () => {
 
   // 👉 Expose function for Schedule button
   const openScheduleModal = () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocalYmd();
     setEditingEventId(null);
     setEventTitle("");
     setOrderId("");
@@ -610,7 +611,7 @@ const MyCalendar: React.FC = () => {
                 controlId="calendar_modal_service_date"
                 selectedDate={serviceDate || null}
                 onChange={(date) => {
-                  const value = date ? date.toISOString().slice(0, 10) : "";
+                  const value = date ? dateToLocalYmd(date) : "";
                   setServiceDate(value);
                   setSelectedDate(value);
                   if (errors.serviceDate) {

@@ -19,6 +19,7 @@ import { CustomFormInput } from "../../../components/CustomFormInput";
 import { CustomFormIndiaMobile } from "../../../components/CustomFormIndiaMobile";
 import CustomFormSelect from "../../../components/CustomFormSelect";
 import { DetailsRow, FullDetailsRow, formatDate } from "../../../helper/utility";
+import { dateToLocalYmd } from "../../../helper/dateFormat";
 import CustomDatePicker from "../../../components/CustomDatePicker";
 import { readHeaderFranchisePreference } from "../../../lib/franchise/headerFranchisePreference";
 import {
@@ -79,7 +80,7 @@ function dobToYmd(value: unknown): string {
     return s.length >= 10 ? s.slice(0, 10) : s;
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    return dateToLocalYmd(value);
   }
   return "";
 }
@@ -1514,7 +1515,7 @@ const RoleManagement = () => {
                   register={register}
                   setValue={setValue}
                   onChange={(date) => {
-                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    const value = date ? dateToLocalYmd(date) : "";
                     setForm((p) => ({ ...p, date_of_birth: value }));
                     setValue("role_date_of_birth", value);
                   }}
@@ -1958,7 +1959,7 @@ const RoleManagement = () => {
                   register={register}
                   setValue={setValue}
                   onChange={(date) => {
-                    const value = date ? date.toISOString().slice(0, 10) : "";
+                    const value = date ? dateToLocalYmd(date) : "";
                     setStaffForm((p) => ({ ...p, date_of_birth: value }));
                     setValue("staff_date_of_birth", value);
                   }}

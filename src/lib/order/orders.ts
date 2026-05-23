@@ -4,7 +4,7 @@
 import { apiRequest } from "../global/remote/apiHelper";
 import { ApiPaths } from "../global/remote/apiPaths";
 import { showLog } from "../../helper/logger";
-import { formatDate } from "../../helper/dateFormat";
+import { formatDate, todayLocalYmd } from "../../helper/dateFormat";
 import { formatQuoteScheduledDisplay } from "../quote/quoteHelpers";
 import type { ServerTableSortBy } from "../global/serverTableSort";
 import { sessionMayUseFranchiseIdApiFilter } from "../franchise/headerFranchisePreference";
@@ -437,7 +437,7 @@ export function buildCreateOrderPayload(input: {
   const orderDate =
     input.scheduleMetrics?.from_date ||
     normalizeOrderApiDateYmd(input.orderDateYmd) ||
-    ymdFromIso(new Date().toISOString()) ||
+    todayLocalYmd() ||
     ymdFromIso(String(input.serviceItem.service_date ?? ""));
   const scheduleTo =
     input.scheduleMetrics?.to_date ||

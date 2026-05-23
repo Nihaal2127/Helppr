@@ -1194,7 +1194,7 @@ const ServiceItemForm: React.FC<ServiceItemFormProps> = ({
                 handleInputChange(
                   index,
                   "service_date",
-                  date?.toISOString() || ""
+                  toIsoCalendarDate(date) ?? ""
                 )
               }
               placeholderText="Select Date"

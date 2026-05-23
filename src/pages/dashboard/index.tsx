@@ -17,6 +17,7 @@ import { DashboardCard, formatDate } from "../../helper/utility";
 import { DashboardModel } from "../../lib/dashboard/dashboardModel";
 import { getDashboardData } from "../../lib/dashboard/dashboardService";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import { dateToLocalYmd, todayLocalYmd } from "../../helper/dateFormat";
 import { AppConstant } from "../../lib/global/AppConstant";
 
 type DateRangeType =
@@ -59,14 +60,10 @@ const formatDashboardAmount = (value: number) =>
 
 const Dashboard = () => {
   const { register, setValue } = useForm<any>();
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString()
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(todayLocalYmd());
   const [dateRangeType, setDateRangeType] = useState<DateRangeType>("TODAY");
   const currentYear = new Date().getFullYear();
-  const [weekStartDate, setWeekStartDate] = useState<string>(
-    new Date().toISOString()
-  );
+  const [weekStartDate, setWeekStartDate] = useState<string>(todayLocalYmd());
   const [customFromDate, setCustomFromDate] = useState<string>("");
   const [customToDate, setCustomToDate] = useState<string>("");
 
@@ -97,7 +94,7 @@ const Dashboard = () => {
     const today = new Date();
 
     if (value === "TODAY") {
-      setSelectedDate(today.toISOString());
+      setSelectedDate(dateToLocalYmd(today));
     }
 
     if (value === "THIS_WEEK") {
@@ -106,17 +103,17 @@ const Dashboard = () => {
       const start = new Date(today);
       start.setDate(diff);
 
-      setWeekStartDate(start.toISOString());
-      setSelectedDate(today.toISOString());
+      setWeekStartDate(dateToLocalYmd(start));
+      setSelectedDate(dateToLocalYmd(today));
     }
 
     if (value === "THIS_MONTH") {
-      setSelectedDate(today.toISOString());
+      setSelectedDate(dateToLocalYmd(today));
     }
 
     if (value === "THIS_YEAR") {
       // API expects a single date; backend will infer the range (year) from this date.
-      setSelectedDate(today.toISOString());
+      setSelectedDate(dateToLocalYmd(today));
     }
 
     if (value === "CUSTOM_RANGE") {
@@ -368,7 +365,7 @@ const Dashboard = () => {
                   controlId="service_date_from"
                   selectedDate={customFromDate}
                   onChange={(date) => {
-                    const iso = date?.toISOString() || "";
+                    const iso = date ? dateToLocalYmd(date) : "";
                     setCustomFromDate(iso);
                   }}
                   placeholderText="From date"
@@ -384,7 +381,7 @@ const Dashboard = () => {
                   controlId="service_date_to"
                   selectedDate={customToDate}
                   onChange={(date) => {
-                    const iso = date?.toISOString() || "";
+                    const iso = date ? dateToLocalYmd(date) : "";
                     setCustomToDate(iso);
                   }}
                   placeholderText="To date"

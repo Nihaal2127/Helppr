@@ -39,6 +39,8 @@ export interface FinancialModel {
   tax_percent?: number | null;
   commission_percentage?: number | null;
   commission_percent?: number | null;
+  commission_amount?: number | null;
+  tax_amount?: number | null;
   customer_paid_amount?: number | null;
   customer_pending_amount?: number | null;
   total_service_amount?: number | null;
