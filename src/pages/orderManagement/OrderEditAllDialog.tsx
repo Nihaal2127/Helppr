@@ -24,7 +24,6 @@ import { createOrUpdateOrder } from "../../lib/order/orders";
 import type { OrderModel } from "../../lib/order/orders";
 import { OrderStatusEnum } from "../../lib/order/orders";
 import type { ServiceDropDownOption } from "../../services/servicesService";
-import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import type { AddQuoteFormValues } from "../../lib/types/quoteTypes";
 import {
   applyCouponToQuotePriceBreakdown,
@@ -51,7 +50,6 @@ import {
   orderEditAllAddressLine,
   orderPaymentInvoiceTotal,
   resolveOrderEditFranchiseId,
-  resolveOrderOfferBreakdown,
   resolvePaymentExtension,
   seedEditOrderFormFromRow,
   serviceNamesJoined,
@@ -62,8 +60,6 @@ import type { EditOrderFormValues, OrderPaymentExtV1 } from "../../lib/order/ord
 import OrderAmountSummaryPanel from "../../components/order/OrderAmountSummaryPanel";
 import OrderCouponAction from "../../components/order/OrderCouponAction";
 import { buildOrderAmountSummaryFromOrder } from "../../lib/order/orderAmountSummary";
-import type { QuotePriceBreakdownWithCoupon } from "../../lib/quote/quoteHelpers";
-import { roundMoney } from "../../lib/global/paymentAndCurrency";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
@@ -230,7 +226,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     setValue,
     watch,
     reset,
-    getValues,
     formState: { errors, isSubmitted },
   } = useForm<EditOrderFormValues>({
     defaultValues: {
@@ -345,7 +340,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       setFranchisePinsLoadDone(true);
       setCatalogBusy(false);
     })();
-  }, [franchiseIdForCatalog]);
+  }, [franchiseIdForCatalog, orderRow]);
 
   useEffect(() => {
     const opts = catalogPartnerRecords.map((p) => {
@@ -365,15 +360,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     reset(seedEditOrderFormFromRow(orderRow));
     setFormHydrated(true);
   }, [orderRow, catalogBusy, franchisePinsLoadDone, reset]);
-
-  const applySelectFieldValue = useCallback(
-    (name: keyof EditOrderFormValues, value: unknown) => {
-      setValue(name, value as EditOrderFormValues[typeof name], {
-        shouldValidate: isSubmitted,
-      });
-    },
-    [isSubmitted, setValue]
-  );
 
   const orderAddressFallback = useMemo(() => {
     const order = orderRow;
@@ -615,15 +601,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   useEffect(() => {
     setPaymentExtLive(null);
   }, [orderRow?._id]);
-
-  const modalSelectedCouponOffer = useMemo(() => {
-    const id = String(modalCouponOfferId ?? "").trim();
-    if (!id) return null;
-    return (
-      activeCoupons.find((o) => o.id === id || String(o.offerId) === id) ??
-      null
-    );
-  }, [modalCouponOfferId, activeCoupons]);
 
   const closeCouponModal = useCallback(
     (revertOfferId: boolean) => {

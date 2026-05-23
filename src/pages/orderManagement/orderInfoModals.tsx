@@ -34,7 +34,6 @@ import { OrderModel, OrderStatusEnum } from "../../lib/order/orders";
 import { UserModel } from "../../lib/models/UserModel";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
-  formatMoney2,
   normalizePaymentMethod,
   parseMoneyInput,
   paymentAmountFieldValue,
@@ -54,7 +53,6 @@ import type {
 import type { OrderPaymentExtV1 } from "../../lib/order/orders";
 import {
   computeOrderPaymentLineTotals,
-  orderPaymentInvoiceTotal,
   otherChargesTotal,
   sumCustomerAmounts,
   sumPartnerAmounts,
@@ -66,7 +64,6 @@ import {
   partnerPaidBalanceForEdit,
   getPrimaryServiceItem,
   orderRefundAmount,
-  orderRefundBreakdown,
   partnerPaymentsEditLocked,
   resolveOrderOfferBreakdown,
   getCustomerPaymentStatusLabel,
@@ -691,7 +688,6 @@ const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 /** Shared typography for payment edit (matches order info density). */
 const FONT_BODY = "0.9375rem";
 const FONT_LABEL = "14px";
-const FONT_TOTAL = "1.125rem";
 
 const moneyTabular: React.CSSProperties = {
   fontVariantNumeric: "tabular-nums",
@@ -808,7 +804,6 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     () => resolveOrderOfferBreakdown(order),
     [order]
   );
-  const refundBreakdown = useMemo(() => orderRefundBreakdown(order), [order]);
   const orderDiscount = useMemo(
     () => Math.max(0, Number(order.discount_amount ?? 0)),
     [order.discount_amount]
@@ -1703,11 +1698,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   </tr>
                 </thead>
                 <tbody>
-                  {ext.partnerPayments.map((row, idx) => {
-                    const partnerRowIncomplete =
-                      showPartnerPaymentAddHint &&
-                      !isPartnerPaymentRowComplete(row);
-                    return (
+                  {ext.partnerPayments.map((row, idx) => (
                     <tr key={row.id}>
                       <td className="align-middle text-center fw-medium">
                         {idx + 1}
@@ -1837,8 +1828,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         )}
                       </td>
                     </tr>
-                  );
-                  })}
+                  ))}
                 </tbody>
               </Table>
               ) : null}

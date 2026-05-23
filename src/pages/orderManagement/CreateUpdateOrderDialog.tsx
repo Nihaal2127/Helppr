@@ -83,7 +83,6 @@ import {
   mapOfferModelToCouponInput,
   validateCouponForPriceBreakdown,
 } from "../../lib/quote/quoteHelpers";
-import type { CouponDisplayMeta } from "../../lib/quote/quoteHelpers";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import type { CustomerSavedAddressPreview } from "../../lib/user/userAddressPreview";
 import { fetchServiceDropDown } from "../../services/servicesService";
@@ -107,7 +106,6 @@ import {
 import type { OptionType } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { formatQuoteAddressRowAsServiceLine } from "../../lib/quote/quoteAddressCore";
@@ -117,7 +115,6 @@ import {
   compareIsoDateOnlyAsc,
   isCalendarDateNotBeforeToday,
   isScheduleEndAfterStartSameDay,
-  minutesFromScheduleTimeStorage,
   parseIsoDateOnly,
   QUOTE_MODAL_LAYOUT,
   quoteScheduleTimePickerAllowAllHours,
@@ -543,16 +540,6 @@ const ServiceAddressCardsPanel: React.FC<ServiceAddressCardsPanelProps> = ({
 };
 
 /** --- Service line item form --- */
-
-/** Digits and at most one decimal point (for text `type="text"` service price). */
-function sanitizeDecimalDigits(raw: string): string {
-  const cleaned = raw.replace(/[^\d.]/g, "");
-  const dotIdx = cleaned.indexOf(".");
-  if (dotIdx === -1) return cleaned;
-  return (
-    cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, "")
-  );
-}
 
 const newAddressCardId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1525,53 +1512,6 @@ const paymentSubcard: React.CSSProperties = {
   backgroundColor: "var(--bg-color)",
 };
 
-const summaryRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
-  padding: "10px 0",
-  fontSize: FONT_BODY,
-  borderBottom: "1px solid var(--txtfld-border, rgba(0,0,0,0.08))",
-};
-
-const summaryLabel: React.CSSProperties = {
-  color: "var(--content-txt-color, #6c757d)",
-  fontWeight: 500,
-  minWidth: 0,
-};
-
-const summaryValueTop: React.CSSProperties = {
-  fontWeight: 600,
-  textAlign: "right",
-  alignSelf: "flex-start",
-  ...moneyTabular,
-};
-
-const summaryTotalWrap: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  paddingTop: "12px",
-  marginTop: "8px",
-  borderTop: "2px solid var(--txtfld-border, rgba(0,0,0,0.14))",
-};
-
-const summaryTotalLabel: React.CSSProperties = {
-  fontSize: FONT_TOTAL,
-  fontWeight: 700,
-  color: "var(--primary-txt-color, #1a1a1a)",
-};
-
-const summaryTotalValue: React.CSSProperties = {
-  fontSize: FONT_TOTAL,
-  fontWeight: 700,
-  textAlign: "right",
-  color: "var(--primary-color, #0d6efd)",
-  ...moneyTabular,
-};
-
 const priceSummarySection: React.CSSProperties = {
   ...sectionShell,
   marginTop: "12px",
@@ -1595,21 +1535,6 @@ const tablePriceInputCreate: React.CSSProperties = {
   fontSize: FONT_BODY,
   textAlign: "right",
 };
-
-const offerSublineCreate: React.CSSProperties = {
-  fontSize: FONT_LABEL,
-  fontWeight: 500,
-  color: "var(--content-txt-color, #6c757d)",
-  marginTop: "4px",
-  lineHeight: 1.35,
-};
-
-/** Percent label for offer admin/partner split (one decimal when needed). */
-function formatOfferSplitPercent(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return "0";
-  const rounded = Math.round(n * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
 
 type CreateUpdateOrderDialogProps = {
   isEditable: boolean;
@@ -1677,8 +1602,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
   const [modalCouponOfferId, setModalCouponOfferId] = useState("");
   const offerIdBeforeCouponModalRef = useRef("");
   /** Payment summary: long offer breakdown hidden until user expands (reset when offer changes). */
-  const [showOfferPaymentBreakdown, setShowOfferPaymentBreakdown] =
-    useState(false);
+  const [, setShowOfferPaymentBreakdown] = useState(false);
 
   const [categories, setCategory] = useState<
     { value: string; label: string }[]
@@ -2213,16 +2137,6 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     );
   }, [isEditable, parsedCreateServicePrice, createOrderFeeOption]);
 
-  const selectedCouponMeta = useMemo((): CouponDisplayMeta | null => {
-    if (!selectedCouponOffer) return null;
-    return {
-      type: selectedCouponOffer.offerType,
-      partnerContribution: selectedCouponOffer.partnerContribution,
-      adminContribution: selectedCouponOffer.adminContribution,
-      totalOfferValue: selectedCouponOffer.totalOfferValue,
-    };
-  }, [selectedCouponOffer]);
-
   const couponApplyValidation = useMemo(() => {
     if (isEditable || !selectedCouponOffer || !createOrderBasePriceBreakdown) {
       return null;
@@ -2435,13 +2349,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         admin_earning: Math.round(adminEarning),
       };
     },
-    [
-      isEditable,
-      taxDetails,
-      createCatalogServiceTax,
-      createOrderFeeOption,
-      selectedCouponOffer,
-    ]
+    [isEditable, taxDetails, createOrderFeeOption, selectedCouponOffer]
   );
 
   useEffect(() => {
@@ -2984,20 +2892,9 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
       loadOrderCatalogForFranchise,
       resetCreateOrderCatalogSelections,
       setValue,
+      createFormSubmitted,
     ]
   );
-
-  const taxPctLabel = isEditable
-    ? taxDetails
-      ? Number(taxDetails.tax_for_customer) || 0
-      : 0
-    : createCatalogServiceTax.taxPct;
-  const commissionPctLabel = isEditable
-    ? taxDetails
-      ? (Number(taxDetails.partner_commision_fee) || 0) +
-        (Number(taxDetails.partner_platform_fee) || 0)
-      : 0
-    : createCatalogServiceTax.commissionPct;
 
   const onSubmitEvent = async (data: any) => {
     if (!isEditable) {

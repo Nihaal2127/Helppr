@@ -45,8 +45,6 @@ import {
 } from "../../services/quoteService";
 import type { OptionType, QuoteUserOption } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
-import { normalizeServiceCategoryRef } from "../../services/servicesService";
-import { extractMinDepositTypeKey } from "../../lib/service/serviceMinDepositDisplay";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import {

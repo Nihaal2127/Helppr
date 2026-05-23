@@ -26,8 +26,6 @@ import {
   getOrderServiceAddressDisplay,
   getPartnerPaymentStatusLabel,
   getPrimaryServiceItem,
-  orderRefundAmount,
-  orderRefundBreakdown,
   orderPaymentSummaryServiceAmount,
   resolveOrderOfferBreakdown,
   roundMoney,
@@ -119,16 +117,8 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     return { viewTax: line.taxAmount, viewComm: line.commissionAmount };
   }, [paymentExt, taxCommFromService]);
 
-  const viewOtherSum = paymentExt
-    ? otherChargesTotal(paymentExt.otherCharges)
-    : 0;
-  const refundN = orderRefundAmount(orderDetails);
   const offerBreakdown = useMemo(
     () => resolveOrderOfferBreakdown(orderDetails),
-    [orderDetails]
-  );
-  const refundBreakdown = useMemo(
-    () => orderRefundBreakdown(orderDetails),
     [orderDetails]
   );
 
@@ -194,7 +184,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
       commAmt: Number(orderDetails.partner_commison_platform_fee ?? viewComm),
       totalPriceDisp: Number(orderDetails.total_price ?? 0),
     };
-  }, [paymentExt, orderDetails, primary, offerBreakdown.partnerContribution]);
+  }, [
+    paymentExt,
+    orderDetails,
+    primary,
+    offerBreakdown.partnerContribution,
+    viewTax,
+    viewComm,
+  ]);
 
   const canEditOrderHeader =
     orderDetails?.order_status === 1 || orderDetails?.order_status === 2;

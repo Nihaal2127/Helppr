@@ -25,7 +25,6 @@ import UserViewAddressModal from "./UserViewAddressModal";
 import type { UserViewAddressFormValues } from "./UserViewAddressModal";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
-import { openDialog } from "../../lib/global/DialogManager";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../CustomConfirmDialog";

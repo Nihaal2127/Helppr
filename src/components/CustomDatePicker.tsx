@@ -53,7 +53,16 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   const datePickerRef = useRef<DatePicker | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const maxDob = birthDatePicker ? new Date() : undefined;
+
+  /** Latest selectable DOB when `birthDatePicker`: must be at least 18 years old. */
+  const maxDobAtLeast18 = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
+
+  const maxDob = birthDatePicker ? maxDobAtLeast18() : undefined;
   const minDob = birthDatePicker
     ? new Date(new Date().getFullYear() - 100, 0, 1)
     : undefined;
@@ -99,9 +108,10 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                 ? (date) => {
                     const d = new Date(date);
                     d.setHours(0, 0, 0, 0);
-                    const max = new Date();
-                    max.setHours(23, 59, 59, 999);
-                    return d <= max;
+                    const min = new Date(minDob!);
+                    min.setHours(0, 0, 0, 0);
+                    const max = maxDobAtLeast18();
+                    return d >= min && d <= max;
                   }
                 : (date) => {
                     const today = new Date();

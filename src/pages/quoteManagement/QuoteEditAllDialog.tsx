@@ -30,7 +30,6 @@ import {
   updateQuote,
 } from "../../services/quoteService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
-import { normalizeServiceCategoryRef } from "../../services/servicesService";
 import type { AddQuoteFormValues, QuoteRow } from "../../lib/types/quoteTypes";
 import {
   buildFranchisePincodeSetFromRelatedCatalog,

@@ -8,6 +8,7 @@ import { showErrorAlert } from "../lib/global/alertHelper";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
 import { apiDocumentId } from "../helper/utility";
+import { genderForApiPayload } from "../lib/user/genderOptions";
 import {
   createOrUpdateUser,
   createWebManagementUser,
@@ -31,6 +32,9 @@ export type EmployeeRow = {
   email: string;
   area_name: string;
   is_active: boolean;
+  gender?: string;
+  date_of_birth?: string;
+  profile_url?: string;
   /** Chat can be toggled only when `is_active`; inactive employees force this off. */
   chat_enabled?: boolean;
   /** `page` + `url` rows kept in UI and sent as `available_pages` to API. */
@@ -38,6 +42,28 @@ export type EmployeeRow = {
   /** Editable round-trip: selected `mainMenuItems` keys. */
   screenPermissionKeys?: string[];
 };
+
+function dobForApiPayload(value?: string | null): string | undefined {
+  const s = String(value ?? "").trim();
+  if (!s) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 10);
+}
+
+function dobFromApiRaw(raw: Record<string, unknown>): string | undefined {
+  const ymd = dobForApiPayload(
+    String(raw.date_of_birth ?? raw.dateOfBirth ?? "").trim() || undefined
+  );
+  return ymd || undefined;
+}
+
+function profileUrlForApi(profileUrl?: string): string | undefined {
+  const u = (profileUrl ?? "").trim();
+  if (!u || u.startsWith("uploads/")) return undefined;
+  return u;
+}
 
 export type AreaRow = {
   _id: string;
@@ -1627,6 +1653,9 @@ function mapApiEmployeeToFranchiseEmployeeRow(raw: any): EmployeeRow {
     email: String(raw?.email ?? "").trim() || "-",
     area_name: areaName,
     is_active: isActive,
+    gender: genderForApiPayload(raw?.gender) ?? undefined,
+    date_of_birth: dobFromApiRaw(raw as Record<string, unknown>),
+    profile_url: String(raw?.profile_url ?? "").trim() || undefined,
     chat_enabled: isActive
       ? Boolean(raw?.chat ?? raw?.chat_enabled ?? true)
       : false,
@@ -2155,6 +2184,10 @@ type FranchiseEmployeeInput = {
   is_active: boolean;
   chat_enabled: boolean;
   screenPermissionKeys: string[];
+  gender?: string;
+  date_of_birth?: string;
+  profile_url?: string;
+  imageFile?: File;
   /** Required when creating a new employee (`createFranchiseEmployee`). */
   password?: string;
 };
@@ -2194,6 +2227,14 @@ export async function createFranchiseEmployee(
     ...(franchiseId ? { franchise_id: franchiseId } : {}),
     available_pages: accessible_screens,
     chat_enabled: input.is_active ? input.chat_enabled : false,
+    ...(genderForApiPayload(input.gender)
+      ? { gender: genderForApiPayload(input.gender) }
+      : {}),
+    ...(dobForApiPayload(input.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(input.date_of_birth) }
+      : {}),
+    profile_url: profileUrlForApi(input.profile_url),
+    imageFile: input.imageFile,
   });
   if (!res.ok) return false;
   return true;
@@ -2232,11 +2273,24 @@ export async function updateFranchiseEmployee(
     available_pages: availablePages,
     accessible_screens: availablePages,
     chat: isActive ? Boolean(input.chat_enabled) : false,
+    ...(genderForApiPayload(input.gender)
+      ? { gender: genderForApiPayload(input.gender) }
+      : {}),
+    ...(dobForApiPayload(input.date_of_birth)
+      ? { date_of_birth: dobForApiPayload(input.date_of_birth) }
+      : {}),
+    profile_url: profileUrlForApi(input.profile_url),
   };
 
-  return createOrUpdateUser(body, true, userId, undefined, {
-    suppressSuccessAlert: true,
-  });
+  return createOrUpdateUser(
+    body,
+    true,
+    userId,
+    input.imageFile ? { image: input.imageFile } : undefined,
+    {
+      suppressSuccessAlert: true,
+    }
+  );
 }
 
 export async function voidFranchiseEmployee(id: string): Promise<boolean> {

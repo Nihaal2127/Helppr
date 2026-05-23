@@ -1898,6 +1898,7 @@ body:has(.modal.show ~ .modal.show) {
     }
   }
 
+  .franchise-status-switch,
   .franchise-chat-switch {
     display: flex;
     justify-content: center;
@@ -2060,6 +2061,132 @@ body:has(.modal.show ~ .modal.show) {
   font-weight: 600;
 }
 
+/* My Franchise — employee view modal (centered profile + aligned detail grid) */
+.franchise-employee-view-card {
+  position: relative;
+  padding: 14px 18px 18px !important;
+  margin: 0;
+
+  .franchise-employee-view-card__edit {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .franchise-employee-view-card__profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    padding: 4px 2rem 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--lb1-border);
+  }
+
+  .franchise-employee-view-card__avatar {
+    width: 88px;
+    height: 88px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 1px solid var(--lb1-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .franchise-employee-view-card__name {
+    margin: 0;
+    color: var(--navi-color);
+    font-family: Inter, sans-serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  .franchise-employee-view-card__fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .franchise-employee-view-card__field {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, 9.5rem) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    row-gap: 4px;
+    align-items: start;
+  }
+
+  /* Neutral text — not theme red (`--primary-txt-color` / `--navi-color`). */
+  .franchise-employee-view-card__label {
+    font-family: Inter, sans-serif;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--content-txt-color, #1a1a1a);
+  }
+
+  .franchise-employee-view-card__value {
+    font-family: Inter, sans-serif;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--txt-color, #484848);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
+
+    .custom-active,
+    .custom-inactive {
+      font-weight: 600;
+    }
+  }
+
+  .franchise-employee-view-card__perm-list {
+    padding-left: 1.1rem;
+    margin: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    list-style-type: disc;
+    color: var(--txt-color, #484848);
+
+    li {
+      color: inherit;
+    }
+
+    li + li {
+      margin-top: 4px;
+    }
+  }
+}
+
+/* Franchise employee add/edit form — full-width rows, DOB aligned with other fields */
+.franchise-employee-form-fields {
+  margin: 0;
+
+  > .col-12 {
+    min-width: 0;
+  }
+
+  .franchise-employee-dob-field {
+    margin-bottom: 0.75rem;
+
+    .form-label {
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+      color: var(--content-txt-color, #1a1a1a);
+    }
+
+    .full-width-date-picker {
+      width: 100%;
+      min-height: 35px;
+    }
+  }
+}
+
 /* Franchise employee modal — +91 prefix + digits (same row grid & borders as CustomTextField / CustomFormInput) */
 .franchise-employee-phone-input-group {
   flex-wrap: nowrap;
@@ -2140,46 +2267,73 @@ body:has(.modal.show ~ .modal.show) {
 }
 
 /*
- * My Franchise — services/categories + employee chat: green = on, red = off.
- * Bootstrap is loaded before App.scss, but `.form-check-input:checked` still uses high-specificity
- * rules; `!important` + `franchise-status-switch--on` (set from the same `checked` source in React)
- * keeps the track color aligned with data even when `:checked` styling fights the cascade.
+ * My Franchise — services/categories + employee chat: green = on/active, red = off/inactive.
+ * Do not combine with bare `.franchise-chat-switch` (that skin is red when on).
+ * White knob via `--bs-form-switch-bg` so Bootstrap’s default gray knob does not wash out the track.
+ * Avoid `opacity` on `:disabled` — it turns solid red into pale pink on inactive employee rows.
  */
-.franchise-status-switch.franchise-chat-switch .form-check-input {
+$franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+
+.franchise-status-switch .form-check-input {
   width: 3.35em;
   height: 1.72em;
   margin-left: 0;
   cursor: pointer;
+  opacity: 1;
+  --bs-form-switch-bg: #{$franchise-status-switch-knob};
+  background-image: var(--bs-form-switch-bg) !important;
+  background-repeat: no-repeat;
+  background-position: left center;
 }
 
-.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input {
+.franchise-status-switch .form-check-input:not(:checked),
+.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input {
   background-color: #dc3545 !important;
   border-color: #b02a37 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input:focus {
+.franchise-status-switch .form-check-input:not(:checked):focus,
+.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(220, 53, 69, 0.28);
   border-color: #dc3545 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input {
+.franchise-status-switch .form-check-input:checked,
+.franchise-status-switch.franchise-status-switch--on .form-check-input {
   background-color: #198754 !important;
   border-color: #146c43 !important;
+  background-position: right center;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:focus {
+.franchise-status-switch .form-check-input:checked:focus,
+.franchise-status-switch.franchise-status-switch--on .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(25, 135, 84, 0.32);
   border-color: #198754 !important;
 }
 
-.franchise-status-switch.franchise-chat-switch .form-check-input:disabled {
+.franchise-status-switch .form-check-input:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 1;
 }
 
-.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:disabled {
-  background-color: #adb5bd !important;
-  border-color: #6c757d !important;
+.franchise-status-switch .form-check-input:disabled:not(:checked),
+.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input:disabled {
+  background-color: #dc3545 !important;
+  border-color: #b02a37 !important;
+}
+
+.franchise-status-switch .form-check-input:checked:disabled,
+.franchise-status-switch.franchise-status-switch--on .form-check-input:disabled {
+  background-color: #198754 !important;
+  border-color: #146c43 !important;
+  background-position: right center;
+}
+
+.custom-big-modal .franchise-status-switch {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 0;
+  min-height: 1.85em;
 }
 
 .box {

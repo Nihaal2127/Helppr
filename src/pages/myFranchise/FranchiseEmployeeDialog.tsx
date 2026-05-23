@@ -5,13 +5,21 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
-import { FullDetailsRow, getStatusOptions } from "../../helper/utility";
+import CustomDatePicker from "../../components/CustomDatePicker";
+import CustomImageUploader from "../../components/CustomImageUploader";
+import GenderRadioField from "../../components/GenderRadioField";
+import { formatDate, getStatusOptions } from "../../helper/utility";
 import { openDialog } from "../../lib/global/DialogManager";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
+import { AppConstant } from "../../lib/global/AppConstant";
 import {
   getFranchiseEmployeeScreenMenuItems,
   isFranchiseEmployeeExcludedScreenKey,
 } from "../../lib/layout/franchiseEmployeeScreenPermissions";
+import {
+  formatGenderLabel,
+  normalizeGenderValue,
+} from "../../lib/user/genderOptions";
 import { menuKeysFromAvailablePages } from "../../services/userService";
 import type { EmployeeRow } from "../../services/myFranchiseService";
 import {
@@ -28,6 +36,41 @@ import {
   validateStrongPassword,
   passwordsMatch,
 } from "../../lib/user/userFormValidation";
+import profilePlaceholder from "../../assets/icons/profile.svg";
+
+type GenderField = "male" | "female" | "others";
+
+function dateToLocalYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function dobToYmd(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") {
+    const s = value.trim();
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
+function franchiseEmployeeProfileImageSrc(profileUrl?: string): string {
+  const u = (profileUrl ?? "").trim();
+  if (!u) return profilePlaceholder;
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:")
+  )
+    return u;
+  if (u.startsWith("uploads/")) return profilePlaceholder;
+  return `${AppConstant.IMAGE_BASE_URL}${u}?t=${Date.now()}`;
+}
 
 type EmployeeFormValues = {
   name: string;
@@ -65,6 +108,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const setScreenPermissionKeys = screenPermissionState[1];
 
   const [isEditing, setIsEditing] = useState(isAdd);
+  const [gender, setGender] = useState<GenderField>("male");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [profileUrl, setProfileUrl] = useState("");
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
 
   const franchiseScreenMenuItems = useMemo(
     () => getFranchiseEmployeeScreenMenuItems(),
@@ -111,6 +158,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         chat_enabled: true,
       });
       setScreenPermissionKeys(["dashboards"]);
+      setGender("male");
+      setDateOfBirth("");
+      setProfileUrl("");
+      setProfileImageFile(null);
       return;
     }
     if (employee && isEditing) {
@@ -125,6 +176,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           employee.is_active && (employee.chat_enabled ?? true)
         ),
       });
+      setGender(normalizeGenderValue(employee.gender) || "male");
+      setDateOfBirth(dobToYmd(employee.date_of_birth));
+      setProfileUrl(employee.profile_url ?? "");
+      setProfileImageFile(null);
       const fromKeys = employee.screenPermissionKeys?.length
         ? employee.screenPermissionKeys
         : menuKeysFromAvailablePages(employee.accessible_screens);
@@ -156,6 +211,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
       is_active,
       chat_enabled,
       screenPermissionKeys: keys,
+      gender,
+      date_of_birth: dateOfBirth.trim() || undefined,
+      profile_url: profileUrl.trim() || undefined,
+      imageFile: profileImageFile ?? undefined,
     };
   };
 
@@ -201,12 +260,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
 
     if (isAdd) {
       const ok = await createFranchiseEmployee({
-        name: payload.name,
-        phone: payload.phone,
-        email: payload.email,
-        is_active: payload.is_active,
-        chat_enabled: payload.chat_enabled,
-        screenPermissionKeys: payload.screenPermissionKeys,
+        ...payload,
         password: data.password.trim(),
       });
       if (ok) {
@@ -243,96 +297,81 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     const chatOn = Boolean(
       employee.is_active && (employee.chat_enabled ?? true)
     );
+    const detailFields: { label: string; value: React.ReactNode }[] = [
+      { label: "Email", value: employee.email ?? "-" },
+      { label: "Phone", value: employee.phone ?? "-" },
+      { label: "Gender", value: formatGenderLabel(employee.gender) },
+      {
+        label: "Date of Birth",
+        value: employee.date_of_birth
+          ? formatDate(String(employee.date_of_birth))
+          : "-",
+      },
+      { label: "Chat", value: chatOn ? "Enabled" : "Disabled" },
+      {
+        label: "Status",
+        value: (
+          <span
+            className={
+              employee.is_active ? "custom-active" : "custom-inactive"
+            }
+          >
+            {employee.is_active ? "Active" : "Inactive"}
+          </span>
+        ),
+      },
+    ];
+
     return (
-      <section
-        className="custom-other-details modal-readonly-details"
-        style={{ padding: "14px 16px", borderRadius: 12 }}
-      >
-        <div className="d-flex justify-content-end align-items-center mb-3">
-          <i
-            className="bi bi-pencil-fill fs-6 text-danger"
-            style={{ cursor: "pointer" }}
-            role="button"
-            aria-label="Edit employee"
-            onClick={() => setIsEditing(true)}
+      <section className="custom-other-details franchise-employee-view-card">
+        <button
+          type="button"
+          className="franchise-employee-view-card__edit btn btn-link p-0 border-0"
+          aria-label="Edit employee"
+          onClick={() => setIsEditing(true)}
+        >
+          <i className="bi bi-pencil-fill fs-6 text-danger" />
+        </button>
+
+        <div className="franchise-employee-view-card__profile">
+          <img
+            className="franchise-employee-view-card__avatar"
+            src={franchiseEmployeeProfileImageSrc(employee.profile_url)}
+            alt=""
           />
+          <h5 className="franchise-employee-view-card__name">
+            {employee.name ?? "-"}
+          </h5>
         </div>
 
-        <Row className="g-3">
-          <Col xs={12} md={6}>
-            <FullDetailsRow title="Name" value={employee.name ?? "-"} />
-          </Col>
-          <Col xs={12} md={6}>
-            <FullDetailsRow title="Phone" value={employee.phone ?? "-"} />
-          </Col>
-          <Col xs={12} md={6}>
-            <FullDetailsRow title="Email" value={employee.email ?? "-"} />
-          </Col>
-          <Col xs={12} md={6}>
-            <FullDetailsRow
-              title="Chat"
-              value={chatOn ? "Enabled" : "Disabled"}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <FullDetailsRow
-              title="Status"
-              value={
-                <span
-                  className={
-                    employee.is_active ? "custom-active" : "custom-inactive"
-                  }
-                >
-                  {employee.is_active ? "Active" : "Inactive"}
-                </span>
-              }
-            />
-          </Col>
-        </Row>
-
-        <Row className="g-3 mt-1">
-          <Col xs={12}>
-            <p
-              className="mb-2 small text-uppercase fw-semibold"
-              style={{
-                color: "var(--primary-color)",
-                letterSpacing: "0.04em",
-              }}
-            >
-              Screen permissions
-            </p>
-            <div
-              style={{
-                border: "1px solid var(--txtfld-border)",
-                borderRadius: 8,
-                padding: "10px 12px",
-                background: "var(--bs-body-bg, #fff)",
-                maxHeight: 280,
-                overflowY: "auto",
-              }}
-            >
+        <div className="franchise-employee-view-card__fields">
+          {detailFields.map(({ label, value }) => (
+            <div key={label} className="franchise-employee-view-card__field">
+              <span className="franchise-employee-view-card__label">
+                {label}
+              </span>
+              <span className="franchise-employee-view-card__value">
+                {value}
+              </span>
+            </div>
+          ))}
+          <div className="franchise-employee-view-card__field">
+            <span className="franchise-employee-view-card__label">
+              Screen Permissions
+            </span>
+            <div className="franchise-employee-view-card__value">
               {screenPermissionLabels.length > 0 ? (
-                <ul
-                  className="mb-0 ps-3"
-                  style={{
-                    listStyleType: "disc",
-                    color: "var(--content-txt-color)",
-                    fontSize: "0.95rem",
-                    lineHeight: 1.5,
-                  }}
-                >
+                <ul className="franchise-employee-view-card__perm-list mb-0">
                   {screenPermissionLabels.map((label, i) => (
-                    <li key={`${label}-${i}`} className="text-start mb-1">
-                      {label}
-                    </li>
+                    <li key={`${label}-${i}`}>{label}</li>
                   ))}
                 </ul>
               ) : (
-                <span className="text-muted small">—</span>
+                "—"
               )}
             </div>
-          </Col>
-        </Row>
+          </div>
+        </div>
       </section>
     );
   };
@@ -346,138 +385,199 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
         void handleSubmit(onSubmitForm)(e);
       }}
     >
-      <Row>
-        <CustomTextField
-          label="Name"
-          controlId="name"
-          placeholder="Enter Name"
-          register={register}
-          error={errors.name}
-          validation={{
-            validate: (v: string) =>
-              isNonEmptyName(v) || "Name cannot be empty.",
-          }}
-          value={watch("name") ?? ""}
-          onChange={(v) =>
-            setValue("name", v, { shouldDirty: true, shouldValidate: false })
-          }
-        />
-        <CustomTextFieldIndiaMobile
-          label="Phone"
-          controlId="phone"
-          placeholder="Mobile number"
-          register={register}
-          value={watch("phone") ?? ""}
-          onChange={(v) =>
-            setValue("phone", v, { shouldDirty: true, shouldValidate: false })
-          }
-        />
-        <CustomTextField
-          label="Email"
-          controlId="email"
-          placeholder="Enter Email"
-          register={register}
-          error={errors.email}
-          validation={{
-            validate: (v: string) =>
-              isValidUserEmail(v) || "Enter a valid email address.",
-          }}
-          inputType="email"
-          value={watch("email") ?? ""}
-          onChange={(v) =>
-            setValue("email", v, { shouldDirty: true, shouldValidate: false })
-          }
-        />
+      <div className="row g-2 franchise-employee-form-fields">
+        <div className="col-12">
+          <CustomImageUploader
+            label="Profile photo"
+            maxFiles={1}
+            isEditable={Boolean(employee)}
+            {...(profileUrl ? { existingImages: [profileUrl] } : {})}
+            onFileChange={(files) => {
+              const f = files[0] ?? null;
+              setProfileImageFile(f);
+              if (!employee) {
+                setProfileUrl("");
+                return;
+              }
+              if (f) {
+                setProfileUrl(`uploads/${f.name}`);
+                return;
+              }
+              setProfileUrl((prev) => prev);
+            }}
+          />
+        </div>
+        <div className="col-12">
+          <CustomTextField
+            label="Name"
+            controlId="name"
+            placeholder="Enter Name"
+            register={register}
+            error={errors.name}
+            validation={{
+              validate: (v: string) =>
+                isNonEmptyName(v) || "Name cannot be empty.",
+            }}
+            value={watch("name") ?? ""}
+            onChange={(v) =>
+              setValue("name", v, { shouldDirty: true, shouldValidate: false })
+            }
+          />
+        </div>
+        <div className="col-12">
+          <CustomDatePicker
+            label="Date of Birth"
+            controlId="franchise_emp_date_of_birth"
+            asCol={false}
+            birthDatePicker
+            selectedDate={dateOfBirth ? dateOfBirth : null}
+            placeholderText="Select date of birth"
+            register={register}
+            setValue={setValue}
+            groupClassName="mb-3 w-100 franchise-employee-dob-field"
+            onChange={(date) => {
+              const value = date ? dateToLocalYmd(date) : "";
+              setDateOfBirth(value);
+              setValue("franchise_emp_date_of_birth", value);
+            }}
+          />
+        </div>
+        <div className="col-12">
+          <CustomTextField
+            label="Email"
+            controlId="email"
+            placeholder="name@example.com"
+            register={register}
+            error={errors.email}
+            validation={{
+              validate: (v: string) =>
+                isValidUserEmail(v) || "Enter a valid email address.",
+            }}
+            inputType="email"
+            value={watch("email") ?? ""}
+            onChange={(v) =>
+              setValue("email", v, { shouldDirty: true, shouldValidate: false })
+            }
+          />
+        </div>
+        <div className="col-12">
+          <CustomTextFieldIndiaMobile
+            label="Phone number"
+            controlId="phone"
+            placeholder="Mobile number"
+            register={register}
+            value={watch("phone") ?? ""}
+            onChange={(v) =>
+              setValue("phone", v, { shouldDirty: true, shouldValidate: false })
+            }
+          />
+        </div>
+        <div className="col-12">
+          <GenderRadioField
+            value={gender}
+            onChange={(next) => setGender(next)}
+          />
+        </div>
         {isAdd ? (
           <>
-            <CustomTextField
-              label="Password"
-              controlId="password"
-              placeholder="Enter Password"
-              register={register}
-              error={errors.password}
-              inputType="password"
-              autoComplete="new-password"
-              validation={{
-                validate: (v: string) =>
-                  validateStrongPassword(v) ?? true,
-              }}
-              value={watch("password") ?? ""}
-              onChange={(v) =>
-                setValue("password", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <CustomTextField
-              label="Confirm password"
-              controlId="confirmPassword"
-              placeholder="Re-enter password"
-              register={register}
-              error={errors.confirmPassword}
-              inputType="password"
-              autoComplete="new-password"
-              validation={{
-                validate: (v: string) =>
-                  passwordsMatch(getValues("password"), v) ||
-                  "Passwords do not match.",
-              }}
-              value={watch("confirmPassword") ?? ""}
-              onChange={(v) =>
-                setValue("confirmPassword", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
+            <div className="col-12">
+              <CustomTextField
+                label="Password"
+                controlId="password"
+                placeholder="Enter Password"
+                register={register}
+                error={errors.password}
+                inputType="password"
+                autoComplete="new-password"
+                validation={{
+                  validate: (v: string) =>
+                    validateStrongPassword(v) ?? true,
+                }}
+                value={watch("password") ?? ""}
+                onChange={(v) =>
+                  setValue("password", v, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+              />
+            </div>
+            <div className="col-12">
+              <CustomTextField
+                label="Confirm password"
+                controlId="confirmPassword"
+                placeholder="Re-enter password"
+                register={register}
+                error={errors.confirmPassword}
+                inputType="password"
+                autoComplete="new-password"
+                validation={{
+                  validate: (v: string) =>
+                    passwordsMatch(getValues("password"), v) ||
+                    "Passwords do not match.",
+                }}
+                value={watch("confirmPassword") ?? ""}
+                onChange={(v) =>
+                  setValue("confirmPassword", v, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+              />
+            </div>
           </>
         ) : null}
-        <Row className="align-items-center mb-3">
-          <Col sm={4} className="d-flex align-items-center">
-            <label className="custom-profile-lable">Chat</label>
-          </Col>
-          <Col>
-            <Form.Check
-              type="switch"
-              id="franchise-employee-form-chat"
-              className={`franchise-chat-switch franchise-status-switch${
-                isActiveBool && chatEnabled ? " franchise-status-switch--on" : ""
-              }`}
-              checked={isActiveBool ? Boolean(chatEnabled) : false}
-              disabled={!isActiveBool}
-              aria-label={
-                !isActiveBool
-                  ? "Chat unavailable when employee is inactive"
-                  : chatEnabled
-                  ? "Chat on, switch to turn off"
-                  : "Chat off, switch to turn on"
-              }
-              title={
-                isActiveBool
-                  ? "Chat on / off"
-                  : "Inactive employees cannot use chat"
-              }
-              onChange={(e) => {
-                setValue("chat_enabled", e.target.checked, {
-                  shouldValidate: true,
-                });
-              }}
-            />
-          </Col>
-        </Row>
-        <CustomTextFieldRadio
-          key={`emp-status-${employee?._id ?? "new"}-${isEditing}`}
-          label="Status"
-          name="is_active"
-          options={getStatusOptions()}
-          defaultValue={
-            isAdd ? "true" : employee ? String(employee.is_active) : "true"
-          }
-          isEditable
-          setValue={setValue}
-        />
-        <Col xs={12} className="mb-1">
+        <div className="col-12">
+          <Row className="align-items-center mb-3">
+            <Col sm={4} className="d-flex align-items-center">
+              <label className="custom-profile-lable">Chat</label>
+            </Col>
+            <Col>
+              <Form.Check
+                type="switch"
+                id="franchise-employee-form-chat"
+                className={`franchise-status-switch${
+                  isActiveBool && chatEnabled
+                    ? " franchise-status-switch--on"
+                    : ""
+                }`}
+                checked={isActiveBool ? Boolean(chatEnabled) : false}
+                disabled={!isActiveBool}
+                aria-label={
+                  !isActiveBool
+                    ? "Chat unavailable when employee is inactive"
+                    : chatEnabled
+                    ? "Chat on, switch to turn off"
+                    : "Chat off, switch to turn on"
+                }
+                title={
+                  isActiveBool
+                    ? "Chat on / off"
+                    : "Inactive employees cannot use chat"
+                }
+                onChange={(e) => {
+                  setValue("chat_enabled", e.target.checked, {
+                    shouldValidate: true,
+                  });
+                }}
+              />
+            </Col>
+          </Row>
+        </div>
+        <div className="col-12">
+          <CustomTextFieldRadio
+            key={`emp-status-${employee?._id ?? "new"}-${isEditing}`}
+            label="Status"
+            name="is_active"
+            options={getStatusOptions()}
+            defaultValue={
+              isAdd ? "true" : employee ? String(employee.is_active) : "true"
+            }
+            isEditable
+            setValue={setValue}
+          />
+        </div>
+        <div className="col-12 mb-1">
           <div className="staff-permission-section">
             <div className="staff-permission-section__head fw-medium mb-1 mt-3">
               Screen permissions
@@ -511,8 +611,8 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
               </div>
             </div>
           </div>
-        </Col>
-      </Row>
+        </div>
+      </div>
       <Row className="mt-4">
         <Col xs={12} className="text-center d-flex justify-content-end gap-3">
           <Button type="submit" className="custom-btn-primary">

@@ -489,7 +489,7 @@ const ServiceManagement = () => {
             <Form.Check
               type="switch"
               id={`svc-mgmt-category-active-${cid}`}
-              className={`franchise-chat-switch franchise-status-switch${
+              className={`franchise-status-switch${
                 active ? " franchise-status-switch--on" : ""
               }`}
               checked={active}
@@ -568,7 +568,7 @@ const ServiceManagement = () => {
             <Form.Check
               type="switch"
               id={`svc-mgmt-service-active-${sid}`}
-              className={`franchise-chat-switch franchise-status-switch${
+              className={`franchise-status-switch${
                 active ? " franchise-status-switch--on" : ""
               }`}
               checked={active}

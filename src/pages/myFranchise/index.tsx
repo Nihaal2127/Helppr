@@ -951,7 +951,7 @@ const MyFranchise = () => {
       {
         Header: "Chat",
         accessor: "chat_enabled",
-        className: "my-franchise-col-chat",
+        className: "my-franchise-col-chat my-franchise-col-active-toggle",
         Cell: ({ row }: { row: any }) => {
           const emp = row.original as EmployeeRow;
           const chatOn = Boolean(emp.is_active && emp.chat_enabled);
@@ -959,7 +959,7 @@ const MyFranchise = () => {
             <Form.Check
               type="switch"
               id={`franchise-chat-${emp._id}`}
-              className={`franchise-chat-switch franchise-status-switch${
+              className={`franchise-status-switch${
                 chatOn ? " franchise-status-switch--on" : ""
               }`}
               checked={chatOn}
@@ -1063,8 +1063,8 @@ const MyFranchise = () => {
       {
         Header: "Status",
         accessor: "is_active",
-        Cell: ({ row }: { row: any }) =>
-          (row.original as AreaRow).is_active ? "Active" : "Inactive",
+        className: "my-franchise-col-status",
+        Cell: statusCell("is_active"),
       },
     ],
     [currentPage, pageSize]
@@ -1091,7 +1091,7 @@ const MyFranchise = () => {
             <Form.Check
               type="switch"
               id={`franchise-service-active-${svc._id}`}
-              className={`franchise-chat-switch franchise-status-switch${
+              className={`franchise-status-switch${
                 active ? " franchise-status-switch--on" : ""
               }`}
               checked={active}
@@ -1276,7 +1276,7 @@ const MyFranchise = () => {
             <Form.Check
               type="switch"
               id={`franchise-category-active-${cat._id}`}
-              className={`franchise-chat-switch franchise-status-switch${
+              className={`franchise-status-switch${
                 active ? " franchise-status-switch--on" : ""
               }`}
               checked={active}

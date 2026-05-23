@@ -17,7 +17,6 @@ import {
   formatRequestedBy,
   isCatalogRequestRow,
   mapApprovalStatusFromRecord,
-  requestApprovalStatusColor,
   requestApprovalStatusLabel,
 } from "../../helper/utility";
 import CustomImageUploader, {
