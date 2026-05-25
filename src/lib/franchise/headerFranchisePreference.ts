@@ -80,16 +80,30 @@ export function sessionFranchiseIdForScopedApis(): string {
 }
 
 /**
+ * `franchise_id` for list/count/area APIs that must scope data to one franchise.
+ * Franchise admin/employee: always the session franchise (`AppConstant.partnerId`).
+ * Super admin/staff: header filter when not "all".
+ */
+export function franchiseIdForScopedListApi(
+  requestedFranchiseId?: string | null
+): string {
+  if (isFranchisePortalSession()) {
+    return sessionFranchiseIdForScopedApis();
+  }
+  return franchiseIdForApiQuery(requestedFranchiseId);
+}
+
+/**
  * `GET /area/getAll?franchise_id=` — super admin/staff may filter any franchise;
- * franchise admin may only pass their own session franchise id.
+ * franchise admin/employee always scope to their session franchise.
  */
 export function franchiseIdForAreaGetAll(requestedFranchiseId?: string): string {
-  return franchiseIdForApiQuery(requestedFranchiseId);
+  return franchiseIdForScopedListApi(requestedFranchiseId);
 }
 
 /**
  * Resolves `franchise_id` for `GET /user/getAll`, verification lists, and `POST /getCount` (`user-management`).
  */
 export function franchiseIdForUserGetAll(requestedFranchiseId?: string): string {
-  return franchiseIdForApiQuery(requestedFranchiseId);
+  return franchiseIdForScopedListApi(requestedFranchiseId);
 }

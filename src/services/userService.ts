@@ -14,10 +14,7 @@ import { buildFullUserUpdatePayload } from "../lib/user/buildFullUserUpdatePaylo
 import { mapAccessibleScreenSlugsToMenuKeys } from "../lib/layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../lib/layout/menuItems";
 import { UserRole } from "../lib/global/AppConstant";
-import {
-  franchiseIdForUserGetAll,
-  sessionMayUseFranchiseIdApiFilter,
-} from "../lib/franchise/headerFranchisePreference";
+import { franchiseIdForUserGetAll } from "../lib/franchise/headerFranchisePreference";
 
 /**
  * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /
@@ -407,9 +404,7 @@ export const fetchUserDropDown = async (
   serviceId?: string,
   extra?: UserDropDownExtraQuery
 ): Promise<{ users: UserModel[] }> => {
-  const fidRaw = String(extra?.franchise_id ?? "").trim();
-  const fid =
-    fidRaw && sessionMayUseFranchiseIdApiFilter() ? fidRaw : "";
+  const fid = franchiseIdForUserGetAll(extra?.franchise_id);
   const params = new URLSearchParams({
     type: String(type),
     ...(serviceId && { service_id: serviceId }),

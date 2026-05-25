@@ -607,6 +607,84 @@ body {
   max-height: 90vh;
 }
 
+$partner-details-section-gap: 1rem;
+
+.partner-details-dialog .partner-details-sections-stack {
+  display: flex;
+  flex-direction: column;
+  gap: $partner-details-section-gap;
+  margin-top: $partner-details-section-gap;
+}
+
+.partner-details-dialog .partner-details-sections-stack > .row {
+  --bs-gutter-x: #{$partner-details-section-gap};
+  --bs-gutter-y: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.partner-details-dialog .partner-details-sections-stack .custom-other-details,
+.partner-details-dialog .partner-details-sections-stack .custom-helper-row section {
+  margin: 0;
+  padding: 12px 16px 16px;
+}
+
+.partner-details-dialog .partner-details-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.partner-details-dialog .partner-details-sections-stack .custom-other-details > h3:first-child {
+  margin: 0 0 10px;
+}
+
+.partner-details-dialog .partner-details-docs-bank-row > [class*="col"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.partner-details-dialog .partner-details-docs-bank-panel {
+  min-height: 100%;
+}
+
+.partner-details-dialog .partner-details-docs-bank-body {
+  flex: 1 1 auto;
+}
+
+.partner-details-dialog .partner-details-serviced-payment-row > [class*="col"],
+.partner-details-dialog .partner-details-categories-row > [class*="col"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.partner-details-dialog
+  .partner-details-serviced-payment-row
+  .custom-other-details {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 100%;
+}
+
+.partner-details-dialog .partner-verification-details-row {
+  .partner-personal-details-grid .partner-personal-col {
+    min-width: 0;
+  }
+}
+
+.partner-details-dialog .partner-verification-summary-block.custom-other-details {
+  padding: 16px 20px 20px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Add Partner dialog: fixed 90vh; long form scrolls inside modal body */
 /* edit-partner-catalog-modal-vh: same layout for Edit categories & services (header fixed, body scrolls) */
 // .modal-dialog.add-partner-modal-vh,
@@ -682,7 +760,7 @@ body {
   }
 }
 
-/* Add Partner dialog — form spacing, header franchise, catalog rows */
+/* Add Partner dialog — form spacing, header franchise, catalog rows, docs/bank panels */
 .modal-dialog.add-partner-modal {
   .add-partner-modal-header {
     display: flex;
@@ -703,6 +781,124 @@ body {
       max-width: 300px;
       margin-left: auto;
       margin-right: 1.25rem;
+    }
+  }
+
+  .add-partner-docs-bank-row {
+    >[class*="col"] {
+      display: flex;
+    }
+
+    .add-partner-docs-panel,
+    .add-partner-bank-panel {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      min-height: 100%;
+      height: 100%;
+    }
+
+    .add-partner-bank-fields {
+      gap: 0.35rem;
+
+      >.row {
+        margin-bottom: 0 !important;
+      }
+
+      .form-group {
+        margin-bottom: 0.25rem !important;
+      }
+    }
+  }
+
+  .add-partner-address-photo-row {
+    --add-partner-address-photo-h: 132px;
+    padding-bottom: 0.25rem;
+    overflow: visible;
+
+    >[class*="col"] {
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+    }
+
+    .add-partner-address-col>.row {
+      flex: 1;
+      margin-bottom: 0 !important;
+      overflow: visible;
+
+      >.col:last-child {
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+
+        .form-group {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          margin-bottom: 0 !important;
+          overflow: visible;
+        }
+
+        textarea.form-control {
+          flex: 1;
+          min-height: var(--add-partner-address-photo-h);
+          height: var(--add-partner-address-photo-h);
+          resize: vertical;
+          overflow: auto;
+        }
+      }
+    }
+
+    .add-partner-profile-col {
+      overflow: visible;
+
+      .add-partner-profile-labeled-row {
+        flex: 1;
+        margin-bottom: 0;
+        overflow: visible;
+        --bs-gutter-x: 0.75rem;
+        align-items: center !important;
+      }
+
+      .custom-image-uploader-single--compact {
+        overflow: visible;
+        min-height: var(--add-partner-address-photo-h);
+        height: auto;
+
+        >.d-flex {
+          min-height: var(--add-partner-address-photo-h);
+          height: auto;
+          overflow: visible;
+          align-items: center !important;
+        }
+      }
+    }
+  }
+
+  .partner-catalog-field-label-spacer {
+    min-height: 1.25rem;
+    line-height: 1.25rem;
+  }
+
+  /* Field stack spacing: half of Bootstrap g-4 / mb-4 (24px → 12px) */
+  $add-partner-field-gap: 0.75rem;
+
+  .add-partner-form-row,
+  .add-partner-docs-bank-row {
+    --bs-gutter-y: #{$add-partner-field-gap};
+
+    > [class*="col"] > .row,
+    .row.mb-4,
+    .mb-4 {
+      margin-bottom: $add-partner-field-gap !important;
+    }
+  }
+
+  .modal-body form .add-partner-form-row ~ section,
+  .modal-body form section.custom-other-details {
+    .mb-4 {
+      margin-bottom: $add-partner-field-gap !important;
     }
   }
 
@@ -2293,26 +2489,30 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
 }
 
 .franchise-status-switch .form-check-input:not(:checked),
-.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input {
+.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input,
+.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input {
   background-color: #dc3545 !important;
   border-color: #b02a37 !important;
 }
 
 .franchise-status-switch .form-check-input:not(:checked):focus,
-.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input:focus {
+.franchise-status-switch:not(.franchise-status-switch--on) .form-check-input:focus,
+.franchise-status-switch.franchise-chat-switch:not(.franchise-status-switch--on) .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(220, 53, 69, 0.28);
   border-color: #dc3545 !important;
 }
 
 .franchise-status-switch .form-check-input:checked,
-.franchise-status-switch.franchise-status-switch--on .form-check-input {
+.franchise-status-switch.franchise-status-switch--on .form-check-input,
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input {
   background-color: #198754 !important;
   border-color: #146c43 !important;
   background-position: right center;
 }
 
 .franchise-status-switch .form-check-input:checked:focus,
-.franchise-status-switch.franchise-status-switch--on .form-check-input:focus {
+.franchise-status-switch.franchise-status-switch--on .form-check-input:focus,
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:focus {
   box-shadow: 0 0 0 0.22rem rgba(25, 135, 84, 0.32);
   border-color: #198754 !important;
 }
@@ -2329,10 +2529,16 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
 }
 
 .franchise-status-switch .form-check-input:checked:disabled,
-.franchise-status-switch.franchise-status-switch--on .form-check-input:disabled {
+.franchise-status-switch.franchise-status-switch--on .form-check-input:disabled,
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:disabled {
   background-color: #198754 !important;
   border-color: #146c43 !important;
   background-position: right center;
+}
+
+.franchise-status-switch.franchise-chat-switch.franchise-status-switch--on .form-check-input:disabled {
+  background-color: #adb5bd !important;
+  border-color: #6c757d !important;
 }
 
 .custom-big-modal .franchise-status-switch {
@@ -2962,7 +3168,7 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
   align-items: start;
 }
 
-.info-detail-fields-col > .info-detail-inline-row {
+.info-detail-fields-col>.info-detail-inline-row {
   display: contents;
 }
 
@@ -3337,7 +3543,24 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
   font-family: "Inter";
 }
 
-/* Service / category read-only modal: label + value close together (not 50/50 cols) */
+/* Update Partner — subscription fields in one column, no section box */
+.partner-subscription-form-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .custom-personal-row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* Service / category read-only modal: grid-friendly rows (overrides fixed value width) */
 .modal-readonly-details {
   .custom-personal-row {
     display: grid;

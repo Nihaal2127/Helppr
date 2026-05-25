@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useForm, UseFormRegister } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
@@ -15,7 +15,7 @@ import {
   DetailsRowLinkDocument,
 } from "../../helper/utility";
 import { showErrorAlert } from "../../lib/global/alertHelper";
-import { fetchCityDropDown } from "../../services/cityService";
+import { fetchCityDropDownForForm } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreasByCityForForm } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
@@ -37,12 +37,32 @@ import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
-import { dateToLocalYmd } from "../../helper/dateFormat";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
-import { fetchSubscriptionPlanDropDown } from "../../services/partnerManagementService";
+import {
+  fetchSubscriptionPlanOptions,
+  savePartnerSubscription,
+} from "../../services/partnerManagementService";
+import type { SubscriptionPlanOption } from "../../services/partnerManagementService";
+import { partnerSubscriptionFormValuesFromUser } from "../../lib/partner/partnerSubscriptionView";
+import PartnerSubscriptionFormSection, {
+  partnerSubscriptionFormBind,
+} from "../../components/partner/PartnerSubscriptionFormSection";
+import type {
+  PartnerSubscriptionRegisterFn,
+  PartnerSubscriptionSetValueFn,
+} from "../../components/partner/PartnerSubscriptionFormSection";
+import type { FieldError } from "react-hook-form";
 import { fetchFranchiseDropDown } from "../../services/franchiseService";
-import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
+import {
+  franchiseIdForApiQuery,
+  readHeaderFranchisePreference,
+  sessionFranchiseIdForScopedApis,
+} from "../../lib/franchise/headerFranchisePreference";
 
+import {
+  FieldLabelText,
+  REQUIRED_FIELD_RULE,
+} from "../../components/RequiredFieldMark";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { PARTNER_VERIFICATION } from "../../lib/partner/partnerVerification";
@@ -102,23 +122,6 @@ function ensurePartnerCatalogBlocks(
   }));
 }
 
-function formatServicePaymentCadence(paymentType: string): string {
-  const t = String(paymentType ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, "_");
-  if (!t) return "";
-  const map: Record<string, string> = {
-    per_hour: "per hour",
-    per_month: "per month",
-    per_day: "per day",
-    per_week: "per week",
-    per_service: "per service",
-  };
-  if (map[t]) return map[t];
-  return t.replace(/_/g, " ");
-}
-
 type OptionType = { value: string; label: string };
 
 type ServiceLite = {
@@ -145,6 +148,8 @@ type AddPartnerFormFields = {
   subscription_plan_id?: string;
   subscription_start_date?: string;
   subscription_end_date?: string;
+  /** Existing `partner_subscriptions[]._id` when updating a partner. */
+  partner_subscription_id?: string;
   /** Super admin / staff: franchise for Add Partner category catalogue. */
   add_partner_franchise_id?: string;
 };
@@ -202,6 +207,13 @@ const normalizeAddressValue = (value: unknown): string => {
   return String(value);
 };
 
+/** Super admin/staff: pre-fill Add Partner franchise from page header filter. */
+function addPartnerFranchiseIdFromHeader(): string {
+  const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  if (role !== UserRole.ADMIN && role !== UserRole.STAFF) return "";
+  return franchiseIdForApiQuery(readHeaderFranchisePreference()) || "";
+}
+
 const normalizePincodeValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string" || typeof value === "number") {
@@ -232,6 +244,7 @@ function AddEditUserDialogView({
     setValue,
     reset,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<AddEditUserFormValues>({
     defaultValues: {
@@ -261,11 +274,13 @@ function AddEditUserDialogView({
       bank_account_is_active: "true",
       password: "",
       confirm_password: "",
-      subscription_plan: "",
-      subscription_plan_id: "",
-      subscription_start_date: "",
-      subscription_end_date: "",
-      add_partner_franchise_id: "",
+      ...partnerSubscriptionFormValuesFromUser(
+        role === PARTNER_ROLE && isEditable ? user : null
+      ),
+      add_partner_franchise_id:
+        role === PARTNER_ROLE && !isEditable
+          ? addPartnerFranchiseIdFromHeader()
+          : "",
     },
   });
 
@@ -305,7 +320,7 @@ function AddEditUserDialogView({
     { value: string; label: string }[]
   >([]);
   const [partnerPlanSelectOptions, setPartnerPlanSelectOptions] = useState<
-    { value: string; label: string }[]
+    SubscriptionPlanOption[]
   >([]);
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
     OptionType[]
@@ -337,33 +352,89 @@ function AddEditUserDialogView({
     watchedPartnerFranchiseId,
   ]);
 
-  /** API catalog scope: super admin/staff pick franchise; franchise portal uses auth token only. */
-  const catalogFranchiseApiId = useMemo(
-    () =>
-      franchiseIdForApiQuery(
-        isSuperAdminOrStaff ? effectiveAddPartnerFranchiseId : ""
-      ),
-    [isSuperAdminOrStaff, effectiveAddPartnerFranchiseId]
-  );
+  /** API catalog scope: super admin/staff pick franchise; franchise portal uses session franchise. */
+  const catalogFranchiseApiId = useMemo(() => {
+    if (isFranchisePortalUser) return effectiveAddPartnerFranchiseId;
+    return franchiseIdForApiQuery(
+      isSuperAdminOrStaff ? effectiveAddPartnerFranchiseId : ""
+    );
+  }, [
+    isFranchisePortalUser,
+    isSuperAdminOrStaff,
+    effectiveAddPartnerFranchiseId,
+  ]);
 
   const addPartnerCatalogLocked = useMemo(
     () => isAddPartner && isSuperAdminOrStaff && !effectiveAddPartnerFranchiseId,
     [isAddPartner, isSuperAdminOrStaff, effectiveAddPartnerFranchiseId]
   );
 
-  const fetchCityFromApi = useCallback(async (stateId: string) => {
-    const sid = String(stateId ?? "").trim();
-    if (!sid) {
-      setCity([]);
-      return;
+  /** Scope city/area lists to franchise (portal session, Add Partner franchise, or edited user). */
+  const locationFranchiseId = useMemo(() => {
+    if (isFranchisePortalUser) {
+      return sessionFranchiseIdForScopedApis();
     }
-    try {
-      const cityOptions = await fetchCityDropDown([sid]);
-      setCity(cityOptions);
-    } catch {
-      setCity([]);
+    if (isAddPartner && effectiveAddPartnerFranchiseId) {
+      return effectiveAddPartnerFranchiseId;
     }
-  }, []);
+    if (isEditable) {
+      return String((user as { franchise_id?: string })?.franchise_id ?? "").trim();
+    }
+    return "";
+  }, [
+    isFranchisePortalUser,
+    isAddPartner,
+    effectiveAddPartnerFranchiseId,
+    isEditable,
+    user,
+  ]);
+
+  const fetchCityFromApi = useCallback(
+    async (stateId: string) => {
+      const sid = String(stateId ?? "").trim();
+      if (!sid) {
+        setCity([]);
+        return;
+      }
+      try {
+        let cityOptions = await fetchCityDropDownForForm(
+          sid,
+          locationFranchiseId || undefined
+        );
+        if (isEditable) {
+          const preserveCityId = String(user?.city_id ?? "").trim();
+          if (
+            preserveCityId &&
+            !cityOptions.some((c) => String(c.value) === preserveCityId)
+          ) {
+            const preserveLabel = String(
+              (user as { city_name?: string })?.city_name ?? preserveCityId
+            ).trim();
+            cityOptions = [
+              ...cityOptions,
+              { value: preserveCityId, label: preserveLabel || preserveCityId },
+            ];
+          }
+        }
+        setCity(cityOptions);
+        const currentCity = String(getValues("city_id") ?? "").trim();
+        if (
+          currentCity &&
+          !cityOptions.some((c) => String(c.value) === currentCity)
+        ) {
+          setValue("city_id", "", { shouldValidate: false });
+          setValue("area_id", "", { shouldValidate: false });
+          setValue("pincode", "", { shouldValidate: false });
+          setAreas([]);
+          setAreaPincodes(new Map());
+          setPincodeOptions([]);
+        }
+      } catch {
+        setCity([]);
+      }
+    },
+    [locationFranchiseId, getValues, setValue, isEditable, user]
+  );
 
   const onStateChangeClearLocationChain = useCallback(
     (stateId: string) => {
@@ -517,7 +588,18 @@ function AddEditUserDialogView({
     setServicesByCategoryId({});
     setCategoryIds([]);
     setServiceIds([]);
-  }, [isAddPartner, effectiveAddPartnerFranchiseId]);
+    const sid = String(watchedStateId ?? "").trim();
+    if (sid) {
+      void fetchCityFromApi(sid);
+    } else {
+      setCity([]);
+    }
+  }, [
+    isAddPartner,
+    effectiveAddPartnerFranchiseId,
+    watchedStateId,
+    fetchCityFromApi,
+  ]);
 
   useEffect(() => {
     if (!isAddPartner || !isSuperAdminOrStaff) return;
@@ -1029,17 +1111,6 @@ function AddEditUserDialogView({
     }
 
     if (isAddPartner) {
-      const holder = (data.partner_bank_holder ?? "").trim();
-      const acct = (data.partner_bank_account_number ?? "").trim();
-      const ifsc = (data.partner_bank_ifsc ?? "").trim();
-      const bankNm = (data.partner_bank_legal_name ?? "").trim();
-      const branchNm = (data.partner_bank_branch ?? "").trim();
-      if (!holder || !acct || !ifsc || !bankNm || !branchNm) {
-        showErrorAlert(
-          "Please complete all required bank fields (account name, number, IFSC, bank name, branch name)."
-        );
-        return;
-      }
       const pw = String(data.password ?? "").trim();
       const cpw = String(data.confirm_password ?? "").trim();
       if (!pw) {
@@ -1050,17 +1121,12 @@ function AddEditUserDialogView({
         showErrorAlert("Password and confirm password do not match.");
         return;
       }
+    }
+
+    if (isAddPartner || isPartnerEdit) {
       const planId = String(data.subscription_plan_id ?? "").trim();
       if (!planId) {
         showErrorAlert("Please select a subscription plan.");
-        return;
-      }
-      const subStart = String(data.subscription_start_date ?? "").trim();
-      const subEnd = String(data.subscription_end_date ?? "").trim();
-      if (!subStart || !subEnd) {
-        showErrorAlert(
-          "Please select subscription start date and subscription end date."
-        );
         return;
       }
     }
@@ -1086,11 +1152,23 @@ function AddEditUserDialogView({
         : Boolean((data as any).is_blocked);
     const resolvedIsActivePayload = isBlockedPayload ? false : isActivePayload;
 
+    const sessionFranchiseId = sessionFranchiseIdForScopedApis();
+    const createFranchiseId =
+      isAddPartner && effectiveAddPartnerFranchiseId
+        ? effectiveAddPartnerFranchiseId
+        : isFranchisePortalUser &&
+            !isEditable &&
+            (role === USER_ROLE || role === PARTNER_ROLE) &&
+            sessionFranchiseId
+          ? sessionFranchiseId
+          : "";
+
     const payload: Record<string, unknown> = {
       type: role,
       is_from_web: true,
       registration_type: 1,
       created_by_id: getLocalStorage(AppConstant.createdById),
+      ...(createFranchiseId ? { franchise_id: createFranchiseId } : {}),
       name: data.name,
       email: data.email,
       gender: genderForApiPayload(data.gender) ?? "male",
@@ -1160,13 +1238,22 @@ function AddEditUserDialogView({
           is_primary: true,
           is_active: bankIsActive,
         },
+        is_verified: PARTNER_VERIFICATION.PENDING,
+      }),
+      ...((isAddPartner || isPartnerEdit) && {
         subscription_plan_id: String(data.subscription_plan_id ?? "").trim(),
         subscription_plan: String(data.subscription_plan ?? "").trim(),
         subscription_start_date: String(
           data.subscription_start_date ?? ""
         ).trim(),
         subscription_end_date: String(data.subscription_end_date ?? "").trim(),
-        is_verified: PARTNER_VERIFICATION.PENDING,
+        ...(String(data.partner_subscription_id ?? "").trim()
+          ? {
+              partner_subscription_id: String(
+                data.partner_subscription_id ?? ""
+              ).trim(),
+            }
+          : {}),
       }),
     };
 
@@ -1210,17 +1297,39 @@ function AddEditUserDialogView({
     }
 
     if (responseUser) {
+      if (isPartnerEdit && user?._id) {
+        const subId = String(data.partner_subscription_id ?? "").trim();
+        if (subId) {
+          await savePartnerSubscription({
+            _id: subId,
+            partner_id: user._id,
+            partner_name: String(data.name ?? user.name ?? "").trim(),
+            subscription_plan_id: String(
+              data.subscription_plan_id ?? ""
+            ).trim(),
+            subscription_plan: String(data.subscription_plan ?? "").trim(),
+            subscription_start_date: String(
+              data.subscription_start_date ?? ""
+            ).trim(),
+            subscription_end_date: String(
+              data.subscription_end_date ?? ""
+            ).trim(),
+            rating: "",
+            is_active: true,
+          });
+        }
+      }
       onClose && onClose();
       onRefreshData();
     }
   };
 
   useEffect(() => {
-    if (!isAddPartner) return;
+    if (!isAddPartner && !isPartnerEdit) return;
     let cancelled = false;
     void (async () => {
       try {
-        const opts = await fetchSubscriptionPlanDropDown();
+        const opts = await fetchSubscriptionPlanOptions();
         if (!cancelled)
           setPartnerPlanSelectOptions(Array.isArray(opts) ? opts : []);
       } catch {
@@ -1230,7 +1339,7 @@ function AddEditUserDialogView({
     return () => {
       cancelled = true;
     };
-  }, [isAddPartner]);
+  }, [isAddPartner, isPartnerEdit]);
 
   useEffect(() => {
     void fetchStateFromApi();
@@ -1281,16 +1390,42 @@ function AddEditUserDialogView({
       partner_bank_legal_name: "",
       partner_bank_branch: "",
       bank_account_is_active: "true",
-      subscription_plan: "",
-      subscription_plan_id: "",
-      subscription_start_date: "",
-      subscription_end_date: "",
-      add_partner_franchise_id: "",
+      ...partnerSubscriptionFormValuesFromUser(
+        isPartnerEdit ? user : null
+      ),
+      add_partner_franchise_id: isAddPartner
+        ? addPartnerFranchiseIdFromHeader()
+        : "",
     });
-  }, [isEditable, user, isAddPartner, reset]);
+  }, [isEditable, user, isAddPartner, isPartnerEdit, reset]);
+
+  useEffect(() => {
+    if (!isAddPartner || !isSuperAdminOrStaff) return;
+    const headerFranchiseId = addPartnerFranchiseIdFromHeader();
+    if (!headerFranchiseId) return;
+    const current = String(watchedPartnerFranchiseId ?? "").trim();
+    if (current === headerFranchiseId) return;
+    if (!current) {
+      setValue("add_partner_franchise_id", headerFranchiseId, {
+        shouldValidate: false,
+      });
+    }
+  }, [
+    isAddPartner,
+    isSuperAdminOrStaff,
+    franchiseDropdownOptions,
+    setValue,
+    watchedPartnerFranchiseId,
+  ]);
 
   const subscriptionStartStr = watch("subscription_start_date");
   const subscriptionEndStr = watch("subscription_end_date");
+  const partnerSubscriptionForm = partnerSubscriptionFormBind({
+    register: register as PartnerSubscriptionRegisterFn,
+    setValue: setValue as PartnerSubscriptionSetValueFn,
+    watch: (name) => watch(name as keyof AddEditUserFormValues),
+    errors: errors as Record<string, FieldError | undefined>,
+  });
   const dateOfBirthStr = watch("date_of_birth");
   const toYmdString = (v: unknown): string | null => {
     if (v == null || v === "") return null;
@@ -1314,18 +1449,12 @@ function AddEditUserDialogView({
         }
         enforceFocus={!(isAddPartner || isPartnerEdit)}
       >
-        <Modal.Header
-          className={
-            isAddPartner
-              ? "py-3 px-4 border-bottom-0 add-partner-modal-header"
-              : "py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2"
-          }
-        >
-          <Modal.Title as="h5" className="custom-modal-title mb-0">
+        <Modal.Header className="py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2">
+          <Modal.Title as="h5" className="custom-modal-title me-auto mb-0">
             {isEditable ? "Update" : "Add"} {getRoleLabel(role)}
           </Modal.Title>
           {isAddPartner && isSuperAdminOrStaff ? (
-            <div className="add-partner-header-franchise">
+            <div style={{ minWidth: "220px", maxWidth: "300px", flex: "1 1 220px" }}>
               <CustomTextFieldSelect
                 label="Franchise"
                 controlId="add_partner_franchise_id"
@@ -1340,11 +1469,10 @@ function AddEditUserDialogView({
                 includeEmptyOption
                 emptyOptionLabel="Select franchise"
                 noRowBottomMargin
-                labelSize={3}
               />
             </div>
           ) : null}
-          <CustomCloseButton onClose={onClose} inline={isAddPartner} />
+          <CustomCloseButton onClose={onClose} />
         </Modal.Header>
         <Modal.Body className="px-4 pb-4 pt-0">
           <form
@@ -1370,7 +1498,7 @@ function AddEditUserDialogView({
             ) : null}
             {isAddPartner ? (
               <>
-                <Row className="g-4 add-partner-form-row">
+                <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
                     <CustomTextField
                       label="Name"
@@ -1406,7 +1534,7 @@ function AddEditUserDialogView({
                     />
                   </Col>
                 </Row>
-                <Row className="g-4 add-partner-form-row">
+                <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
                     <CustomTextFieldRadio
                       label="Gender"
@@ -1419,8 +1547,6 @@ function AddEditUserDialogView({
                       defaultValue={String(watch("gender") ?? "male")}
                       isEditable={true}
                       setValue={setValue}
-                      labelSize={3}
-                      alignItemsCenter
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1459,7 +1585,7 @@ function AddEditUserDialogView({
                     />
                   </Col>
                 </Row>
-                <Row className="g-4 add-partner-form-row">
+                <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="State"
@@ -1540,7 +1666,7 @@ function AddEditUserDialogView({
                     />
                   </Col>
                 </Row>
-                <Row className="g-4 add-partner-form-row">
+                <Row className="g-2 mb-2">
                   <Col xs={12}>
                     <CustomTextField
                       label="Address"
@@ -1550,12 +1676,11 @@ function AddEditUserDialogView({
                       error={errors.address}
                       validation={{ required: "Address is required" }}
                       as="textarea"
-                      // rows={2}
-                      labelSize={2}
+                      rows={2}
                     />
                   </Col>
                 </Row>
-                <Row className="g-4 add-partner-form-row">
+                <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
                     <CustomTextField
                       label="Password"
@@ -1566,7 +1691,6 @@ function AddEditUserDialogView({
                       validation={{ required: "Password is required" }}
                       inputType="password"
                       autoComplete="new-password"
-                      labelSize={3}
                       value={watch("password") ?? ""}
                       onChange={(value) =>
                         setValue("password", value, {
@@ -1591,7 +1715,6 @@ function AddEditUserDialogView({
                       }}
                       inputType="password"
                       autoComplete="new-password"
-                      labelSize={3}
                       value={watch("confirm_password") ?? ""}
                       onChange={(value) =>
                         setValue("confirm_password", value, {
@@ -1602,7 +1725,7 @@ function AddEditUserDialogView({
                     />
                   </Col>
                 </Row>
-                <Row className="g-5 add-partner-form-row">
+                <Row className="g-3 mb-2">
                   <Col xs={12} md={6}>
                     <CustomImageUploader
                       label="Profile Photo"
@@ -1666,7 +1789,7 @@ function AddEditUserDialogView({
                         selectedDate={toYmdString(subscriptionStartStr)}
                         onChange={(date) => {
                           const value = date
-                            ? dateToLocalYmd(date)
+                            ? date.toISOString().slice(0, 10)
                             : "";
                           setValue("subscription_start_date", value, {
                             shouldValidate: true,
@@ -1692,7 +1815,7 @@ function AddEditUserDialogView({
                         selectedDate={toYmdString(subscriptionEndStr)}
                         onChange={(date) => {
                           const value = date
-                            ? dateToLocalYmd(date)
+                            ? date.toISOString().slice(0, 10)
                             : "";
                           setValue("subscription_end_date", value, {
                             shouldValidate: true,
@@ -1835,6 +1958,20 @@ function AddEditUserDialogView({
                   isEditable={true}
                   setValue={setValue}
                 />
+                {isPartnerEdit ? (
+                  <PartnerSubscriptionFormSection
+                    {...partnerSubscriptionForm}
+                    layout="stacked"
+                    planOptions={partnerPlanSelectOptions}
+                    subscriptionStartStr={
+                      toYmdString(subscriptionStartStr) ?? null
+                    }
+                    subscriptionEndStr={
+                      toYmdString(subscriptionEndStr) ?? null
+                    }
+                    toYmdString={toYmdString}
+                  />
+                ) : null}
                 {!isEditable ? (
                   <>
                     <CustomTextField
@@ -2017,7 +2154,7 @@ function AddEditUserDialogView({
                   {addPartnerCatalogLocked ? (
                     <p className="text-muted small mb-3">
                       {isSuperAdminOrStaff
-                        ? "Select a franchise in the header to enable category and services fields."
+                        ? "Select a franchise in the header to enable category and service fields."
                         : "Unable to resolve your franchise for the catalogue. Please contact support."}
                     </p>
                   ) : null}
@@ -2036,6 +2173,7 @@ function AddEditUserDialogView({
                           <PartnerSingleSelect
                             instanceId={`${block.id}-category`}
                             label="Category"
+                            requiredMark
                             options={categorySelectOptionsForBlock(block.id)}
                             value={block.categoryId}
                             placeholder="Select category"
@@ -2141,7 +2279,7 @@ function AddEditUserDialogView({
                               controlId={`desc-${block.id}-${row.id}`}
                             >
                               <Form.Label className="fw-medium mb-1">
-                                Description
+                                <FieldLabelText label="Description" required />
                               </Form.Label>
                               <Form.Control
                                 as="textarea"
@@ -2168,7 +2306,7 @@ function AddEditUserDialogView({
                               controlId={`price-${block.id}-${row.id}`}
                             >
                               <Form.Label className="fw-medium mb-1">
-                                Price
+                                <FieldLabelText label="Price" required />
                               </Form.Label>
                               <InputGroup>
                                 <InputGroup.Text
@@ -2203,35 +2341,6 @@ function AddEditUserDialogView({
                                   }
                                 />
                               </InputGroup>
-                              {(() => {
-                                const categoryId = String(
-                                  block.categoryId ?? ""
-                                ).trim();
-                                const list =
-                                  servicesByCategoryId[categoryId] ?? [];
-                                const hit = list.find(
-                                  (s) =>
-                                    String(s._id) ===
-                                    String(row.serviceId ?? "").trim()
-                                );
-                                if (
-                                  !hit ||
-                                  hit.price === undefined ||
-                                  hit.price === null
-                                ) {
-                                  return null;
-                                }
-                                const cadence = formatServicePaymentCadence(
-                                  hit.payment_type ?? ""
-                                );
-                                return (
-                                  <Form.Text className="text-muted small d-block mt-1">
-                                    List price: {AppConstant.currencySymbol}
-                                    {hit.price}
-                                    {cadence ? ` (${cadence})` : ""}
-                                  </Form.Text>
-                                );
-                              })()}
                             </Form.Group>
                           </div>
                           <div className="add-partner-catalog-field add-partner-catalog-field--status">
@@ -2294,115 +2403,107 @@ function AddEditUserDialogView({
                   ))}
                 </section>
 
-                <section
-                  className="custom-other-details mt-3"
-                  style={{
-                    marginLeft: "0px",
-                    marginRight: "0px",
-                    padding: "10px",
-                  }}
-                >
-                  <h3 className="mb-2">Verification &amp; Documents</h3>
-                  {(PARTNER_CREATE_DOCUMENT_SLOTS ?? []).map((slot) => (
-                    <DetailsRowLinkDocument
-                      key={slot.key}
-                      title={slot.title}
-                      isEditable={false}
-                      uploadedFileName={
-                        partnerVerificationDocFiles[slot.key]?.name
-                      }
-                      onAddClick={() =>
-                        void openAddPartnerVerificationDocumentUpload(slot.key)
-                      }
-                      onViewClick={() => {
-                        const file = partnerVerificationDocFiles[slot.key];
-                        if (file) {
-                          const url = URL.createObjectURL(file);
-                          window.open(url, "_blank", "noopener,noreferrer");
-                          setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                        }
-                      }}
-                      onDeleteClick={() => {
-                        setPartnerVerificationDocFiles((prev) => {
-                          const next = { ...prev };
-                          delete next[slot.key];
-                          return next;
-                        });
-                      }}
-                    />
-                  ))}
-                </section>
-
-                <section
-                  className="custom-other-details mt-3"
-                  style={{ padding: "10px" }}
-                >
-                  <h3 className="mb-3">Bank information</h3>
-                  <Row className="g-3 mb-2">
-                    <Col xs={12} md={4}>
-                      <CustomTextField
-                        label="Bank Name"
-                        controlId="partner_bank_legal_name"
-                        placeholder="Enter bank name"
-                        register={register}
-                        error={errors.partner_bank_legal_name}
-                        validation={{ required: "Bank name is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={4}>
-                      <CustomTextField
-                        label="Branch Name"
-                        controlId="partner_bank_branch"
-                        placeholder="Enter branch name"
-                        register={register}
-                        error={errors.partner_bank_branch}
-                        validation={{ required: "Branch name is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={4}>
-                      <CustomTextField
-                        label="IFSC Code"
-                        controlId="partner_bank_ifsc"
-                        placeholder="Enter IFSC code"
-                        register={register}
-                        error={errors.partner_bank_ifsc}
-                        validation={{ required: "IFSC code is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={4}>
-                      <CustomTextField
-                        label="Account Name"
-                        controlId="partner_bank_holder"
-                        placeholder="Enter account holder name"
-                        register={register}
-                        error={errors.partner_bank_holder}
-                        validation={{ required: "Account name is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={4}>
-                      <CustomTextField
-                        label="Account Number"
-                        controlId="partner_bank_account_number"
-                        placeholder="Enter account number"
-                        register={register}
-                        error={errors.partner_bank_account_number}
-                        validation={{ required: "Account number is required" }}
-                      />
-                    </Col>
-                    <Col xs={12} md={4}>
-                      <CustomTextFieldRadio
-                        label="Account Status"
-                        name="bank_account_is_active"
-                        options={getStatusOptions()}
-                        defaultValue={String(
-                          watch("bank_account_is_active") ?? "true"
-                        )}
-                        isEditable={true}
-                        setValue={setValue}
-                      />
-                    </Col>
-                  </Row>
-                </section>
+                <Row className="g-4 add-partner-form-row add-partner-docs-bank-row mt-3">
+                  <Col xs={12} lg={6} className="d-flex">
+                    <section
+                      className="custom-other-details add-partner-docs-panel flex-fill"
+                      style={{ padding: "10px" }}
+                    >
+                      <h3 className="mb-2">Verification &amp; Documents</h3>
+                      {(PARTNER_CREATE_DOCUMENT_SLOTS ?? []).map((slot) => (
+                        <DetailsRowLinkDocument
+                          key={slot.key}
+                          title={slot.title}
+                          isEditable={false}
+                          uploadedFileName={
+                            partnerVerificationDocFiles[slot.key]?.name
+                          }
+                          onAddClick={() =>
+                            void openAddPartnerVerificationDocumentUpload(
+                              slot.key
+                            )
+                          }
+                          onViewClick={() => {
+                            const file = partnerVerificationDocFiles[slot.key];
+                            if (file) {
+                              const url = URL.createObjectURL(file);
+                              window.open(url, "_blank", "noopener,noreferrer");
+                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                            }
+                          }}
+                          onDeleteClick={() => {
+                            setPartnerVerificationDocFiles((prev) => {
+                              const next = { ...prev };
+                              delete next[slot.key];
+                              return next;
+                            });
+                          }}
+                        />
+                      ))}
+                    </section>
+                  </Col>
+                  <Col xs={12} lg={6} className="d-flex">
+                    <section
+                      className="custom-other-details add-partner-bank-panel flex-fill"
+                      style={{ padding: "10px" }}
+                    >
+                      <h3 className="mb-3">Bank Accounts</h3>
+                      <div className="add-partner-bank-fields d-flex flex-column">
+                        <CustomTextField
+                          label="Bank Name"
+                          controlId="partner_bank_legal_name"
+                          placeholder="Enter bank name"
+                          register={register}
+                          error={errors.partner_bank_legal_name}
+                          validation={REQUIRED_FIELD_RULE}
+                          hideValidationFeedback
+                          labelSize={3}
+                        />
+                        <CustomTextField
+                          label="Branch Name"
+                          controlId="partner_bank_branch"
+                          placeholder="Enter branch name"
+                          register={register}
+                          error={errors.partner_bank_branch}
+                          validation={REQUIRED_FIELD_RULE}
+                          hideValidationFeedback
+                          labelSize={3}
+                        />
+                        <CustomTextField
+                          label="Account Name"
+                          controlId="partner_bank_holder"
+                          placeholder="Enter account holder name"
+                          register={register}
+                          error={errors.partner_bank_holder}
+                          validation={REQUIRED_FIELD_RULE}
+                          hideValidationFeedback
+                          labelSize={3}
+                        />
+                        <CustomTextField
+                          label="Account Number"
+                          controlId="partner_bank_account_number"
+                          placeholder="Enter account number"
+                          register={register}
+                          error={errors.partner_bank_account_number}
+                          validation={REQUIRED_FIELD_RULE}
+                          hideValidationFeedback
+                          labelSize={3}
+                        />
+                        <CustomTextField
+                          label="IFSC Code"
+                          controlId="partner_bank_ifsc"
+                          placeholder="Enter IFSC code"
+                          register={register}
+                          error={errors.partner_bank_ifsc}
+                          validation={REQUIRED_FIELD_RULE}
+                          hideValidationFeedback
+                          labelSize={3}
+                        />
+                        
+                      </div>
+                    </section>
+                  </Col>
+                </Row>
               </>
             ) : null}
 

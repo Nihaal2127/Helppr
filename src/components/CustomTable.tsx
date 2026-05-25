@@ -48,18 +48,22 @@ type CustomTableOptions = UseTableOptions<object> &
   UsePaginationOptions<object> &
   UseSortByOptions<object>;
 
+/** react-table column: use `accessor` for data fields, or `id` + `Cell` for computed columns. */
+export type CustomTableColumn = {
+  Header: any;
+  accessor?: string;
+  id?: string;
+  sort?: boolean;
+  Cell?: any;
+  className?: string;
+  /** Narrower min/max width for tag/list cells to limit horizontal overflow */
+  compact?: boolean;
+  /** When `layoutFixed` is true, sets column width (e.g. `"12%"`, `"140px"`). */
+  width?: string | number;
+};
+
 interface CustomTableProps {
-  columns: {
-    Header: any;
-    accessor: string;
-    sort?: boolean;
-    Cell?: any;
-    className?: string;
-    /** Narrower min/max width for tag/list cells to limit horizontal overflow */
-    compact?: boolean;
-    /** When `layoutFixed` is true, sets column width (e.g. `"12%"`, `"140px"`). */
-    width?: string | number;
-  }[];
+  columns: CustomTableColumn[];
   data: any[];
   pageSize?: number;
   currentPage?: number;

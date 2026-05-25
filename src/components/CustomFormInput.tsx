@@ -26,6 +26,8 @@ interface CustomFormInputProps {
   inputClassName?: string;
   /** Browser autofill hint. */
   autoComplete?: string;
+  /** Keep validation but do not render inline error text under the control. */
+  hideValidationFeedback?: boolean;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -47,6 +49,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   inputStyle,
   inputClassName,
   autoComplete,
+  hideValidationFeedback = false,
 }) => {
   const isControlled = value !== undefined;
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -129,11 +132,11 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           </span>
         </div>
 
-        {error && (
+        {error && !hideValidationFeedback ? (
           <Form.Control.Feedback type="invalid">
             {error.message}
           </Form.Control.Feedback>
-        )}
+        ) : null}
       </InputGroup>
     </Form.Group>
   ) : (
@@ -177,11 +180,11 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
           ...inputStyle,
         }}
       />
-      {error && (
+      {error && !hideValidationFeedback ? (
         <Form.Control.Feedback type="invalid">
           {error.message}
         </Form.Control.Feedback>
-      )}
+      ) : null}
     </Form.Group>
   );
 };

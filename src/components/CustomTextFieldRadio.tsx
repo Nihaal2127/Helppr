@@ -2,6 +2,7 @@ import React from "react";
 import { Row, Col } from "react-bootstrap";
 import { UseFormSetValue } from "react-hook-form";
 import { CustomRadioSelection } from "./CustomRadioSelection";
+import { FieldLabelText } from "./RequiredFieldMark";
 
 interface CustomTextFieldRadioProps {
   label: string;
@@ -13,6 +14,8 @@ interface CustomTextFieldRadioProps {
   labelSize?: number;
   /** Align radios on same row as label (e.g. Gender on Add Partner). */
   alignItemsCenter?: boolean;
+  /** Show required asterisk on the label. */
+  required?: boolean;
 }
 
 const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
@@ -24,6 +27,7 @@ const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
   setValue,
   labelSize = 4,
   alignItemsCenter = false,
+  required = false,
 }) => {
   const alignClass = alignItemsCenter ? "center" : "start";
   return (
@@ -32,7 +36,9 @@ const CustomTextFieldRadio: React.FC<CustomTextFieldRadioProps> = ({
         sm={labelSize}
         className={`d-flex align-items-${alignClass}`}
       >
-        <label className="custom-profile-lable mb-0">{label}</label>
+        <label className="custom-profile-lable mb-0">
+          <FieldLabelText label={label} required={required} />
+        </label>
       </Col>
       <Col>
         <CustomRadioSelection

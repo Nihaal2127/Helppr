@@ -22,6 +22,10 @@ interface CustomTextFieldProps {
   autoComplete?: string;
   /** Indian PIN: numeric keyboard hint and optional stricter defaults when used with `maxLength={6}`. */
   isIndianPincodeField?: boolean;
+  /** Show required asterisk without react-hook-form `validation` (e.g. submit validated elsewhere). */
+  showRequiredMark?: boolean;
+  /** Keep validation but hide inline error text (asterisk-only required UI). */
+  hideValidationFeedback?: boolean;
 }
 
 const CustomTextField: React.FC<CustomTextFieldProps> = ({
@@ -42,9 +46,12 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
   maxLength,
   autoComplete,
   isIndianPincodeField,
+  showRequiredMark: showRequiredMarkProp,
+  hideValidationFeedback,
 }) => {
   const resolvedInputType = isIndianPincodeField ? "tel" : inputType;
-  const showRequiredMark = isValidationRequired(validation);
+  const showRequiredMark =
+    Boolean(showRequiredMarkProp) || isValidationRequired(validation);
   return (
     <Row className={`align-items-start ${labelSize !== 4 ? "mb-4" : ""}`}>
       <Col sm={labelSize} className="d-flex align-items-start">
@@ -69,6 +76,7 @@ const CustomTextField: React.FC<CustomTextFieldProps> = ({
           rows={rows}
           maxLength={maxLength}
           autoComplete={autoComplete}
+          hideValidationFeedback={hideValidationFeedback}
         />
       </Col>
     </Row>

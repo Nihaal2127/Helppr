@@ -331,8 +331,14 @@ export async function saveSubscriptionPlan(
   return Boolean(res.success);
 }
 
-export async function fetchSubscriptionPlanDropDown(): Promise<
-  { value: string; label: string }[]
+export type SubscriptionPlanOption = {
+  value: string;
+  label: string;
+  price: number | null;
+};
+
+export async function fetchSubscriptionPlanOptions(): Promise<
+  SubscriptionPlanOption[]
 > {
   if (USE_MOCK_SUBSCRIPTION_PLAN_API) {
     return partnerSubscriptionPlansSeed
@@ -340,6 +346,10 @@ export async function fetchSubscriptionPlanDropDown(): Promise<
       .map((p) => ({
         value: p.plan_name,
         label: capitalizeString(p.plan_name),
+        price:
+          typeof p.price === "number" && Number.isFinite(p.price)
+            ? p.price
+            : null,
       }));
   }
 
@@ -358,7 +368,7 @@ export async function fetchSubscriptionPlanDropDown(): Promise<
     []) as Record<string, unknown>[];
   if (!Array.isArray(rawList)) return [];
 
-  const out: { value: string; label: string }[] = [];
+  const out: SubscriptionPlanOption[] = [];
   for (const r of rawList) {
     const name = String(r.plan_name ?? "")
       .trim()
@@ -367,9 +377,27 @@ export async function fetchSubscriptionPlanDropDown(): Promise<
     if (r.is_active === false) continue;
     const id =
       r._id != null && String(r._id).trim() !== "" ? String(r._id) : "";
-    out.push({ value: id || name, label: capitalizeString(name) });
+    const priceRaw = r.price;
+    const priceNum =
+      typeof priceRaw === "number"
+        ? priceRaw
+        : priceRaw != null && String(priceRaw).trim() !== ""
+        ? Number(priceRaw)
+        : NaN;
+    out.push({
+      value: id || name,
+      label: capitalizeString(name),
+      price: Number.isFinite(priceNum) ? priceNum : null,
+    });
   }
   return out;
+}
+
+export async function fetchSubscriptionPlanDropDown(): Promise<
+  { value: string; label: string }[]
+> {
+  const opts = await fetchSubscriptionPlanOptions();
+  return opts.map(({ value, label }) => ({ value, label }));
 }
 
 function pickPartnerSubListRoot(

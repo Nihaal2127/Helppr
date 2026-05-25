@@ -14,6 +14,10 @@ interface CustomImageUploaderProps {
   isEditable?: boolean;
   existingImages?: string[];
   onFileChange: (files: File[], replaceUrls: string[]) => void;
+  /** Shorter single-file dropzone (e.g. Add Partner beside address). */
+  compact?: boolean;
+  /** Omit the built-in label (use an external label in the parent row). */
+  hideLabel?: boolean;
 }
 
 export function resolveExistingImageSrc(url?: string): string {
@@ -61,6 +65,8 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
   isEditable = false,
   existingImages = [],
   onFileChange,
+  compact = false,
+  hideLabel = false,
 }) => {
   const [fileInputs, setFileInputs] = useState<(File | null)[]>([null]);
   const [replaceUrls, setReplaceUrls] = useState<string[]>([]);
@@ -128,8 +134,9 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
     inputRefs.current[index]?.click();
   };
 
-  const previewSize = maxFiles === 1 ? 168 : 100;
+  const previewSize = maxFiles === 1 ? (compact ? 72 : 168) : 100;
   const isSingle = maxFiles === 1;
+  const showLabel = !hideLabel && Boolean(label?.trim());
   const isDragOver = dragDepth > 0;
 
   const validateAndApplyFile = (index: number, selectedFile: File | null) => {
@@ -150,13 +157,15 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
   return (
     <Row className="w-100 g-0 mx-0">
       <Col xs={12} className="px-0">
-        <div className="mb-3">
-          <label
-            className="form-label fw-medium mb-2 d-block"
-            style={{ color: "var(--content-txt-color)" }}
-          >
-            {label}
-          </label>
+        <div className={compact ? "mb-0" : "mb-3"}>
+          {showLabel ? (
+            <label
+              className="form-label fw-medium mb-2 d-block"
+              style={{ color: "var(--content-txt-color)" }}
+            >
+              {label}
+            </label>
+          ) : null}
 
           <div
             style={
@@ -178,7 +187,9 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                 return (
                   <div
                     key={index}
-                    className="custom-image-uploader-single rounded-3 border overflow-hidden"
+                    className={`custom-image-uploader-single rounded-3 border overflow-hidden${
+                      compact ? " custom-image-uploader-single--compact" : ""
+                    }`}
                     style={{
                       borderColor: isDragOver
                         ? "var(--primary-color)"
@@ -209,8 +220,14 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                     }}
                   >
                     <div
-                      className="d-flex flex-column flex-md-row align-items-stretch gap-3 p-3"
-                      style={{ minHeight: previewSize + 24 }}
+                      className={`d-flex align-items-center gap-2 ${
+                        compact
+                          ? "flex-row p-2"
+                          : "flex-column flex-md-row align-items-stretch gap-3 p-3"
+                      }`}
+                      style={{
+                        minHeight: compact ? previewSize + 16 : previewSize + 24,
+                      }}
                     >
                       <div
                         className="position-relative flex-shrink-0 align-self-center align-self-md-start"
@@ -255,23 +272,25 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
                               <i
                                 className="bi bi-image"
                                 style={{
-                                  fontSize: "2rem",
+                                  fontSize: compact ? "1.65rem" : "2rem",
                                   color: "var(--primary-color)",
                                   opacity: 0.85,
                                   lineHeight: 1,
                                 }}
                                 aria-hidden
                               />
-                              <span
-                                className="text-center mt-2 px-1"
-                                style={{
-                                  color: "var(--placeholder-txt)",
-                                  fontSize: 12,
-                                  lineHeight: 1.35,
-                                }}
-                              >
-                                No image yet
-                              </span>
+                              {!compact ? (
+                                <span
+                                  className="text-center mt-2 px-1"
+                                  style={{
+                                    color: "var(--placeholder-txt)",
+                                    fontSize: 12,
+                                    lineHeight: 1.35,
+                                  }}
+                                >
+                                  No image yet
+                                </span>
+                              ) : null}
                             </div>
                           )}
                         </button>
@@ -306,24 +325,38 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
 
                       <div
                         className="d-flex flex-column justify-content-center flex-grow-1"
-                        style={{ minWidth: 0, gap: 10 }}
+                        style={{ minWidth: 0, gap: compact ? 6 : 10 }}
                       >
-                        <p
-                          className="small mb-0"
-                          style={{
-                            color: "var(--placeholder-txt)",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {extLabel} · up to {maxKb} KB. Drop a file on the
-                          preview or use the button.
-                        </p>
+                        {!compact ? (
+                          <p
+                            className="small mb-0"
+                            style={{
+                              color: "var(--placeholder-txt)",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {extLabel} · up to {maxKb} KB. Drop a file on the
+                            preview or use the button.
+                          </p>
+                        ) : !hasPreview ? (
+                          <span
+                            className="small mb-0"
+                            style={{
+                              color: "var(--placeholder-txt)",
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            No image yet
+                          </span>
+                        ) : null}
                         <div className="d-flex flex-wrap align-items-center gap-2">
                           <Button
                             type="button"
                             variant="outline-primary"
                             size="sm"
-                            className="text-nowrap px-3 py-2"
+                            className={`text-nowrap ${
+                              compact ? "px-2 py-1" : "px-3 py-2"
+                            }`}
                             style={{
                               borderColor: "var(--primary-color)",
                               color: "var(--primary-color)",

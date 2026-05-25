@@ -5,10 +5,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Modal, Button, Row, Col, Form, InputGroup } from "react-bootstrap";
-import Select from "react-select";
-import type { SingleValue } from "react-select";
+import { Modal, Button, Form, InputGroup } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
+import { FieldLabelText } from "../../components/RequiredFieldMark";
 import { UserModel } from "../../lib/models/UserModel";
 import type { PartnerServiceApiRow } from "../../lib/partner/partnerCategoryServiceView";
 import {
@@ -16,41 +15,126 @@ import {
   emptyPartnerCatalogBlock,
   emptyPartnerServiceRow,
   newPartnerCatalogRowId,
+  PartnerCatalogStatusToggle,
+  PartnerSingleSelect,
+  partnerCatalogControlStyle,
+  partnerCatalogOutlineAddBtn,
 } from "../../components/partnerCatalogBlockUi";
 import type {
   PartnerCategoryBlock,
   PartnerCatalogServiceLite,
   PartnerServiceRow,
+  PartnerSelectOption,
 } from "../../components/partnerCatalogBlockUi";
-import { fetchCategoryDropDown } from "../../services/categoryService";
-import { fetchService } from "../../services/servicesService";
+import { fetchCategory } from "../../services/categoryService";
+import {
+  fetchService,
+  normalizeServiceCategoryRef,
+} from "../../services/servicesService";
 import { createOrUpdateUser } from "../../services/userService";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
-import { AppConstant } from "../../lib/global/AppConstant";
+import { AppConstant, UserRole } from "../../lib/global/AppConstant";
 import { showErrorAlert } from "../../lib/global/alertHelper";
+import {
+  franchiseIdForApiQuery,
+  isFranchisePortalSession,
+  readHeaderFranchisePreference,
+  sessionFranchiseIdForScopedApis,
+} from "../../lib/franchise/headerFranchisePreference";
 
 const PARTNER_ROLE = 2;
 
-type OptionType = { value: string; label: string };
-
-type ServiceLite = {
-  _id: string;
-  name: string;
-  category_id: string;
+type ServiceLite = PartnerCatalogServiceLite & {
   category_name?: string;
 };
+
+function resolvePartnerCatalogFranchiseApiId(user: UserModel): string {
+  const fromUser = String(
+    (user as { franchise_id?: string }).franchise_id ?? ""
+  ).trim();
+  if (fromUser) return franchiseIdForApiQuery(fromUser);
+  if (isFranchisePortalSession()) {
+    return franchiseIdForApiQuery(sessionFranchiseIdForScopedApis());
+  }
+  const header = readHeaderFranchisePreference();
+  if (header && header.toLowerCase() !== "all") {
+    return franchiseIdForApiQuery(header);
+  }
+  return "";
+}
 
 function resolveActiveFlag(value: unknown, defaultActive = true): boolean {
   if (value === undefined || value === null) return defaultActive;
   return value === true || String(value).toLowerCase() === "true";
 }
 
+/** Franchise catalogue dropdowns: only `is_active === true` rows are selectable. */
+function catalogDropdownIsActive(value: unknown): boolean {
+  return resolveActiveFlag(value, false);
+}
+
+function mapFranchiseCatalogService(
+  raw: Record<string, unknown>,
+  categoryId: string
+): PartnerCatalogServiceLite | null {
+  if (!catalogDropdownIsActive(raw.is_active)) return null;
+  const _id = String(raw._id ?? "").trim();
+  if (!_id) return null;
+  const priceRaw = raw.price ?? raw.minimum_deposit;
+  const priceNum =
+    priceRaw !== undefined && priceRaw !== null ? Number(priceRaw) : NaN;
+  return {
+    _id,
+    name: String(raw.name ?? "").trim(),
+    category_id: categoryId,
+    price: Number.isFinite(priceNum) ? priceNum : undefined,
+    payment_type: raw.payment_type ? String(raw.payment_type) : undefined,
+  };
+}
+
+function servicesFromCategoryRelated(
+  category: Record<string, unknown>
+): PartnerCatalogServiceLite[] {
+  const cid = String(category._id ?? category.category_id ?? "").trim();
+  if (!cid) return [];
+  const related = category.related_services;
+  if (!Array.isArray(related)) return [];
+  const out: PartnerCatalogServiceLite[] = [];
+  for (const item of related) {
+    if (!item || typeof item !== "object") continue;
+    const mapped = mapFranchiseCatalogService(
+      item as Record<string, unknown>,
+      cid
+    );
+    if (mapped) out.push(mapped);
+  }
+  return out;
+}
+
+const partnerCatalogOutlineRemoveBtn: React.CSSProperties = {
+  width: "24px",
+  height: "24px",
+  borderRadius: "50%",
+  border: "1px solid var(--navi-color)",
+  backgroundColor: "transparent",
+  color: "var(--navi-color)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  boxShadow: "none",
+  padding: 0,
+  transition: "background-color 0.15s ease, filter 0.15s ease",
+};
+
 function categoryActiveFromUser(
   user: UserModel,
   categoryId: string,
   initialCategoryIds: string[]
 ): boolean {
-  const idx = initialCategoryIds.findIndex((id) => String(id) === String(categoryId));
+  const idx = initialCategoryIds.findIndex(
+    (id) => String(id) === String(categoryId)
+  );
   const flags = (user as { category_is_active?: boolean[] }).category_is_active;
   if (idx >= 0 && Array.isArray(flags) && flags[idx] !== undefined) {
     return flags[idx] !== false;
@@ -66,117 +150,27 @@ function serviceActiveFromUser(user: UserModel, flatIndex: number): boolean {
   return true;
 }
 
-/** Same react-select look as `CustomFormSelect` (portal menu for modals). */
-const partnerModalSelectStyles = {
-  control: (provided: Record<string, unknown>) => ({
-    ...provided,
-    borderColor: "var(--primary-color)",
-    boxShadow: "none",
-    borderRadius: "8px",
-    fontSize: "14px",
-    minHeight: "38px",
-    height: "38px",
-    backgroundColor: "var(--bg-color)",
-    fontFamily: "'Inter', sans-serif",
-    color: "var(--content-txt-color)",
-    marginBottom: 0,
-    cursor: "pointer",
-    "&:hover": { borderColor: "var(--primary-color)" },
-  }),
-  valueContainer: (provided: Record<string, unknown>) => ({
-    ...provided,
-    paddingTop: 2,
-    paddingBottom: 2,
-  }),
-  option: (
-    provided: Record<string, unknown>,
-    state: { isSelected: boolean; isFocused: boolean }
-  ) => ({
-    ...provided,
-    backgroundColor: state.isSelected
-      ? "var(--txtfld-border)"
-      : state.isFocused
-      ? "var(--primary-color)"
-      : "",
-    color:
-      state.isSelected || state.isFocused
-        ? "var(--bg-color)"
-        : "var(--primary-color)",
-    cursor: "pointer",
-    fontSize: "14px",
-  }),
-  singleValue: (provided: Record<string, unknown>) => ({
-    ...provided,
-    color: "var(--content-txt-color)",
-  }),
-  placeholder: (provided: Record<string, unknown>) => ({
-    ...provided,
-    fontSize: "14px",
-    color: "var(--placeholder-txt)",
-    fontFamily: "Inter, sans-serif",
-  }),
-  menuPortal: (provided: Record<string, unknown>) => ({
-    ...provided,
-    zIndex: 9999,
-  }),
-  menu: (provided: Record<string, unknown>) => ({ ...provided, zIndex: 9999 }),
-  indicatorsContainer: (provided: Record<string, unknown>) => ({
-    ...provided,
-    height: "36px",
-  }),
-};
-
-type PartnerSingleSelectProps = {
-  instanceId: string;
-  label: string;
-  options: OptionType[];
-  value: string;
-  onChange: (next: string) => void;
-  placeholder?: string;
-};
-
-function PartnerSingleSelect({
-  instanceId,
-  label,
-  options,
-  value,
-  onChange,
-  placeholder,
-}: PartnerSingleSelectProps) {
-  const selected = useMemo(
-    () => options.find((o) => String(o.value) === String(value)) ?? null,
-    [options, value]
-  );
-
-  return (
-    <Form.Group controlId={instanceId}>
-      {label ? (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
-      ) : null}
-      <Select<OptionType, false>
-        instanceId={instanceId}
-        inputId={`${instanceId}-input`}
-        className="react-select react-select-container"
-        classNamePrefix="react-select"
-        isMulti={false}
-        isClearable={false}
-        hideSelectedOptions={false}
-        isSearchable
-        options={options}
-        value={selected}
-        placeholder={placeholder}
-        onChange={(opt: SingleValue<OptionType>) => {
-          const v = opt?.value;
-          onChange(v !== undefined && v !== null ? String(v) : "");
-        }}
-        menuPortalTarget={
-          typeof document !== "undefined" ? document.body : null
-        }
-        menuPosition="fixed"
-        styles={partnerModalSelectStyles}
-      />
-    </Form.Group>
-  );
+/** Only rows/blocks with saved catalog data are read-only; empty starter blocks stay editable. */
+function captureInitialCatalogIds(
+  blocks: PartnerCategoryBlock[],
+  blockIdsRef: React.MutableRefObject<Set<string>>,
+  rowIdsRef: React.MutableRefObject<Set<string>>
+) {
+  const blockIds = new Set<string>();
+  const rowIds = new Set<string>();
+  for (const b of blocks) {
+    const cid = String(b.categoryId ?? "").trim();
+    const rowsWithService = b.serviceRows.filter((r) =>
+      String(r.serviceId ?? "").trim()
+    );
+    if (cid) blockIds.add(b.id);
+    if (rowsWithService.length > 0) blockIds.add(b.id);
+    for (const r of rowsWithService) {
+      rowIds.add(r.id);
+    }
+  }
+  blockIdsRef.current = blockIds;
+  rowIdsRef.current = rowIds;
 }
 
 export type EditPartnerCategoriesServicesDialogProps = {
@@ -275,9 +269,7 @@ function buildBlocksFromPartnerServices(
       serviceId: sid,
       description: String(ps.description ?? "").trim(),
       price:
-        ps.price != null && ps.price !== ""
-          ? String(ps.price)
-          : "",
+        ps.price != null && ps.price !== "" ? String(ps.price) : "",
       is_active: resolveActiveFlag(
         (ps as { is_active?: unknown }).is_active,
         true
@@ -311,35 +303,98 @@ function EditPartnerCategoriesServicesDialogView({
   onClose,
   onSaved,
 }: EditPartnerCategoriesServicesDialogProps) {
-  const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<PartnerSelectOption[]>(
+    []
+  );
   const [allServices, setAllServices] = useState<ServiceLite[]>([]);
+  const [servicesByCategoryId, setServicesByCategoryId] = useState<
+    Record<string, PartnerCatalogServiceLite[]>
+  >({});
   const [blocks, setBlocks] = useState<PartnerCategoryBlock[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const cityId = user.city_id ?? "";
+  const initialBlockIdsRef = useRef<Set<string>>(new Set());
+  const initialRowIdsRef = useRef<Set<string>>(new Set());
   const didInit = useRef(false);
+
+  const userRole = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  const isSuperAdminOrStaff =
+    userRole === UserRole.ADMIN || userRole === UserRole.STAFF;
+
+  const catalogFranchiseApiId = useMemo(
+    () => resolvePartnerCatalogFranchiseApiId(user),
+    [user]
+  );
+
+  const catalogLocked = useMemo(
+    () => isSuperAdminOrStaff && !catalogFranchiseApiId,
+    [isSuperAdminOrStaff, catalogFranchiseApiId]
+  );
+
+  const cityId = user.city_id ?? "";
+  const stateId = user.state_id ?? "";
+
+  const isExistingBlock = useCallback(
+    (blockId: string) => initialBlockIdsRef.current.has(blockId),
+    []
+  );
+
+  const isExistingRow = useCallback(
+    (rowId: string) => initialRowIdsRef.current.has(rowId),
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const svcRes = await fetchService(1, 500, {});
+        const svcRes = await fetchService(
+          1,
+          5000,
+          {
+            status: "true",
+            ...(cityId ? { city_id: cityId } : {}),
+            ...(stateId ? { state_id: stateId } : {}),
+          },
+          [],
+          catalogFranchiseApiId || undefined
+        );
         if (cancelled) return;
         const list =
           svcRes?.response && Array.isArray(svcRes.services)
             ? svcRes.services
             : [];
         setAllServices(
-          list.map((s) => ({
-            _id: String((s as { _id?: string })._id ?? ""),
-            name: String((s as { name?: string }).name ?? ""),
-            category_id: String(
-              (s as { category_id?: string }).category_id ?? ""
-            ),
-            category_name: (s as { category_name?: string }).category_name
-              ? String((s as { category_name?: string }).category_name)
-              : undefined,
-          }))
+          list
+            .filter((s) =>
+              catalogDropdownIsActive((s as { is_active?: unknown }).is_active)
+            )
+            .map((s) => {
+              const category_id = String(
+                normalizeServiceCategoryRef(
+                  (s as { category_id?: unknown }).category_id
+                )
+              );
+              const priceRaw =
+                (s as { price?: number | null }).price ??
+                (s as { minimum_deposit?: number | null }).minimum_deposit;
+              const priceNum =
+                priceRaw !== undefined && priceRaw !== null
+                  ? Number(priceRaw)
+                  : NaN;
+              return {
+                _id: String((s as { _id?: string })._id ?? ""),
+                name: String((s as { name?: string }).name ?? ""),
+                category_id,
+                category_name: (s as { category_name?: string }).category_name
+                  ? String((s as { category_name?: string }).category_name)
+                  : undefined,
+                price: Number.isFinite(priceNum) ? priceNum : undefined,
+                payment_type: (s as { payment_type?: string }).payment_type
+                  ? String((s as { payment_type?: string }).payment_type)
+                  : undefined,
+              };
+            })
         );
       } catch {
         if (!cancelled) setAllServices([]);
@@ -348,36 +403,62 @@ function EditPartnerCategoriesServicesDialogView({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [catalogFranchiseApiId, cityId, stateId]);
 
   useEffect(() => {
+    if (catalogLocked) {
+      setCategoryOptions([]);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
-        const cats = await fetchCategoryDropDown(cityId || undefined);
+        const res = await fetchCategory(
+          1,
+          5000,
+          { status: "true" },
+          [],
+          catalogFranchiseApiId || undefined
+        );
         if (cancelled) return;
-        const catList = Array.isArray(cats)
-          ? cats.filter((c: OptionType) => c?.value)
-          : [];
-        setCategoryOptions([
-          { value: "select-all", label: "Select All" },
-          ...catList,
-        ]);
+        if (!res.response) {
+          setCategoryOptions([]);
+          return;
+        }
+        const servicesByCat: Record<string, PartnerCatalogServiceLite[]> = {};
+        const catList = (Array.isArray(res.categories) ? res.categories : [])
+          .filter((c) => catalogDropdownIsActive(c.is_active))
+          .map((c) => {
+            const raw = c as unknown as Record<string, unknown>;
+            const value = String(c._id ?? c.category_id ?? "").trim();
+            const related = servicesFromCategoryRelated(raw);
+            if (value && related.length > 0) {
+              servicesByCat[value] = related;
+            }
+            return {
+              value,
+              label: String(c.name ?? "").trim(),
+            };
+          })
+          .filter((c) => c.value);
+        setCategoryOptions(catList);
+        if (Object.keys(servicesByCat).length > 0) {
+          setServicesByCategoryId((prev) => ({ ...prev, ...servicesByCat }));
+        }
       } catch {
-        if (!cancelled)
-          setCategoryOptions([{ value: "select-all", label: "Select All" }]);
+        if (!cancelled) setCategoryOptions([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [cityId]);
+  }, [catalogFranchiseApiId, catalogLocked]);
 
   const partnerCategoryLabelById = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of categoryOptions) {
       const id = String(c.value ?? "").trim();
-      if (id && id !== "select-all") map.set(id, c.label);
+      if (id) map.set(id, c.label);
     }
     for (const ps of user.partner_services ?? []) {
       const cid = partnerServiceRefId(ps.category_id);
@@ -407,9 +488,28 @@ function EditPartnerCategoriesServicesDialogView({
     allServices,
   ]);
 
+  const catalogServicesForBlocks = useMemo(() => {
+    const out: PartnerCatalogServiceLite[] = [];
+    const seen = new Set<string>();
+    for (const s of allServices) {
+      const id = String(s._id).trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(s);
+    }
+    for (const list of Object.values(servicesByCategoryId)) {
+      for (const s of list) {
+        const id = String(s._id).trim();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        out.push(s);
+      }
+    }
+    return out;
+  }, [allServices, servicesByCategoryId]);
+
   const categorySelectOptionsForBlock = useCallback(
-    (block: PartnerCategoryBlock): OptionType[] => {
-      const rest = categoryOptions.filter((c) => c.value !== "select-all");
+    (block: PartnerCategoryBlock): PartnerSelectOption[] => {
       const taken = new Set(
         blocks
           .filter(
@@ -418,8 +518,8 @@ function EditPartnerCategoriesServicesDialogView({
           )
           .map((b) => String(b.categoryId))
       );
-      const filtered = rest.filter((c) => !taken.has(String(c.value)));
-      const opts: OptionType[] = [
+      const filtered = categoryOptions.filter((c) => !taken.has(String(c.value)));
+      const opts: PartnerSelectOption[] = [
         { value: "", label: "Select category" },
         ...filtered,
       ];
@@ -435,9 +535,8 @@ function EditPartnerCategoriesServicesDialogView({
     [categoryOptions, blocks, partnerCategoryLabelById]
   );
 
-  /** Per row: hide services already chosen on sibling rows; keep this row’s selection visible. */
   const serviceOptionsForPartnerBlockRow = useCallback(
-    (block: PartnerCategoryBlock, rowId: string): OptionType[] => {
+    (block: PartnerCategoryBlock, rowId: string): PartnerSelectOption[] => {
       const categoryId = String(block.categoryId ?? "").trim();
       if (!categoryId) {
         return [{ value: "", label: "Select category first" }];
@@ -453,11 +552,15 @@ function EditPartnerCategoriesServicesDialogView({
           .filter(Boolean)
       );
 
-      const baseList = allServices
-        .filter((svc) => String(svc.category_id) === String(categoryId))
-        .map((s) => ({ _id: s._id, name: s.name }));
+      const fromCategory = servicesByCategoryId[categoryId] ?? [];
+      const baseList =
+        fromCategory.length > 0
+          ? fromCategory.map((s) => ({ _id: s._id, name: s.name }))
+          : allServices
+              .filter((svc) => String(svc.category_id) === String(categoryId))
+              .map((s) => ({ _id: s._id, name: s.name }));
 
-      const ordered: OptionType[] = [];
+      const ordered: PartnerSelectOption[] = [];
       const seen = new Set<string>();
 
       for (const s of baseList) {
@@ -468,7 +571,7 @@ function EditPartnerCategoriesServicesDialogView({
       }
 
       const resolveLabel = (sid: string): string =>
-        allServices.find((x) => String(x._id) === sid)?.name ?? sid;
+        catalogServicesForBlocks.find((x) => String(x._id) === sid)?.name ?? sid;
 
       if (currentSid && !seen.has(currentSid)) {
         ordered.push({ value: currentSid, label: resolveLabel(currentSid) });
@@ -481,7 +584,7 @@ function EditPartnerCategoriesServicesDialogView({
 
       return [{ value: "", label: "Select service" }, ...filtered];
     },
-    [allServices]
+    [allServices, servicesByCategoryId, catalogServicesForBlocks]
   );
 
   useEffect(() => {
@@ -490,21 +593,27 @@ function EditPartnerCategoriesServicesDialogView({
     const partnerServices = user.partner_services;
     if (Array.isArray(partnerServices) && partnerServices.length > 0) {
       didInit.current = true;
-      setBlocks(buildBlocksFromPartnerServices(partnerServices, allServices));
+      const built = buildBlocksFromPartnerServices(partnerServices, allServices);
+      captureInitialCatalogIds(
+        built,
+        initialBlockIdsRef,
+        initialRowIdsRef
+      );
+      setBlocks(built);
       return;
     }
 
     if (initialServiceIds.length > 0 && allServices.length === 0) return;
 
     didInit.current = true;
-    setBlocks(
-      buildBlocksFromInitial(
-        initialServiceIds,
-        allServices,
-        user,
-        initialCategoryIds
-      )
+    const built = buildBlocksFromInitial(
+      initialServiceIds,
+      allServices,
+      user,
+      initialCategoryIds
     );
+    captureInitialCatalogIds(built, initialBlockIdsRef, initialRowIdsRef);
+    setBlocks(built);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once when catalogs/user slices stabilize
   }, [
     allServices,
@@ -538,13 +647,87 @@ function EditPartnerCategoriesServicesDialogView({
     });
   }, [allServices]);
 
+  const loadServicesForCategory = useCallback(
+    async (categoryId: string) => {
+      const cid = String(categoryId ?? "").trim();
+      if (!cid || catalogLocked) return;
+      try {
+        const svcRes = await fetchService(
+          1,
+          5000,
+          {
+            status: "true",
+            ...(cityId ? { city_id: cityId } : {}),
+            ...(stateId ? { state_id: stateId } : {}),
+          },
+          [],
+          catalogFranchiseApiId || undefined
+        );
+        const list =
+          svcRes.response && Array.isArray(svcRes.services)
+            ? svcRes.services
+            : [];
+        const mapped: PartnerCatalogServiceLite[] = [];
+        for (const s of list) {
+          if (normalizeServiceCategoryRef(s.category_id) !== cid) continue;
+          const row = mapFranchiseCatalogService(
+            s as unknown as Record<string, unknown>,
+            cid
+          );
+          if (row) mapped.push(row);
+        }
+        setServicesByCategoryId((prev) => {
+          if (prev[cid]?.length) return prev;
+          return { ...prev, [cid]: mapped };
+        });
+      } catch {
+        setServicesByCategoryId((prev) =>
+          prev[cid]?.length ? prev : { ...prev, [cid]: [] }
+        );
+      }
+    },
+    [catalogFranchiseApiId, catalogLocked, cityId, stateId]
+  );
+
   const addCategoryBlock = useCallback(() => {
     setBlocks((prev) => [...prev, emptyPartnerCatalogBlock("")]);
   }, []);
 
   const removeCategoryBlock = useCallback((blockId: string) => {
+    if (initialBlockIdsRef.current.has(blockId)) return;
     setBlocks((prev) =>
       prev.length <= 1 ? prev : prev.filter((b) => b.id !== blockId)
+    );
+  }, []);
+
+  const removeServiceRow = useCallback((blockId: string, rowId: string) => {
+    if (initialRowIdsRef.current.has(rowId)) return;
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        if (b.serviceRows.length <= 1) return b;
+        return {
+          ...b,
+          serviceRows: b.serviceRows.filter((r) => r.id !== rowId),
+        };
+      })
+    );
+  }, []);
+
+  const updateBlockActive = useCallback((blockId: string, is_active: boolean) => {
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.id === blockId
+          ? {
+              ...b,
+              is_active,
+              serviceRows: (b.serviceRows ?? []).map((r) => ({
+                ...r,
+                is_active: is_active ? r.is_active !== false : false,
+              })),
+            }
+          : b
+      )
     );
   }, []);
 
@@ -559,13 +742,17 @@ function EditPartnerCategoriesServicesDialogView({
                 serviceRows: b.serviceRows.map((r) => ({
                   ...r,
                   serviceId: "",
+                  price: "",
                 })),
               }
             : b
         )
       );
+      const cid = String(categoryId ?? "").trim();
+      if (!cid || isExistingBlock(blockId)) return;
+      void loadServicesForCategory(cid);
     },
-    []
+    [isExistingBlock, loadServicesForCategory]
   );
 
   const addServiceRow = useCallback((blockId: string) => {
@@ -603,21 +790,6 @@ function EditPartnerCategoriesServicesDialogView({
     []
   );
 
-  const removeServiceRow = useCallback((blockId: string, rowId: string) => {
-    setBlocks((prev) =>
-      prev.map((b) => {
-        if (b.id !== blockId) return b;
-        if (b.serviceRows.length <= 1) {
-          return b;
-        }
-        return {
-          ...b,
-          serviceRows: b.serviceRows.filter((r) => r.id !== rowId),
-        };
-      })
-    );
-  }, []);
-
   const handleSave = async () => {
     if (!user.city_id) {
       showErrorAlert(
@@ -632,7 +804,7 @@ function EditPartnerCategoriesServicesDialogView({
 
     const catalogFlat = flattenPartnerBlocksForSave(
       blocks,
-      allServices as PartnerCatalogServiceLite[]
+      catalogServicesForBlocks
     );
     if (!catalogFlat.ok) {
       showErrorAlert(catalogFlat.message);
@@ -674,48 +846,6 @@ function EditPartnerCategoriesServicesDialogView({
     }
   };
 
-  const controlStyle: React.CSSProperties = {
-    borderRadius: "8px",
-    borderColor: "var(--primary-color)",
-    fontSize: "14px",
-    backgroundColor: "var(--bg-color)",
-    color: "var(--content-txt-color)",
-    minHeight: "38px",
-  };
-
-  /** Outlined circle — matches modal title (`.custom-modal-title` uses `var(--navi-color)`). */
-  const outlineAddBtn: React.CSSProperties = {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    border: "1px solid green",
-    backgroundColor: "transparent",
-    color: "green",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    boxShadow: "none",
-    padding: 0,
-    transition: "background-color 0.15s ease, filter 0.15s ease",
-  };
-
-  const outlineDeleteBtn: React.CSSProperties = {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    border: "1px solid var(--navi-color)",
-    backgroundColor: "transparent",
-    color: "var(--navi-color)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    boxShadow: "none",
-    padding: 0,
-    transition: "background-color 0.15s ease, filter 0.15s ease",
-  };
-
   const hoverIconBtn = (
     e: React.MouseEvent<HTMLButtonElement>,
     on: boolean
@@ -732,7 +862,7 @@ function EditPartnerCategoriesServicesDialogView({
       centered
       size="xl"
       enforceFocus={false}
-      dialogClassName="custom-big-modal edit-partner-catalog-modal-vh"
+      dialogClassName="custom-big-modal add-partner-modal edit-partner-catalog-modal-vh"
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
@@ -743,184 +873,276 @@ function EditPartnerCategoriesServicesDialogView({
       <Modal.Body className="px-4 pb-4 pt-0">
         <section className="custom-other-details" style={{ padding: "10px" }}>
           <h3 className="mb-2">Categories and services</h3>
+          {catalogLocked ? (
+            <p className="text-muted small mb-3">
+              Unable to resolve this partner&apos;s franchise for the
+              catalogue. Ensure the partner is linked to a franchise, or select
+              a franchise in the header filter.
+            </p>
+          ) : null}
 
-          {blocks.map((block) => (
-            <div
-              key={block.id}
-              className="rounded-3 border px-3 py-3 mb-4"
-              style={{
-                borderColor: "var(--lb1-border)",
-                backgroundColor: "var(--bg-color)",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-              }}
-            >
-              <Row className="g-3 align-items-end mb-3">
-                <Col xs={12} md>
-                  <PartnerSingleSelect
-                    instanceId={`${block.id}-category`}
-                    label="Category"
-                    options={categorySelectOptionsForBlock(block)}
-                    value={block.categoryId}
-                    placeholder="Select category"
-                    onChange={(cid) => updateBlockCategory(block.id, cid)}
-                  />
-                </Col>
-                <Col xs="auto" className="d-flex align-items-end gap-2 pb-1">
-                  <button
-                    type="button"
-                    title="Add another category block"
-                    aria-label="Add another category block"
-                    style={outlineAddBtn}
-                    onClick={addCategoryBlock}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onMouseEnter={(e) => hoverIconBtn(e, true)}
-                    onMouseLeave={(e) => hoverIconBtn(e, false)}
-                  >
-                    <i className="bi bi-plus fs-6" aria-hidden />
-                  </button>
-                  {blocks.length > 1 ? (
-                    <button
-                      type="button"
-                      title="Remove this category block"
-                      aria-label="Remove this category block"
-                      style={outlineDeleteBtn}
-                      onClick={() => removeCategoryBlock(block.id)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={(e) => hoverIconBtn(e, true)}
-                      onMouseLeave={(e) => hoverIconBtn(e, false)}
-                    >
-                      <i className="bi bi-trash fs-6" aria-hidden />
-                    </button>
-                  ) : null}
-                </Col>
-              </Row>
+          {blocks.map((block) => {
+            const blockReadOnly = isExistingBlock(block.id);
+            const categoryActive = block.is_active !== false;
 
-              {block.serviceRows.map((row) => (
-                <Row key={row.id} className="g-3 align-items-start mb-2">
-                  <Col xs={12} md={3} lg={3}>
+            return (
+              <div
+                key={block.id}
+                className="add-partner-catalog-block rounded-3 border px-3 py-3 mb-4"
+                style={{
+                  borderColor: "var(--lb1-border)",
+                  backgroundColor: "var(--bg-color)",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div className="add-partner-catalog-grid add-partner-catalog-grid--category mb-3">
+                  <div className="add-partner-catalog-field add-partner-catalog-field--category">
                     <PartnerSingleSelect
-                      instanceId={`${block.id}-${row.id}-service`}
-                      label="Service"
-                      options={serviceOptionsForPartnerBlockRow(block, row.id)}
-                      value={row.serviceId}
-                      placeholder="Select service"
-                      onChange={(sid) =>
-                        updateServiceRow(block.id, row.id, { serviceId: sid })
+                      instanceId={`${block.id}-category`}
+                      label="Category"
+                      requiredMark
+                      options={categorySelectOptionsForBlock(block)}
+                      value={block.categoryId}
+                      placeholder="Select category"
+                      isDisabled={blockReadOnly || catalogLocked}
+                      onChange={(cid) => updateBlockCategory(block.id, cid)}
+                    />
+                  </div>
+                  <div className="add-partner-catalog-field add-partner-catalog-field--status">
+                    <PartnerCatalogStatusToggle
+                      inline
+                      instanceId={`${block.id}-category-status`}
+                      label="Status"
+                      value={categoryActive}
+                      disabled={catalogLocked}
+                      onChange={(active) =>
+                        updateBlockActive(block.id, active)
                       }
                     />
-                  </Col>
-                  <Col xs={12} md={5} lg={6}>
-                    <Form.Group controlId={`desc-${block.id}-${row.id}`}>
-                      <Form.Label className="fw-medium mb-1">
-                        Description
-                      </Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={1}
-                        className="custom-form-input"
-                        style={{ ...controlStyle, resize: "vertical" }}
-                        placeholder="Describe this offering"
-                        value={row.description}
-                        onChange={(e) =>
-                          updateServiceRow(block.id, row.id, {
-                            description: e.target.value,
-                          })
-                        }
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col xs={12} md={2} lg={2}>
-                    <Form.Group controlId={`price-${block.id}-${row.id}`}>
-                      <Form.Label className="fw-medium mb-1">Price</Form.Label>
-                      <InputGroup>
-                        <InputGroup.Text
-                          className="custom-form-input text-muted"
-                          style={{
-                            ...controlStyle,
-                            borderTopRightRadius: 0,
-                            borderBottomRightRadius: 0,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {AppConstant.currencySymbol}
-                        </InputGroup.Text>
-                        <Form.Control
-                          type="text"
-                          inputMode="decimal"
-                          className="custom-form-input border-start-0"
-                          style={{
-                            ...controlStyle,
-                            borderLeft: 0,
-                            borderTopLeftRadius: 0,
-                            borderBottomLeftRadius: 0,
-                          }}
-                          placeholder="e.g. 499"
-                          value={row.price}
-                          onChange={(e) =>
-                            updateServiceRow(block.id, row.id, {
-                              price: e.target.value,
-                            })
-                          }
-                        />
-                      </InputGroup>
-                    </Form.Group>
-                  </Col>
-                  <Col
-                    xs={12}
-                    className="d-flex flex-row align-items-end justify-content-end gap-2 pt-2 pt-md-4 col-lg-auto"
-                  >
-                    <button
-                      type="button"
-                      title="Add another service in this category"
-                      aria-label="Add another service in this category"
-                      style={outlineAddBtn}
-                      onClick={() => addServiceRow(block.id)}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={(e) => hoverIconBtn(e, true)}
-                      onMouseLeave={(e) => hoverIconBtn(e, false)}
-                    >
-                      <i className="bi bi-plus fs-6" aria-hidden />
-                    </button>
-                    {block.serviceRows.length > 1 ? (
+                  </div>
+                  <div className="add-partner-catalog-field add-partner-catalog-field--actions">
+                    <div className="add-partner-catalog-actions">
                       <button
                         type="button"
-                        title="Remove this service row"
-                        aria-label="Remove this service row"
-                        style={outlineDeleteBtn}
-                        onClick={() => removeServiceRow(block.id, row.id)}
+                        title="Add another category block"
+                        aria-label="Add another category block"
+                        style={partnerCatalogOutlineAddBtn}
+                        disabled={catalogLocked}
+                        onClick={addCategoryBlock}
                         onMouseDown={(e) => e.preventDefault()}
                         onMouseEnter={(e) => hoverIconBtn(e, true)}
                         onMouseLeave={(e) => hoverIconBtn(e, false)}
                       >
-                        <i className="bi bi-trash fs-6" aria-hidden />
+                        <i className="bi bi-plus fs-6" aria-hidden />
                       </button>
-                    ) : null}
-                  </Col>
-                </Row>
-              ))}
-            </div>
-          ))}
+                      {!blockReadOnly && blocks.length > 1 ? (
+                        <button
+                          type="button"
+                          title="Remove this category block"
+                          aria-label="Remove this category block"
+                          style={partnerCatalogOutlineRemoveBtn}
+                          onClick={() => removeCategoryBlock(block.id)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onMouseEnter={(e) => hoverIconBtn(e, true)}
+                          onMouseLeave={(e) => hoverIconBtn(e, false)}
+                        >
+                          <i className="bi bi-dash-lg fs-6" aria-hidden />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {block.serviceRows.map((row) => {
+                  const rowReadOnly = isExistingRow(row.id);
+                  const serviceActive =
+                    categoryActive && row.is_active !== false;
+
+                  return (
+                    <div
+                      key={row.id}
+                      className="add-partner-catalog-grid add-partner-catalog-grid--service mb-2"
+                    >
+                      <div className="add-partner-catalog-field add-partner-catalog-field--service">
+                        <PartnerSingleSelect
+                          instanceId={`${block.id}-${row.id}-service`}
+                          label="Service"
+                          requiredMark
+                          options={serviceOptionsForPartnerBlockRow(
+                            block,
+                            row.id
+                          )}
+                          value={row.serviceId}
+                          placeholder="Select service"
+                          isDisabled={
+                            blockReadOnly ||
+                            rowReadOnly ||
+                            catalogLocked ||
+                            !categoryActive
+                          }
+                          onChange={(sid) => {
+                            const categoryId = String(
+                              block.categoryId ?? ""
+                            ).trim();
+                            const list =
+                              servicesByCategoryId[categoryId] ??
+                              allServices.filter(
+                                (s) =>
+                                  String(s.category_id) === String(categoryId)
+                              );
+                            const hit = list.find(
+                              (s) => String(s._id) === String(sid)
+                            );
+                            const priceNum =
+                              hit?.price !== undefined &&
+                              hit?.price !== null
+                                ? Number(hit.price)
+                                : NaN;
+                            const priceStr = Number.isFinite(priceNum)
+                              ? String(priceNum)
+                              : "";
+                            updateServiceRow(block.id, row.id, {
+                              serviceId: sid,
+                              price: priceStr,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="add-partner-catalog-field add-partner-catalog-field--description">
+                        <Form.Group controlId={`desc-${block.id}-${row.id}`}>
+                          <Form.Label className="fw-medium mb-1">
+                            <FieldLabelText label="Description" required />
+                          </Form.Label>
+                          <Form.Control
+                            as="textarea"
+                            rows={1}
+                            className="custom-form-input"
+                            style={{
+                              ...partnerCatalogControlStyle,
+                              resize: "vertical",
+                            }}
+                            placeholder="Describe this offering"
+                            value={row.description}
+                            onChange={(e) =>
+                              updateServiceRow(block.id, row.id, {
+                                description: e.target.value,
+                              })
+                            }
+                          />
+                        </Form.Group>
+                      </div>
+                      <div className="add-partner-catalog-field add-partner-catalog-field--price">
+                        <Form.Group controlId={`price-${block.id}-${row.id}`}>
+                          <Form.Label className="fw-medium mb-1">
+                            <FieldLabelText label="Price" required />
+                          </Form.Label>
+                          <InputGroup>
+                            <InputGroup.Text
+                              className="custom-form-input text-muted"
+                              style={{
+                                ...partnerCatalogControlStyle,
+                                borderTopRightRadius: 0,
+                                borderBottomRightRadius: 0,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {AppConstant.currencySymbol}
+                            </InputGroup.Text>
+                            <Form.Control
+                              type="text"
+                              inputMode="decimal"
+                              className="custom-form-input border-start-0"
+                              style={{
+                                ...partnerCatalogControlStyle,
+                                borderLeft: 0,
+                                borderTopLeftRadius: 0,
+                                borderBottomLeftRadius: 0,
+                              }}
+                              placeholder="e.g. 499"
+                              value={row.price}
+                              onChange={(e) =>
+                                updateServiceRow(block.id, row.id, {
+                                  price: e.target.value,
+                                })
+                              }
+                            />
+                          </InputGroup>
+                        
+                        </Form.Group>
+                      </div>
+                      <div className="add-partner-catalog-field add-partner-catalog-field--status">
+                        <PartnerCatalogStatusToggle
+                          inline
+                          instanceId={`${block.id}-${row.id}-service-status`}
+                          label="Status"
+                          value={serviceActive}
+                          disabled={catalogLocked || !categoryActive}
+                          onChange={(active) => {
+                            if (!categoryActive) return;
+                            updateServiceRow(block.id, row.id, {
+                              is_active: active,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="add-partner-catalog-field add-partner-catalog-field--actions">
+                        <div className="add-partner-catalog-actions">
+                          <button
+                            type="button"
+                            title="Add another service in this category"
+                            aria-label="Add another service in this category"
+                            style={partnerCatalogOutlineAddBtn}
+                            disabled={catalogLocked || !categoryActive}
+                            onClick={() => addServiceRow(block.id)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={(e) => hoverIconBtn(e, true)}
+                            onMouseLeave={(e) => hoverIconBtn(e, false)}
+                          >
+                            <i className="bi bi-plus fs-6" aria-hidden />
+                          </button>
+                          {!rowReadOnly && block.serviceRows.length > 1 ? (
+                            <button
+                              type="button"
+                              title="Remove this service row"
+                              aria-label="Remove this service row"
+                              style={partnerCatalogOutlineRemoveBtn}
+                              onClick={() =>
+                                removeServiceRow(block.id, row.id)
+                              }
+                              onMouseDown={(e) => e.preventDefault()}
+                              onMouseEnter={(e) => hoverIconBtn(e, true)}
+                              onMouseLeave={(e) => hoverIconBtn(e, false)}
+                            >
+                              <i className="bi bi-dash-lg fs-6" aria-hidden />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </section>
-        <Row className="mt-4">
-          <Col xs={12} className="text-center d-flex justify-content-end gap-3">
-            <Button
-              type="button"
-              className="custom-btn-primary"
-              disabled={saving}
-              onClick={() => void handleSave()}
-            >
-              Save
-            </Button>
-            <Button
-              type="button"
-              className="custom-btn-secondary"
-              disabled={saving}
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-          </Col>
-        </Row>
+        <div className="mt-4 text-center d-flex justify-content-end gap-3">
+          <Button
+            type="button"
+            className="custom-btn-primary"
+            disabled={saving}
+            onClick={() => void handleSave()}
+          >
+            Save
+          </Button>
+          <Button
+            type="button"
+            className="custom-btn-secondary"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+        </div>
       </Modal.Body>
     </Modal>
   );

@@ -38,6 +38,8 @@ import {
 import EditPartnerCategoriesServicesDialog from "../../pages/userManagement/EditPartnerCategoriesServicesDialog";
 import AddEditUserDialog from "../../pages/userManagement/AddEditUserDialog";
 import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
+import PartnerSubscriptionDetailsRows from "./PartnerSubscriptionDetailsRows";
+import PartnerVerificationStatusModal from "./PartnerVerificationStatusModal";
 
 type PartnerDetailsDialogProps = {
   userId: string;
@@ -68,6 +70,8 @@ function PartnerDetailsDialogView({
   const [catalogCategoryOptions, setCatalogCategoryOptions] = useState<
     CatalogOption[]
   >([]);
+  const [verificationStatusModalOpen, setVerificationStatusModalOpen] =
+    useState(false);
   const fetchRef = useRef(false);
 
   const partnerBankAccounts = useMemo(
@@ -277,12 +281,14 @@ function PartnerDetailsDialogView({
               }}
             />
           </div>
-          <Row className="custom-helper-row">
-            <Col>
-              <section
-                className="custom-other-details "
-                style={{ marginLeft: "0px", marginRight: "0px" }}
-              >
+          <div className="partner-details-sections-stack">
+          <section className="custom-other-details">
+            <h3>Subscription</h3>
+            <PartnerSubscriptionDetailsRows user={userDetails} />
+          </section>
+          <Row className="custom-helper-row align-items-stretch partner-details-serviced-payment-row g-3">
+            <Col className="d-flex flex-column">
+              <section className="custom-other-details flex-grow-1 w-100 h-100">
                 <h3>Serviced</h3>
                 <DetailsRowLink
                   title="No of Services"
@@ -309,11 +315,8 @@ function PartnerDetailsDialogView({
               </section>
             </Col>
 
-            <Col>
-              <section
-                className="custom-other-details"
-                style={{ marginLeft: "0px", marginRight: "0px" }}
-              >
+            <Col className="d-flex flex-column">
+              <section className="custom-other-details flex-grow-1 w-100 h-100">
                 <h3>Payment</h3>
                 <DetailsRow
                   title="Total Payment"
@@ -345,38 +348,22 @@ function PartnerDetailsDialogView({
                 />
               </section>
             </Col>
-            <Col xs={12} md={12}>
-              <section
-                className="custom-other-details"
-                style={{ marginLeft: "0px", marginRight: "0px" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "10px",
-                    paddingRight: "20px",
-                    paddingBottom: "15px",
-                  }}
-                >
-                  <div>
-                    <h3 style={{ margin: 0 }}>Categories &amp; services</h3>
-                  </div>
-                  <div>
-                    {userDetails ? (
+          </Row>
+          <Row className="custom-helper-row align-items-stretch partner-details-categories-row g-3">
+            <Col xs={12}>
+              <section className="custom-other-details w-100">
+                <div className="partner-details-section-header">
+                  <h3>Categories &amp; services</h3>
+                  {userDetails ? (
                       <img
                         src={editIcon}
                         alt="Edit categories and services"
                         title="Edit categories and services"
-                        className="position-absolute"
                         style={{
-                          // top: "0.75rem",
-                          // right: "0.75rem",
                           width: "15px",
                           height: "15px",
                           cursor: "pointer",
-                          zIndex: 1,
+                          flexShrink: 0,
                         }}
                         onClick={() => {
                           openDialog(
@@ -401,8 +388,7 @@ function PartnerDetailsDialogView({
                           );
                         }}
                       />
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
                 <div
                   className="rounded position-relative"
@@ -412,7 +398,9 @@ function PartnerDetailsDialogView({
                   }}
                 >
                   {viewCategoryServiceGroups.length === 0 ? (
-                    <div className="text-muted small py-1">-</div>
+                    <div className="text-muted small py-2">
+                      No categories and services
+                    </div>
                   ) : (
                     <div className="table-responsive">
                       <table
@@ -516,47 +504,56 @@ function PartnerDetailsDialogView({
               </section>
             </Col>
           </Row>
-          <Row>
-            <Col className="custom-helper-row">
-              <section
-                className="custom-other-details"
-                style={{ marginLeft: "0px", marginRight: "0px" }}
-              >
-                <h3>Verification & Documents</h3>
-                {userDetails?.documents?.map((document) => (
-                  <DetailsRowLinkDocument
-                    key={
-                      document._id ??
-                      document.document_id ??
-                      document.name ??
-                      ""
-                    }
-                    title={document.name || ""}
-                    isEditable={
-                      document.document_image === "" ? false : true
-                    }
-                    onViewClick={() => CustomImagePreviewDialog(document)}
-                    onAddClick={() => addDocument(document)}
-                    onDeleteClick={() => addDocument(document)}
-                  />
-                ))}
+          <Row className="custom-helper-row g-3 align-items-stretch partner-details-docs-bank-row">
+            <Col className="d-flex flex-column">
+              <section className="custom-other-details partner-details-docs-bank-panel flex-grow-1 d-flex flex-column">
+                <div className="partner-details-section-header">
+                  <h3>Verification &amp; Documents</h3>
+                  {userDetails ? (
+                    <img
+                      src={editIcon}
+                      alt="Edit verification status"
+                      title="Edit verification status"
+                      style={{
+                        width: "15px",
+                        height: "15px",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                      onClick={() => setVerificationStatusModalOpen(true)}
+                    />
+                  ) : null}
+                </div>
+                <div className="partner-details-docs-bank-body flex-grow-1">
+                {!userDetails?.documents?.length ? (
+                  <div className="text-muted small py-2">No documents</div>
+                ) : (
+                  userDetails.documents.map((document) => (
+                    <DetailsRowLinkDocument
+                      key={
+                        document._id ??
+                        document.document_id ??
+                        document.name ??
+                        ""
+                      }
+                      title={document.name || ""}
+                      isEditable={
+                        document.document_image === "" ? false : true
+                      }
+                      onViewClick={() => CustomImagePreviewDialog(document)}
+                      onAddClick={() => addDocument(document)}
+                      onDeleteClick={() => addDocument(document)}
+                    />
+                  ))
+                )}
+                </div>
               </section>
             </Col>
 
-            <Col className="custom-helper-row">
-              <section
-                className="custom-other-details"
-                style={{ marginLeft: "0px", marginRight: "0px" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "10px",
-                  }}
-                >
-                  <h3 style={{ margin: 0 }}>Accounts</h3>
+            <Col className="d-flex flex-column">
+              <section className="custom-other-details partner-details-docs-bank-panel flex-grow-1 d-flex flex-column">
+                <div className="partner-details-section-header">
+                  <h3>Bank Accounts</h3>
                   <div
                     style={{ cursor: "pointer" }}
                     onClick={() => {
@@ -590,15 +587,15 @@ function PartnerDetailsDialogView({
                                     <DetailsRow title="IFSC Code" value={userDetails?.bank_account?.ifsc_code} />
                                     <DetailsRow title="Bank Name" value={userDetails?.bank_account?.bank_name} />
                                     */}
+                <div className="partner-details-docs-bank-body flex-grow-1">
                 {partnerBankAccounts.length === 0 ? (
-                  <div className="text-muted small py-2">—</div>
+                  <div className="text-muted small py-2">No bank info</div>
                 ) : (
                 <Carousel
                   key={partnerBankAccounts.map((a) => a._id).join("-")}
                   className="partner-accounts-carousel"
                   interval={null}
                   controls={partnerBankAccounts.length > 1}
-                  style={{ marginTop: "1.25rem" }}
                   indicators={partnerBankAccounts.length > 1}
                   prevIcon={
                     <i
@@ -677,12 +674,20 @@ function PartnerDetailsDialogView({
                   ))}
                 </Carousel>
                 )}
+                </div>
               </section>
             </Col>
           </Row>
-       
+          </div>
         </Modal.Body>
       </Modal>
+      <PartnerVerificationStatusModal
+        show={verificationStatusModalOpen}
+        userId={userId}
+        userDetails={userDetails}
+        onClose={() => setVerificationStatusModalOpen(false)}
+        onSaved={onRefreshuser}
+      />
     </>
   );
 }

@@ -14,12 +14,18 @@ import {
   normalizePartnerVerification,
   PARTNER_VERIFICATION,
 } from "../../lib/partner/partnerVerification";
-import { DetailsRow, formatDate, FullDetailsRow } from "../../helper/utility";
+import {
+  DetailsRow,
+  FullDetailsRow,
+  PersonalAccountDetailsGrid,
+} from "../../helper/utility";
 import { CustomImagePreviewDialog } from "../../components/CustomImagePreview";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openDialog } from "../../lib/global/DialogManager";
 import editIcon from "../../assets/icons/edit_red.svg";
+import addIcon from "../../assets/icons/add.svg";
 import profileIcon from "../../assets/icons/profile.svg";
+import AddEditBankAccountDialog from "./AddEditBankAccountDialog";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
   updatePartnerDocument,
@@ -37,6 +43,7 @@ import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServices
 import AddEditUserDialog from "./AddEditUserDialog";
 import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
 import { formatGenderLabel } from "../../lib/user/genderOptions";
+import PartnerSubscriptionDetailsRows from "../../components/partner/PartnerSubscriptionDetailsRows";
 
 type CatalogOption = { value: string; label: string };
 
@@ -312,14 +319,14 @@ function PartnerVerificationReviewModalView({
 
   const submitPartnerLevelVerification = useCallback(async () => {
     if (!userId.trim()) return;
-    if (
-      userDetails &&
-      normalizePartnerVerification(userDetails.is_verified) ===
-        PARTNER_VERIFICATION.APPROVED
-    ) {
-      showErrorAlert("Partner is already approved.");
-      return;
-    }
+    // if (
+    //   userDetails &&
+    //   normalizePartnerVerification(userDetails.is_verified) ===
+    //     PARTNER_VERIFICATION.APPROVED
+    // ) {
+    //   showErrorAlert("Partner is already approved.");
+    //   return;
+    // }
     if (
       partnerLevelDecision === "reject" &&
       !partnerLevelRejectReason.trim()
@@ -440,21 +447,18 @@ function PartnerVerificationReviewModalView({
       >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
-          partner verification
+          Partner verification
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
       <Modal.Body className="px-4 pb-4 pt-0">
-        <section
-          className="custom-other-details mb-3 p-3"
-          // style={{ marginLeft: "0px", marginRight: "0px" }}
-        >
+        <section className="custom-other-details partner-verification-summary-block mb-3">
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              marginBottom: "10px",
+              marginBottom: "12px",
             }}
           >
             <h3 style={{ margin: 0 }}>Partner details</h3>
@@ -478,16 +482,16 @@ function PartnerVerificationReviewModalView({
             ) : null}
           </div>
 
-          <Row className="align-items-start g-3 mt-1">
+          <Row className="align-items-start g-3 partner-verification-details-row">
             <Col xs="auto" className="text-center">
               <img
                 src={
                   userDetails &&
                   String(userDetails.profile_url ?? "").trim() &&
                   !partnerProfileImgFailed
-                    ? `${AppConstant.IMAGE_BASE_URL}${
-                        String(userDetails.profile_url).trim()
-                      }?t=${Date.now()}`
+                    ? `${AppConstant.IMAGE_BASE_URL}${String(
+                        userDetails.profile_url
+                      ).trim()}?t=${Date.now()}`
                     : profileIcon
                 }
                 alt={
@@ -496,68 +500,46 @@ function PartnerVerificationReviewModalView({
                     : "Partner profile photo"
                 }
                 width={140}
-                height={120}
+                height={140}
+                className="partner-details-profile-img"
                 onError={() => setPartnerProfileImgFailed(true)}
                 style={{
-                  // borderRadius: "50%",
                   objectFit: "cover",
-                  border: "2px solid var(--lb1-border, #dee2e6)",
-                  backgroundColor: "var(--bg-color, #f8f9fa)",
+                  border: "2px solid var(--lb1-border)",
+                  backgroundColor: "var(--bg-color)",
                   display: "block",
                 }}
               />
             </Col>
             <Col className="min-w-0">
-              <Row className="g-2">
-                <Col xs={12} md={6}>
-                  <DetailsRow title="Name" value={userDetails?.name ?? "—"} />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Gender"
-                    value={formatGenderLabel(userDetails?.gender)}
-                  />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow title="Email" value={userDetails?.email ?? "—"} />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Date of Birth"
-                    value={
-                      userDetails?.date_of_birth
-                        ? formatDate(String(userDetails.date_of_birth))
-                        : "—"
-                    }
-                  />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Experience"
-                    value={
-                      userDetails?.experience !== undefined &&
-                      userDetails?.experience !== null &&
-                      String(userDetails.experience).trim() !== ""
-                        ? String(userDetails.experience)
-                        : "—"
-                    }
-                  />
-                </Col>
-                <Col xs={12} md={6}>
-                  <DetailsRow
-                    title="Phone"
-                    value={userDetails?.phone_number ?? "—"}
-                  />
-                </Col>
-                <Col xs={12}>
-                  <DetailsRow
-                    title="Address"
-                    value={userDetails?.address ?? "—"}
-                  />
-                </Col>
-              </Row>
+              <PersonalAccountDetailsGrid
+                showPartnerFields
+                nameLabel="Partner Name"
+                name={userDetails?.name}
+                dateOfBirth={userDetails?.date_of_birth}
+                genderLabel={formatGenderLabel(userDetails?.gender)}
+                email={userDetails?.email}
+                phone={userDetails?.phone_number}
+                registeredDate={userDetails?.created_at}
+                experience={userDetails?.experience}
+                stateName={userDetails?.state_name}
+                cityName={userDetails?.city_name}
+                pincode={userDetails?.pincode}
+                address={
+                  typeof userDetails?.address === "string"
+                    ? userDetails.address
+                    : ""
+                }
+                accountStatusMode="verification"
+                partnerVerificationStatus={userDetails?.is_verified}
+              />
             </Col>
           </Row>
+        </section>
+
+        <section className="custom-other-details partner-verification-summary-block mb-3">
+          <h3 className="mb-2">Subscription</h3>
+          <PartnerSubscriptionDetailsRows user={userDetails} />
         </section>
 
         <Row className="custom-helper-row">
@@ -861,9 +843,47 @@ function PartnerVerificationReviewModalView({
               className="custom-other-details h-100"
               style={{ marginLeft: "0px", marginRight: "0px" }}
             >
-              <h3 style={{ margin: "0 0 10px 0" }}>Bank information</h3>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "10px",
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Bank Accounts</h3>
+                {userDetails ? (
+                  <div
+                    style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                    onClick={() => {
+                      AddEditBankAccountDialog.show(
+                        userId,
+                        false,
+                        null,
+                        onRefreshuser
+                      );
+                    }}
+                  >
+                    <img
+                      src={addIcon}
+                      alt="Add bank account"
+                      title="Add bank account"
+                      style={{ width: "18px", height: "18px" }}
+                    />
+                    <span
+                      style={{
+                        textDecoration: "underline",
+                        color: "var(--primary-txt-color)",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Add
+                    </span>
+                  </div>
+                ) : null}
+              </div>
               {partnerBankAccounts.length === 0 ? (
-                <div className="text-muted small py-1">—</div>
+                <div className="text-muted small py-1">No bank info</div>
               ) : (
                 <Carousel
                   key={partnerBankAccounts.map((a) => a._id).join("-")}
@@ -888,12 +908,34 @@ function PartnerVerificationReviewModalView({
                   {partnerBankAccounts.map((acc) => (
                     <Carousel.Item key={acc._id || acc.account_number}>
                       <div
-                        className="rounded border px-3 py-3 mx-1 mb-2"
+                        className="rounded border px-3 py-3 mx-1 mb-2 position-relative"
                         style={{
                           borderColor: "var(--lb1-border)",
                           background: "var(--bg-color)",
                         }}
                       >
+                        <img
+                          src={editIcon}
+                          alt="Edit bank account"
+                          title="Edit bank account"
+                          className="position-absolute"
+                          style={{
+                            top: "0.75rem",
+                            right: "0.75rem",
+                            width: "15px",
+                            height: "15px",
+                            cursor: "pointer",
+                            zIndex: 1,
+                          }}
+                          onClick={() => {
+                            AddEditBankAccountDialog.show(
+                              userId,
+                              Boolean(acc._id),
+                              acc,
+                              onRefreshuser
+                            );
+                          }}
+                        />
                     <DetailsRow
                       title="Account Name"
                       value={acc.account_holder_name || "—"}

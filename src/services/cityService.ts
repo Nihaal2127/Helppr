@@ -3,12 +3,18 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { CityModel } from "../lib/models/CityModel";
 import { showLog } from "../helper/utility";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
+import { fetchArea } from "./areaService";
+
+export type CityDropDownOption = {
+  value: string;
+  label: string;
+  state_id?: string;
+  state_name?: string;
+};
 
 export const fetchCityDropDown = async (
   stateIdList?: string[]
-): Promise<
-  { value: string; label: string; state_id?: string; state_name?: string }[]
-> => {
+): Promise<CityDropDownOption[]> => {
   const params = new URLSearchParams();
   if (stateIdList && stateIdList.length > 0) {
     const v = stateIdList.toString();
@@ -33,6 +39,53 @@ export const fetchCityDropDown = async (
     return [];
   }
 };
+
+/**
+ * Cities for user/partner forms. When `franchiseId` is set, only cities that have at
+ * least one area linked to that franchise (in the selected state) are returned.
+ */
+export async function fetchCityDropDownForForm(
+  stateId: string,
+  franchiseId?: string
+): Promise<CityDropDownOption[]> {
+  const sid = String(stateId ?? "").trim();
+  if (!sid) return [];
+
+  const fid = String(franchiseId ?? "").trim();
+  if (!fid) {
+    return fetchCityDropDown([sid]);
+  }
+
+  const cityIds = new Set<string>();
+  let page = 1;
+  const pageSize = 200;
+
+  for (;;) {
+    const res = await fetchArea(
+      page,
+      pageSize,
+      { state_id: sid, franchise_id: fid },
+      []
+    );
+    if (!res.response) break;
+
+    for (const area of res.areas ?? []) {
+      const cid = String(area.city_id ?? "").trim();
+      if (cid) cityIds.add(cid);
+    }
+
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 50) break;
+  }
+
+  if (cityIds.size === 0) return [];
+
+  const allInState = await fetchCityDropDown([sid]);
+  return allInState
+    .filter((c) => cityIds.has(String(c.value)))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 
 export const fetchCity = async (
   page: number,

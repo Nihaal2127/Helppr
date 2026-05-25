@@ -5,6 +5,11 @@ import { RoleEnum } from "../lib/global/RoleEnum";
 import { ResolveStatusEnum } from "../lib/global/ResolveStatusEnum";
 import { AppConstant } from "../lib/global/AppConstant";
 import { formatDate, formatDateTime } from "./dateFormat";
+import {
+  normalizePartnerVerification,
+  PARTNER_VERIFICATION,
+  partnerVerificationLabel,
+} from "../lib/partner/partnerVerification";
 
 export { getNavigate, setNavigate } from "./navigation";
 export { formatDate, formatDateTime };
@@ -133,7 +138,7 @@ export const verificationStatusCell = (field: string | number) => {
   };
 };
 
-/** Tight label + value (fixed label width) - use inside md={6} pairs e.g. service address. */
+/** Tight label + value (fixed label width) — use inside `md={6}` pairs e.g. service address. */
 export function InfoDetailInlineRow({
   label,
   value,
@@ -205,6 +210,8 @@ export function PersonalAccountDetailsGrid({
   pincode,
   isActive,
   address,
+  accountStatusMode = "active",
+  partnerVerificationStatus,
 }: {
   nameLabel: string;
   name?: string | null;
@@ -222,6 +229,9 @@ export function PersonalAccountDetailsGrid({
   pincode?: string | null;
   isActive?: boolean;
   address?: string | null;
+  /** Partner verification dialog: Status shows pending / rejected / approved. */
+  accountStatusMode?: "active" | "verification";
+  partnerVerificationStatus?: boolean | string | null;
 }) {
   const dobRaw = String(dateOfBirth ?? "").trim();
   const dobDisplay = dobRaw ? formatDate(dobRaw) : "—";
@@ -239,11 +249,32 @@ export function PersonalAccountDetailsGrid({
         ? String(experience)
         : "—";
     const addressDisplay = String(address ?? "").trim() || "—";
-    const statusValue = (
-      <span className={isActive ? "custom-active" : "custom-inactive"}>
-        {isActive ? "Active" : "Inactive"}
-      </span>
-    );
+    const statusValue =
+      accountStatusMode === "verification" ? (
+        (() => {
+          const norm = normalizePartnerVerification(
+            partnerVerificationStatus ?? isActive
+          );
+          const label = partnerVerificationLabel(
+            partnerVerificationStatus ?? isActive
+          );
+          if (norm === PARTNER_VERIFICATION.REJECTED) {
+            return <span className="custom-inactive">{label}</span>;
+          }
+          if (norm === PARTNER_VERIFICATION.PENDING) {
+            return (
+              <span style={{ color: "var(--btn-pending)", fontWeight: 600 }}>
+                {label}
+              </span>
+            );
+          }
+          return <span className="custom-active">{label}</span>;
+        })()
+      ) : (
+        <span className={isActive ? "custom-active" : "custom-inactive"}>
+          {isActive ? "Active" : "Inactive"}
+        </span>
+      );
 
     return (
       <div className="w-100 partner-personal-details-grid">
@@ -649,6 +680,7 @@ export const DetailsRowLinkDocument = ({
 export const getRoleLabel = (roleId: number): string => {
   return RoleEnum.get(roleId)?.label ?? "Unknown Role";
 };
+
 
 // --- Catalog request moderation (category/service approval rows) ---
 

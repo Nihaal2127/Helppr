@@ -5,6 +5,7 @@ import CustomCloseButton from "../../components/CustomCloseButton";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import { createOrUpdateBankAccount } from "../../services/bankAccountService";
 import CustomTextField from "../../components/CustomTextField";
+import { REQUIRED_FIELD_RULE } from "../../components/RequiredFieldMark";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { BankAccountModel } from "../../lib/models/BankAccountModel";
 import { openDialog } from "../../lib/global/DialogManager";
@@ -108,7 +109,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                 placeholder="Enter Account Name"
                 register={register}
                 error={errors.account_holder_name}
-                validation={{ required: "Account name is required" }}
+                validation={REQUIRED_FIELD_RULE}
+                hideValidationFeedback
               />
               <CustomTextField
                 label="Account Number"
@@ -116,7 +118,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                 placeholder="Enter Account Number"
                 register={register}
                 error={errors.account_number}
-                validation={{ required: "Account number is required" }}
+                validation={REQUIRED_FIELD_RULE}
+                hideValidationFeedback
               />
               <CustomTextField
                 label="IFSC Code"
@@ -124,7 +127,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                 placeholder="Enter IFSC Code"
                 register={register}
                 error={errors.ifsc_code}
-                validation={{ required: "IFSC code is required" }}
+                validation={REQUIRED_FIELD_RULE}
+                hideValidationFeedback
               />
               <CustomTextField
                 label="Bank Name"
@@ -132,7 +136,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                 placeholder="Enter Bank Name"
                 register={register}
                 error={errors.bank_name}
-                validation={{ required: "Bank name is required" }}
+                validation={REQUIRED_FIELD_RULE}
+                hideValidationFeedback
               />
               <CustomTextField
                 label="Branch Name"
@@ -140,7 +145,8 @@ const AddEditBankAccountDialog: React.FC<AddEditBankAccountDialogProps> & {
                 placeholder="Enter Branch Name"
                 register={register}
                 error={errors.branch_name}
-                validation={{ required: "Branch name is required" }}
+                validation={REQUIRED_FIELD_RULE}
+                hideValidationFeedback
               />
               <CustomTextFieldRadio
                 label="Account Status"

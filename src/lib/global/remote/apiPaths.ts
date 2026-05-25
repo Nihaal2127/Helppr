@@ -119,6 +119,7 @@ export const ApiPaths = {
   REFUND_ELIGIBLE_ORDERS: () => `/refund/eligible-orders`,
   REFUND_GET_BY_ID: (id: string) => `/refund/getById/${id}`,
   REFUND_CREATE: "/refund/create",
+  /** Record offline refund split (admin commission vs partner wallet). Align with backend. */
   /** @deprecated Legacy order refund — use `REFUND_CREATE`. */
   ORDER_REFUND: "/order/refund",
   GET_TAX_OTHER_CHARGES_BY_ID: () => `/tax/get`,

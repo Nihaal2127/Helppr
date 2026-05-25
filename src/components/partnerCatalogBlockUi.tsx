@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { FieldLabelText } from "./RequiredFieldMark";
 import { Form } from "react-bootstrap";
 import Select from "react-select";
 import type { SingleValue } from "react-select";
@@ -195,6 +196,8 @@ type PartnerSingleSelectProps = {
   /** e.g. lazy-load category options when the menu opens (Add Partner). */
   onMenuOpen?: () => void;
   isDisabled?: boolean;
+  /** Show required asterisk on the label (catalog validation is on save). */
+  requiredMark?: boolean;
 };
 
 export function PartnerSingleSelect({
@@ -206,6 +209,7 @@ export function PartnerSingleSelect({
   placeholder,
   onMenuOpen,
   isDisabled,
+  requiredMark = false,
 }: PartnerSingleSelectProps) {
   const selected = useMemo(
     () => options.find((o) => String(o.value) === String(value)) ?? null,
@@ -215,7 +219,9 @@ export function PartnerSingleSelect({
   return (
     <Form.Group controlId={instanceId}>
       {label ? (
-        <Form.Label className="fw-medium mb-1">{label}</Form.Label>
+        <Form.Label className="fw-medium mb-1">
+          <FieldLabelText label={label} required={requiredMark} />
+        </Form.Label>
       ) : null}
       <Select<PartnerSelectOption, false>
         instanceId={instanceId}

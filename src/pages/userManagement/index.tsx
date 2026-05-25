@@ -3,7 +3,16 @@ import { useLocation } from "react-router-dom";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
-import { capitalizeString, statusCell, priceCell } from "../../helper/utility";
+import {
+  capitalizeString,
+  statusCell,
+  priceCell,
+  formatDate,
+} from "../../helper/utility";
+import {
+  partnerSubscriptionDisplayFromUser,
+  partnerSubscriptionPriceLabel,
+} from "../../lib/partner/partnerSubscriptionView";
 import { AppConstant } from "../../lib/global/AppConstant";
 import CustomTable from "../../components/CustomTable";
 import AddEditUserDialog from "./AddEditUserDialog";
@@ -19,7 +28,7 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
-import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
+import { franchiseIdForUserGetAll } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
 import { showUserDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog } from "../../components/partner";
@@ -98,7 +107,7 @@ const UserManagement = () => {
         typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
 
     const franchiseScope =
-      franchiseIdForApiQuery(headerFranchiseId) || undefined;
+      franchiseIdForUserGetAll(headerFranchiseId) || undefined;
 
     const filters = {
       keyword: searchKeyword || undefined,
@@ -413,7 +422,36 @@ const UserManagement = () => {
           String(row.original?.email ?? "").trim() || "—",
       },
       { Header: "No. of services", accessor: "no_of_services" },
-     
+      {
+        Header: "Plan",
+        id: "subscription_plan",
+        Cell: ({ row }: { row: { original: UserModel } }) =>
+          partnerSubscriptionDisplayFromUser(row.original)?.planLabel ?? "—",
+      },
+      {
+        Header: "Price",
+        id: "subscription_price",
+        Cell: ({ row }: { row: { original: UserModel } }) =>
+          partnerSubscriptionPriceLabel(
+            partnerSubscriptionDisplayFromUser(row.original)
+          ),
+      },
+      {
+        Header: "Start Date",
+        id: "subscription_start_date",
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const d = partnerSubscriptionDisplayFromUser(row.original)?.startDate;
+          return d ? formatDate(d) : "—";
+        },
+      },
+      {
+        Header: "End Date",
+        id: "subscription_end_date",
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const d = partnerSubscriptionDisplayFromUser(row.original)?.endDate;
+          return d ? formatDate(d) : "—";
+        },
+      },
       {
         Header: "Total Earnings",
         accessor: "total_earnings",
@@ -471,6 +509,36 @@ const UserManagement = () => {
         Header: "Phone",
         accessor: "phone_number",
         Cell: ({ row }) => row.original.phone_number || "-----",
+      },
+      {
+        Header: "Plan",
+        id: "subscription_plan",
+        Cell: ({ row }: { row: { original: UserModel } }) =>
+          partnerSubscriptionDisplayFromUser(row.original)?.planLabel ?? "—",
+      },
+      {
+        Header: "Price",
+        id: "subscription_price",
+        Cell: ({ row }: { row: { original: UserModel } }) =>
+          partnerSubscriptionPriceLabel(
+            partnerSubscriptionDisplayFromUser(row.original)
+          ),
+      },
+      {
+        Header: "Start Date",
+        id: "subscription_start_date",
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const d = partnerSubscriptionDisplayFromUser(row.original)?.startDate;
+          return d ? formatDate(d) : "—";
+        },
+      },
+      {
+        Header: "End Date",
+        id: "subscription_end_date",
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const d = partnerSubscriptionDisplayFromUser(row.original)?.endDate;
+          return d ? formatDate(d) : "—";
+        },
       },
       {
         Header: "Status",

@@ -1,5 +1,8 @@
 import React from "react";
 
+/** RHF rule for required fields when only the label asterisk should show (use with `hideValidationFeedback`). */
+export const REQUIRED_FIELD_RULE = { required: true as const };
+
 /** True when react-hook-form `validation` includes a `required` rule. */
 export function isValidationRequired(validation?: unknown): boolean {
   if (!validation || typeof validation !== "object") return false;

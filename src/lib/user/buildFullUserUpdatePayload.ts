@@ -5,6 +5,7 @@ import { normalizeCalendarYmd } from "../../helper/dateFormat";
 import { genderForApiPayload } from "./genderOptions";
 import { sanitizeIndianPincodeInput } from "./pincodeValidation";
 import { normalizePartnerServicesForUpdate } from "../../components/partnerCatalogBlockUi";
+import { partnerSubscriptionPayloadFromUser } from "../partner/partnerSubscriptionView";
 
 const USER_TYPE = {
   FRANCHISE_ADMIN: 1,
@@ -104,6 +105,8 @@ function getPartnerFieldsFromUser(
   if (user.verification_rejection_reason != null) {
     out.verification_rejection_reason = user.verification_rejection_reason;
   }
+
+  Object.assign(out, partnerSubscriptionPayloadFromUser(user));
 
   return out;
 }

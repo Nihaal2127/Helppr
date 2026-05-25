@@ -92,6 +92,34 @@ export interface UserModel {
   /** Set when super admin rejects partner verification (optional UI / API). */
   verification_rejection_reason?: string | null;
 
+  /** Active/history rows from `GET /user/get` / list APIs. */
+  partner_subscriptions?:
+    | {
+        _id?: string;
+        partner_id?: string;
+        subscription_plan_id?:
+          | string
+          | {
+              _id?: string;
+              plan_name?: string;
+              price?: number;
+              [key: string]: unknown;
+            };
+        started_at?: string;
+        expires_at?: string;
+        status?: string;
+        [key: string]: unknown;
+      }[]
+    | null;
+
+  /** Flat subscription fields when API denormalizes on the user row. */
+  subscription_plan?: string | null;
+  subscription_plan_id?: string | null;
+  subscription_start_date?: string | null;
+  subscription_end_date?: string | null;
+  subscription_price?: number | null;
+  partner_subscription_id?: string | null;
+
   /** Partner verification list (`/user/getVerificationAll`) when API returns these fields. */
   verification_id?: string | null;
   verification_status?: number;

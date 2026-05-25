@@ -494,6 +494,20 @@ const OrderPayments = () => {
         },
       },
       {
+        Header: "Commission (%)",
+        accessor: "commission_percentage",
+        Cell: ({ row }: { row: { original: FinancialModel } }) => {
+          const v = row.original.total_price ?? row.original.total_amount;
+          return (
+            <span>
+              {v !== undefined && v !== null
+                ? `${AppConstant.currencySymbol}${v}`
+                : "-"}
+            </span>
+          );
+        },
+      },
+      {
         Header: "Commission",
         accessor: "commission_amount",
         sort: true,
