@@ -35,8 +35,7 @@ import {
 } from "../../lib/user/genderOptions";
 import CustomImageUploader from "../../components/CustomImageUploader";
 import CustomUploadDialog from "../../components/CustomUpload";
-import CustomFormSelect from "../../components/CustomFormSelect";
-import CustomDatePicker from "../../components/CustomDatePicker";
+import { dateToLocalYmd } from "../../helper/dateFormat";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import {
   fetchSubscriptionPlanOptions,
@@ -1742,100 +1741,16 @@ function AddEditUserDialogView({
                   </Col>
                 </Row>
 
-                <section
-                  className="custom-other-details mt-4"
-                  style={{ padding: "10px" }}
-                >
-                  <h3 className="mb-2">Subscription</h3>
-                  <Row className="g-3 mb-2">
-                    <Col xs={12} md={6}>
-                      <CustomFormSelect
-                        label="Subscription Plan"
-                        controlId="subscription_plan_id"
-                        options={partnerPlanSelectOptions}
-                        register={register as unknown as UseFormRegister<any>}
-                        fieldName="subscription_plan_id"
-                        error={errors.subscription_plan_id as any}
-                        asCol={false}
-                        defaultValue={String(
-                          watch("subscription_plan_id") ?? ""
-                        )}
-                        setValue={setValue as (name: string, value: any) => void}
-                        placeholder="Select subscription plan"
-                        menuPortal
-                        onChange={(e) => {
-                          const v = String(
-                            (e.target as HTMLSelectElement).value ?? ""
-                          );
-                          const opt = partnerPlanSelectOptions.find(
-                            (o) => o.value === v
-                          );
-                          const slug = (opt?.label ?? "")
-                            .trim()
-                            .toLowerCase()
-                            .replace(/\s+/g, "");
-                          setValue("subscription_plan", slug, {
-                            shouldValidate: false,
-                          });
-                        }}
-                      />
-                    </Col>
-                  </Row>
-                  <Row className="g-3 mb-2">
-                    <Col xs={12} md={6}>
-                      <CustomDatePicker
-                        label="Subscription Start Date"
-                        controlId="subscription_start_date"
-                        selectedDate={toYmdString(subscriptionStartStr)}
-                        onChange={(date) => {
-                          const value = date
-                            ? date.toISOString().slice(0, 10)
-                            : "";
-                          setValue("subscription_start_date", value, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          });
-                        }}
-                        register={register as unknown as UseFormRegister<any>}
-                        setValue={setValue as any}
-                        asCol={false}
-                        groupClassName="mb-0 w-100 fw-medium"
-                        placeholderText="Start date"
-                        filterDate={() => true}
-                        validation={{
-                          required: "Subscription start date is required",
-                        }}
-                        error={errors.subscription_start_date}
-                      />
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <CustomDatePicker
-                        label="Subscription End Date"
-                        controlId="subscription_end_date"
-                        selectedDate={toYmdString(subscriptionEndStr)}
-                        onChange={(date) => {
-                          const value = date
-                            ? date.toISOString().slice(0, 10)
-                            : "";
-                          setValue("subscription_end_date", value, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          });
-                        }}
-                        register={register as unknown as UseFormRegister<any>}
-                        setValue={setValue as any}
-                        asCol={false}
-                        groupClassName="mb-0 w-100 fw-medium"
-                        placeholderText="End date"
-                        filterDate={() => true}
-                        validation={{
-                          required: "Subscription end date is required",
-                        }}
-                        error={errors.subscription_end_date}
-                      />
-                    </Col>
-                  </Row>
-                </section>
+                <PartnerSubscriptionFormSection
+                  {...partnerSubscriptionForm}
+                  planOptions={partnerPlanSelectOptions}
+                  subscriptionDatesRequired={false}
+                  subscriptionStartStr={
+                    toYmdString(subscriptionStartStr) ?? null
+                  }
+                  subscriptionEndStr={toYmdString(subscriptionEndStr) ?? null}
+                  toYmdString={toYmdString}
+                />
               </>
             ) : (
               <div className="d-flex flex-column gap-3">
