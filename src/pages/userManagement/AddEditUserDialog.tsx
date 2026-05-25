@@ -1448,30 +1448,17 @@ function AddEditUserDialogView({
         }
         enforceFocus={!(isAddPartner || isPartnerEdit)}
       >
-        <Modal.Header className="py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2">
-          <Modal.Title as="h5" className="custom-modal-title me-auto mb-0">
+        <Modal.Header
+          className={
+            isAddPartner
+              ? "py-3 px-4 border-bottom-0 add-partner-modal-header"
+              : "py-3 px-4 border-bottom-0 d-flex flex-wrap align-items-center gap-2"
+          }
+        >
+          <Modal.Title as="h5" className="custom-modal-title mb-0">
             {isEditable ? "Update" : "Add"} {getRoleLabel(role)}
           </Modal.Title>
-          {isAddPartner && isSuperAdminOrStaff ? (
-            <div style={{ minWidth: "220px", maxWidth: "300px", flex: "1 1 220px" }}>
-              <CustomTextFieldSelect
-                label="Franchise"
-                controlId="add_partner_franchise_id"
-                options={franchiseDropdownOptions}
-                register={register}
-                fieldName="add_partner_franchise_id"
-                error={(errors as any).add_partner_franchise_id}
-                defaultValue={String(watchedPartnerFranchiseId ?? "")}
-                setValue={setValue as (name: string, value: unknown) => void}
-                menuPortal
-                placeholder="Select franchise"
-                includeEmptyOption
-                emptyOptionLabel="Select franchise"
-                noRowBottomMargin
-              />
-            </div>
-          ) : null}
-          <CustomCloseButton onClose={onClose} />
+          <CustomCloseButton onClose={onClose} inline={isAddPartner} />
         </Modal.Header>
         <Modal.Body className="px-4 pb-4 pt-0">
           <form
@@ -1497,249 +1484,307 @@ function AddEditUserDialogView({
             ) : null}
             {isAddPartner ? (
               <>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Name"
-                      controlId="name"
-                      placeholder="Enter Name"
-                      register={register}
-                      error={errors.name}
-                      validation={{ required: "Name is required" }}
-                      labelSize={3}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldDatePicket
-                      label="Date of Birth"
-                      controlId="date_of_birth"
-                      selectedDate={toYmdString(dateOfBirthStr)}
-                      birthDatePicker
-                      onChange={(date) => {
-                        const value = date
-                          ? dateToLocalYmd(date)
-                          : "";
-                        setValue("date_of_birth", value, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                      register={register}
-                      setValue={setValue}
-                      placeholderText="Select date of birth"
-                      validation={{ required: "Date of birth is required" }}
-                      error={errors.date_of_birth}
-                      labelSize={3}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldRadio
-                      label="Gender"
-                      name="gender"
-                      options={[
-                        { value: "male", label: "Male" },
-                        { value: "female", label: "Female" },
-                        { value: "others", label: "Others" },
-                      ]}
-                      defaultValue={String(watch("gender") ?? "male")}
-                      isEditable={true}
-                      setValue={setValue}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Email"
-                      controlId="email"
-                      placeholder="Enter Email"
-                      register={register}
-                      error={errors.email}
-                      validation={{ required: "Email is required" }}
-                      labelSize={3}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-4 add-partner-form-row">
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldIndiaMobile
-                      label="Phone No"
-                      controlId="phone_number"
-                      placeholder="Mobile number"
-                      register={register}
-                      error={errors.phone_number}
-                      validation={{ required: "Phone no is required" }}
-                      labelSize={3}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Experience"
-                      controlId="experience"
-                      placeholder="Years of experience"
-                      register={register}
-                      error={errors.experience}
-                      validation={{ required: "Experience is required" }}
-                      labelSize={3}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="State"
-                      controlId="State"
-                      options={states ?? []}
-                      register={register}
-                      fieldName="state_id"
-                      error={errors.state_id}
-                      requiredMessage="Please select state"
-                      defaultValue={String(watch("state_id") ?? "")}
-                      setValue={setValue as (name: string, value: any) => void}
-                      menuPortal
-                      placeholder="Select state"
-                      labelSize={3}
-                      onChange={(e) =>
-                        onStateChangeClearLocationChain(e.target.value)
-                      }
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="City"
-                      controlId="City"
-                      options={cities ?? []}
-                      register={register}
-                      fieldName="city_id"
-                      error={errors.city_id}
-                      requiredMessage="Please select city"
-                      defaultValue={String(watch("city_id") ?? "")}
-                      setValue={setValue as (name: string, value: any) => void}
-                      menuPortal
-                      placeholder="Select city"
-                      labelSize={3}
-                      isDisabled={!String(watch("state_id") ?? "").trim()}
-                      onChange={() => onCityChangeClearAreaPin()}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-4 add-partner-form-row">
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="Area"
-                      controlId="Area"
-                      options={[
-                        { value: "", label: "Select Area" },
-                        ...(areas ?? []),
-                      ]}
-                      register={register}
-                      fieldName="area_id"
-                      error={(errors as any).area_id}
-                      requiredMessage="Please select area"
-                      defaultValue={String(watch("area_id") ?? "")}
-                      setValue={setValue as (name: string, value: any) => void}
-                      menuPortal
-                      placeholder="Select area"
-                      labelSize={3}
-                      isDisabled={!String(watch("city_id") ?? "").trim()}
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextFieldSelect
-                      label="Pincode"
-                      controlId="Pincode"
-                      options={[
-                        { value: "", label: "Select Pincode" },
-                        ...(pincodeOptions ?? []),
-                      ]}
-                      register={register}
-                      fieldName="pincode"
-                      error={errors.pincode}
-                      requiredMessage="Please select pincode"
-                      defaultValue={String(watch("pincode") ?? "")}
-                      setValue={setValue as (name: string, value: any) => void}
-                      menuPortal
-                      placeholder="Select pincode"
-                      labelSize={3}
-                      isDisabled={!String(watch("area_id") ?? "").trim()}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-2 mb-2">
-                  <Col xs={12}>
-                    <CustomTextField
-                      label="Address"
-                      controlId="address"
-                      placeholder="Enter Address"
-                      register={register}
-                      error={errors.address}
-                      validation={{ required: "Address is required" }}
-                      as="textarea"
-                      rows={2}
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Password"
-                      controlId="password"
-                      placeholder="Enter password"
-                      register={register}
-                      error={errors.password}
-                      validation={{ required: "Password is required" }}
-                      inputType="password"
-                      autoComplete="new-password"
-                      value={watch("password") ?? ""}
-                      onChange={(value) =>
-                        setValue("password", value, {
-                          shouldDirty: true,
-                          shouldValidate: false,
-                        })
-                      }
-                    />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <CustomTextField
-                      label="Confirm Password"
-                      controlId="confirm_password"
-                      placeholder="Confirm password"
-                      register={register}
-                      error={errors.confirm_password}
-                      validation={{
-                        required: "Confirm password is required",
-                        validate: (value: string) =>
-                          value === watch("password") ||
-                          "Passwords do not match",
-                      }}
-                      inputType="password"
-                      autoComplete="new-password"
-                      value={watch("confirm_password") ?? ""}
-                      onChange={(value) =>
-                        setValue("confirm_password", value, {
-                          shouldDirty: true,
-                          shouldValidate: false,
-                        })
-                      }
-                    />
-                  </Col>
-                </Row>
-                <Row className="g-3 mb-2">
-                  <Col xs={12} md={6}>
-                    <CustomImageUploader
-                      label="Profile Photo"
-                      maxFiles={1}
-                      isEditable={Boolean(isEditable)}
-                      {...(user?.profile_url
-                        ? { existingImages: [user.profile_url] }
-                        : [])}
-                      onFileChange={(files, replaceUrls) => {
-                        setFileInputs(files);
-                        setReplaceUrl(replaceUrls);
-                      }}
-                    />
-                  </Col>
-                </Row>
+                <div className="add-partner-form-fields">
+                  {isSuperAdminOrStaff ? (
+                    <Row className="g-3 add-partner-form-row">
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          label="Franchise"
+                          controlId="add_partner_franchise_id"
+                          options={franchiseDropdownOptions}
+                          register={register}
+                          fieldName="add_partner_franchise_id"
+                          error={(errors as any).add_partner_franchise_id}
+                          defaultValue={String(watchedPartnerFranchiseId ?? "")}
+                          setValue={
+                            setValue as (name: string, value: unknown) => void
+                          }
+                          menuPortal
+                          placeholder="Select franchise"
+                          includeEmptyOption
+                          emptyOptionLabel="Select franchise"
+                          requiredMessage="Please select franchise"
+                          noRowBottomMargin
+                          labelSize={3}
+                        />
+                      </Col>
+                    </Row>
+                  ) : null}
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Name"
+                        controlId="name"
+                        placeholder="Enter Name"
+                        register={register}
+                        error={errors.name}
+                        validation={{ required: "Name is required" }}
+                        labelSize={3}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldDatePicket
+                        label="Date of Birth"
+                        controlId="date_of_birth"
+                        selectedDate={toYmdString(dateOfBirthStr)}
+                        birthDatePicker
+                        onChange={(date) => {
+                          const value = date ? dateToLocalYmd(date) : "";
+                          setValue("date_of_birth", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                        register={register}
+                        setValue={setValue}
+                        placeholderText="Select date of birth"
+                        validation={{ required: "Date of birth is required" }}
+                        error={errors.date_of_birth}
+                        labelSize={3}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldRadio
+                        label="Gender"
+                        name="gender"
+                        options={[
+                          { value: "male", label: "Male" },
+                          { value: "female", label: "Female" },
+                          { value: "others", label: "Others" },
+                        ]}
+                        defaultValue={String(watch("gender") ?? "male")}
+                        isEditable={true}
+                        setValue={setValue}
+                        labelSize={3}
+                        alignItemsCenter
+                        required
+                      />
+                      <input
+                        type="hidden"
+                        {...register("gender", {
+                          required: "Please select gender",
+                          validate: (v) =>
+                            normalizeGenderValue(v)
+                              ? true
+                              : "Please select gender",
+                        })}
+                      />
+                      {(errors as { gender?: { message?: string } }).gender ? (
+                        <div className="text-danger small mt-1">
+                          {
+                            (errors as { gender?: { message?: string } })
+                              .gender?.message
+                          }
+                        </div>
+                      ) : null}
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Email"
+                        controlId="email"
+                        placeholder="Enter Email"
+                        register={register}
+                        error={errors.email}
+                        validation={{ required: "Email is required" }}
+                        labelSize={3}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldIndiaMobile
+                        label="Phone No"
+                        controlId="phone_number"
+                        placeholder="Mobile number"
+                        register={register}
+                        error={errors.phone_number}
+                        validation={{ required: "Phone no is required" }}
+                        labelSize={3}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Experience"
+                        controlId="experience"
+                        placeholder="Years of experience"
+                        register={register}
+                        error={errors.experience}
+                        validation={{ required: "Experience is required" }}
+                        labelSize={3}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Password"
+                        controlId="password"
+                        placeholder="Enter password"
+                        register={register}
+                        error={errors.password}
+                        validation={{ required: "Password is required" }}
+                        inputType="password"
+                        autoComplete="new-password"
+                        labelSize={3}
+                        value={watch("password") ?? ""}
+                        onChange={(value) =>
+                          setValue("password", value, {
+                            shouldDirty: true,
+                            shouldValidate: false,
+                          })
+                        }
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextField
+                        label="Confirm Password"
+                        controlId="confirm_password"
+                        placeholder="Confirm password"
+                        register={register}
+                        error={errors.confirm_password}
+                        validation={{
+                          required: "Confirm password is required",
+                          validate: (value: string) =>
+                            value === watch("password") ||
+                            "Passwords do not match",
+                        }}
+                        inputType="password"
+                        autoComplete="new-password"
+                        labelSize={3}
+                        value={watch("confirm_password") ?? ""}
+                        onChange={(value) =>
+                          setValue("confirm_password", value, {
+                            shouldDirty: true,
+                            shouldValidate: false,
+                          })
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="State"
+                        controlId="State"
+                        options={states ?? []}
+                        register={register}
+                        fieldName="state_id"
+                        error={errors.state_id}
+                        requiredMessage="Please select state"
+                        defaultValue={String(watch("state_id") ?? "")}
+                        setValue={setValue as (name: string, value: any) => void}
+                        menuPortal
+                        placeholder="Select state"
+                        labelSize={3}
+                        onChange={(e) =>
+                          onStateChangeClearLocationChain(e.target.value)
+                        }
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="City"
+                        controlId="City"
+                        options={cities ?? []}
+                        register={register}
+                        fieldName="city_id"
+                        error={errors.city_id}
+                        requiredMessage="Please select city"
+                        defaultValue={String(watch("city_id") ?? "")}
+                        setValue={setValue as (name: string, value: any) => void}
+                        menuPortal
+                        placeholder="Select city"
+                        labelSize={3}
+                        isDisabled={!String(watch("state_id") ?? "").trim()}
+                        onChange={() => onCityChangeClearAreaPin()}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="Area"
+                        controlId="Area"
+                        options={[
+                          { value: "", label: "Select Area" },
+                          ...(areas ?? []),
+                        ]}
+                        register={register}
+                        fieldName="area_id"
+                        error={(errors as any).area_id}
+                        requiredMessage="Please select area"
+                        defaultValue={String(watch("area_id") ?? "")}
+                        setValue={setValue as (name: string, value: any) => void}
+                        menuPortal
+                        placeholder="Select area"
+                        labelSize={3}
+                        isDisabled={!String(watch("city_id") ?? "").trim()}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <CustomTextFieldSelect
+                        label="Pincode"
+                        controlId="Pincode"
+                        options={[
+                          { value: "", label: "Select Pincode" },
+                          ...(pincodeOptions ?? []),
+                        ]}
+                        register={register}
+                        fieldName="pincode"
+                        error={errors.pincode}
+                        requiredMessage="Please select pincode"
+                        defaultValue={String(watch("pincode") ?? "")}
+                        setValue={setValue as (name: string, value: any) => void}
+                        menuPortal
+                        placeholder="Select pincode"
+                        labelSize={3}
+                        isDisabled={!String(watch("area_id") ?? "").trim()}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="g-3 add-partner-form-row add-partner-address-photo-row align-items-stretch">
+                    <Col xs={12} md={6} className="add-partner-address-col">
+                      <CustomTextField
+                        label="Address"
+                        controlId="address"
+                        placeholder="Enter Address"
+                        register={register}
+                        error={errors.address}
+                        validation={{ required: "Address is required" }}
+                        as="textarea"
+                        rows={3}
+                        labelSize={3}
+                      />
+                    </Col>
+                    <Col xs={12} md={6} className="add-partner-profile-col">
+                      <Row className="align-items-stretch add-partner-profile-labeled-row">
+                        <Col sm={3} className="d-flex align-items-start">
+                          <label className="custom-profile-lable mb-0">
+                            Profile Photo
+                          </label>
+                        </Col>
+                        <Col>
+                          <CustomImageUploader
+                            label=""
+                            hideLabel
+                            compact
+                            maxFiles={1}
+                            isEditable={Boolean(isEditable)}
+                            {...(user?.profile_url
+                              ? { existingImages: [user.profile_url] }
+                              : [])}
+                            onFileChange={(files, replaceUrls) => {
+                              setFileInputs(files);
+                              setReplaceUrl(replaceUrls);
+                            }}
+                          />
+                        </Col>
+                      </Row>
+                    </Col>
+                  </Row>
+                </div>
 
                 <PartnerSubscriptionFormSection
                   {...partnerSubscriptionForm}
@@ -2069,7 +2114,7 @@ function AddEditUserDialogView({
                   {addPartnerCatalogLocked ? (
                     <p className="text-muted small mb-3">
                       {isSuperAdminOrStaff
-                        ? "Select a franchise in the header to enable category and service fields."
+                        ? "Select a franchise above to enable category and service fields."
                         : "Unable to resolve your franchise for the catalogue. Please contact support."}
                     </p>
                   ) : null}

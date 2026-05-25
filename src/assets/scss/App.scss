@@ -770,17 +770,9 @@ $partner-details-section-gap: 1rem;
     padding-right: 3rem !important;
 
     .modal-title {
-      flex: 0 0 auto;
+      flex: 1 1 auto;
       margin-right: 0;
       white-space: nowrap;
-    }
-
-    .add-partner-header-franchise {
-      flex: 0 1 280px;
-      min-width: 200px;
-      max-width: 300px;
-      margin-left: auto;
-      margin-right: 1.25rem;
     }
   }
 
@@ -883,6 +875,13 @@ $partner-details-section-gap: 1rem;
 
   /* Field stack spacing: half of Bootstrap g-4 / mb-4 (24px → 12px) */
   $add-partner-field-gap: 0.75rem;
+
+  .add-partner-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: $add-partner-field-gap;
+    margin-bottom: $add-partner-field-gap;
+  }
 
   .add-partner-form-row,
   .add-partner-docs-bank-row {
