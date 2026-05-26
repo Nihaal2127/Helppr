@@ -3,46 +3,6 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { AppConstant } from "../lib/global/AppConstant";
 import { showLog } from "../helper/utility";
 
-const IMAGE_UPLOAD_DEBUG = true;
-const DEBUG_TAG = "[ImageUploadDebug]";
-
-function debugLog(label: string, data?: unknown) {
-  if (!IMAGE_UPLOAD_DEBUG) return;
-  if (data !== undefined) {
-    console.log(DEBUG_TAG, label, data);
-  } else {
-    console.log(DEBUG_TAG, label);
-  }
-}
-
-/** Serialize FormData for DevTools (file meta + parsed JSON fields). */
-export function serializeFormDataForLog(formData: FormData): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of formData.entries()) {
-    if (value instanceof File) {
-      const meta = {
-        name: value.name,
-        size: value.size,
-        type: value.type,
-        lastModified: value.lastModified,
-      };
-      const prev = out[key];
-      if (!prev) out[key] = [meta];
-      else if (Array.isArray(prev)) (prev as unknown[]).push(meta);
-      else out[key] = [prev, meta];
-    } else if (key === "update_file_urls") {
-      try {
-        out[key] = JSON.parse(String(value));
-      } catch {
-        out[key] = String(value);
-      }
-    } else {
-      out[key] = String(value);
-    }
-  }
-  return out;
-}
-
 /** Not a server storage key — preview-only (must not go in `update_file_urls`). */
 export function isNonStorageImageUrl(url: string | null | undefined): boolean {
   const u = String(url ?? "").trim().toLowerCase();
@@ -106,11 +66,6 @@ export type UploadDocumentImagesParams = {
   replaceUrls?: string[];
   /** Fallback storage keys when replacing (e.g. existing `profile_url` / `image_url`). */
   existingStoragePaths?: (string | null | undefined)[];
-  /**
-   * When true (default for `type` `"2"` on edit): `POST` new file only — never `PUT` replace.
-   * Avoids reusing the old `image_url` when the API returns `records: []`.
-   */
-  alwaysPostNewFile?: boolean;
 };
 
 export type UploadDocumentImagesResult = {
@@ -129,34 +84,9 @@ export async function uploadDocumentImages(
     isEditMode,
     replaceUrls = [],
     existingStoragePaths = [],
-    alwaysPostNewFile: alwaysPostNewFileParam,
   } = params;
 
-  /** Category/service catalog images must get a new storage key from `POST`, not in-place `PUT`. */
-  const forceNewUpload =
-    alwaysPostNewFileParam === true ||
-    (isEditMode && String(uploadType) === "2");
-
-  debugLog("uploadDocumentImages — input", {
-    uploadType,
-    isEditMode,
-    forceNewUpload,
-    fileCount: files.length,
-    files: files.map((f) => ({
-      name: f.name,
-      size: f.size,
-      type: f.type,
-    })),
-    replaceUrls,
-    existingStoragePaths,
-    existingStoragePathsNormalized: normalizeReplaceStoragePaths(
-      existingStoragePaths
-    ),
-    replaceUrlsNormalized: normalizeReplaceStoragePaths(replaceUrls),
-  });
-
   if (files.length === 0) {
-    debugLog("uploadDocumentImages — skip (no files)");
     return { ok: true, paths: [], usedReplace: false };
   }
 
@@ -164,47 +94,21 @@ export async function uploadDocumentImages(
   formData.append("type", String(uploadType));
   files.forEach((file) => formData.append("files", file));
 
-  const replacePaths =
-    isEditMode && !forceNewUpload
-      ? normalizeReplaceStoragePaths(
-          replaceUrls.length > 0 ? replaceUrls : existingStoragePaths
-        )
-      : [];
+  const replacePaths = isEditMode
+    ? normalizeReplaceStoragePaths(
+        replaceUrls.length > 0 ? replaceUrls : existingStoragePaths
+      )
+    : [];
   const usedReplace = replacePaths.length > 0;
   if (usedReplace) {
     formData.append("update_file_urls", JSON.stringify(replacePaths));
   }
 
-  debugLog("uploadDocumentImages — request plan", {
-    forceNewUpload,
-    usedReplace,
-    replacePaths,
-    api: usedReplace
-      ? "PUT /document_upload/update_files"
-      : "POST /document_upload/files",
-    formData: serializeFormDataForLog(formData),
-  });
-
-  const { response, fileList: rawFileList } = await createOrUpdateDocument(
+  const { response, fileList } = await createOrUpdateDocument(
     formData,
     usedReplace,
-    {
-      replaceFallbackPaths: replacePaths,
-      allowReplaceFallback: !forceNewUpload,
-    }
+    { replaceFallbackPaths: replacePaths }
   );
-
-  const fileList = rawFileList
-    .map((p) => toStorageRelativePath(p) || p)
-    .filter(Boolean);
-
-  debugLog("uploadDocumentImages — result", {
-    response,
-    rawFileList,
-    fileList,
-    usedReplace,
-    forceNewUpload,
-  });
 
   if (!response || fileList.length === 0) {
     return { ok: false, paths: [], usedReplace };
@@ -229,47 +133,24 @@ export const createOrUpdateDocument = async (
     : ApiPaths.DOCUMENT_UPLOAD;
   const method = isEditable ? "PUT" : "POST";
 
-  debugLog(`createOrUpdateDocument — ${method} ${path}`, {
-    formData: serializeFormDataForLog(data),
-    replaceFallbackPaths: options?.replaceFallbackPaths,
-  });
-
   const response = await apiRequest(path, method, data, true);
   if (response.success) {
     let fileList = extractUploadedFilePaths(response.data);
-    const recordsFromApi = [...fileList];
-    const allowReplaceFallback = options?.allowReplaceFallback !== false;
-    // PUT replace often returns `records: []` — only reuse old path for profile-style replace.
+    // PUT replace often returns `records: []` — file is overwritten in place at the same key.
     if (
       fileList.length === 0 &&
       isEditable &&
-      allowReplaceFallback &&
       (options?.replaceFallbackPaths?.length ?? 0) > 0
     ) {
       fileList = options!.replaceFallbackPaths!
         .map((p) => toStorageRelativePath(p))
         .filter(Boolean);
-      debugLog("createOrUpdateDocument — empty records, using fallback paths", {
-        recordsFromApi,
-        fallbackFileList: fileList,
-        rawResponseData: response.data,
-      });
-    } else {
-      debugLog("createOrUpdateDocument — success", {
-        recordsFromApi,
-        fileList,
-        rawResponseData: response.data,
-      });
     }
     return {
       fileList,
       response: true,
     };
   }
-  debugLog("createOrUpdateDocument — failed", {
-    message: response.message,
-    data: (response as { data?: unknown }).data,
-  });
   showLog("Document fail:", response.message || "Unknown error");
   return {
     fileList: [],

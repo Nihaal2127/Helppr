@@ -447,7 +447,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         uploadType: "2",
         files: fileInputs,
         isEditMode: isEditable,
-        alwaysPostNewFile: true,
+       
       });
       if (!imageUpload.ok) {
         showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
