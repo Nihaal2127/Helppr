@@ -27,7 +27,12 @@ import {
   createOrUpdateCategory,
   createOrUpdateCategoryWithRecord,
 } from "../../services/categoryService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
+import {
+  documentUploadFailureMessage,
+  normalizeReplaceStoragePaths,
+  toStorageRelativePath,
+  uploadDocumentImages,
+} from "../../services/documentUploadService";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { fetchServicesForCategoryDialog } from "../../services/servicesService";
 import { openDialog } from "../../lib/global/DialogManager";
@@ -191,6 +196,11 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     }
   }, [isEditable, category?.is_active, setValue]);
 
+  useEffect(() => {
+    setFileInputs([]);
+    setReplaceUrl([]);
+  }, [category?._id, isEditable]);
+
   const openAddServiceForCategory = useCallback(async () => {
     const currentCategoryName = String(getValues("name") ?? "").trim();
     const categoryIdFromRecord =
@@ -216,17 +226,16 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         return;
       }
 
-      const formData = new FormData();
-      formData.append("type", "2");
-      fileInputs.forEach((file) => formData.append("files", file));
-      const { response, fileList } = await createOrUpdateDocument(
-        formData,
-        false
-      );
-      if (!response || fileList.length === 0) {
-        showErrorAlert("Unable to upload category image.");
+      const draftUpload = await uploadDocumentImages({
+        uploadType: "2",
+        files: fileInputs,
+        isEditMode: false,
+      });
+      if (!draftUpload.ok) {
+        showErrorAlert(documentUploadFailureMessage(draftUpload.usedReplace));
         return;
       }
+      const fileList = draftUpload.paths;
 
       const draftRes = await createOrUpdateCategoryWithRecord(
         {
@@ -417,24 +426,56 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
     let image_url = "";
     if (fileInputs.length > 0) {
-      const formData = new FormData();
-      formData.append("type", "2");
-      fileInputs.forEach((file) => formData.append("files", file));
-      if (isEditable) {
-        if (replaceUrls.length > 0) {
-          formData.append("update_file_urls", JSON.stringify(replaceUrls));
-        }
-      }
+      console.log("[ImageUploadDebug] Edit Category — Update clicked", {
+        categoryId: category?._id,
+        isEditable,
+        existingImageUrl: category?.image_url,
+        existingImageUrlNormalized: normalizeReplaceStoragePaths(
+          category?.image_url ? [category.image_url] : []
+        ),
+        replaceUrls,
+        fileInputs: fileInputs.map((f) => ({
+          name: f.name,
+          size: f.size,
+          type: f.type,
+        })),
+      });
 
-      const { response, fileList } = await createOrUpdateDocument(
-        formData,
-        isEditable
-      );
-      if (response) {
-        if (fileList.length > 0) {
-          image_url = fileList[0].toString();
-        }
+      const previousImagePath = toStorageRelativePath(category?.image_url);
+
+      const imageUpload = await uploadDocumentImages({
+        uploadType: "2",
+        files: fileInputs,
+        isEditMode: isEditable,
+        alwaysPostNewFile: true,
+      });
+      if (!imageUpload.ok) {
+        showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
+        return;
       }
+      image_url = imageUpload.paths[0] ?? "";
+      if (
+        previousImagePath &&
+        image_url &&
+        image_url === previousImagePath
+      ) {
+        showErrorAlert(
+          "New image was not saved — the server returned the previous file path. Please try again."
+        );
+        return;
+      }
+      console.log("[ImageUploadDebug] Edit Category — upload done", {
+        previousImagePath,
+        image_url,
+        pathChanged: previousImagePath !== image_url,
+        usedReplace: imageUpload.usedReplace,
+      });
+    } else {
+      console.log("[ImageUploadDebug] Edit Category — Update clicked (no new file)", {
+        categoryId: category?._id,
+        existingImageUrl: category?.image_url,
+        fileInputsCount: fileInputs.length,
+      });
     }
 
     if (!isEditable && !draftCategoryId && image_url === "") {
@@ -488,6 +529,13 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         image_url: image_url || draftImageUrl,
       }),
     };
+
+    console.log("[ImageUploadDebug] Edit Category — category PUT payload", {
+      categoryId: draftCategoryId || category?._id,
+      includesImageUrl: "image_url" in payload,
+      image_url: (payload as { image_url?: string }).image_url,
+      payload,
+    });
 
     let responseCategory;
     if (isEditable || draftCategoryId) {
@@ -855,7 +903,9 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                   }
                   onFileChange={(files, replaceUrlsFromUploader) => {
                     setFileInputs(files);
-                    setReplaceUrl(replaceUrlsFromUploader);
+                    setReplaceUrl(
+                      normalizeReplaceStoragePaths(replaceUrlsFromUploader)
+                    );
                   }}
                 />
               </Col>

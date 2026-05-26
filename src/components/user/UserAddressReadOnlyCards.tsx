@@ -141,10 +141,19 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
   const rows = fallbackRows;
 
   return (
-    <Row className="g-2">
+    <Row className="g-2 user-address-readonly-cards-row">
       {rows.map((row, index) => (
-        <Col key={`addr-${index}`} xs={12} sm={6} lg={4}>
-          <div style={savedCardShell}>
+        <Col
+          key={`addr-${index}`}
+          xs={12}
+          sm={6}
+          lg={4}
+          className="user-address-readonly-card-col"
+        >
+          <div
+            className="user-address-readonly-card"
+            style={savedCardShell}
+          >
             <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
               <div className="d-flex flex-wrap align-items-center gap-2">
                 <span

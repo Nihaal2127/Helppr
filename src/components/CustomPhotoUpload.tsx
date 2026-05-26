@@ -9,6 +9,7 @@ import {
   getSupportedImageMaxSizeBytes,
   isSupportedImageFile,
 } from "../helper/utility";
+import { toStorageRelativePath } from "../services/documentUploadService";
 
 interface CustomPhotoUploadProps {
   isOpen?: boolean;
@@ -35,12 +36,13 @@ const CustomPhotoUpload = ({
 
     updatedFiles[index] = file;
 
-    if (file && existingImages[index]) {
-      if (!updatedReplaceUrls.includes(existingImages[index])) {
-        updatedReplaceUrls.push(existingImages[index]);
+    const storageKey = toStorageRelativePath(existingImages[index]);
+    if (file && storageKey) {
+      if (!updatedReplaceUrls.includes(storageKey)) {
+        updatedReplaceUrls.push(storageKey);
       }
-    } else if (!file && existingImages[index]) {
-      const urlIndex = updatedReplaceUrls.indexOf(existingImages[index]);
+    } else if (!file && storageKey) {
+      const urlIndex = updatedReplaceUrls.indexOf(storageKey);
       if (urlIndex !== -1) {
         updatedReplaceUrls.splice(urlIndex, 1);
       }

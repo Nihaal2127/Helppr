@@ -7,6 +7,7 @@ import {
   getSupportedImageMaxSizeBytes,
   isSupportedImageFile,
 } from "../helper/utility";
+import { toStorageRelativePath } from "../services/documentUploadService";
 
 interface CustomImageUploaderProps {
   label: string;
@@ -98,12 +99,13 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
 
     updatedFiles[index] = file;
 
-    if (file && existingImages[index]) {
-      if (!updatedReplaceUrls.includes(existingImages[index])) {
-        updatedReplaceUrls.push(existingImages[index]);
+    const storageKey = toStorageRelativePath(existingImages[index]);
+    if (file && storageKey) {
+      if (!updatedReplaceUrls.includes(storageKey)) {
+        updatedReplaceUrls.push(storageKey);
       }
-    } else if (!file && existingImages[index]) {
-      const urlIndex = updatedReplaceUrls.indexOf(existingImages[index]);
+    } else if (!file && storageKey) {
+      const urlIndex = updatedReplaceUrls.indexOf(storageKey);
       if (urlIndex !== -1) {
         updatedReplaceUrls.splice(urlIndex, 1);
       }
@@ -111,6 +113,17 @@ const CustomImageUploader: React.FC<CustomImageUploaderProps> = ({
 
     setFileInputs(updatedFiles);
     setReplaceUrls(updatedReplaceUrls);
+
+    console.log("[ImageUploadDebug] CustomImageUploader — file change", {
+      index,
+      hasFile: Boolean(file),
+      existingImageRaw: existingImages[index] ?? null,
+      storageKeyForReplace: storageKey || null,
+      replaceUrls: updatedReplaceUrls,
+      fileMeta: file
+        ? { name: file.name, size: file.size, type: file.type }
+        : null,
+    });
 
     onFileChange(
       updatedFiles.filter((f) => f !== null) as File[],

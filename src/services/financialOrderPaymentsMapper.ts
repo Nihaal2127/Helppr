@@ -1,4 +1,8 @@
 import type { FinancialModel } from "../lib/models/FinancialModel";
+import {
+  normalizeCustomerPaymentStatusSlug,
+  normalizePartnerPaymentStatusSlug,
+} from "../lib/financial/paymentStatus";
 
 function str(v: unknown): string {
   if (v == null) return "";
@@ -49,10 +53,15 @@ export function mapFinancialPaymentRecord(
       raw.service_price
   );
 
-  const customerStatus = str(
+  const customerStatusRaw = str(
     raw.customer_payment_status ?? raw.user_payment_status
   );
-  const partnerStatus = str(raw.partner_payment_status);
+  const partnerStatusRaw = str(raw.partner_payment_status);
+  const customerStatus =
+    normalizeCustomerPaymentStatusSlug(customerStatusRaw) ||
+    customerStatusRaw;
+  const partnerStatus =
+    normalizePartnerPaymentStatusSlug(partnerStatusRaw) || partnerStatusRaw;
   const partnerInfo =
     raw.partner_info != null && typeof raw.partner_info === "object"
       ? (raw.partner_info as Record<string, unknown>)

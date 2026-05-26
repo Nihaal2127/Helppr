@@ -193,6 +193,25 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     viewComm,
   ]);
 
+  /** User payments table — exclude `order_payments` rows with `payment_method: refund`. */
+  const userPaymentsForView = useMemo(() => {
+    const rows = paymentExt?.customerPayments ?? [];
+    const ledger = orderDetails?.order_payments ?? [];
+    if (!ledger.length) return rows;
+    const refundIds = new Set(
+      ledger
+        .filter((p) => {
+          const payer = String(p.payer_type ?? "").trim().toLowerCase();
+          const method = String(p.payment_method ?? "").trim().toLowerCase();
+          return payer === "customer" && method === "refund";
+        })
+        .map((p) => String(p._id ?? "").trim())
+        .filter(Boolean)
+    );
+    if (!refundIds.size) return rows;
+    return rows.filter((r) => !refundIds.has(r.id));
+  }, [paymentExt, orderDetails?.order_payments]);
+
   const canEditOrderHeader =
     orderDetails?.order_status === 1 || orderDetails?.order_status === 2;
   const canEditOrderAll = Boolean(orderDetails?._id) && canEditOrderHeader;
@@ -440,7 +459,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </span>
                     ) : null}
                   </div>
-                  {(paymentExt?.customerPayments ?? []).length > 0 ? (
+                  {userPaymentsForView.length > 0 ? (
                   <Table
                     responsive
                     bordered
@@ -456,7 +475,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       </tr>
                     </thead>
                     <tbody>
-                      {(paymentExt?.customerPayments ?? []).map((r) => (
+                      {userPaymentsForView.map((r) => (
                         <tr key={r.id}>
                           <td>{payLineDate(r.date)}</td>
                           <td>

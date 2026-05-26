@@ -19,7 +19,11 @@ import { fetchCityDropDownForForm } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreasByCityForForm } from "../../services/areaService";
 import { createOrUpdateUser } from "../../services/userService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
+import {
+  documentUploadFailureMessage,
+  normalizeReplaceStoragePaths,
+  uploadDocumentImages,
+} from "../../services/documentUploadService";
 import { fetchCategoryDropDown, fetchCategory } from "../../services/categoryService";
 import {
   fetchService,
@@ -307,6 +311,12 @@ function AddEditUserDialogView({
 
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
+
+  useEffect(() => {
+    setFileInputs([]);
+    setReplaceUrl([]);
+  }, [user?._id, isEditable]);
+
   const [partnerVerificationDocFiles, setPartnerVerificationDocFiles] =
     useState<Partial<Record<PartnerCreateDocumentKey, File>>>({});
   const [states, setState] = useState<{ value: string; label: string }[]>([]);
@@ -1052,24 +1062,18 @@ function AddEditUserDialogView({
     let partnerCatalogFlat: PartnerCatalogFlattenOk | null = null;
     let profile_url = "";
     if (fileInputs.length > 0) {
-      const formData = new FormData();
-      formData.append("type", "4");
-      fileInputs.forEach((file) => formData.append("files", file));
-      if (isEditable) {
-        if (replaceUrls.length > 0) {
-          formData.append("update_file_urls", JSON.stringify(replaceUrls));
-        }
+      const imageUpload = await uploadDocumentImages({
+        uploadType: "4",
+        files: fileInputs,
+        isEditMode: isEditable,
+        replaceUrls,
+        existingStoragePaths: user?.profile_url ? [user.profile_url] : [],
+      });
+      if (!imageUpload.ok) {
+        showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
+        return;
       }
-
-      let { response, fileList } = await createOrUpdateDocument(
-        formData,
-        isEditable
-      );
-      if (response) {
-        if (fileList.length > 0) {
-          profile_url = fileList[0].toString();
-        }
-      }
+      profile_url = imageUpload.paths[0] ?? "";
     }
 
     if (!isEditable && profile_url === "") {
@@ -1759,7 +1763,7 @@ function AddEditUserDialogView({
                       />
                     </Col>
                     <Col xs={12} md={6} className="add-partner-profile-col">
-                      <Row className="align-items-stretch add-partner-profile-labeled-row">
+                      <Row className="align-items-stretch">
                         <Col sm={3} className="d-flex align-items-start">
                           <label className="custom-profile-lable mb-0">
                             Profile Photo
@@ -1775,9 +1779,13 @@ function AddEditUserDialogView({
                             {...(user?.profile_url
                               ? { existingImages: [user.profile_url] }
                               : [])}
-                            onFileChange={(files, replaceUrls) => {
+                            onFileChange={(files, replaceUrlsFromUploader) => {
                               setFileInputs(files);
-                              setReplaceUrl(replaceUrls);
+                              setReplaceUrl(
+                                normalizeReplaceStoragePaths(
+                                  replaceUrlsFromUploader
+                                )
+                              );
                             }}
                           />
                         </Col>
@@ -1909,6 +1917,7 @@ function AddEditUserDialogView({
                 <CustomTextFieldRadio
                   label="Gender"
                   name="gender"
+                  
                   options={[
                     { value: "male", label: "Male" },
                     { value: "female", label: "Female" },
@@ -2095,9 +2104,11 @@ function AddEditUserDialogView({
                     {...(user?.profile_url
                       ? { existingImages: [user.profile_url] }
                       : [])}
-                    onFileChange={(files, replaceUrls) => {
+                    onFileChange={(files, replaceUrlsFromUploader) => {
                       setFileInputs(files);
-                      setReplaceUrl(replaceUrls);
+                      setReplaceUrl(
+                        normalizeReplaceStoragePaths(replaceUrlsFromUploader)
+                      );
                     }}
                   />
                 </div>

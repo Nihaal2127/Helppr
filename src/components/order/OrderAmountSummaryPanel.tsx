@@ -89,6 +89,27 @@ function DeductionRow({
   );
 }
 
+function RefundRow({
+  refundAmount,
+  adminCommission,
+  partnerWallet,
+}: {
+  refundAmount: number;
+  adminCommission: number;
+  partnerWallet: number;
+}) {
+  return (
+    <div className="order-amount-summary__row">
+      <span className="order-amount-summary__label order-amount-summary__label--refund">
+        Refund (from admin: {adminCommission}, from partner: {partnerWallet})
+      </span>
+      <span className="order-amount-summary__value order-amount-summary__value--refund">
+        {money(refundAmount)}
+      </span>
+    </div>
+  );
+}
+
 export type OrderAmountSummaryPanelProps = {
   display: OrderAmountSummaryDisplay;
   title?: string;
@@ -142,6 +163,9 @@ export default function OrderAmountSummaryPanel({
     refundTotal > 0;
 
   const refundAmount = Math.max(refund.refundAmount, refundTotal);
+  const displayFinalTotal = showRefund
+    ? Math.max(0, finalTotal - refundAmount)
+    : finalTotal;
 
   const offerDiscount =
     offer.appliedDiscount > 0.009
@@ -273,7 +297,9 @@ export default function OrderAmountSummaryPanel({
 
       <div className="order-amount-summary__total">
         <span className="order-amount-summary__total-label">{finalTotalLabel}</span>
-        <span className="order-amount-summary__total-value">{money(finalTotal)}</span>
+        <span className="order-amount-summary__total-value">
+          {money(displayFinalTotal)}
+        </span>
       </div>
 
       {children ? (

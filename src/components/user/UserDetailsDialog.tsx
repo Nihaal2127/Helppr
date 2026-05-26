@@ -571,6 +571,14 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                 }`}
               />
               <DetailsRow
+                title="Paid amount"
+                value={`${AppConstant.currencySymbol}${
+                  userDetails?.paid_amount != null
+                    ? userDetails.paid_amount
+                    : 0
+                }`}
+              />
+              <DetailsRow
                 title="Balance Amount"
                 value={`${AppConstant.currencySymbol}${
                   userDetails?.balance_amount ? userDetails?.balance_amount : 0

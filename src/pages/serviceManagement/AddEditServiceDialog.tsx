@@ -18,7 +18,12 @@ import {
   createOrUpdateService,
   normalizeServiceCategoryRef,
 } from "../../services/servicesService";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
+import {
+  documentUploadFailureMessage,
+  normalizeReplaceStoragePaths,
+  toStorageRelativePath,
+  uploadDocumentImages,
+} from "../../services/documentUploadService";
 import { openDialog } from "../../lib/global/DialogManager";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
@@ -158,6 +163,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   useEffect(() => {
     prevPaymentTypeRef.current = null;
   }, [service?._id]);
+
+  useEffect(() => {
+    setFileInputs([]);
+    setReplaceUrl([]);
+  }, [service?._id, isEditable]);
 
   // const depositType = watch("min_deposit_type");
   const serviceCategoryId = normalizeServiceCategoryRef(
@@ -314,22 +324,56 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     let image_url = "";
 
     if (fileInputs.length > 0) {
-      const formData = new FormData();
-      formData.append("type", "2");
-      fileInputs.forEach((file) => formData.append("files", file));
+      console.log("[ImageUploadDebug] Edit Service — Update clicked", {
+        serviceId: service?._id,
+        isEditable,
+        serviceImagePath,
+        serviceImagePathNormalized: normalizeReplaceStoragePaths(
+          serviceImagePath ? [serviceImagePath] : []
+        ),
+        replaceUrls,
+        fileInputs: fileInputs.map((f) => ({
+          name: f.name,
+          size: f.size,
+          type: f.type,
+        })),
+      });
 
-      if (isEditable && replaceUrls.length > 0) {
-        formData.append("update_file_urls", JSON.stringify(replaceUrls));
+      const previousImagePath = toStorageRelativePath(serviceImagePath);
+
+      const imageUpload = await uploadDocumentImages({
+        uploadType: "2",
+        files: fileInputs,
+        isEditMode: isEditable,
+        alwaysPostNewFile: true,
+      });
+      if (!imageUpload.ok) {
+        showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
+        return;
       }
-
-      const { response, fileList } = await createOrUpdateDocument(
-        formData,
-        isEditable
-      );
-
-      if (response && fileList.length > 0) {
-        image_url = fileList[0].toString();
+      image_url = imageUpload.paths[0] ?? "";
+      if (
+        previousImagePath &&
+        image_url &&
+        image_url === previousImagePath
+      ) {
+        showErrorAlert(
+          "New image was not saved — the server returned the previous file path. Please try again."
+        );
+        return;
       }
+      console.log("[ImageUploadDebug] Edit Service — upload done", {
+        previousImagePath,
+        image_url,
+        pathChanged: previousImagePath !== image_url,
+        usedReplace: imageUpload.usedReplace,
+      });
+    } else {
+      console.log("[ImageUploadDebug] Edit Service — Update clicked (no new file)", {
+        serviceId: service?._id,
+        serviceImagePath,
+        fileInputsCount: fileInputs.length,
+      });
     }
 
     if (!isEditable && image_url === "") {
@@ -391,6 +435,13 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       category_id: resolvedCategoryId,
       ...(image_url !== "" && { image_url }),
     };
+
+    console.log("[ImageUploadDebug] Edit Service — service PUT payload", {
+      serviceId: service?._id,
+      includesImageUrl: "image_url" in payload,
+      image_url: (payload as { image_url?: string }).image_url,
+      payload,
+    });
 
     let responseService;
 
@@ -800,9 +851,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   maxFiles={1}
                   isEditable={isEditable}
                   existingImages={serviceImagePath ? [serviceImagePath] : []}
-                  onFileChange={(files, replaceUrls) => {
+                  onFileChange={(files, replaceUrlsFromUploader) => {
                     setFileInputs(files);
-                    setReplaceUrl(replaceUrls);
+                    setReplaceUrl(
+                      normalizeReplaceStoragePaths(replaceUrlsFromUploader)
+                    );
                   }}
                 />
               </Col>

@@ -34,8 +34,8 @@ import { showUserDetailsDialog } from "../../../components/user";
 import { ROUTES } from "../../../routes/Routes";
 import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import {
-  CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS,
-  PARTNER_PAYMENT_STATUS_FILTER_OPTIONS,
+  customerPaymentStatusFilterSelectOptions,
+  partnerPaymentStatusFilterSelectOptions,
   customerPaymentStatusLabelFromSlug,
   partnerPaymentStatusLabelFromSlug,
 } from "../../../lib/financial/paymentStatus";
@@ -60,7 +60,36 @@ function serviceLineOrderStatusLabel(row: FinancialModel): string {
   if (slug === "refunded") return "Refunded";
   if (Number(row.service_status) === 3) return "Completed";
   if (Number(row.service_status) === 2) return "In progress";
+  if (Number(row.service_status) === 5) return "Refunded";
   return slug ? slug.replace(/_/g, " ") : "—";
+}
+
+function isRefundedOrderRow(row: FinancialModel): boolean {
+  const slug = String(row.order_status ?? "").trim().toLowerCase();
+  if (slug === "refunded") return true;
+  return Number(row.service_status) === 5;
+}
+
+function customerPaymentStatusCellLabel(row: FinancialModel): string {
+  const label = customerPaymentStatusLabelFromSlug(
+    row.customer_payment_status
+  );
+  if (label) return label;
+  const pending = Number(row.customer_pending_amount) || 0;
+  const paid = Number(row.customer_paid_amount) || 0;
+  if (pending <= 0 && paid > 0) return "Paid";
+  if (paid > 0 && pending > 0) return "Partially paid";
+  return "Unpaid";
+}
+
+function partnerPaymentStatusCellLabel(row: FinancialModel): string {
+  const label = partnerPaymentStatusLabelFromSlug(row.partner_payment_status);
+  if (label) return label;
+  const pending = Number(row.pending_to_partner) || 0;
+  const paid = Number(row.paid_to_partner) || 0;
+  if (pending <= 0 && paid > 0) return "Paid";
+  if (paid > 0 && pending > 0) return "Partially paid";
+  return "Unpaid";
 }
 
 function buildListFilters(p: {
@@ -314,7 +343,7 @@ const OrderPayments = () => {
           label="Partner Payment Status"
           controlId="Partner payment status"
           register={headerRegister as unknown as UseFormRegister<any>}
-          options={[...PARTNER_PAYMENT_STATUS_FILTER_OPTIONS]}
+          options={partnerPaymentStatusFilterSelectOptions()}
           fieldName="partner_payment_status_filter"
           defaultValue={partnerPaymentScope}
           setValue={
@@ -326,6 +355,7 @@ const OrderPayments = () => {
           }
           asCol={false}
           noBottomMargin
+          menuPortal
           onChange={(e) => {
             setPartnerPaymentScope(e.target.value);
             listParamsRef.current.partnerPaymentScope = e.target.value;
@@ -339,7 +369,7 @@ const OrderPayments = () => {
           label="Customer Payment Status"
           controlId="Customer payment status"
           register={headerRegister as unknown as UseFormRegister<any>}
-          options={[...CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS]}
+          options={customerPaymentStatusFilterSelectOptions()}
           fieldName="customer_payment_status_filter"
           defaultValue={customerPaymentScope}
           setValue={
@@ -351,6 +381,7 @@ const OrderPayments = () => {
           }
           asCol={false}
           noBottomMargin
+          menuPortal
           onChange={(e) => {
             setCustomerPaymentScope(e.target.value);
             listParamsRef.current.customerPaymentScope = e.target.value;
@@ -493,20 +524,7 @@ const OrderPayments = () => {
           );
         },
       },
-      {
-        Header: "Commission (%)",
-        accessor: "commission_percentage",
-        Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const v = row.original.total_price ?? row.original.total_amount;
-          return (
-            <span>
-              {v !== undefined && v !== null
-                ? `${AppConstant.currencySymbol}${v}`
-                : "-"}
-            </span>
-          );
-        },
-      },
+     
       {
         Header: "Commission",
         accessor: "commission_amount",
@@ -600,34 +618,14 @@ const OrderPayments = () => {
       {
         Header: "Customer Payment Status",
         accessor: "customer_payment_status",
-        Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const slug = row.original.customer_payment_status?.trim();
-          if (slug) {
-            const label = customerPaymentStatusLabelFromSlug(slug);
-            if (label) return label;
-          }
-          const pending = Number(row.original.customer_pending_amount) || 0;
-          const paid = Number(row.original.customer_paid_amount) || 0;
-          if (pending <= 0 && paid > 0) return "Paid";
-          if (paid > 0 && pending > 0) return "Partially paid";
-          return "Unpaid";
-        },
+        Cell: ({ row }: { row: { original: FinancialModel } }) =>
+          customerPaymentStatusCellLabel(row.original),
       },
       {
         Header: "Partner Payment Status",
         accessor: "partner_payment_status",
-        Cell: ({ row }: { row: { original: FinancialModel } }) => {
-          const slug = row.original.partner_payment_status?.trim();
-          if (slug) {
-            const label = partnerPaymentStatusLabelFromSlug(slug);
-            if (label) return label;
-          }
-          const pending = Number(row.original.pending_to_partner) || 0;
-          const paid = Number(row.original.paid_to_partner) || 0;
-          if (pending <= 0 && paid > 0) return "Paid";
-          if (paid > 0 && pending > 0) return "Partially paid";
-          return "Unpaid";
-        },
+        Cell: ({ row }: { row: { original: FinancialModel } }) =>
+          partnerPaymentStatusCellLabel(row.original),
       },
       {
         Header: "Order status",
@@ -805,6 +803,13 @@ const OrderPayments = () => {
         sortBy={sortBy}
         onSortChange={handleServerSortChange}
         theadClass="table-light"
+        tableClass="order-payments-react-table"
+        dynamicRowBackground={false}
+        getRowClassName={(row) =>
+          isRefundedOrderRow(row.original)
+            ? "order-payments-table__row--refunded"
+            : undefined
+        }
       />
     </div>
   );

@@ -38,6 +38,19 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
   const payableBalance = Number(selected?.payable_balance ?? 0);
   const enterParsed = Number.isFinite(amount) && amount >= 0 ? amount : 0;
   const balanceAfter = Math.max(0, payableBalance - enterParsed);
+  const amountExceedsBalance =
+    payableBalance > 0 && enterParsed > payableBalance + 0.0001;
+  const payNowInvalid =
+    enterParsed <= 0 || payableBalance <= 0 || amountExceedsBalance;
+
+  useEffect(() => {
+    setAmount((prev) => {
+      if (prev > payableBalance + 0.0001) {
+        return Math.max(0, payableBalance);
+      }
+      return prev;
+    });
+  }, [partnerMongoId, payableBalance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,9 +193,20 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                           }
                           const n = parseFloat(t);
                           if (!Number.isNaN(n) && n >= 0) {
-                            setAmount(n);
+                            const capped =
+                              payableBalance > 0
+                                ? Math.min(n, payableBalance)
+                                : 0;
+                            setAmount(capped);
                           }
                         }}
+                        error={
+                          amountExceedsBalance
+                            ? {
+                                message: `Pay Now cannot exceed payable balance (${sym}${payableBalance.toFixed(2)}).`,
+                              }
+                            : undefined
+                        }
                       />
                     </Col>
                     <Col xs={12} md={4}>
@@ -256,7 +280,9 @@ const AddPayoutDialog: React.FC<AddPayoutDialogProps> & {
                 <Button
                   type="submit"
                   className="custom-btn-primary"
-                  disabled={submitting || loadingPartners}
+                  disabled={
+                    submitting || loadingPartners || payNowInvalid
+                  }
                 >
                   {submitting ? "Submitting…" : "Submit"}
                 </Button>

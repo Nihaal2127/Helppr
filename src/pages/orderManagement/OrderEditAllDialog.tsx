@@ -48,7 +48,9 @@ import {
   getOrderPartnerDisplayName,
   getPrimaryServiceItem,
   orderEditAllAddressLine,
+  orderPaymentExtensionChanged,
   orderPaymentInvoiceTotal,
+  pickChangedOrderEditAllUpdatePayload,
   resolveOrderEditFranchiseId,
   resolvePaymentExtension,
   seedEditOrderFormFromRow,
@@ -171,6 +173,10 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [formHydrated, setFormHydrated] = useState(false);
   const paymentValidateRef = useRef<(() => boolean) | null>(null);
+  const editAllBaselineRef = useRef<{
+    payload: Record<string, unknown>;
+    paymentExt?: OrderPaymentExtV1;
+  } | null>(null);
   const lastAcceptedEditServicePriceRef = useRef("");
   const [paymentExtLive, setPaymentExtLive] = useState<OrderPaymentExtV1 | null>(
     null
@@ -256,6 +262,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const hasServiceSelected = Boolean(serviceId);
   useEffect(() => {
     setFormHydrated(false);
+    editAllBaselineRef.current = null;
   }, [orderMongoId]);
 
   useEffect(() => {
@@ -360,6 +367,10 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     reset(seedEditOrderFormFromRow(orderRow));
     setFormHydrated(true);
   }, [orderRow, catalogBusy, franchisePinsLoadDone, reset]);
+
+  const orderStatusNum = orderRow?.order_status ?? 0;
+  const isTerminalOrderStatus =
+    orderStatusNum === 3 || orderStatusNum === 4 || orderStatusNum === 5;
 
   const orderAddressFallback = useMemo(() => {
     const order = orderRow;
@@ -478,6 +489,62 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     form.requested_services,
     quoteCatalogServicesForPartner,
     selectedPartnerCatalogRecord,
+  ]);
+
+  useEffect(() => {
+    if (!orderRow || !formHydrated || catalogBusy || !franchisePinsLoadDone) {
+      return;
+    }
+    if (String(form.user_id ?? "").trim() && !addressUi.ready) return;
+    if (editAllBaselineRef.current) return;
+
+    const seed = seedEditOrderFormFromRow(orderRow);
+    const primaryItem = getPrimaryServiceItem(orderRow);
+    const baselinePaymentExt =
+      !isTerminalOrderStatus && primaryItem
+        ? resolvePaymentExtension(orderRow, primaryItem)
+        : undefined;
+    const baselinePrice = Number.parseFloat(String(seed.service_price ?? "").trim());
+    const baselineServicePrice =
+      Number.isFinite(baselinePrice) && baselinePrice >= 0 ? baselinePrice : 0;
+    const baselineAddressLine = orderEditAllAddressLine(
+      addressUi.rows,
+      selectedAddressId,
+      orderRow.address ?? ""
+    );
+    const baselinePayload = buildOrderEditAllUpdatePayload({
+      order: orderRow,
+      form: seed,
+      scheduleMode,
+      servicePrice: baselinePaymentExt?.serviceAmount ?? baselineServicePrice,
+      addressLine: baselineAddressLine,
+      selectedAddressId,
+      paymentExt: baselinePaymentExt,
+      invoiceTotal: baselinePaymentExt
+        ? orderPaymentInvoiceTotal(
+            baselinePaymentExt,
+            orderRow,
+            primaryItem
+          )
+        : baselineServicePrice,
+    });
+    if (baselinePayload) {
+      editAllBaselineRef.current = {
+        payload: baselinePayload,
+        paymentExt: baselinePaymentExt,
+      };
+    }
+  }, [
+    orderRow,
+    formHydrated,
+    catalogBusy,
+    franchisePinsLoadDone,
+    addressUi.ready,
+    addressUi.rows,
+    selectedAddressId,
+    scheduleMode,
+    form.user_id,
+    isTerminalOrderStatus,
   ]);
 
   const selectedServiceOption = useMemo(() => {
@@ -919,17 +986,43 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     );
 
     const primaryItem = getPrimaryServiceItem(orderRow);
-    const paymentExt =
-      !isTerminalOrderStatus && primaryItem
-        ? (paymentExtLive ??
-          resolvePaymentExtension(orderRow, primaryItem))
-        : undefined;
-
-    if (paymentExt && paymentValidateRef.current && !paymentValidateRef.current()) {
+    if (!primaryItem) {
+      showErrorAlert(
+        "This order has no service line item. Cannot update until the order has at least one service."
+      );
       return;
     }
 
-    const payload = buildOrderEditAllUpdatePayload({
+    const baseline = editAllBaselineRef.current;
+    if (!baseline?.payload) {
+      showErrorAlert("Order form is still loading. Please wait and try again.");
+      return;
+    }
+
+    const baselinePaymentExt = baseline.paymentExt;
+    const paymentDirty = Boolean(
+      paymentExtLive &&
+        (!baselinePaymentExt ||
+          orderPaymentExtensionChanged(
+            paymentExtLive,
+            baselinePaymentExt
+          ))
+    );
+    const paymentExt =
+      paymentDirty && paymentExtLive
+        ? paymentExtLive
+        : undefined;
+
+    if (
+      paymentDirty &&
+      paymentExt &&
+      paymentValidateRef.current &&
+      !paymentValidateRef.current()
+    ) {
+      return;
+    }
+
+    const fullPayload = buildOrderEditAllUpdatePayload({
       order: orderRow,
       form: data,
       scheduleMode,
@@ -939,8 +1032,19 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       paymentExt,
       invoiceTotal: editPriceBreakdownWithCoupon?.grandTotal ?? price,
     });
-    if (!payload) {
-      showErrorAlert("Invalid schedule.");
+    if (!fullPayload) {
+      showErrorAlert(
+        "Invalid schedule. Check the service date and start/end times."
+      );
+      return;
+    }
+
+    const payload = pickChangedOrderEditAllUpdatePayload(
+      fullPayload,
+      baseline.payload
+    );
+    if (Object.keys(payload).length === 0) {
+      showErrorAlert("No changes to save.");
       return;
     }
 
@@ -1056,9 +1160,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     });
 
   const lockedFields = catalogBusy || !orderRow;
-  const orderStatusNum = orderRow?.order_status ?? 0;
-  const isTerminalOrderStatus =
-    orderStatusNum === 3 || orderStatusNum === 4 || orderStatusNum === 5;
 
   return (
     <Modal

@@ -34,6 +34,7 @@ import { OrderModel, OrderStatusEnum } from "../../lib/order/orders";
 import { UserModel } from "../../lib/models/UserModel";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
+  formatMoney2,
   normalizePaymentMethod,
   parseMoneyInput,
   paymentAmountFieldValue,
@@ -41,6 +42,7 @@ import {
   paymentMethodSelectOptions,
   sanitizeMoneyInput,
 } from "../../lib/global/paymentAndCurrency";
+import { formatDate } from "../../helper/utility";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import { showErrorAlert } from "../../lib/global/alertHelper";
@@ -722,6 +724,14 @@ const tablePriceInputStyle: React.CSSProperties = {
   textAlign: "right",
 };
 
+const readOnlyPaymentFieldStyle: React.CSSProperties = {
+  fontSize: FONT_BODY,
+  marginBottom: 0,
+};
+
+const readOnlyPaymentFieldClass =
+  "custom-form-input custom-form-input--read-only";
+
 const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   show: (order: OrderModel, onSaved: () => void) => void;
 } = ({ order, onClose, onSaved, embedded = false, validateRef, onExtChange }) => {
@@ -742,6 +752,9 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     useState(false);
   const [showPartnerPaymentAddHint, setShowPartnerPaymentAddHint] =
     useState(false);
+  /** Payment rows present when the modal opened — not editable; new rows use `nid()`. */
+  const lockedCustomerPaymentIdsRef = useRef<Set<string>>(new Set());
+  const lockedPartnerPaymentIdsRef = useRef<Set<string>>(new Set());
   const { register, setValue } = useForm<any>();
 
   const paymentFieldRegister = useCallback(
@@ -759,6 +772,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     const { taxPct, commissionPct } = getServiceTaxCommissionPercents(
       primary,
       order
+    );
+    lockedCustomerPaymentIdsRef.current = new Set(
+      base.customerPayments.map((r) => r.id)
+    );
+    lockedPartnerPaymentIdsRef.current = new Set(
+      base.partnerPayments.map((r) => r.id)
     );
     setExt({ ...base, taxPercent: taxPct, commissionPercent: commissionPct });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed off payment-driving fields; full `order` would over-fire
@@ -991,7 +1010,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     );
   };
 
+  const isLockedCustomerPaymentRow = (id: string) =>
+    lockedCustomerPaymentIdsRef.current.has(id);
+
+  const isLockedPartnerPaymentRow = (id: string) =>
+    lockedPartnerPaymentIdsRef.current.has(id);
+
   const confirmRemoveCustomerPaymentRow = (id: string) => {
+    if (isLockedCustomerPaymentRow(id)) return;
     openConfirmDialog(
       "Are you sure you want to delete this user payment entry?",
       "Delete",
@@ -1005,6 +1031,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   };
 
   const confirmRemovePartnerPaymentRow = (id: string) => {
+    if (isLockedPartnerPaymentRow(id)) return;
     openConfirmDialog(
       "Are you sure you want to delete this partner payment entry?",
       "Delete",
@@ -1431,7 +1458,9 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 </thead>
                 <tbody>
                   {ext.customerPayments.map((row, idx) => {
+                    const rowLocked = isLockedCustomerPaymentRow(row.id);
                     const customerRowHighlight =
+                      !rowLocked &&
                       showCustomerPaymentAddHint &&
                       !isCustomerPaymentRowComplete(row);
                     return (
@@ -1445,26 +1474,36 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         {idx + 1}
                       </td>
                       <td className="align-middle">
-                        <CustomDatePicker
-                          label=""
-                          controlId={`cdate-${row.id}`}
-                          selectedDate={row.date || null}
-                          onChange={(d) => {
-                            if (!d) return;
-                            const y = d.getFullYear();
-                            const m = `${d.getMonth() + 1}`.padStart(2, "0");
-                            const day = `${d.getDate()}`.padStart(2, "0");
-                            updateCustomer(row.id, {
-                              date: `${y}-${m}-${day}`,
-                            });
-                          }}
-                          register={paymentFieldRegister}
-                          setValue={setValue}
-                          asCol={false}
-                          groupClassName="mb-0"
-                          filterDate={() => true}
-                          suppressHiddenRegister
-                        />
+                        {rowLocked ? (
+                          <Form.Control
+                            size="sm"
+                            readOnly
+                            className={readOnlyPaymentFieldClass}
+                            style={readOnlyPaymentFieldStyle}
+                            value={row.date ? formatDate(row.date) : "—"}
+                          />
+                        ) : (
+                          <CustomDatePicker
+                            label=""
+                            controlId={`cdate-${row.id}`}
+                            selectedDate={row.date || null}
+                            onChange={(d) => {
+                              if (!d) return;
+                              const y = d.getFullYear();
+                              const m = `${d.getMonth() + 1}`.padStart(2, "0");
+                              const day = `${d.getDate()}`.padStart(2, "0");
+                              updateCustomer(row.id, {
+                                date: `${y}-${m}-${day}`,
+                              });
+                            }}
+                            register={paymentFieldRegister}
+                            setValue={setValue}
+                            asCol={false}
+                            groupClassName="mb-0"
+                            filterDate={() => true}
+                            suppressHiddenRegister
+                          />
+                        )}
                       </td>
                       <td className="align-middle">
                         <CustomFormInput
@@ -1474,10 +1513,16 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           register={paymentFieldRegister}
                           asCol={false}
                           inputType="text"
-                          inputClassName="text-end"
+                          isEditable={!rowLocked}
+                          inputClassName={
+                            rowLocked
+                              ? "text-end custom-form-input--read-only"
+                              : "text-end"
+                          }
                           inputStyle={tablePriceInputStyle}
                           value={paymentAmountFieldValue(row)}
                           onChange={(val) => {
+                            if (rowLocked) return;
                             setExt((e) => {
                               const cap = Math.max(0, finalTotal);
                               const otherSum = sumCustomerAmounts(
@@ -1487,10 +1532,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                               );
                               const maxForRow = Math.max(0, cap - otherSum);
                               const amountInput = sanitizeMoneyInput(val);
-                              let nextAmount = parseMoneyInput(amountInput);
-                              nextAmount = roundMoney(
-                                Math.min(nextAmount, maxForRow)
+                              const parsed = parseMoneyInput(amountInput);
+                              const nextAmount = roundMoney(
+                                Math.min(parsed, maxForRow)
                               );
+                              const displayInput =
+                                parsed > nextAmount + 0.0001
+                                  ? formatMoney2(nextAmount)
+                                  : amountInput;
                               return {
                                 ...e,
                                 customerPayments: e.customerPayments.map((r) =>
@@ -1498,7 +1547,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                     ? {
                                         ...r,
                                         amount: nextAmount,
-                                        amountInput,
+                                        amountInput: displayInput,
                                       }
                                     : r
                                 ),
@@ -1506,6 +1555,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             });
                           }}
                           onBlur={() => {
+                            if (rowLocked) return;
                             setExt((e) => {
                               const cap = Math.max(0, finalTotal);
                               const otherSum = sumCustomerAmounts(
@@ -1549,6 +1599,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           asCol={false}
                           noBottomMargin
                           menuPortal
+                          isDisabled={rowLocked}
                           onChange={(e) =>
                             updateCustomer(row.id, { type: e.target.value })
                           }
@@ -1560,8 +1611,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       >
                         <Form.Control
                           size="sm"
-                          className="custom-form-input"
-                          style={{ fontSize: FONT_BODY, marginBottom: 0 }}
+                          readOnly={rowLocked}
+                          className={
+                            rowLocked
+                              ? readOnlyPaymentFieldClass
+                              : "custom-form-input"
+                          }
+                          style={readOnlyPaymentFieldStyle}
                           value={row.description}
                           onChange={(e) =>
                             updateCustomer(row.id, {
@@ -1571,21 +1627,23 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         />
                       </td>
                       <td className="text-center align-middle">
-                        <i
-                          className="bi bi-trash text-danger fs-6"
-                          role="button"
-                          tabIndex={0}
-                          title="Remove row"
-                          aria-label="Remove user payment row"
-                          onClick={() =>
-                            confirmRemoveCustomerPaymentRow(row.id)
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter" && e.key !== " ") return;
-                            e.preventDefault();
-                            confirmRemoveCustomerPaymentRow(row.id);
-                          }}
-                        />
+                        {!rowLocked ? (
+                          <i
+                            className="bi bi-trash text-danger fs-6"
+                            role="button"
+                            tabIndex={0}
+                            title="Remove row"
+                            aria-label="Remove user payment row"
+                            onClick={() =>
+                              confirmRemoveCustomerPaymentRow(row.id)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key !== "Enter" && e.key !== " ") return;
+                              e.preventDefault();
+                              confirmRemoveCustomerPaymentRow(row.id);
+                            }}
+                          />
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -1698,30 +1756,45 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                   </tr>
                 </thead>
                 <tbody>
-                  {ext.partnerPayments.map((row, idx) => (
+                  {ext.partnerPayments.map((row, idx) => {
+                    const rowLocked =
+                      partnerLock || isLockedPartnerPaymentRow(row.id);
+                    return (
                     <tr key={row.id}>
                       <td className="align-middle text-center fw-medium">
                         {idx + 1}
                       </td>
                       <td className="align-middle">
-                        <CustomDatePicker
-                          label=""
-                          controlId={`pdate-${row.id}`}
-                          selectedDate={row.date || null}
-                          onChange={(d) => {
-                            if (!d) return;
-                            const y = d.getFullYear();
-                            const m = `${d.getMonth() + 1}`.padStart(2, "0");
-                            const day = `${d.getDate()}`.padStart(2, "0");
-                            updatePartner(row.id, { date: `${y}-${m}-${day}` });
-                          }}
-                          register={paymentFieldRegister}
-                          setValue={setValue}
-                          asCol={false}
-                          groupClassName="mb-0"
-                          filterDate={() => true}
-                          suppressHiddenRegister
-                        />
+                        {rowLocked ? (
+                          <Form.Control
+                            size="sm"
+                            readOnly
+                            className={readOnlyPaymentFieldClass}
+                            style={readOnlyPaymentFieldStyle}
+                            value={row.date ? formatDate(row.date) : "—"}
+                          />
+                        ) : (
+                          <CustomDatePicker
+                            label=""
+                            controlId={`pdate-${row.id}`}
+                            selectedDate={row.date || null}
+                            onChange={(d) => {
+                              if (!d) return;
+                              const y = d.getFullYear();
+                              const m = `${d.getMonth() + 1}`.padStart(2, "0");
+                              const day = `${d.getDate()}`.padStart(2, "0");
+                              updatePartner(row.id, {
+                                date: `${y}-${m}-${day}`,
+                              });
+                            }}
+                            register={paymentFieldRegister}
+                            setValue={setValue}
+                            asCol={false}
+                            groupClassName="mb-0"
+                            filterDate={() => true}
+                            suppressHiddenRegister
+                          />
+                        )}
                       </td>
                       <td className="align-middle">
                         <CustomFormInput
@@ -1731,12 +1804,16 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           register={paymentFieldRegister}
                           asCol={false}
                           inputType="text"
-                          inputClassName="text-end"
+                          inputClassName={
+                            rowLocked
+                              ? "text-end custom-form-input--read-only"
+                              : "text-end"
+                          }
                           inputStyle={tablePriceInputStyle}
-                          isEditable={!partnerLock}
+                          isEditable={!rowLocked}
                           value={paymentAmountFieldValue(row)}
                           onChange={(val) => {
-                            if (partnerLock) return;
+                            if (rowLocked) return;
                             setExt((e) => {
                               const cap = Math.max(0, partnerDueTotal);
                               const otherSum = sumPartnerAmounts(
@@ -1744,10 +1821,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                               );
                               const maxForRow = Math.max(0, cap - otherSum);
                               const amountInput = sanitizeMoneyInput(val);
-                              let nextAmount = parseMoneyInput(amountInput);
-                              nextAmount = roundMoney(
-                                Math.min(nextAmount, maxForRow)
+                              const parsed = parseMoneyInput(amountInput);
+                              const nextAmount = roundMoney(
+                                Math.min(parsed, maxForRow)
                               );
+                              const displayInput =
+                                parsed > nextAmount + 0.0001
+                                  ? formatMoney2(nextAmount)
+                                  : amountInput;
                               return {
                                 ...e,
                                 partnerPayments: e.partnerPayments.map((r) =>
@@ -1755,7 +1836,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                                     ? {
                                         ...r,
                                         amount: nextAmount,
-                                        amountInput,
+                                        amountInput: displayInput,
                                       }
                                     : r
                                 ),
@@ -1763,7 +1844,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             });
                           }}
                           onBlur={() => {
-                            if (partnerLock) return;
+                            if (rowLocked) return;
                             setExt((e) => {
                               const cap = Math.max(0, partnerDueTotal);
                               const otherSum = sumPartnerAmounts(
@@ -1797,10 +1878,14 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       >
                         <Form.Control
                           size="sm"
-                          className="custom-form-input"
-                          style={{ fontSize: FONT_BODY, marginBottom: 0 }}
+                          readOnly={rowLocked}
+                          className={
+                            rowLocked
+                              ? readOnlyPaymentFieldClass
+                              : "custom-form-input"
+                          }
+                          style={readOnlyPaymentFieldStyle}
                           value={row.description}
-                          disabled={partnerLock}
                           onChange={(e) =>
                             updatePartner(row.id, {
                               description: e.target.value,
@@ -1809,7 +1894,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         />
                       </td>
                       <td className="text-center align-middle">
-                        {!partnerLock && (
+                        {!rowLocked ? (
                           <i
                             className="bi bi-trash text-danger fs-6"
                             role="button"
@@ -1825,10 +1910,11 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                               confirmRemovePartnerPaymentRow(row.id);
                             }}
                           />
-                        )}
+                        ) : null}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </Table>
               ) : null}

@@ -4056,14 +4056,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           );
                                           const amountInput =
                                             sanitizeMoneyInput(val);
-                                          let nextAmount = parseMoneyInput(
+                                          const parsed = parseMoneyInput(
                                             amountInput
                                           );
-                                          if (maxForRow >= 0) {
-                                            nextAmount = roundMoney(
-                                              Math.min(nextAmount, maxForRow)
-                                            );
-                                          }
+                                          const nextAmount =
+                                            maxForRow >= 0
+                                              ? roundMoney(
+                                                  Math.min(parsed, maxForRow)
+                                                )
+                                              : parsed;
+                                          const displayInput =
+                                            parsed > nextAmount + 0.0001
+                                              ? formatMoney2(nextAmount)
+                                              : amountInput;
                                           return {
                                             ...e,
                                             customerPayments:
@@ -4072,7 +4077,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                                   ? {
                                                       ...r,
                                                       amount: nextAmount,
-                                                      amountInput,
+                                                      amountInput: displayInput,
                                                     }
                                                   : r
                                               ),
@@ -4390,14 +4395,19 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                           );
                                           const amountInput =
                                             sanitizeMoneyInput(val);
-                                          let nextAmount = parseMoneyInput(
+                                          const parsed = parseMoneyInput(
                                             amountInput
                                           );
-                                          if (maxForRow >= 0) {
-                                            nextAmount = roundMoney(
-                                              Math.min(nextAmount, maxForRow)
-                                            );
-                                          }
+                                          const nextAmount =
+                                            maxForRow >= 0
+                                              ? roundMoney(
+                                                  Math.min(parsed, maxForRow)
+                                                )
+                                              : parsed;
+                                          const displayInput =
+                                            parsed > nextAmount + 0.0001
+                                              ? formatMoney2(nextAmount)
+                                              : amountInput;
                                           return {
                                             ...e,
                                             partnerPayments:
@@ -4406,7 +4416,7 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                                                   ? {
                                                       ...r,
                                                       amount: nextAmount,
-                                                      amountInput,
+                                                      amountInput: displayInput,
                                                     }
                                                   : r
                                               ),

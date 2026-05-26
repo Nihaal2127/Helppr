@@ -67,6 +67,7 @@ const CUSTOMER_LABEL_TO_SLUG: Record<string, CustomerPaymentStatusSlug> = {
   partially_refund: "partially_refund",
   partially_refunded: "partially_refund",
   completed: "completed",
+  complete: "completed",
   pending: "unpaid",
 };
 
@@ -77,21 +78,45 @@ const PARTNER_LABEL_TO_SLUG: Record<string, PartnerPaymentStatusSlug> = {
   partially_paid: "partially_paid",
   partial: "partially_paid",
   completed: "completed",
+  complete: "completed",
   pending: "unpaid",
 };
+
+/** React-select options — plain `{ value, label }` for filter dropdowns. */
+export function customerPaymentStatusFilterSelectOptions(): {
+  value: string;
+  label: string;
+}[] {
+  return CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS.map((o) => ({
+    value: String(o.value),
+    label: o.label,
+  }));
+}
+
+export function partnerPaymentStatusFilterSelectOptions(): {
+  value: string;
+  label: string;
+}[] {
+  return PARTNER_PAYMENT_STATUS_FILTER_OPTIONS.map((o) => ({
+    value: String(o.value),
+    label: o.label,
+  }));
+}
 
 export function customerPaymentStatusLabelFromSlug(
   slug: string | null | undefined
 ): CustomerPaymentStatusLabel | "" {
-  const key = String(slug ?? "").trim().toLowerCase() as CustomerPaymentStatusSlug;
-  return CUSTOMER_SLUG_TO_LABEL[key] ?? "";
+  const normalized = normalizeCustomerPaymentStatusSlug(slug);
+  if (normalized) return CUSTOMER_SLUG_TO_LABEL[normalized];
+  return "";
 }
 
 export function partnerPaymentStatusLabelFromSlug(
   slug: string | null | undefined
 ): PartnerPaymentStatusLabel | "" {
-  const key = String(slug ?? "").trim().toLowerCase() as PartnerPaymentStatusSlug;
-  return PARTNER_SLUG_TO_LABEL[key] ?? "";
+  const normalized = normalizePartnerPaymentStatusSlug(slug);
+  if (normalized) return PARTNER_SLUG_TO_LABEL[normalized];
+  return "";
 }
 
 export function normalizeCustomerPaymentStatusSlug(
@@ -118,7 +143,7 @@ export const CUSTOMER_PAYMENT_STATUS_FILTER_OPTIONS: {
   { value: "partially_paid", label: "Partially paid" },
   { value: "refund", label: "Refund" },
   { value: "partially_refund", label: "Partially Refund" },
-  { value: "completed", label: "Completed" },
+ 
 ];
 
 export const PARTNER_PAYMENT_STATUS_FILTER_OPTIONS: {
@@ -129,7 +154,7 @@ export const PARTNER_PAYMENT_STATUS_FILTER_OPTIONS: {
   { value: "paid", label: "Paid" },
   { value: "unpaid", label: "Unpaid" },
   { value: "partially_paid", label: "Partially paid" },
-  { value: "completed", label: "Completed" },
+  
 ];
 
 export const customerPaymentStatusSelectOptions = CUSTOMER_PAYMENT_STATUS_LABELS.map(

@@ -8,7 +8,10 @@ import { UserModel } from "../../lib/models/UserModel";
 import { getCreatedById } from "../../lib/global/localStorageHelper";
 import { fetchById, createOrUpdateUser } from "../../services/adminService";
 import CustomPhotoUpload from "../../components/CustomPhotoUpload";
-import { createOrUpdateDocument } from "../../services/documentUploadService";
+import {
+  createOrUpdateDocument,
+  normalizeReplaceStoragePaths,
+} from "../../services/documentUploadService";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { showLog } from "../../helper/utility";
@@ -79,15 +82,24 @@ const Profile = () => {
     const formData = new FormData();
     formData.append("type", "4");
     fileInputs.forEach((file) => formData.append("files", file));
-    if (isEditable) {
-      if (replaceUrls.length > 0) {
-        formData.append("update_file_urls", JSON.stringify(replaceUrls));
-      }
+    const replacePaths = isEditable
+      ? normalizeReplaceStoragePaths(
+          replaceUrls.length > 0
+            ? replaceUrls
+            : userDetails?.profile_url
+              ? [userDetails.profile_url]
+              : []
+        )
+      : [];
+    const useReplaceUpload = replacePaths.length > 0;
+    if (useReplaceUpload) {
+      formData.append("update_file_urls", JSON.stringify(replacePaths));
     }
 
     let { response, fileList } = await createOrUpdateDocument(
       formData,
-      isEditable
+      useReplaceUpload,
+      { replaceFallbackPaths: replacePaths }
     );
 
     if (response) {
@@ -323,9 +335,11 @@ const Profile = () => {
           {...(userDetails?.profile_url
             ? { existingImages: [userDetails.profile_url] }
             : [])}
-          onFileChange={(files, replaceUrls) => {
+          onFileChange={(files, replaceUrlsFromUploader) => {
             setFileInputs(files);
-            setReplaceUrl(replaceUrls);
+            setReplaceUrl(
+              normalizeReplaceStoragePaths(replaceUrlsFromUploader)
+            );
           }}
         />
       )}

@@ -1666,6 +1666,12 @@ body:has(.modal.show ~ .modal.show) {
   box-shadow: none !important;
 }
 
+.order-payment-table tbody .form-control.custom-form-input--read-only,
+.order-payment-table tbody .react-select__control--is-disabled {
+  border-color: var(--txtfld-border) !important;
+  box-shadow: none !important;
+}
+
 .order-payment-table tbody .form-control:focus,
 .order-payment-table tbody .react-select__control--is-focused {
   border-color: #212529 !important;
@@ -2801,6 +2807,21 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
   font-size: 0.8125rem;
 }
 
+/* Order Payments — refunded order rows */
+.order-payments-react-table {
+  --order-payments-refunded-bg: rgba(253, 0, 0, 0.356);
+  --order-payments-refunded-bg-hover: rgba(220, 38, 38, 0.16);
+}
+
+.order-payments-table__row--refunded td {
+  background-color: var(--order-payments-refunded-bg) !important;
+  border-color: rgba(220, 38, 38, 0.2) !important;
+}
+
+.order-payments-table__row--refunded:hover td {
+  background-color: var(--order-payments-refunded-bg-hover) !important;
+}
+
 /* Order Payments — summary stat cards (equal height row) */
 .order-payments-summary-row {
   margin-bottom: 0.25rem;
@@ -3406,6 +3427,11 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
 .order-amount-summary__value--deduction {
   font-weight: 600;
   color: var(--txt-color);
+}
+
+.order-amount-summary__label--refund,
+.order-amount-summary__value--refund {
+  color: #dc2626 !important;
 }
 
 .order-amount-summary__struck {
@@ -4572,6 +4598,23 @@ table.table td.subscription-plans-desc-cell {
 
 .bs-tooltip-bottom.subscription-plan-desc-tooltip .tooltip-arrow::before {
   border-bottom-color: #fff !important;
+}
+
+/* User Information — address cards equal height in a row */
+.user-address-readonly-cards-row {
+  align-items: stretch;
+}
+
+.user-address-readonly-card-col {
+  display: flex;
+}
+
+.user-address-readonly-card {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Add Quote — customer address cards (wider min column → less wrap / less vertical growth) */

@@ -352,12 +352,37 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
     onHide();
   };
 
+  const syncOrderDetailFields = useCallback(
+    (order: RefundOrderOption) => {
+      const refundable =
+        order.refundable_amount > 0 ? order.refundable_amount : order.user_paid;
+      setValue("display_user_name", order.user_name, { shouldValidate: false });
+      setValue(
+        "display_total_amount",
+        `${sym}${order.total_amount.toFixed(2)}`,
+        { shouldValidate: false }
+      );
+      setValue(
+        "display_user_paid",
+        `${sym}${order.user_paid.toFixed(2)}`,
+        { shouldValidate: false }
+      );
+      setValue(
+        "display_refundable",
+        `${sym}${refundable.toFixed(2)}`,
+        { shouldValidate: false }
+      );
+    },
+    [setValue, sym]
+  );
+
   const handleOrderChange = (orderId: string) => {
     setSelectedOrderId(orderId);
     setRefundType(null);
     setValue("refund_type_field", "", { shouldValidate: false });
     const next = orderOptions.find((o) => o._id === orderId);
     if (next) {
+      syncOrderDetailFields(next);
       seedPartialFromOrder(next);
     } else {
       setPartialDraft({
@@ -367,6 +392,12 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
       });
     }
   };
+
+  useEffect(() => {
+    if (selectedOrder) {
+      syncOrderDetailFields(selectedOrder);
+    }
+  }, [selectedOrder, syncOrderDetailFields]);
 
   const handleRefundTypeSelectChange = (e: { target: { value: string } }) => {
     const raw = e.target.value;
@@ -556,7 +587,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
 
             {showOrderDetails && selectedOrder && (
               <>
-                <Col xs={12}>
+                <Col xs={12} key={selectedOrder._id}>
                   <div className="border rounded p-3 bg-light add-edit-refund-inline-fields">
                     <div className="fw-semibold mb-3 small text-uppercase text-muted">
                       Order details
@@ -573,6 +604,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                     </Col> */}
                       <Col xs={12} md={4}>
                         <CustomFormInput
+                          key={`display_user_name-${selectedOrder._id}`}
                           label="User Name"
                           controlId="display_user_name"
                           placeholder=""
@@ -582,6 +614,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                       </Col>
                       <Col xs={12} md={4}>
                         <CustomFormInput
+                          key={`display_total_amount-${selectedOrder._id}`}
                           label="Total Amount"
                           controlId="display_total_amount"
                           placeholder=""
@@ -593,6 +626,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                       </Col>
                       <Col xs={12} md={4}>
                         <CustomFormInput
+                          key={`display_user_paid-${selectedOrder._id}`}
                           label="User Paid"
                           controlId="display_user_paid"
                           placeholder=""
@@ -602,6 +636,7 @@ const AddEditRefund: React.FC<AddEditRefundProps> = ({
                       </Col>
                       <Col xs={12} md={4}>
                         <CustomFormInput
+                          key={`display_refundable-${selectedOrder._id}`}
                           label="Refundable"
                           controlId="display_refundable"
                           placeholder=""

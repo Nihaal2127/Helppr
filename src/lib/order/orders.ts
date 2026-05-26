@@ -1441,9 +1441,38 @@ export function parseOrderMoneyField(v: unknown): number {
   return n;
 }
 
+function aggregateOrderRefundsFromList(
+  order?: OrderModel | null
+): OrderRefundBreakdown | null {
+  if (!order) return null;
+  const rows = (order as unknown as Record<string, unknown>).refunds;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let refundAmount = 0;
+  let adminCommission = 0;
+  let partnerWallet = 0;
+  for (const item of rows) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    refundAmount += parseOrderMoneyField(r.refund_amount);
+    adminCommission += parseOrderMoneyField(r.from_admin_commission);
+    partnerWallet += parseOrderMoneyField(r.from_partner_wallet);
+  }
+  if (refundAmount <= 0.009 && adminCommission <= 0.009 && partnerWallet <= 0.009) {
+    return null;
+  }
+  return {
+    refundAmount:
+      refundAmount > 0.009 ? refundAmount : adminCommission + partnerWallet,
+    adminCommission,
+    partnerWallet,
+  };
+}
+
 /** Refund / return total on the order (supports string amounts from API). */
 export function orderRefundAmount(order?: OrderModel): number {
   if (!order) return 0;
+  const fromList = aggregateOrderRefundsFromList(order);
+  if (fromList) return fromList.refundAmount;
   const raw = order.return_amount ?? order.refund_amount;
   return parseOrderMoneyField(raw);
 }
@@ -1470,6 +1499,8 @@ export type OrderRefundBreakdown = {
 };
 
 export function orderRefundBreakdown(order?: OrderModel): OrderRefundBreakdown {
+  const fromList = aggregateOrderRefundsFromList(order);
+  if (fromList) return fromList;
   const refundAmount = orderRefundAmount(order);
   const adminCommission = parseOrderMoneyField(
     order?.amount_from_admin_commission ?? order?.from_admin_commission
@@ -2748,6 +2779,91 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
         ""
     ).trim(),
   };
+}
+
+function orderUpdatePayloadValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || a === "") {
+    return b == null || b === "";
+  }
+  if (b == null || b === "") return false;
+  if (typeof a === "number" && typeof b === "number") {
+    return Math.abs(a - b) < 0.009;
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+  return String(a).trim() === String(b).trim();
+}
+
+function pickChangedServiceItemsBlock(
+  next: unknown,
+  baseline: unknown
+): { update: Record<string, unknown>[] } | undefined {
+  const nWrap = next as { update?: Record<string, unknown>[] } | undefined;
+  const bWrap = baseline as { update?: Record<string, unknown>[] } | undefined;
+  const n0 = nWrap?.update?.[0];
+  if (!n0) return undefined;
+  const b0 = bWrap?.update?.[0];
+  const line: Record<string, unknown> = {};
+  if (n0._id != null && String(n0._id).trim()) {
+    line._id = n0._id;
+  }
+  for (const key of Object.keys(n0)) {
+    if (key === "_id") continue;
+    if (!orderUpdatePayloadValuesEqual(n0[key], b0?.[key])) {
+      line[key] = n0[key];
+    }
+  }
+  const changedKeys = Object.keys(line).filter((k) => k !== "_id");
+  if (changedKeys.length === 0) return undefined;
+  return { update: [line] };
+}
+
+/** True when payment editor state differs from the loaded order snapshot. */
+export function orderPaymentExtensionChanged(
+  current: OrderPaymentExtV1,
+  baseline: OrderPaymentExtV1
+): boolean {
+  return (
+    JSON.stringify(normalizePaymentExtForSubmit(current)) !==
+    JSON.stringify(normalizePaymentExtForSubmit(baseline))
+  );
+}
+
+/**
+ * Keep only top-level (and service line) fields that changed vs the dialog open snapshot.
+ * PUT `/order/update/:id` — partial body.
+ */
+export function pickChangedOrderEditAllUpdatePayload(
+  next: Record<string, unknown>,
+  baseline: Record<string, unknown>
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  const keys = Array.from(
+    new Set([...Object.keys(next), ...Object.keys(baseline)])
+  );
+
+  for (const key of keys) {
+    if (key === "service_items") continue;
+    const n = next[key];
+    const b = baseline[key];
+    if (!orderUpdatePayloadValuesEqual(n, b)) {
+      if (n !== undefined) patch[key] = n;
+    }
+  }
+
+  const serviceItems = pickChangedServiceItemsBlock(
+    next.service_items,
+    baseline.service_items
+  );
+  if (serviceItems) patch.service_items = serviceItems;
+
+  return patch;
 }
 
 /** PUT `/order/update/:id` body for edit-all (Help-PR Postman). */
