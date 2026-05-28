@@ -454,13 +454,18 @@ const UserManagement = () => {
       },
       {
         Header: "Total Earnings",
-        accessor: "total_earnings",
-        Cell: priceCell("total_earnings"),
+        accessor: "total_amount",
+        Cell: priceCell("total_amount"),
       },
       {
         Header: "Bal Payment",
-        accessor: "bal_payment",
-        Cell: priceCell("bal_payment"),
+        accessor: "balance_amount",
+        Cell: priceCell("balance_amount"),
+      },
+      {
+        Header: "Paid Amount",
+        accessor: "paid_amount",
+        Cell: priceCell("paid_amount"),
       },
       { Header: "Rating", accessor: "rating" },
       {

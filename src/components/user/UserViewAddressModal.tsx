@@ -4,7 +4,6 @@ import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextField from "../../components/CustomTextField";
-import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 
 export type UserViewAddressFormValues = {
@@ -13,7 +12,6 @@ export type UserViewAddressFormValues = {
   areaId: string;
   postal: string;
   line: string;
-  addressStatus: "true" | "false";
 };
 
 type FormShape = {
@@ -22,7 +20,6 @@ type FormShape = {
   va_area: string;
   va_pin: string;
   va_line: string;
-  va_address_status: "true" | "false";
 };
 
 type UserViewAddressModalProps = {
@@ -64,7 +61,6 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
       va_area: "",
       va_pin: "",
       va_line: "",
-      va_address_status: "true",
     },
   });
 
@@ -87,12 +83,18 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
 
   const pincodeOptionsMerged = useMemo(() => {
     const pin = sanitizeIndianPincodeInput(String(initial?.postal ?? "").trim());
+    const initialAreaId = String(initial?.areaId ?? "").trim();
+    const currentAreaId = String(selectedAreaId ?? "").trim();
     const base = pincodeOptions;
-    if (pin && !base.some((o) => o.value === pin)) {
+    const shouldPreserveInitialPin =
+      Boolean(pin) &&
+      Boolean(initialAreaId) &&
+      currentAreaId === initialAreaId;
+    if (shouldPreserveInitialPin && !base.some((o) => o.value === pin)) {
       return [...base, { value: pin, label: pin }];
     }
     return base;
-  }, [pincodeOptions, initial?.postal]);
+  }, [pincodeOptions, initial?.postal, initial?.areaId, selectedAreaId]);
 
   /** Area/pin options load after `reset`; re-apply saved ids so selects show current values. */
   useEffect(() => {
@@ -106,11 +108,21 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
   useEffect(() => {
     if (!show) return;
     const pin = sanitizeIndianPincodeInput(String(initial?.postal ?? "").trim());
+    const initialAreaId = String(initial?.areaId ?? "").trim();
+    const currentAreaId = String(selectedAreaId ?? "").trim();
+    if (!initialAreaId || currentAreaId !== initialAreaId) return;
     if (!pin) return;
     if (pincodeOptionsMerged.some((o) => o.value === pin)) {
       setValue("va_pin", pin, { shouldValidate: false, shouldDirty: false });
     }
-  }, [show, pincodeOptionsMerged, initial?.postal, setValue]);
+  }, [
+    show,
+    pincodeOptionsMerged,
+    initial?.postal,
+    initial?.areaId,
+    selectedAreaId,
+    setValue,
+  ]);
 
   useEffect(() => {
     if (!show) return;
@@ -120,7 +132,6 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
       va_area: initial?.areaId ?? "",
       va_pin: initial?.postal ?? "",
       va_line: initial?.line ?? "",
-      va_address_status: initial?.addressStatus ?? "true",
     });
     if (initial?.stateId) void onFetchCities(initial.stateId);
     if (initial?.cityId) void onFetchAreas(initial.cityId, initial?.stateId);
@@ -133,7 +144,6 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
     initial?.areaId,
     initial?.postal,
     initial?.line,
-    initial?.addressStatus,
     reset,
     onFetchCities,
     onFetchAreas,
@@ -146,7 +156,6 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
       areaId: data.va_area,
       postal: sanitizeIndianPincodeInput(data.va_pin ?? ""),
       line: (data.va_line ?? "").trim(),
-      addressStatus: data.va_address_status ?? "true",
     });
     if (ok) onHide();
   });
@@ -183,6 +192,7 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 onChange={(e) => {
                   const v = e.target.value;
                   void onFetchCities(v);
+                  void onFetchAreas("", v);
                   setValue("va_city", "");
                   setValue("va_area", "");
                   setValue("va_pin", "");
@@ -255,19 +265,6 @@ const UserViewAddressModal: React.FC<UserViewAddressModalProps> = ({
                 validation={{ required: "Address is required" }}
                 as="textarea"
                 rows={2}
-              />
-            </Col>
-            <Col xs={12}>
-              <CustomTextFieldRadio
-                label="Status"
-                name="va_address_status"
-                options={[
-                  { value: "true", label: "Active" },
-                  { value: "false", label: "Inactive" },
-                ]}
-                defaultValue={watch("va_address_status") ?? "true"}
-                isEditable={true}
-                setValue={setValue}
               />
             </Col>
           </Row>

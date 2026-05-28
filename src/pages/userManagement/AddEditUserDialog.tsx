@@ -1532,6 +1532,7 @@ function AddEditUserDialogView({
                         controlId="date_of_birth"
                         selectedDate={toYmdString(dateOfBirthStr)}
                         birthDatePicker
+                        enforceAdultAge={Boolean(isEditable)}
                         onChange={(date) => {
                           const value = date ? dateToLocalYmd(date) : "";
                           setValue("date_of_birth", value, {
@@ -1828,6 +1829,7 @@ function AddEditUserDialogView({
                     controlId="date_of_birth"
                     selectedDate={toYmdString(dateOfBirthStr)}
                     birthDatePicker
+                    enforceAdultAge={Boolean(isEditable && role !== USER_ROLE)}
                     onChange={(date) => {
                       const value = date
                         ? dateToLocalYmd(date)
@@ -1867,6 +1869,7 @@ function AddEditUserDialogView({
                       controlId="date_of_birth"
                       selectedDate={toYmdString(dateOfBirthStr)}
                       birthDatePicker
+                      enforceAdultAge={Boolean(isEditable)}
                       onChange={(date) => {
                         const value = date
                           ? dateToLocalYmd(date)

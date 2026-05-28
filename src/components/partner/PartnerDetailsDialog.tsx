@@ -319,32 +319,16 @@ function PartnerDetailsDialogView({
               <section className="custom-other-details flex-grow-1 w-100 h-100">
                 <h3>Payment</h3>
                 <DetailsRow
-                  title="Total Payment"
-                  value={`${AppConstant.currencySymbol}${
-                    userDetails?.total_amount ? userDetails?.total_amount : 0
-                  }`}
+                  title="Total Earnings"
+                  value={`${AppConstant.currencySymbol}${userDetails?.total_amount ?? 0}`}
                 />
                 <DetailsRow
                   title="Paid Amount"
-                  value={`${AppConstant.currencySymbol}${
-                    userDetails?.paid_amount ? userDetails?.paid_amount : 0
-                  }`}
+                  value={`${AppConstant.currencySymbol}${userDetails?.paid_amount ?? 0}`}
                 />
                 <DetailsRow
                   title="Balance Amount"
-                  value={`${AppConstant.currencySymbol}${
-                    userDetails?.balance_amount
-                      ? userDetails?.balance_amount
-                      : 0
-                  }`}
-                />
-                <DetailsRow
-                  title="Refund"
-                  value={`${AppConstant.currencySymbol}${
-                    userDetails?.refund_payment
-                      ? userDetails?.refund_payment
-                      : 0
-                  }`}
+                  value={`${AppConstant.currencySymbol}${userDetails?.balance_amount ?? 0}`}
                 />
               </section>
             </Col>

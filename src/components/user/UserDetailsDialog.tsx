@@ -8,7 +8,12 @@ import React, {
 import { Modal, Row } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
-import { createOrUpdateUser, fetchUserById } from "../../services/userService";
+import {
+  createUserAddressExtra,
+  deleteMobileUserAddress,
+  fetchUserById,
+  updateUserAddressById,
+} from "../../services/userService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { fetchStateDropDown } from "../../services/stateService";
 import { fetchAreaViewOptionsByCity } from "../../services/areaService";
@@ -24,7 +29,6 @@ import UserAddressReadOnlyCards from "./UserAddressReadOnlyCards";
 import UserViewAddressModal from "./UserViewAddressModal";
 import type { UserViewAddressFormValues } from "./UserViewAddressModal";
 import { AppConstant } from "../../lib/global/AppConstant";
-import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { sanitizeIndianPincodeInput } from "../../lib/user/pincodeValidation";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { openConfirmDialog } from "../CustomConfirmDialog";
@@ -211,79 +215,45 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         showErrorAlert("Unable to save. User data is missing.");
         return false;
       }
-      const pin = sanitizeIndianPincodeInput(values.postal);
-      const common: Record<string, unknown> = {
-        type: userDetails.type,
-        is_from_web: userDetails.is_from_web,
-        registration_type: 1,
-        created_by_id: getLocalStorage(AppConstant.createdById),
-        name: userDetails.name ?? "",
-        email: userDetails.email ?? "",
-        phone_number: userDetails.phone_number ?? "",
-        is_active: userDetails.is_active,
-        ...(userDetails.profile_url
-          ? { profile_url: userDetails.profile_url }
-          : {}),
+      const pin = sanitizeIndianPincodeInput(values.postal ?? "");
+      const existingAddresses = getNormalizedAddresses(userDetails);
+      const basePayload = {
+        address: values.line.trim(),
+        state_id: values.stateId,
+        city_id: values.cityId,
+        pincode: pin,
+        area_id: values.areaId,
         contact_name: userDetails.name ?? "",
         contact_number: userDetails.phone_number ?? "",
       };
 
-      let payload: Record<string, unknown>;
-      let normalized: UserAddressEntry[] = [];
-      const existingAddresses = getNormalizedAddresses(userDetails);
+      let ok = false;
       if (viewAddrMode === "edit") {
         const editIndex =
           typeof editingAddressIndex === "number" ? editingAddressIndex : 0;
-        const nextAddresses = existingAddresses.map((x, idx) => {
-          const isEdited = idx === editIndex;
-          return {
-            ...x,
-            state_id: isEdited ? values.stateId : x.state_id,
-            city_id: isEdited ? values.cityId : x.city_id,
-            area_id: isEdited ? values.areaId : x.area_id,
-            pincode: isEdited ? pin : x.pincode,
-            address: isEdited ? values.line.trim() : x.address,
-            address_status: isEdited ? values.addressStatus : x.address_status,
-          };
-        });
-        normalized = enforceSingleActiveAddress(
-          nextAddresses,
-          values.addressStatus === "true" ? editIndex : undefined
-        );
-
-        payload = buildAddressUpdatePayload(userDetails, normalized, common, {
-          addNew: false,
+        const selectedAddress = existingAddresses[editIndex];
+        const addressId = String(
+          selectedAddress?._id ?? selectedAddress?.apiRow?._id ?? ""
+        ).trim();
+        if (!addressId) {
+          showErrorAlert("Address id is missing. Please refresh and try again.");
+          return false;
+        }
+        ok = await updateUserAddressById(userDetails._id, {
+          address_id: addressId,
+          ...basePayload,
+          address_status: selectedAddress?.address_status === "false" ? false : true,
         });
       } else {
-        const nextAddresses = [
-          ...existingAddresses,
-          {
-            state_id: values.stateId,
-            city_id: values.cityId,
-            area_id: values.areaId,
-            pincode: pin,
-            address: values.line.trim(),
-            address_status: values.addressStatus,
-          } as UserAddressEntry,
-        ];
-        const newIndex = nextAddresses.length - 1;
-        normalized = enforceSingleActiveAddress(
-          nextAddresses,
-          values.addressStatus === "true" ? newIndex : undefined
-        );
-
-        payload = buildAddressUpdatePayload(userDetails, normalized, common, {
-          addNew: true,
+        ok = await createUserAddressExtra(userDetails._id, {
+          ...basePayload,
+          address_status: true,
         });
       }
 
-      const ok = await createOrUpdateUser(payload, true, userDetails._id);
       if (ok) {
         showSuccessAlert(
           viewAddrMode === "edit" ? "Address updated." : "Address added."
-        );
-        setUserDetails((prev) =>
-          prev ? mergeUserWithAddresses(prev, normalized) : prev
         );
         const refreshed = await fetchUserById(userId);
         if (refreshed.response && refreshed.user) {
@@ -313,47 +283,28 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         "Cancel",
         () => {
           void (async () => {
-            const nextAddresses = addresses.filter((_, idx) => idx !== index);
-            const normalized = enforceSingleActiveAddress(nextAddresses);
-            const common: Record<string, unknown> = {
-              type: userDetails.type,
-              is_from_web: userDetails.is_from_web,
-              registration_type: 1,
-              created_by_id: getLocalStorage(AppConstant.createdById),
-              name: userDetails.name ?? "",
-              email: userDetails.email ?? "",
-              phone_number: userDetails.phone_number ?? "",
-              is_active: userDetails.is_active,
-              ...(userDetails.profile_url
-                ? { profile_url: userDetails.profile_url }
-                : {}),
-              contact_name: userDetails.name ?? "",
-              contact_number: userDetails.phone_number ?? "",
-            };
-
-            const payload = buildAddressUpdatePayload(
-              userDetails,
-              normalized,
-              common,
-              { addNew: false }
-            );
-
-            const ok = await createOrUpdateUser(payload, true, userDetails._id);
+            const addressId = String(target._id ?? target.apiRow?._id ?? "").trim();
+            if (!addressId) {
+              showErrorAlert("Address id is missing. Please refresh and try again.");
+              return;
+            }
+            const ok = await deleteMobileUserAddress(addressId);
             if (!ok) {
               showErrorAlert("Could not delete address. Please try again.");
               return;
             }
             showSuccessAlert("Address deleted.");
-            setUserDetails((prev) =>
-              prev ? mergeUserWithAddresses(prev, normalized) : prev
-            );
+            const refreshed = await fetchUserById(userId);
+            if (refreshed.response && refreshed.user) {
+              setUserDetails(refreshed.user);
+            }
             onRefreshData();
           })();
         },
         deleteIcon
       );
     },
-    [userDetails, onRefreshData]
+    [userDetails, userId, onRefreshData]
   );
 
   const viewAddressInitial = useMemo((): UserViewAddressFormValues | null => {
@@ -365,7 +316,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
         areaId: "",
         postal: "",
         line: "",
-        addressStatus: "true",
       };
     }
     const addresses = getNormalizedAddresses(userDetails);
@@ -379,7 +329,6 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
       areaId: selected?.area_id ?? "",
       postal: selected?.pincode ?? "",
       line: selected?.address ?? "",
-      addressStatus: selected?.address_status ?? "true",
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- field-level deps avoid remounting on unrelated userDetails churn
   }, [
@@ -504,9 +453,9 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                           }}
                           onClick={() => openServices(null)}
                         >
-                          {userDetails?.total_service == null
-                            ? "0"
-                            : userDetails.total_service}
+                          {userDetails?.total_service ??
+                            userDetails?.no_of_services ??
+                            0}
                         </button>
                       ),
                     },
@@ -566,29 +515,15 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
               <h3>Payment</h3>
               <DetailsRow
                 title="Total Payment"
-                value={`${AppConstant.currencySymbol}${
-                  userDetails?.total_amount ? userDetails?.total_amount : 0
-                }`}
+                value={`${AppConstant.currencySymbol}${userDetails?.total_amount ?? 0}`}
               />
               <DetailsRow
                 title="Paid amount"
-                value={`${AppConstant.currencySymbol}${
-                  userDetails?.paid_amount != null
-                    ? userDetails.paid_amount
-                    : 0
-                }`}
+                value={`${AppConstant.currencySymbol}${userDetails?.paid_amount ?? 0}`}
               />
               <DetailsRow
                 title="Balance Amount"
-                value={`${AppConstant.currencySymbol}${
-                  userDetails?.balance_amount ? userDetails?.balance_amount : 0
-                }`}
-              />
-              <DetailsRow
-                title="Refund"
-                value={`${AppConstant.currencySymbol}${
-                  userDetails?.refund_payment ? userDetails?.refund_payment : 0
-                }`}
+                value={`${AppConstant.currencySymbol}${userDetails?.balance_amount ?? 0}`}
               />
             </section>
           </Row>
@@ -707,7 +642,6 @@ function mapAddressEntryToApiPayload(
   const match =
     entry.apiRow ??
     rawRows.find((r) => String(r._id ?? "") === String(entry._id ?? ""));
-  const active = addressStatusToBoolean(entry.address_status);
 
   return {
     ...(match ?? {}),
@@ -717,7 +651,6 @@ function mapAddressEntryToApiPayload(
     area_id: entry.area_id ?? "",
     pincode: entry.pincode,
     address: entry.address,
-    address_status: active,
     contact_name: String(match?.contact_name ?? user.name ?? "").trim(),
     contact_number: String(match?.contact_number ?? user.phone_number ?? "").trim(),
     landmark: String(match?.landmark ?? "").trim(),
@@ -752,7 +685,6 @@ function buildAddressUpdatePayload(
     return {
       ...common,
       add_new_address: "false",
-      address_status: false,
       address: "",
       state_id: "",
       city_id: "",
@@ -777,7 +709,6 @@ function buildAddressUpdatePayload(
   return {
     ...common,
     add_new_address: options.addNew ? "true" : "false",
-    address_status: addressStatusToBoolean(root?.address_status),
     address: root?.address ?? "",
     state_id: root?.state_id ?? "",
     city_id: root?.city_id ?? "",
@@ -790,7 +721,6 @@ function buildAddressUpdatePayload(
       area_id: entry.area_id,
       pincode: entry.pincode,
       address: entry.address,
-      address_status: addressStatusToBoolean(entry.address_status),
     })),
   };
 }

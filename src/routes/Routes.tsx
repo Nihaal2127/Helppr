@@ -230,7 +230,7 @@ export const ROUTES = {
     isProtected: true,
   },
   OFFERS_MANAGEMENT: {
-    path: "/settings-offers",
+    path: "/settings-coupons",
     element: <OffersManagement />,
     isProtected: true,
   },

@@ -8,7 +8,7 @@ const Settings = () => {
   const { register, setValue } = useForm<any>();
   const navigate = useNavigate();
   const [settingList] = useState<string[]>([
-    "Offers",
+    "Coupons",
     "Roles",
     "Expense\nCategory",
     "User Home\nCounts",
@@ -16,7 +16,7 @@ const Settings = () => {
   ]);
 
   const handleOnClick = (title: string) => {
-    if (title === "Offers") {
+    if (title === "Coupons") {
       navigate(ROUTES.OFFERS_MANAGEMENT.path);
     } else if (title === "Roles") {
       navigate(ROUTES.ROLE.path);

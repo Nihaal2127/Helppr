@@ -20,6 +20,7 @@ interface CustomTextFieldDatePicketProps {
   setValue: UseFormSetValue<any>;
   suppressHiddenRegister?: boolean;
   birthDatePicker?: boolean;
+  enforceAdultAge?: boolean;
   /** Show required asterisk when validation does not include `required`. */
   required?: boolean;
 }
@@ -40,6 +41,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
   validation,
   suppressHiddenRegister,
   birthDatePicker,
+  enforceAdultAge = true,
   required = false,
 }) => {
   const showRequiredMark = required || isValidationRequired(validation);
@@ -66,6 +68,7 @@ const CustomTextFieldDatePicket: React.FC<CustomTextFieldDatePicketProps> = ({
           filterDate={filterDate}
           suppressHiddenRegister={suppressHiddenRegister}
           birthDatePicker={birthDatePicker}
+          enforceAdultAge={enforceAdultAge}
           required={showRequiredMark}
         />
       </Col>

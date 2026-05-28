@@ -360,34 +360,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
           }
         />
       </Col>
-      {!isFranchiseAdminSession ? (
-        <Col
-          xs={12}
-          sm={6}
-          md="auto"
-          className="order-payments-filter-col"
-          style={{ minWidth: 200 }}
-        >
-          <CustomFormSelect
-            label="Location (area)"
-            controlId="partner_sub_location_filter"
-            options={locationAreaOptions}
-            register={register}
-            fieldName="partner_sub_location_filter"
-            asCol={false}
-            noBottomMargin
-            defaultValue={partnerFilters.location || "all"}
-            setValue={setValue}
-            placeholder="All locations"
-            menuPortal
-            onChange={(e) =>
-              handlePartnerSubscriptionFilterChange({
-                location: e.target.value,
-              })
-            }
-          />
-        </Col>
-      ) : null}
+   
       <Col xs={12} sm={6} md="auto" className="order-payments-filter-col">
         <CustomFormSelect
           label="Status"
@@ -714,13 +687,7 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
             handlePartnerSubscriptionFilterChange(filter);
             setPartnerSubSortBy([]);
           }}
-          isAddShow={true}
-          addButtonLable="Add"
-          onAddClick={() => {
-            AddEditPartnerSubscriptionDialog.show(true, null, () =>
-              refreshData()
-            );
-          }}
+          isAddShow={false}
         />
       </div>
 

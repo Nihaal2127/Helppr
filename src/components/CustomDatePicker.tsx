@@ -26,6 +26,8 @@ interface CustomDatePickerProps {
   suppressHiddenRegister?: boolean;
   /** Date of birth: year/month dropdowns, past dates only. */
   birthDatePicker?: boolean;
+  /** If false, DOB allows any past date up to today (no 18+ restriction). */
+  enforceAdultAge?: boolean;
   /** Show required asterisk when validation does not include `required`. */
   required?: boolean;
 }
@@ -46,6 +48,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   groupClassName,
   suppressHiddenRegister = false,
   birthDatePicker = false,
+  enforceAdultAge = true,
   required = false,
 }) => {
   const showRequiredMark = required || isValidationRequired(validation);
@@ -55,15 +58,17 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   const datePickerRef = useRef<DatePicker | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  /** Latest selectable DOB when `birthDatePicker`: must be at least 18 years old. */
-  const maxDobAtLeast18 = () => {
+  /** Latest selectable DOB when `birthDatePicker`: defaults to 18+, can be relaxed for add-user flows. */
+  const maxDobWithAgeRule = () => {
     const d = new Date();
-    d.setFullYear(d.getFullYear() - 18);
+    if (enforceAdultAge) {
+      d.setFullYear(d.getFullYear() - 18);
+    }
     d.setHours(23, 59, 59, 999);
     return d;
   };
 
-  const maxDob = birthDatePicker ? maxDobAtLeast18() : undefined;
+  const maxDob = birthDatePicker ? maxDobWithAgeRule() : undefined;
   const minDob = birthDatePicker
     ? new Date(new Date().getFullYear() - 100, 0, 1)
     : undefined;
@@ -112,7 +117,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                     d.setHours(0, 0, 0, 0);
                     const min = new Date(minDob!);
                     min.setHours(0, 0, 0, 0);
-                    const max = maxDobAtLeast18();
+                    const max = maxDobWithAgeRule();
                     return d >= min && d <= max;
                   }
                 : (date) => {

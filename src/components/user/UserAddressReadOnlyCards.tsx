@@ -165,19 +165,6 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
                 >
                   {`Address ${index + 1}`}
                 </span>
-                <span
-                  className="small fw-semibold"
-                  style={{
-                    fontSize: "12px",
-                    color:
-                      row.status === "true"
-                        ? "var(--bs-success, #198754)"
-                        : "var(--content-txt-color, #6c757d)",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  {row.status === "true" ? "(Active)" : "(Inactive)"}
-                </span>
               </div>
               <div className="d-flex align-items-center gap-2">
                 <span
@@ -189,7 +176,7 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
                 >
                   <img src={editIcon} alt="" width={18} height={18} />
                 </span>
-                {onDelete ? (
+                {/* {onDelete ? (
                   <span
                     className="p-0 border-0 bg-transparent"
                     style={{ cursor: "pointer" }}
@@ -199,7 +186,7 @@ const UserAddressReadOnlyCards: React.FC<UserAddressReadOnlyCardsProps> = ({
                   >
                     <img src={deleteIcon} alt="" width={18} height={18} />
                   </span>
-                ) : null}
+                ) : null} */}
               </div>
             </div>
             <Row className="g-1 gx-2">

@@ -10,6 +10,7 @@ import {
 import CustomFormSelect from "../CustomFormSelect";
 import CustomDatePicker from "../CustomDatePicker";
 import type { SubscriptionPlanOption } from "../../services/partnerManagementService";
+import { dateToLocalYmd } from "../../helper/dateFormat";
 
 export type PartnerSubscriptionRegisterFn = (
   name: string,
@@ -100,7 +101,7 @@ const PartnerSubscriptionFormSection: React.FC<
       controlId="subscription_start_date"
       selectedDate={toYmdString(subscriptionStartStr)}
       onChange={(date) => {
-        const value = date ? date.toISOString().slice(0, 10) : "";
+        const value = date ? dateToLocalYmd(date) : "";
         setValue("subscription_start_date", value, {
           shouldValidate: true,
           shouldDirty: true,
@@ -128,7 +129,7 @@ const PartnerSubscriptionFormSection: React.FC<
       controlId="subscription_end_date"
       selectedDate={toYmdString(subscriptionEndStr)}
       onChange={(date) => {
-        const value = date ? date.toISOString().slice(0, 10) : "";
+        const value = date ? dateToLocalYmd(date) : "";
         setValue("subscription_end_date", value, {
           shouldValidate: true,
           shouldDirty: true,

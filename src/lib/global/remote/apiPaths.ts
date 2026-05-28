@@ -13,6 +13,9 @@ export const ApiPaths = {
   GET_USER_DROP_DOWN: () => `/user/getDropDown`,
   GET_PARTNER_DROP_DOWN: () => `/user/getPartnerDropDown`,
   UPDATE_USER: (id: string) => `/user/update/${id}`,
+  /** Mobile address CRUD endpoint used for type-4 address deletion by address row id. */
+  DELETE_MOBILE_USER_ADDRESS: (addressId: string) =>
+    `/mobile/user/addresses/${addressId}`,
   DELETE_USER: (id: string) => `/user/delete/${id}`,
   EXPORT_USER: `/export/user`,
   EXPORT_PARTNER: `/export/partner`,
@@ -166,8 +169,12 @@ export const ApiPaths = {
   UPDATE_QUOTE: (id: string) => `/quote/update/${id}`,
   DELETE_QUOTE: (id: string) => `/quote/delete/${id}`,
   GET_QUOTE_COUNTS: () => `/quote/getCounts`,
-  /** Active offers / coupons for order create (`?is_active=true`). */
+  /** Offers / coupons (Settings → Coupon management). */
   GET_OFFER_GET_ALL: () => `/offer/getAll`,
+  GET_OFFER_BY_ID: (id: string) => `/offer/get/${id}`,
+  CREATE_OFFER: `/offer/create`,
+  UPDATE_OFFER: (id: string) => `/offer/update/${id}`,
+  DELETE_OFFER: (id: string) => `/offer/delete/${id}`,
   // Partner management
   /** Global subscription tier catalog (Postman: `/subscription-plan/*`). */
   SUBSCRIPTION_PLAN_GET_ALL: () => `/subscription-plan/getAll`,

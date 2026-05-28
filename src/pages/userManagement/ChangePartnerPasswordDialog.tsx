@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Modal, Button, Row, Col, Form } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -27,6 +27,9 @@ function ChangePartnerPasswordDialogView({
   onClose,
   onSaved,
 }: Props) {
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -76,11 +79,31 @@ function ChangePartnerPasswordDialogView({
             <Col xs={12}>
               <Form.Group>
                 <Form.Label>New password</Form.Label>
-                <Form.Control
-                  type="password"
-                  autoComplete="new-password"
-                  {...register("new_password", { required: "Required" })}
-                />
+                <div className="position-relative">
+                  <Form.Control
+                    type={showNewPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    {...register("new_password", { required: "Required" })}
+                  />
+                  <i
+                    className={`bi ${
+                      showNewPassword ? "bi-eye-slash" : "bi-eye"
+                    }`}
+                    role="button"
+                    aria-label={
+                      showNewPassword ? "Hide password" : "Show password"
+                    }
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      cursor: "pointer",
+                      color: "var(--content-txt-color)",
+                    }}
+                  />
+                </div>
                 {errors.new_password && (
                   <Form.Text className="text-danger">
                     {String(errors.new_password.message ?? "")}
@@ -91,11 +114,31 @@ function ChangePartnerPasswordDialogView({
             <Col xs={12}>
               <Form.Group>
                 <Form.Label>Confirm password</Form.Label>
-                <Form.Control
-                  type="password"
-                  autoComplete="new-password"
-                  {...register("confirm_password", { required: "Required" })}
-                />
+                <div className="position-relative">
+                  <Form.Control
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    {...register("confirm_password", { required: "Required" })}
+                  />
+                  <i
+                    className={`bi ${
+                      showConfirmPassword ? "bi-eye-slash" : "bi-eye"
+                    }`}
+                    role="button"
+                    aria-label={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      cursor: "pointer",
+                      color: "var(--content-txt-color)",
+                    }}
+                  />
+                </div>
                 {errors.confirm_password && (
                   <Form.Text className="text-danger">
                     {String(errors.confirm_password.message ?? "")}

@@ -586,6 +586,75 @@ export const fetchUserById = async (
   }
 };
 
+export async function createUserAddressExtra(
+  userId: string,
+  payload: {
+    address: string;
+    state_id: string;
+    city_id: string;
+    pincode: string;
+    area_id?: string;
+    contact_name?: string;
+    contact_number?: string;
+    address_status?: boolean;
+  }
+): Promise<boolean> {
+  const response = await apiRequest(
+    ApiPaths.UPDATE_USER(userId),
+    "PUT",
+    {
+      add_new_address: true,
+      ...payload,
+    },
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
+}
+
+export async function updateUserAddressById(
+  userId: string,
+  payload: {
+    address_id: string;
+    address?: string;
+    state_id?: string;
+    city_id?: string;
+    pincode?: string;
+    area_id?: string;
+    contact_name?: string;
+    contact_number?: string;
+    address_status?: boolean;
+  }
+): Promise<boolean> {
+  const response = await apiRequest(
+    ApiPaths.UPDATE_USER(userId),
+    "PUT",
+    payload,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
+}
+
+export async function deleteMobileUserAddress(
+  addressId: string
+): Promise<boolean> {
+  const response = await apiRequest(
+    ApiPaths.DELETE_MOBILE_USER_ADDRESS(addressId),
+    "DELETE",
+    undefined,
+    false,
+    false,
+    false,
+    true
+  );
+  return Boolean(response.success);
+}
+
 /** Super admin approve/reject partner verification (`PUT /user/update/:id`). */
 export async function updatePartnerVerificationDecision(
   partnerUserId: string,

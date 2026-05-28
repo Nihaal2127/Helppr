@@ -49,7 +49,7 @@ export default function OrderRowActions({
         }}
         style={orderTableActionIconStyle}
       />
-      <i
+      {/* <i
         className="bi bi-ban"
         role="button"
         tabIndex={0}
@@ -60,7 +60,7 @@ export default function OrderRowActions({
           if (e.key === "Enter" || e.key === " ") onVoid();
         }}
         style={orderTableActionIconStyle}
-      />
+      /> */}
     </div>
   );
 }

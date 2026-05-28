@@ -88,7 +88,7 @@ const CustomActionColumn = ({
           role="button"
         />
       )}
-      {onDelete && (
+      {/* {onDelete && (
         <i
           className="bi bi-ban custom-table-action-delete"
           onClick={() => onDelete(row)}
@@ -96,7 +96,7 @@ const CustomActionColumn = ({
           aria-label="Void"
           role="button"
         />
-      )}
+      )} */}
     </div>
   );
 };
