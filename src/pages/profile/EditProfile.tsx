@@ -44,7 +44,6 @@ const EditProfile = ({
       }
 
       const payload = {
-        old_password: data.current_password,
         new_password: data.new_password,
         user_id: user._id,
         type: 1,
@@ -93,25 +92,6 @@ const EditProfile = ({
           <Row>
             {isChangePassword ? (
               <>
-                <Row className="align-items-center m-0 p-0">
-                  <Col sm={4} className="mt-3 ms-2">
-                    <label className="custom-profile-lable">
-                      Current Password
-                    </label>
-                  </Col>
-                  <Col sm={7}>
-                    <CustomFormInput
-                      label=""
-                      controlId="current_password"
-                      placeholder="Enter Current Password"
-                      register={register}
-                      error={errors.current_password}
-                      asCol={false}
-                      inputType="password"
-                      validation={{ required: "Current password required" }}
-                    />
-                  </Col>
-                </Row>
                 <Row className="align-items-center m-0 p-0">
                   <Col sm={4} className="mt-3 ms-2">
                     <label className="custom-profile-lable">New Password</label>

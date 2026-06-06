@@ -149,22 +149,22 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
         accessor: "is_paid",
         Cell: paymentStatusCell("is_paid"),
       },
-      {
-        Header: "Status",
-        accessor: "service_status",
-        Cell: ({ row }: { row: any }) => {
-          const raw = row.original?.service_status;
-          const code = typeof raw === "string" ? Number.parseInt(raw, 10) : raw;
-          const label =
-            typeof code === "number" && !Number.isNaN(code)
-              ? ServiceStatusEnum.get(code)?.label
-              : undefined;
-          if (label) return label;
-          if (raw !== undefined && raw !== null && raw !== "")
-            return String(raw);
-          return "-";
-        },
-      },
+      // {
+      //   Header: "Status",
+      //   accessor: "service_status",
+      //   Cell: ({ row }: { row: any }) => {
+      //     const raw = row.original?.service_status;
+      //     const code = typeof raw === "string" ? Number.parseInt(raw, 10) : raw;
+      //     const label =
+      //       typeof code === "number" && !Number.isNaN(code)
+      //         ? ServiceStatusEnum.get(code)?.label
+      //         : undefined;
+      //     if (label) return label;
+      //     if (raw !== undefined && raw !== null && raw !== "")
+      //       return String(raw);
+      //     return "-";
+      //   },
+      // },
       {
         Header: "Refund",
         accessor: "refund",
