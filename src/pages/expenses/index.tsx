@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Form, Modal } from "react-bootstrap";
+import { Button, Modal } from "react-bootstrap";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
@@ -728,6 +728,7 @@ const ExpensesPage = () => {
                   <CustomFormSelect
                     label="Franchise"
                     controlId="expense_modal_franchise"
+                    showRequiredMark
                     options={[
                       { value: "", label: "Select Franchise" },
                       ...franchiseOptions
@@ -759,6 +760,7 @@ const ExpensesPage = () => {
                 <CustomFormSelect
                   label="Category"
                   controlId="expense_modal_category"
+                  showRequiredMark
                   options={[
                     { value: "", label: "Select Category" },
                     ...Array.from(
@@ -811,6 +813,7 @@ const ExpensesPage = () => {
                   <CustomFormSelect
                     label="Sub Category"
                     controlId="expense_modal_sub_category"
+                    showRequiredMark
                     options={[
                       {
                         value: "",
@@ -856,6 +859,7 @@ const ExpensesPage = () => {
                 <CustomFormInput
                   label="Expense Name"
                   controlId="expense_modal_expense_name"
+                  showRequiredMark
                   placeholder="Enter Expense Name"
                   register={register}
                   asCol={false}
@@ -880,6 +884,7 @@ const ExpensesPage = () => {
                   register={register}
                   asCol={false}
                   value={form.description}
+                  showRequiredMark
                   as="textarea"
                   rows={4}
                   onChange={(value) => setForm((p) => ({ ...p, description: value }))}
@@ -890,6 +895,7 @@ const ExpensesPage = () => {
                 <CustomFormInput
                   label="Expense Amount"
                   controlId="expense_modal_expense_amount"
+                  showRequiredMark
                   placeholder="Enter Expense Amount"
                   register={register}
                   asCol={false}
@@ -910,9 +916,9 @@ const ExpensesPage = () => {
               </div>
 
               <div className="col-md-6">
-                <Form.Label className="mb-1 fw-medium">Expense Date</Form.Label>
                 <CustomDatePicker
-                  label=""
+                  label="Expense Date"
+                  required
                   controlId="expense_modal_expense_date"
                   selectedDate={form.expenseDate || null}
                   error={formErrors.expenseDate}
@@ -938,6 +944,7 @@ const ExpensesPage = () => {
                 <CustomFormSelect
                   label="Payment Mode"
                   controlId="expense_modal_payment_mode"
+                  showRequiredMark
                   options={paymentModeOptions}
                   register={register}
                   fieldName="expense_modal_payment_mode"

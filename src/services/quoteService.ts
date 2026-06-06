@@ -1101,6 +1101,104 @@ export function getPartnerActiveServiceProvidingRow(
   return null;
 }
 
+/** Whether a franchise partner offers `serviceId` (optional `categoryId` scope). */
+export function partnerProvidesQuoteService(
+  partner: Record<string, unknown>,
+  quoteCatalogServices: ServiceDropDownOption[],
+  serviceId: string,
+  categoryId?: string
+): boolean {
+  const sid = str(serviceId);
+  if (!sid || !isPartnerRecordEligible(partner)) return false;
+
+  if (getPartnerActiveServiceProvidingRow(partner, sid)) return true;
+
+  const cid = normalizeServiceCategoryRef(categoryId);
+  if (cid) {
+    const allowed = getPartnerCategoryAllowedServiceIds(partner, cid);
+    if (allowed != null && allowed.has(sid)) return true;
+  }
+
+  const allow = getPartnerProvidingServiceIdSet(partner);
+  if (allow !== null) return allow.has(sid);
+
+  if (partnerHasNoCatalogOfferings(partner)) return false;
+
+  const partnerServices = buildQuoteCatalogServicesForPartner(
+    quoteCatalogServices,
+    partner
+  );
+  const pool = partnerServices.length ? partnerServices : quoteCatalogServices;
+  if (pool.some((o) => String(o.value) === sid)) return true;
+
+  if (cid) {
+    return filterPartnerServicesForCategory(pool, partner, cid).some(
+      (o) => String(o.value) === sid
+    );
+  }
+
+  return false;
+}
+
+/** New-tab mobile quotes: partners in franchise who provide the prefilled service. */
+export function buildQuotePartnerOptionsForPrefilledService(
+  partnerRecords: Record<string, unknown>[],
+  quoteCatalogServices: ServiceDropDownOption[],
+  serviceId: string,
+  categoryId?: string
+): OptionType[] {
+  const sid = str(serviceId);
+  if (!sid) return [];
+  const out: OptionType[] = [];
+  for (const p of partnerRecords) {
+    if (!partnerProvidesQuoteService(p, quoteCatalogServices, sid, categoryId)) {
+      continue;
+    }
+    const value = String(
+      p.partner_id ?? p._id ?? p.user_id ?? p.id ?? ""
+    ).trim();
+    if (!value) continue;
+    const label = String(
+      p.partner_name ?? p.name ?? p.user_name ?? value
+    ).trim();
+    out.push({ value, label: label || value });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export function buildQuotePrefilledCategoryOptions(
+  quoteCategoryOptions: OptionType[],
+  categoryId: string,
+  categoryName?: string
+): OptionType[] {
+  const cid = normalizeServiceCategoryRef(categoryId);
+  if (!cid) return [];
+  const match = quoteCategoryOptions.find((o) => String(o.value) === cid);
+  if (match) return [match];
+  const name = str(categoryName);
+  return [{ value: cid, label: name || cid }];
+}
+
+export function buildQuotePrefilledServiceOptions(
+  quoteCatalogServices: ServiceDropDownOption[],
+  serviceId: string,
+  serviceName?: string,
+  categoryId?: string
+): ServiceDropDownOption[] {
+  const sid = str(serviceId);
+  if (!sid) return [];
+  const match = quoteCatalogServices.find((o) => String(o.value) === sid);
+  if (match) return [match];
+  const cid = normalizeServiceCategoryRef(categoryId);
+  return [
+    {
+      value: sid,
+      label: str(serviceName) || sid,
+      category_id: cid || undefined,
+    },
+  ];
+}
+
 /**
  * Prefer partner `active_services_providing` for tax / minimum_deposit / commission
  * (see related-catalog partner rows); nested `service` is a fallback when the

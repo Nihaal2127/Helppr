@@ -20,6 +20,9 @@ import {
   fetchQuoteDetailById,
   buildQuoteCatalogServicesForPartner,
   buildQuoteCategoryOptionsForSelectedPartner,
+  buildQuotePartnerOptionsForPrefilledService,
+  buildQuotePrefilledCategoryOptions,
+  buildQuotePrefilledServiceOptions,
   filterPartnerServicesForCategory,
   getPartnerActiveServiceProvidingRow,
   getQuoteScheduleModeForPartnerService,
@@ -208,6 +211,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   });
 
   const form = watch();
+  const isNewTabQuoteEdit = useMemo(
+    () => normalizeQuoteApiStatus(quoteRow?.status) === "new",
+    [quoteRow?.status]
+  );
   const serviceId = String(form.requested_services ?? "").trim();
   const hasServiceSelected = Boolean(serviceId);
   const partnerSelected = Boolean(String(form.requested_partner ?? "").trim());
@@ -401,6 +408,22 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     [quoteCategoryOptions, quoteCatalogServices, selectedPartnerCatalogRecord]
   );
 
+  const editCategoryOptions = useMemo(() => {
+    if (!isNewTabQuoteEdit) return quoteCategoryOptionsForPartner;
+    return buildQuotePrefilledCategoryOptions(
+      quoteCategoryOptions,
+      String(form.category_id ?? quoteRow?.category_id ?? ""),
+      quoteRow?.category_name
+    );
+  }, [
+    isNewTabQuoteEdit,
+    quoteCategoryOptionsForPartner,
+    quoteCategoryOptions,
+    form.category_id,
+    quoteRow?.category_id,
+    quoteRow?.category_name,
+  ]);
+
   const { quoteServiceOptionsForCategory, scheduleMode } = useMemo(() => {
     const cid = String(form.category_id ?? "").trim();
     const quoteServiceOptionsForCategory = !cid
@@ -427,19 +450,78 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     selectedPartnerCatalogRecord,
   ]);
 
+  const editServiceOptions = useMemo(() => {
+    if (!isNewTabQuoteEdit) return quoteServiceOptionsForCategory;
+    return buildQuotePrefilledServiceOptions(
+      quoteCatalogServices,
+      String(form.requested_services ?? quoteRow?.service_id ?? ""),
+      quoteRow?.requested_services,
+      String(form.category_id ?? quoteRow?.category_id ?? "")
+    );
+  }, [
+    isNewTabQuoteEdit,
+    quoteServiceOptionsForCategory,
+    quoteCatalogServices,
+    form.requested_services,
+    form.category_id,
+    quoteRow?.service_id,
+    quoteRow?.requested_services,
+    quoteRow?.category_id,
+  ]);
+
+  const editPartnerOptions = useMemo(() => {
+    if (!isNewTabQuoteEdit) return quotePartnerOptions;
+    const sid = String(form.requested_services ?? quoteRow?.service_id ?? "").trim();
+    if (!sid) return quotePartnerOptions;
+    return buildQuotePartnerOptionsForPrefilledService(
+      catalogPartnerRecords,
+      quoteCatalogServices,
+      sid,
+      String(form.category_id ?? quoteRow?.category_id ?? "")
+    );
+  }, [
+    isNewTabQuoteEdit,
+    quotePartnerOptions,
+    catalogPartnerRecords,
+    quoteCatalogServices,
+    form.requested_services,
+    form.category_id,
+    quoteRow?.service_id,
+    quoteRow?.category_id,
+  ]);
+
+  const editScheduleMode = useMemo(() => {
+    if (!isNewTabQuoteEdit) return scheduleMode;
+    const sid = String(form.requested_services ?? "").trim();
+    const opt = editServiceOptions.find((o) => o.value === sid);
+    return getQuoteScheduleModeForPartnerService(
+      opt,
+      selectedPartnerCatalogRecord,
+      sid
+    );
+  }, [
+    isNewTabQuoteEdit,
+    scheduleMode,
+    form.requested_services,
+    editServiceOptions,
+    selectedPartnerCatalogRecord,
+  ]);
+
+  const activeScheduleMode = isNewTabQuoteEdit ? editScheduleMode : scheduleMode;
+
   const isScheduleComplete = useMemo(() => {
     if (!hasServiceSelected) return false;
     const d = String(form.requested_date ?? "").trim();
     const dTo = String(form.requested_date_to ?? "").trim();
     const tFrom = String(form.requested_time_from ?? "").trim();
     const tTo = String(form.requested_time_to ?? "").trim();
-    if (scheduleMode === "range") {
+    if (activeScheduleMode === "range") {
       return Boolean(d && dTo && tFrom && tTo);
     }
     return Boolean(d && tFrom && tTo);
   }, [
     hasServiceSelected,
-    scheduleMode,
+    activeScheduleMode,
     form.requested_date,
     form.requested_date_to,
     form.requested_time_from,
@@ -448,8 +530,16 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
   const selectedServiceOption = useMemo(() => {
     if (!serviceId) return undefined;
-    return quoteServiceOptionsForCategory.find((o) => o.value === serviceId);
-  }, [serviceId, quoteServiceOptionsForCategory]);
+    const pool = isNewTabQuoteEdit
+      ? editServiceOptions
+      : quoteServiceOptionsForCategory;
+    return pool.find((o) => o.value === serviceId);
+  }, [
+    serviceId,
+    isNewTabQuoteEdit,
+    editServiceOptions,
+    quoteServiceOptionsForCategory,
+  ]);
 
   const feeOptionForPreview = useMemo(() => {
     const merged = mergeQuoteServiceFeesForBreakdown(
@@ -474,7 +564,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const schedulePricePreview = useMemo(() => {
     if (!isScheduleComplete || !partnerSelected) return null;
     const metrics = deriveQuoteScheduleMetrics({
-      scheduleMode,
+      scheduleMode: activeScheduleMode,
       requested_date: String(form.requested_date ?? ""),
       requested_date_to: String(form.requested_date_to ?? ""),
       requested_time: String(form.requested_time ?? ""),
@@ -498,7 +588,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   }, [
     isScheduleComplete,
     partnerSelected,
-    scheduleMode,
+    activeScheduleMode,
     form.requested_date,
     form.requested_date_to,
     form.requested_time,
@@ -531,7 +621,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       sid
     );
     const metrics = deriveQuoteScheduleMetrics({
-      scheduleMode,
+      scheduleMode: activeScheduleMode,
       requested_date: String(form.requested_date ?? ""),
       requested_date_to: String(form.requested_date_to ?? ""),
       requested_time: String(form.requested_time ?? ""),
@@ -550,7 +640,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     isScheduleComplete,
     partnerSelected,
     serviceId,
-    scheduleMode,
+    activeScheduleMode,
     form.requested_date,
     form.requested_date_to,
     form.requested_time,
@@ -592,6 +682,26 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     quoteRow?.franchise_name,
     franchiseCatalogName,
   ]);
+
+  const handlePartnerSelectChange = useCallback(
+    (value: unknown) => {
+      const prev = getValues("requested_partner");
+      applySelectFieldValue("requested_partner", value);
+      if (String(value ?? "") === String(prev ?? "")) return;
+      if (!isNewTabQuoteEdit) {
+        setValue("category_id", "", { shouldValidate: false });
+        setValue("requested_services", "", { shouldValidate: false });
+      }
+      clearScheduleAndPriceFields();
+    },
+    [
+      applySelectFieldValue,
+      clearScheduleAndPriceFields,
+      getValues,
+      isNewTabQuoteEdit,
+      setValue,
+    ]
+  );
 
   const onSubmit = async (data: EditQuoteFormValues) => {
     const id = String(quoteMongoId ?? "").trim();
@@ -669,7 +779,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    if (scheduleMode === "range") {
+    if (activeScheduleMode === "range") {
       if (!String(data.requested_date ?? "").trim()) {
         showErrorAlert("Please select from date.");
         return;
@@ -692,7 +802,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    if (scheduleMode === "range") {
+    if (activeScheduleMode === "range") {
       const cmp = compareIsoDateOnlyAsc(
         String(data.requested_date ?? "").trim(),
         String(data.requested_date_to ?? "").trim()
@@ -715,7 +825,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     }
 
     const metrics = deriveQuoteScheduleMetrics({
-      scheduleMode,
+      scheduleMode: activeScheduleMode,
       requested_date: data.requested_date,
       requested_date_to: data.requested_date_to,
       requested_time: data.requested_time,
@@ -879,6 +989,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const quoteStatusKey = normalizeQuoteApiStatus(quoteRow?.status) || "new";
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
+  const categoryFieldDisabled =
+    lockedFields || (!isNewTabQuoteEdit && !partnerSelected);
+  const serviceFieldDisabled =
+    lockedFields ||
+    (!isNewTabQuoteEdit &&
+      (!partnerSelected || !String(form.category_id ?? "").trim()));
 
   return (
     <Modal
@@ -1023,7 +1139,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         label="Partner"
                         controlId="edit-quote-partner"
                         asCol={false}
-                        options={quotePartnerOptions}
+                        options={editPartnerOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="requested_partner"
                         error={errors.requested_partner}
@@ -1031,15 +1147,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         defaultValue={form.requested_partner}
                         setValue={(name, value) => {
                           if (name === "requested_partner") {
-                            const prev = getValues("requested_partner");
-                            applySelectFieldValue("requested_partner", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
-                              setValue("category_id", "", { shouldValidate: false });
-                              setValue("requested_services", "", {
-                                shouldValidate: false,
-                              });
-                              clearScheduleAndPriceFields();
-                            }
+                            handlePartnerSelectChange(value);
                             return;
                           }
                           applySelectFieldValue(
@@ -1047,7 +1155,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             value
                           );
                         }}
-                        placeholder="Search partner name"
+                        placeholder={
+                          isNewTabQuoteEdit
+                            ? "Select partner for this service"
+                            : "Search partner name"
+                        }
                         menuPortal
                         isClearable
                         isDisabled={lockedFields}
@@ -1060,18 +1172,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         label="Category"
                         controlId="edit-quote-category"
                         asCol={false}
-                        options={quoteCategoryOptionsForPartner}
+                        options={editCategoryOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="category_id"
                         error={errors.category_id}
                         requiredMessage="Please select a category"
                         defaultValue={form.category_id}
-                        isClearable
+                        isClearable={!isNewTabQuoteEdit}
                         setValue={(name, value) => {
                           if (name === "category_id") {
                             const prev = getValues("category_id");
                             applySelectFieldValue("category_id", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
+                            if (
+                              !isNewTabQuoteEdit &&
+                              String(value ?? "") !== String(prev ?? "")
+                            ) {
                               setValue("requested_services", "", {
                                 shouldValidate: false,
                               });
@@ -1085,10 +1200,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           );
                         }}
                         placeholder={
-                          partnerSelected ? "Select category" : "Select partner first"
+                          isNewTabQuoteEdit
+                            ? "Category from customer request"
+                            : partnerSelected
+                              ? "Select category"
+                              : "Select partner first"
                         }
                         menuPortal
-                        isDisabled={lockedFields || !partnerSelected}
+                        isDisabled={categoryFieldDisabled || isNewTabQuoteEdit}
                       />
                     </Col>
                     <Col xs={12} md={6}>
@@ -1097,12 +1216,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         label="Service"
                         controlId="edit-quote-service"
                         asCol={false}
-                        options={quoteServiceOptionsForCategory}
+                        options={editServiceOptions}
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="requested_services"
                         error={errors.requested_services}
                         requiredMessage={
-                          form.category_id && partnerSelected
+                          isNewTabQuoteEdit || (form.category_id && partnerSelected)
                             ? "Please select a service"
                             : undefined
                         }
@@ -1111,7 +1230,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           if (name === "requested_services") {
                             const prev = getValues("requested_services");
                             applySelectFieldValue("requested_services", value);
-                            if (String(value ?? "") !== String(prev ?? "")) {
+                            if (
+                              !isNewTabQuoteEdit &&
+                              String(value ?? "") !== String(prev ?? "")
+                            ) {
                               clearScheduleAndPriceFields();
                             }
                             return;
@@ -1122,19 +1244,17 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           );
                         }}
                         placeholder={
-                          !partnerSelected
-                            ? "Select partner first"
-                            : !form.category_id
-                            ? "Select category first"
-                            : "Search service name"
+                          isNewTabQuoteEdit
+                            ? "Service from customer request"
+                            : !partnerSelected
+                              ? "Select partner first"
+                              : !form.category_id
+                                ? "Select category first"
+                                : "Search service name"
                         }
                         menuPortal
-                        isClearable
-                        isDisabled={
-                          lockedFields ||
-                          !partnerSelected ||
-                          !String(form.category_id ?? "").trim()
-                        }
+                        isClearable={!isNewTabQuoteEdit}
+                        isDisabled={serviceFieldDisabled || isNewTabQuoteEdit}
                       />
                     </Col>
                   </Row>
@@ -1146,7 +1266,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       label="Partner"
                       controlId="edit-quote-partner"
                       asCol={false}
-                      options={quotePartnerOptions}
+                      options={editPartnerOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="requested_partner"
                       error={errors.requested_partner}
@@ -1154,15 +1274,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       defaultValue={form.requested_partner}
                       setValue={(name, value) => {
                         if (name === "requested_partner") {
-                          const prev = getValues("requested_partner");
-                          applySelectFieldValue("requested_partner", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
-                            setValue("category_id", "", { shouldValidate: false });
-                            setValue("requested_services", "", {
-                              shouldValidate: false,
-                            });
-                            clearScheduleAndPriceFields();
-                          }
+                          handlePartnerSelectChange(value);
                           return;
                         }
                         applySelectFieldValue(
@@ -1170,7 +1282,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           value
                         );
                       }}
-                      placeholder="Search partner name"
+                      placeholder={
+                        isNewTabQuoteEdit
+                          ? "Select partner for this service"
+                          : "Search partner name"
+                      }
                       menuPortal
                       isClearable
                       isDisabled={lockedFields}
@@ -1181,18 +1297,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       label="Category"
                       controlId="edit-quote-category"
                       asCol={false}
-                      options={quoteCategoryOptionsForPartner}
+                      options={editCategoryOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="category_id"
                       error={errors.category_id}
                       requiredMessage="Please select a category"
                       defaultValue={form.category_id}
-                      isClearable
+                      isClearable={!isNewTabQuoteEdit}
                       setValue={(name, value) => {
                         if (name === "category_id") {
                           const prev = getValues("category_id");
                           applySelectFieldValue("category_id", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
+                          if (
+                            !isNewTabQuoteEdit &&
+                            String(value ?? "") !== String(prev ?? "")
+                          ) {
                             setValue("requested_services", "", {
                               shouldValidate: false,
                             });
@@ -1206,10 +1325,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         );
                       }}
                       placeholder={
-                        partnerSelected ? "Select category" : "Select partner first"
+                        isNewTabQuoteEdit
+                          ? "Category from customer request"
+                          : partnerSelected
+                            ? "Select category"
+                            : "Select partner first"
                       }
                       menuPortal
-                      isDisabled={lockedFields || !partnerSelected}
+                      isDisabled={categoryFieldDisabled || isNewTabQuoteEdit}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1218,12 +1341,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       label="Service"
                       controlId="edit-quote-service"
                       asCol={false}
-                      options={quoteServiceOptionsForCategory}
+                      options={editServiceOptions}
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="requested_services"
                       error={errors.requested_services}
                       requiredMessage={
-                        form.category_id && partnerSelected
+                        isNewTabQuoteEdit || (form.category_id && partnerSelected)
                           ? "Please select a service"
                           : undefined
                       }
@@ -1232,7 +1355,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         if (name === "requested_services") {
                           const prev = getValues("requested_services");
                           applySelectFieldValue("requested_services", value);
-                          if (String(value ?? "") !== String(prev ?? "")) {
+                          if (
+                            !isNewTabQuoteEdit &&
+                            String(value ?? "") !== String(prev ?? "")
+                          ) {
                             clearScheduleAndPriceFields();
                           }
                           return;
@@ -1243,19 +1369,17 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         );
                       }}
                       placeholder={
-                        !partnerSelected
-                          ? "Select partner first"
-                          : !form.category_id
-                          ? "Select category first"
-                          : "Search service name"
+                        isNewTabQuoteEdit
+                          ? "Service from customer request"
+                          : !partnerSelected
+                            ? "Select partner first"
+                            : !form.category_id
+                              ? "Select category first"
+                              : "Search service name"
                       }
                       menuPortal
-                      isClearable
-                      isDisabled={
-                        lockedFields ||
-                        !partnerSelected ||
-                        !String(form.category_id ?? "").trim()
-                      }
+                      isClearable={!isNewTabQuoteEdit}
+                      isDisabled={serviceFieldDisabled || isNewTabQuoteEdit}
                     />
                   </Col>
                 </Row>
@@ -1279,7 +1403,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   </Row>
                   <div className="add-quote-schedule-panel">
                     <Row className="gy-4 gx-md-5">
-                      {scheduleMode === "range" ? (
+                      {activeScheduleMode === "range" ? (
                         <>
                           <Col xs={12} md={3}>
                             <CustomTextFieldDatePicket

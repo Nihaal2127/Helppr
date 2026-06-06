@@ -1767,7 +1767,7 @@ function AddEditUserDialogView({
                       <Row className="align-items-stretch">
                         <Col sm={3} className="d-flex align-items-start">
                           <label className="custom-profile-lable mb-0">
-                            Profile Photo
+                            <FieldLabelText label="Profile Photo" required />
                           </label>
                         </Col>
                         <Col>
@@ -2217,6 +2217,7 @@ function AddEditUserDialogView({
                             <PartnerSingleSelect
                               instanceId={`${block.id}-${row.id}-service`}
                               label="Service"
+                              requiredMark
                               options={serviceOptionsForPartnerBlockRow(
                                 block,
                                 row.id

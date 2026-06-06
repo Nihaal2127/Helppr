@@ -474,6 +474,7 @@ const ExpenseCategoryManagement = () => {
                   <CustomFormSelect
                     label="Franchise"
                     controlId="expense_category_franchise_id"
+                    showRequiredMark
                     options={[
                       { value: "", label: "Select Franchise" },
                       ...franchiseOptions.map((item) => ({ value: item.value, label: item.label })),
@@ -500,6 +501,7 @@ const ExpenseCategoryManagement = () => {
                     key={`expense-category-name-${editing?.id ?? "new"}`}
                     label="Category Name"
                     controlId="expense_category_name"
+                    showRequiredMark
                     placeholder="Enter Category Name"
                     register={register}
                     asCol={false}
@@ -520,6 +522,7 @@ const ExpenseCategoryManagement = () => {
                     key={`expense-sub-category-name-${editing?.id ?? "new"}`}
                     label="Sub Category Name"
                     controlId="expense_sub_category_name"
+                    showRequiredMark
                     placeholder="Enter Sub Category Name"
                     register={register}
                     asCol={false}
@@ -542,6 +545,7 @@ const ExpenseCategoryManagement = () => {
                     controlId="expense_category_description"
                     placeholder="Enter Description"
                     register={register}
+                    showRequiredMark
                     asCol={false}
                     as="textarea"
                     rows={3}

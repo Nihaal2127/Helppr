@@ -43,6 +43,8 @@ interface CustomFormSelectProps {
    * Use `"all"` for the global franchise header so “clear” means all franchises.
    */
   clearResetsTo?: string;
+  /** Show required asterisk without react-hook-form `requiredMessage`. */
+  showRequiredMark?: boolean;
 }
 
 const DEFAULT_SELECT_LABEL = "Select";
@@ -69,6 +71,7 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
   includeEmptyOption = false,
   emptyOptionLabel,
   clearResetsTo,
+  showRequiredMark: showRequiredMarkProp,
 }) => {
   const [selectedOption, setSelectedOption] = useState<{
     value: string;
@@ -301,7 +304,10 @@ const CustomFormSelect: React.FC<CustomFormSelectProps> = ({
     >
       {label?.trim() && (
         <Form.Label htmlFor={selectInputId} className="fw-medium mb-1">
-          <FieldLabelText label={label} required={!!requiredMessage} />
+          <FieldLabelText
+            label={label}
+            required={Boolean(showRequiredMarkProp) || !!requiredMessage}
+          />
         </Form.Label>
       )}
       <Select
