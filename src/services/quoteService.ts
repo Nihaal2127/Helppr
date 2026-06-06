@@ -1664,6 +1664,44 @@ function nestedObj(v: unknown): Record<string, unknown> | undefined {
   return isPlainObject(v) ? v : undefined;
 }
 
+function isMongoObjectId(value: string): boolean {
+  return /^[a-f\d]{24}$/i.test(value.trim());
+}
+
+/** Human-readable order number for Success quotes — not the order Mongo `_id`. */
+function resolveQuoteOrderDisplayId(
+  r: Record<string, unknown>
+): string | undefined {
+  const orderRef =
+    nestedObj(r.order_id) ?? nestedObj(r.order) ?? nestedObj(r.order_info);
+
+  for (const c of [
+    r.order_unique_id,
+    r.orderUniqueId,
+    orderRef?.unique_id,
+    orderRef?.order_unique_id,
+    orderRef?.uniqueId,
+  ]) {
+    const label = str(c);
+    if (label) return label;
+  }
+
+  const rawOrderId = r.order_id ?? r.orderId;
+  if (typeof rawOrderId === "string" || typeof rawOrderId === "number") {
+    const label = str(rawOrderId);
+    if (label && !isMongoObjectId(label)) return label;
+  }
+
+  if (orderRef) {
+    for (const c of [orderRef.order_id, orderRef.orderId]) {
+      const label = str(c);
+      if (label && !isMongoObjectId(label)) return label;
+    }
+  }
+
+  return undefined;
+}
+
 /** API `from_date` / `to_date` may be full ISO; normalize to `YYYY-MM-DD` for schedule UI. */
 function isoOrDateToYmd(input: string): string {
   const t = str(input);
@@ -2034,11 +2072,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     service_to_time: str(
       r.scheduled_time_to ?? r.service_to_time ?? r.scheduled_end_time
     ),
-    order_id: (() => {
-      const oid = r.order_id ?? r.orderId;
-      if (oid == null || oid === "") return undefined;
-      return str(oid) || undefined;
-    })(),
+    order_id: resolveQuoteOrderDisplayId(r),
     cancellation_reason:
       str(r.cancellation_reason ?? r.cancellationReason) || undefined,
     rejection_reason:
