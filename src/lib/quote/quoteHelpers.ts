@@ -465,6 +465,8 @@ export type QuoteViewData = {
   partner_email?: string;
   franchise_id?: string;
   franchise_name?: string;
+  franchise_state_name?: string;
+  franchise_city_name?: string;
   address_id?: string;
   /** Employee shown in quote view */
   employee_id?: string;
@@ -721,6 +723,8 @@ export function mergeQuoteViewData(
     partner_phone:
       coalesceText(fresh.partner_phone, keep.partner_phone) || undefined,
     partner_city: coalesceText(fresh.partner_city, keep.partner_city) || undefined,
+    franchise_name:
+      coalesceText(fresh.franchise_name, keep.franchise_name) || undefined,
     employee_name:
       coalesceText(fresh.employee_name, keep.employee_name) || undefined,
     employee_email:
@@ -836,6 +840,8 @@ export function toQuoteViewData(row: QuoteRow): QuoteViewData {
     partner_email: row.partner_email,
     franchise_id: row.franchise_id,
     franchise_name: row.franchise_name,
+    franchise_state_name: row.franchise_state_name,
+    franchise_city_name: row.franchise_city_name,
     address_id: row.address_id,
     total_service_charge: row.total_service_charge,
     service_price: row.service_price,

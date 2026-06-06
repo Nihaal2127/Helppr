@@ -1,6 +1,7 @@
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { UserModel } from "../lib/models/UserModel";
+import { enrichUserWithAreaName } from "../lib/user/resolveUserAreaDisplay";
 import { showLog } from "../helper/utility";
 import { normalizeCalendarYmd } from "../helper/dateFormat";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
@@ -574,9 +575,12 @@ export const fetchUserById = async (
     "GET"
   );
   if (response.success) {
+    const user = await enrichUserWithAreaName(
+      (response.data?.record ?? null) as UserModel | null
+    );
     return {
       response: true,
-      user: response.data.record,
+      user,
     };
   } else {
     return {

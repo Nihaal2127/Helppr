@@ -24,6 +24,7 @@ import { openDialog } from "../lib/global/DialogManager";
 import GenderRadioField from "./GenderRadioField";
 import CustomDatePicker from "./CustomDatePicker";
 import { dateToLocalYmd } from "../helper/dateFormat";
+import { FieldLabelText } from "./RequiredFieldMark";
 
 const MODAL_DOM_ID = "add-franchise-admin-nested-dialog";
 
@@ -209,6 +210,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               placeholder="Enter Name"
               register={register}
               asCol={false}
+              showRequiredMark
               value={form.roleName}
               onChange={(value: string) =>
                 setForm((p) => ({ ...p, roleName: value }))
@@ -221,6 +223,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               controlId="nested_role_date_of_birth"
               asCol={false}
               birthDatePicker
+              required
               selectedDate={form.date_of_birth ? form.date_of_birth : null}
               placeholderText="Select date of birth"
               register={register}
@@ -240,6 +243,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               register={register}
               inputType="email"
               asCol={false}
+              showRequiredMark
               value={form.email}
               onChange={(value: string) =>
                 setForm((p) => ({ ...p, email: value }))
@@ -253,6 +257,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               placeholder="Mobile number"
               register={register}
               asCol={false}
+              validation={{ required: true }}
               value={form.phone_number}
               onChange={(value: string) =>
                 setForm((p) => ({
@@ -266,6 +271,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
             <GenderRadioField
               value={form.gender}
               onChange={(gender) => setForm((p) => ({ ...p, gender }))}
+              required
             />
           </div>
           <div className="col-md-12">
@@ -277,6 +283,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               inputType="password"
               asCol={false}
               autoComplete="new-password"
+              showRequiredMark
               value={form.password}
               onChange={(value: string) =>
                 setForm((p) => ({ ...p, password: value }))
@@ -292,6 +299,7 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
               inputType="password"
               asCol={false}
               autoComplete="new-password"
+              showRequiredMark
               value={form.confirmPassword}
               onChange={(value: string) =>
                 setForm((p) => ({ ...p, confirmPassword: value }))
@@ -299,8 +307,15 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
             />
           </div>
           <div className="col-md-12">
+            <label
+              className="form-label fw-medium mb-2 d-block"
+              style={{ color: "var(--content-txt-color)" }}
+            >
+              <FieldLabelText label="Profile photo" required />
+            </label>
             <CustomImageUploader
               label="Profile photo"
+              hideLabel
               maxFiles={1}
               isEditable={false}
               onFileChange={(files) => {
@@ -329,7 +344,9 @@ const AddFranchiseAdminModal: React.FC<Props> = ({ onClose, onSuccess }) => {
           </div>
           <div className="col-md-12">
             <Form.Group style={{ marginTop: "10px" }}>
-              <Form.Label className="fw-medium mb-1">Status</Form.Label>
+              <Form.Label className="fw-medium mb-1">
+                <FieldLabelText label="Status" required />
+              </Form.Label>
               <div className="d-flex" style={{ flexDirection: "row", gap: "8px" }}>
                 <Form.Check
                   type="radio"

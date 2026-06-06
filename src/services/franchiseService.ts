@@ -337,10 +337,11 @@ type FranchiseByIdLightCacheEntry = {
 const franchiseByIdLightCache = new Map<string, FranchiseByIdLightCacheEntry>();
 const FRANCHISE_BY_ID_LIGHT_CACHE_MS = 10 * 60 * 1000;
 
-/** Call after creating/updating a franchise so the next dropdown fetch is fresh. */
+/** Call after creating/updating a franchise so the next dropdown/list fetch is fresh. */
 export function clearFranchiseDropdownCache(): void {
   franchiseDropdownCache.clear();
   franchiseByIdLightCache.clear();
+  franchiseAdminContactsCache = null;
 }
 
 async function fetchFranchiseDropDownUncached(
@@ -571,6 +572,11 @@ export const fetchFranchiseById = async (
   return mapped;
 };
 
+export type FetchFranchiseOptions = {
+  /** Bypass cached franchise-admin contact map (after create/update). */
+  forceRefreshAdminContacts?: boolean;
+};
+
 export const fetchFranchise = async (
   page: number,
   pageSize: number,
@@ -587,7 +593,8 @@ export const fetchFranchise = async (
     /** When set, list is scoped to this franchise (header dropdown). */
     franchise_id?: string;
   },
-  sortBy: ServerTableSortBy = []
+  sortBy: ServerTableSortBy = [],
+  options?: FetchFranchiseOptions
 ): Promise<{
   response: boolean;
   franchises: FranchiseModel[];
@@ -660,7 +667,9 @@ export const fetchFranchise = async (
       totalItemsRaw === ""
         ? undefined
         : Number(totalItemsRaw);
-    const adminContacts = await getFranchiseAdminContactsCached();
+    const adminContacts = await getFranchiseAdminContactsCached(
+      Boolean(options?.forceRefreshAdminContacts)
+    );
     const fidFilter = franchiseIdForQuery;
     let franchises = records.map((r: any) => mapFranchiseRow(r, adminContacts));
     if (fidFilter) {

@@ -28,6 +28,8 @@ interface CustomFormInputProps {
   autoComplete?: string;
   /** Keep validation but do not render inline error text under the control. */
   hideValidationFeedback?: boolean;
+  /** Show required asterisk without react-hook-form `validation` (e.g. submit validated elsewhere). */
+  showRequiredMark?: boolean;
 }
 
 export const CustomFormInput: React.FC<CustomFormInputProps> = ({
@@ -50,6 +52,7 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
   inputClassName,
   autoComplete,
   hideValidationFeedback = false,
+  showRequiredMark: showRequiredMarkProp,
 }) => {
   const isControlled = value !== undefined;
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -58,7 +61,8 @@ export const CustomFormInput: React.FC<CustomFormInputProps> = ({
 
   const fieldRegistration = register(controlId, validation);
   const { onChange: rhfOnChange, ...fieldReg } = fieldRegistration;
-  const showRequiredMark = isValidationRequired(validation);
+  const showRequiredMark =
+    Boolean(showRequiredMarkProp) || isValidationRequired(validation);
 
   const handleFieldChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>

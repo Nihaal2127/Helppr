@@ -263,6 +263,7 @@ function PartnerDetailsDialogView({
                 experience={userDetails?.experience}
                 stateName={userDetails?.state_name}
                 cityName={userDetails?.city_name}
+                areaName={userDetails?.area_name}
                 pincode={userDetails?.pincode}
                 isActive={userDetails?.is_active}
                 address={
@@ -293,7 +294,9 @@ function PartnerDetailsDialogView({
                 <DetailsRowLink
                   title="No of Services"
                   value={
-                    userDetails?.no_of_services ?? userDetails?.total_service
+                    (userDetails?.completed_service || 0) +
+                    (userDetails?.in_progress_service || 0) +
+                    (userDetails?.cancelled_service || 0)
                   }
                   onClick={() => openServices(null)}
                 />

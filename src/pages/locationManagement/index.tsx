@@ -89,10 +89,11 @@ const LocationManagement = () => {
     setValue: setHeaderValue,
     franchiseId: headerFranchiseId,
   } = useFranchiseHeaderForm();
-  const { countModel: locationCountModel } = useFranchiseScopedGetCount({
-    type: 1,
-    franchiseId: headerFranchiseId,
-  });
+  const { countModel: locationCountModel, refresh: refreshLocationCounts } =
+    useFranchiseScopedGetCount({
+      type: 1,
+      franchiseId: headerFranchiseId,
+    });
 
   const sanitizeFilters = (filters: LocationFilters): LocationFilters =>
     Object.entries(filters).reduce((acc, [key, value]) => {
@@ -233,9 +234,10 @@ const LocationManagement = () => {
 
   const refreshData = useCallback(
     async (selected: string, filters: LocationFilters = activeFilters) => {
+      await refreshLocationCounts();
       await fetchData(selected, sanitizeFilters(filters));
     },
-    [fetchData, activeFilters]
+    [fetchData, activeFilters, refreshLocationCounts]
   );
 
   const handleFilterChange = async (

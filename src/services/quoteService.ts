@@ -1917,6 +1917,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const addr = addressRef ?? {};
   const cityIdObj = nestedObj(addr.city_id);
   const stateIdObj = nestedObj(addr.state_id);
+  const areaIdObj = nestedObj(addr.area_id);
   const door_no = str(addr.door_no ?? addr.door_number ?? r.door_no);
   const state = displayStateName(
     str(stateIdObj?.name ?? addr.state_name ?? addr.state ?? r.state)
@@ -1928,7 +1929,9 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
       r.city ??
       r.user_city
   );
-  const area = str(addr.area ?? addr.area_name ?? r.area);
+  const area = str(
+    areaIdObj?.name ?? addr.area ?? addr.area_name ?? r.area
+  );
   const landmark = str(addr.landmark ?? r.landmark);
   const pincode = str(addr.pincode ?? r.pincode);
   const freeformAddress = str(addr.address);
@@ -2087,6 +2090,16 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     franchise_name:
       str(r.franchise_name ?? franchiseRef?.name ?? franchiseRef?.franchise_name) ||
       undefined,
+    franchise_state_name:
+      str(
+        r.franchise_state_name ??
+          franchiseRef?.state_name ??
+          franchiseRef?.state
+      ) || undefined,
+    franchise_city_name:
+      str(
+        r.franchise_city_name ?? franchiseRef?.city_name ?? franchiseRef?.city
+      ) || undefined,
     address_id: refId(r.address_id) || refId(addressRef) || undefined,
     employee_email:
       str(r.employee_email ?? employeeRef?.email) || undefined,

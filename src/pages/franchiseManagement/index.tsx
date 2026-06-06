@@ -24,6 +24,7 @@ import {
   writeHeaderFranchisePreference,
 } from "../../lib/franchise/headerFranchisePreference";
 import {
+  clearFranchiseDropdownCache,
   deleteFranchise,
   fetchFranchise,
   fetchFranchiseById,
@@ -352,46 +353,44 @@ const FranchiseManagement = () => {
   }, []);
 
   /** Summary counts: `POST /getCount` `{ type: "franchise-management", franchise_id? }`. */
-  useEffect(() => {
-    let cancelled = false;
+  const refreshSummaryCounts = useCallback(async () => {
     const apiFranchiseId = franchiseIdForApiQuery(headerFranchiseId);
-    void (async () => {
-      if (apiFranchiseId) {
-        const { responseCount, countModel } = await getCount(
-          "franchise-management",
-          {
-            franchise_id: apiFranchiseId,
-          }
-        );
-        if (cancelled || !responseCount || !countModel) return;
+    if (apiFranchiseId) {
+      const { responseCount, countModel } = await getCount(
+        "franchise-management",
+        {
+          franchise_id: apiFranchiseId,
+        }
+      );
+      if (responseCount && countModel) {
         setFranchiseData({
           Total: countModel.total_franchise ?? 0,
           Active: countModel.active_franchise ?? 0,
           Inactive: countModel.inactive_franchise ?? 0,
         });
-        return;
       }
-      const searchQ = String(filters.search ?? "").trim();
-      const statusF = String(filters.status ?? "").trim();
-      const hasScoped =
-        searchQ !== "" ||
-        (statusF !== "" && statusF !== "All") ||
-        sortBy.length > 0;
-      if (hasScoped) return;
-      const { responseCount, countModel } = await getCount(
-        "franchise-management"
-      );
-      if (cancelled || !responseCount || !countModel) return;
+      return;
+    }
+    const searchQ = String(filters.search ?? "").trim();
+    const statusF = String(filters.status ?? "").trim();
+    const hasScoped =
+      searchQ !== "" ||
+      (statusF !== "" && statusF !== "All") ||
+      sortBy.length > 0;
+    if (hasScoped) return;
+    const { responseCount, countModel } = await getCount("franchise-management");
+    if (responseCount && countModel) {
       setFranchiseData({
         Total: countModel.total_franchise,
         Active: countModel.active_franchise,
         Inactive: countModel.inactive_franchise,
       });
-    })();
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [filters.search, filters.status, sortBy, headerFranchiseId]);
+
+  useEffect(() => {
+    void refreshSummaryCounts();
+  }, [refreshSummaryCounts]);
 
   useEffect(() => {
     const v =
@@ -401,17 +400,32 @@ const FranchiseManagement = () => {
     });
   }, [filters.status, setUtilityFilterValue]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(
+    async (
+      listPage?: number,
+      options?: { forceRefreshAdminContacts?: boolean }
+    ) => {
+    const page =
+      typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
     const gen = ++franchiseManagementFetchGeneration;
     const apiFranchiseId = franchiseIdForApiQuery(headerFranchiseId);
     const apiFilters = {
       ...filters,
       ...(apiFranchiseId ? { franchise_id: apiFranchiseId } : {}),
     };
+    const fetchOptions = options?.forceRefreshAdminContacts
+      ? { forceRefreshAdminContacts: true as const }
+      : undefined;
     if (apiFranchiseId) {
       let row = await fetchFranchiseById(apiFranchiseId);
       if (!row) {
-        const wide = await fetchFranchise(1, 500, apiFilters, sortBy);
+        const wide = await fetchFranchise(
+          1,
+          500,
+          apiFilters,
+          sortBy,
+          fetchOptions
+        );
         const list = wide.franchises as any[];
         row =
           list.find((r) => String(r?._id ?? "") === apiFranchiseId) ??
@@ -454,10 +468,11 @@ const FranchiseManagement = () => {
       setTotalPages(rows.length ? 1 : 0);
     } else {
       const listRes = await fetchFranchise(
-        currentPage,
+        page,
         pageSize,
         apiFilters,
-        sortBy
+        sortBy,
+        fetchOptions
       );
 
       if (!isMountedRef.current) return;
@@ -498,9 +513,21 @@ const FranchiseManagement = () => {
         const filtersForCounts = { ...apiFilters };
         delete filtersForCounts.status;
         const [totalRes, activeRes, inactiveRes] = await Promise.all([
-          fetchFranchise(1, 1, filtersForCounts, []),
-          fetchFranchise(1, 1, { ...filtersForCounts, status: "true" }, []),
-          fetchFranchise(1, 1, { ...filtersForCounts, status: "false" }, []),
+          fetchFranchise(1, 1, filtersForCounts, [], fetchOptions),
+          fetchFranchise(
+            1,
+            1,
+            { ...filtersForCounts, status: "true" },
+            [],
+            fetchOptions
+          ),
+          fetchFranchise(
+            1,
+            1,
+            { ...filtersForCounts, status: "false" },
+            [],
+            fetchOptions
+          ),
         ]);
         if (!isMountedRef.current) return;
         if (gen !== franchiseManagementFetchGeneration) return;
@@ -515,15 +542,27 @@ const FranchiseManagement = () => {
         });
       }
     }
-  }, [currentPage, filters, pageSize, sortBy, headerFranchiseId]);
+  },
+    [currentPage, filters, pageSize, sortBy, headerFranchiseId]
+  );
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  const refreshData = useCallback(() => {
-    void fetchData();
-  }, [fetchData]);
+  const refreshData = useCallback(async () => {
+    clearFranchiseDropdownCache();
+    await refreshSummaryCounts();
+    await fetchData(undefined, { forceRefreshAdminContacts: true });
+  }, [fetchData, refreshSummaryCounts]);
+
+  /** After create: page 1 + explicit fetch (avoids stale `currentPage` closure) + getCount. */
+  const refreshListAfterCreate = useCallback(async () => {
+    clearFranchiseDropdownCache();
+    setCurrentPage(1);
+    await refreshSummaryCounts();
+    await fetchData(1, { forceRefreshAdminContacts: true });
+  }, [fetchData, refreshSummaryCounts]);
 
   const handleFilterChange = (nextFilters: {
     search?: string;
@@ -683,7 +722,9 @@ const FranchiseManagement = () => {
             isAddShow={true}
             addButtonLable="Add Franchise"
             onAddClick={() => {
-              AddEditFranchiseDialog.show(false, null, () => refreshData());
+              AddEditFranchiseDialog.show(false, null, () =>
+                refreshListAfterCreate()
+              );
             }}
           />
         </div>

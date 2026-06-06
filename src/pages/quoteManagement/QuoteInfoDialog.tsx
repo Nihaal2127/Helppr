@@ -235,6 +235,10 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
                 title="Category"
                 value={displayQuote.category_name}
               />
+              <DetailsRow
+                title="Franchise"
+                value={displayQuote.franchise_name}
+              />
             </Col>
             <Col xs={12} md={6} className="info-detail-fields-col">
               <DetailsRow

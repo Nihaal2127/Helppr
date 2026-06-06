@@ -207,6 +207,7 @@ export function PersonalAccountDetailsGrid({
   experience,
   stateName,
   cityName,
+  areaName,
   pincode,
   isActive,
   address,
@@ -226,6 +227,7 @@ export function PersonalAccountDetailsGrid({
   experience?: string | number | null;
   stateName?: string | null;
   cityName?: string | null;
+  areaName?: string | null;
   pincode?: string | null;
   isActive?: boolean;
   address?: string | null;
@@ -285,6 +287,7 @@ export function PersonalAccountDetailsGrid({
             <DetailsRow compact title="Phone Number" value={phone ?? "—"} />
             <DetailsRow compact title="Experience" value={experienceDisplay} />
             <DetailsRow compact title="City" value={cityName ?? "—"} />
+            <DetailsRow compact title="Area" value={areaName ?? "—"} />
             <DetailsRow compact title="Address" value={addressDisplay} />
             <DetailsRow compact title="Status" value={statusValue} />
           </Col>

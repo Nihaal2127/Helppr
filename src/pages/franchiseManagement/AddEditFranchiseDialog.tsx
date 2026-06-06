@@ -12,7 +12,9 @@ import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   createOrUpdateFranchise,
   fetchFranchise,
+  fetchFranchiseById,
 } from "../../services/franchiseService";
+import { collectFranchiseAreaIds } from "../../lib/quote/quoteHelpers";
 import { assignFranchiseToAdminUser } from "../../services/settingsService";
 import { fetchAreaDropDown } from "../../services/areaService";
 import {
@@ -34,7 +36,7 @@ type AddEditFranchiseDialogProps = {
   isViewMode?: boolean;
   franchise: FranchiseModel | null;
   onClose: () => void;
-  onRefreshData: () => void;
+  onRefreshData: () => void | Promise<void>;
   /** When true, omit "+ Add admin" (opened from Management Roles → Assigned Franchise → + Add franchise). */
   hideAddAdminOption?: boolean;
 };
@@ -147,6 +149,81 @@ function toStringArray(raw: unknown): string[] {
   return raw.map((v) => String(v ?? "").trim()).filter(Boolean);
 }
 
+/** Area labels from API when ids are missing or `areas` holds name strings/objects. */
+function franchiseAreaNameList(raw: Record<string, unknown>): string[] {
+  const fromNames = toStringArray(raw.area_name ?? raw.areaname);
+  if (fromNames.length > 0) return fromNames;
+  const areasRaw = raw.areas;
+  if (!Array.isArray(areasRaw)) return [];
+  const names: string[] = [];
+  for (const x of areasRaw) {
+    if (typeof x === "string") {
+      const s = x.trim();
+      if (s && !isMongoObjectId(s)) names.push(s);
+      continue;
+    }
+    if (x && typeof x === "object") {
+      const name = String(
+        (x as Record<string, unknown>).name ??
+          (x as Record<string, unknown>).area_name ??
+          ""
+      ).trim();
+      if (name) names.push(name);
+    }
+  }
+  return names;
+}
+
+/** Resolve selected area ids from franchise record + city area dropdown options. */
+function resolveFranchiseAreaIds(
+  franchise: Record<string, unknown> | null | undefined,
+  areaOptions: OptionType[]
+): string[] {
+  const collected = collectFranchiseAreaIds(franchise);
+  const mongoIds = collected.filter(isMongoObjectId);
+  if (mongoIds.length > 0) return Array.from(new Set(mongoIds));
+
+  const nameHints = [
+    ...collected.filter((x) => !isMongoObjectId(x)),
+    ...franchiseAreaNameList(franchise ?? {}),
+  ];
+  const uniqueNames = Array.from(
+    new Set(nameHints.map((n) => n.trim()).filter(Boolean))
+  );
+  if (uniqueNames.length === 0 || areaOptions.length === 0) return [];
+
+  const resolved: string[] = [];
+  for (const name of uniqueNames) {
+    const lower = name.toLowerCase();
+    const match = areaOptions.find(
+      (o) => String(o.label ?? "").trim().toLowerCase() === lower
+    );
+    if (match?.value) resolved.push(String(match.value));
+  }
+  return Array.from(new Set(resolved));
+}
+
+function buildAreaOptionsWithPreserved(
+  fetched: OptionType[] | null,
+  selectedIds: string[],
+  franchise: Record<string, unknown> | null | undefined
+): OptionType[] {
+  const base = fetched ?? [];
+  if (selectedIds.length === 0) return base;
+
+  const names = franchiseAreaNameList(franchise ?? {});
+  const merged = [...base];
+  selectedIds.forEach((id, index) => {
+    if (!id || merged.some((o) => o.value === id)) return;
+    const label =
+      names[index] ??
+      names.find((n) => n.toLowerCase() === id.toLowerCase()) ??
+      id;
+    merged.push({ value: id, label });
+  });
+  return merged;
+}
+
 function parseMultiSelectIds(
   selectedOptions: OptionType[],
   allOptions: OptionType[]
@@ -197,7 +274,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
   show: (
     isEditable: boolean,
     franchise: FranchiseModel | null,
-    onRefreshData: () => void,
+    onRefreshData: () => void | Promise<void>,
     isViewMode?: boolean,
     options?: { hideAddAdminOption?: boolean }
   ) => void;
@@ -209,8 +286,16 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
   onRefreshData,
   hideAddAdminOption = false,
 }) => {
+  const franchiseSource = franchise as Record<string, unknown> | null;
+  const initialAreaIds = franchiseSource
+    ? collectFranchiseAreaIds(franchiseSource).filter(isMongoObjectId)
+    : [];
+
   const lastAdminSelectionRef = useRef<string>(
     String(franchise?.admin_id ?? "").trim()
+  );
+  const [franchiseRecord, setFranchiseRecord] = useState<FranchiseModel | null>(
+    franchise
   );
   const {
     register,
@@ -225,23 +310,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
       desc2: (franchise as any)?.desc2 || "",
       state_id: franchise?.state_id || "",
       city_id: franchise?.city_id || "",
-      area_id: franchise?.area_id
-        ? Array.isArray(franchise.area_id)
-          ? franchise.area_id
-          : [franchise.area_id]
-        : [],
+      area_id: initialAreaIds,
       admin_id: franchise?.admin_id || "",
       is_active: franchise?.is_active ?? true,
     },
   });
 
-  const [areaIds, setAreaIds] = useState<string[]>(
-    franchise?.area_id
-      ? Array.isArray(franchise.area_id)
-        ? franchise.area_id
-        : [franchise.area_id]
-      : []
-  );
+  const [areaIds, setAreaIds] = useState<string[]>(initialAreaIds);
 
   const [adminOptions, setAdminOptions] = useState<OptionType[]>([]);
   /** Remount Admin `CustomFormSelect` so it never shows the synthetic "+ Add admin" value as selected. */
@@ -298,8 +373,31 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
   }, [isEditable, franchise?._id]);
 
   const areaOptions = useMemo(() => {
-    return fetchedAreaOptions ?? [];
-  }, [fetchedAreaOptions]);
+    const source = (franchiseRecord ?? franchise) as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    return buildAreaOptionsWithPreserved(
+      fetchedAreaOptions,
+      areaIds,
+      source ?? undefined
+    );
+  }, [fetchedAreaOptions, areaIds, franchiseRecord, franchise]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = String(franchise?._id ?? "").trim();
+    if (!id || !isEditable) {
+      setFranchiseRecord(franchise);
+      return;
+    }
+    void fetchFranchiseById(id).then((full) => {
+      if (!cancelled) setFranchiseRecord(full ?? franchise);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [franchise?._id, isEditable, franchise]);
 
   useEffect(() => {
     let cancelled = false;
@@ -651,42 +749,60 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 
   useEffect(() => {
     if (isEditable && franchise) {
-      setValue("name", franchise.name || "");
+      const source = (franchiseRecord ?? franchise) as FranchiseModel;
+      setValue("name", source.name || "");
       setValue(
         "desc",
-        (franchise as any)?.desc ?? (franchise as any)?.description ?? ""
+        (source as any)?.desc ?? (source as any)?.description ?? ""
       );
-      setValue("desc2", (franchise as any)?.desc2 || "");
-      setValue("state_id", franchise.state_id || "");
-      setValue("city_id", franchise.city_id || "");
-      setValue("admin_id", franchise.admin_id || "");
-      setValue("is_active", franchise.is_active ?? true);
+      setValue("desc2", (source as any)?.desc2 || "");
+      setValue("state_id", source.state_id || "");
+      setValue("city_id", source.city_id || "");
+      setValue("admin_id", source.admin_id || "");
+      setValue("is_active", source.is_active ?? true);
+    }
+  }, [isEditable, franchise, franchiseRecord, setValue]);
 
-      const editAreaIds = franchise.area_id
-        ? Array.isArray(franchise.area_id)
-          ? franchise.area_id
-          : [franchise.area_id]
-        : [];
+  useEffect(() => {
+    if (!isEditable || !franchise) return;
+    const source = (franchiseRecord ?? franchise) as unknown as Record<string, unknown>;
+    const opts = fetchedAreaOptions ?? [];
+    const resolved = resolveFranchiseAreaIds(source, opts);
+    if (resolved.length > 0) {
+      setAreaIds(resolved);
+      setValue("area_id", resolved, { shouldValidate: false });
+      return;
+    }
+    const pendingMongoIds = collectFranchiseAreaIds(source).filter(
+      isMongoObjectId
+    );
+    if (pendingMongoIds.length > 0 && opts.length === 0) {
+      setAreaIds(pendingMongoIds);
+      setValue("area_id", pendingMongoIds, { shouldValidate: false });
+    }
+  }, [
+    isEditable,
+    franchise,
+    franchiseRecord,
+    fetchedAreaOptions,
+    setValue,
+  ]);
 
-      setAreaIds(editAreaIds);
-      setValue("area_id", editAreaIds);
-
+  useEffect(() => {
+    if (isEditable && franchise) {
+      const source = (franchiseRecord ?? franchise) as unknown as Record<string, unknown>;
       const rawCategoryIds = toStringArray(
-        (franchise as any).category_ids ?? (franchise as any).categories ?? []
+        source.category_ids ?? source.categories ?? []
       );
       const rawServiceIds = toStringArray(
-        (franchise as any).service_ids ?? (franchise as any).services ?? []
+        source.service_ids ?? source.services ?? []
       );
 
       const categoryIdsFromApi = rawCategoryIds.filter(isMongoObjectId);
       const serviceIdsFromApi = rawServiceIds.filter(isMongoObjectId);
 
-      const categoryNames = toStringArray(
-        (franchise as any).category_names ?? []
-      );
-      const serviceNames = toStringArray(
-        (franchise as any).service_names ?? []
-      );
+      const categoryNames = toStringArray(source.category_names ?? []);
+      const serviceNames = toStringArray(source.service_names ?? []);
 
       const categoryIdsFromNames =
         categoryIdsFromApi.length > 0
@@ -726,7 +842,13 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
       setCategoryIds(dedupCategoryIds);
       setServiceIds(dedupServiceIds);
     }
-  }, [isEditable, franchise, setValue, categoryOptions, allServices]);
+  }, [
+    isEditable,
+    franchise,
+    franchiseRecord,
+    categoryOptions,
+    allServices,
+  ]);
 
   const handleAreaSelection = (selectedOptions: OptionType[]) => {
     const selectedIds = selectedOptions.map((option) => option.value);
@@ -880,8 +1002,8 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
       );
     }
 
-    onClose && onClose();
-    onRefreshData();
+    await Promise.resolve(onRefreshData?.());
+    onClose?.();
   };
 
   return (
@@ -1167,6 +1289,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
                   label="Area"
                   controlId="Area"
                   options={areaOptions}
+                  requiredMessage="Please select area"
                   value={areaOptions.filter((area) =>
                     areaIds.includes(area.value)
                   )}
@@ -1265,7 +1388,7 @@ const AddEditFranchiseDialog: React.FC<AddEditFranchiseDialogProps> & {
 AddEditFranchiseDialog.show = (
   isEditable: boolean,
   franchise: FranchiseModel | null,
-  onRefreshData: () => void,
+  onRefreshData: () => void | Promise<void>,
   isViewMode: boolean = false,
   options?: { hideAddAdminOption?: boolean }
 ) => {

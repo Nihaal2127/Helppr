@@ -181,6 +181,8 @@ export interface OrderModel {
   partner_commison_platform_fee: number | 0;
   admin_earning: number | 0;
   created_by_info: UserModel;
+  /** Assigned employee on the order (`GET /order/get/:id` — null when none). */
+  employee_info?: UserModel | null;
   user_info: UserModel;
   city_info: CityModel;
   category_info: CategoryModel;
@@ -232,6 +234,14 @@ export interface OrderModel {
   tax_amount?: number | null;
   /** GET /order/get/:id — populated saved address */
   address_info?: Record<string, unknown> | null;
+  /** Populated franchise on order detail. */
+  franchise_info?: {
+    _id?: string;
+    name?: string;
+    state_name?: string;
+    city_name?: string;
+  } | null;
+  franchise_name?: string | null;
   partner_info?: UserModel | null;
 }
 
@@ -750,6 +760,7 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
   const serviceRef = nestedObj(r.service_id);
   const cityRef = nestedObj(r.city_id);
   const createdByRef = nestedObj(r.created_by_id);
+  const franchiseRef = nestedObj(r.franchise_info);
 
   const userInfo =
     nestedObj(r.user_info) ??
@@ -802,6 +813,18 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       ? ({ ...createdByRef } as unknown as OrderModel["created_by_info"])
       : undefined);
 
+  const employee_info = ((): OrderModel["employee_info"] => {
+    if (r.employee_info === null) return null;
+    const fromInfo = nestedObj(r.employee_info);
+    if (fromInfo) {
+      return {
+        ...fromInfo,
+        name: str(fromInfo.name ?? fromInfo.user_name),
+      } as unknown as UserModel;
+    }
+    return undefined;
+  })();
+
   const category_info =
     (nestedObj(r.category_info) as OrderModel["category_info"] | undefined) ??
     (categoryRef
@@ -833,6 +856,18 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     created_by_name:
       str(r.created_by_name) || str(createdByRef?.name) || null,
     created_by_info: created_by_info ?? (r.created_by_info as OrderModel["created_by_info"]),
+    employee_info,
+    franchise_info: franchiseRef
+      ? {
+          _id: str(franchiseRef._id),
+          name: str(franchiseRef.name),
+          state_name: str(franchiseRef.state_name),
+          city_name: str(franchiseRef.city_name),
+        }
+      : r.franchise_info === null
+        ? null
+        : undefined,
+    franchise_name: str(franchiseRef?.name) || str(r.franchise_name) || null,
     category_info: category_info ?? (r.category_info as OrderModel["category_info"]),
     city_info: city_info ?? (r.city_info as OrderModel["city_info"]),
     order_status: Number.isFinite(order_status) ? order_status : Number(r.order_status) || 0,

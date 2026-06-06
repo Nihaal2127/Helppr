@@ -524,6 +524,7 @@ function PartnerVerificationReviewModalView({
                 experience={userDetails?.experience}
                 stateName={userDetails?.state_name}
                 cityName={userDetails?.city_name}
+                areaName={userDetails?.area_name}
                 pincode={userDetails?.pincode}
                 address={
                   typeof userDetails?.address === "string"

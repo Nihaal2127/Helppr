@@ -215,7 +215,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   const canEditOrderHeader =
     orderDetails?.order_status === 1 || orderDetails?.order_status === 2;
   const canEditOrderAll = Boolean(orderDetails?._id) && canEditOrderHeader;
-  const createdBy = orderDetails?.created_by_info;
+  const employeeInfo = orderDetails?.employee_info ?? null;
 
   const openEditAll = () => {
     if (!orderDetails?._id) return;
@@ -263,6 +263,14 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 <DetailsRow
                   title="Category Name"
                   value={getOrderCategoryName(orderDetails)}
+                />
+                <DetailsRow
+                  title="Franchise"
+                  value={
+                    orderDetails?.franchise_info?.name ??
+                    orderDetails?.franchise_name ??
+                    undefined
+                  }
                 />
                 <DetailsRow
                   title="Service Name"
@@ -409,21 +417,21 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
           <QuoteInfoPersonSection
             title="Employee"
             role="employee"
-            profileUrl={createdBy?.profile_url}
+            profileUrl={employeeInfo?.profile_url}
             fields={[
               {
                 label: "Name",
-                value: createdBy?.name ?? orderDetails?.created_by_name,
+                value: employeeInfo?.name ?? "-",
                 column: "left",
               },
               {
                 label: "Phone number",
-                value: createdBy?.phone_number,
+                value: employeeInfo?.phone_number ?? "-",
                 column: "right",
               },
               {
                 label: "Email",
-                value: createdBy?.email,
+                value: employeeInfo?.email ?? "-",
                 fullWidth: true,
               },
             ]}

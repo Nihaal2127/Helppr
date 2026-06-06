@@ -170,6 +170,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     Set<string>
   >(() => new Set());
   const [franchisePinsLoadDone, setFranchisePinsLoadDone] = useState(false);
+  const [franchiseCatalogName, setFranchiseCatalogName] = useState("");
 
   const catalogSeqRef = useRef(0);
   const initialStatusKeyRef = useRef("");
@@ -254,6 +255,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       setFranchiseQuotePinSet(new Set());
       setFranchiseQuoteAreaIdSet(new Set());
       setFranchisePinsLoadDone(true);
+      setFranchiseCatalogName("");
       setQuoteFranchiseCatalogSnapshot(null);
       return;
     }
@@ -276,6 +278,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
         setFranchiseQuotePinSet(new Set());
         setFranchiseQuoteAreaIdSet(new Set());
         setFranchisePinsLoadDone(true);
+        setFranchiseCatalogName("");
         setQuoteFranchiseCatalogSnapshot(null);
         setCatalogBusy(false);
         return;
@@ -292,6 +295,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
         employeeRows: mapped.quoteEmployeeRecords,
       });
       const fr = record.franchise as Record<string, unknown> | undefined;
+      setFranchiseCatalogName(String(fr?.name ?? "").trim());
       setFranchiseQuoteAreaIdSet(new Set(collectFranchiseAreaIds(fr)));
       setFranchiseQuotePinSet(buildFranchisePincodeSetFromRelatedCatalog(record));
       setFranchisePinsLoadDone(true);
@@ -572,6 +576,22 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     () => quoteUserOptions.map((u) => ({ value: u.value, label: u.label })),
     [quoteUserOptions]
   );
+
+  const franchiseSelectOptions = useMemo<OptionType[]>(() => {
+    const id = String(form.franchise_id ?? quoteRow?.franchise_id ?? "").trim();
+    const label =
+      String(quoteRow?.franchise_name ?? "").trim() ||
+      franchiseCatalogName ||
+      id ||
+      "-";
+    if (!id && label === "-") return [{ value: "", label: "-" }];
+    return [{ value: id || label, label }];
+  }, [
+    form.franchise_id,
+    quoteRow?.franchise_id,
+    quoteRow?.franchise_name,
+    franchiseCatalogName,
+  ]);
 
   const onSubmit = async (data: EditQuoteFormValues) => {
     const id = String(quoteMongoId ?? "").trim();
@@ -887,24 +907,47 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
             <section className="custom-other-details add-quote-form-section">
               <Row className="gy-3 gx-md-4 align-items-start">
                 <Col xs={12} md={6}>
-                  <CustomTextFieldSelect
-                    label="User"
-                    controlId="edit-quote-user"
-                    asCol={false}
-                    options={userSelectOptions}
-                    register={register as unknown as UseFormRegister<AddQuoteFormValues>}
-                    fieldName="user_id"
-                    error={errors.user_id}
-                    requiredMessage="Please select a user"
-                    defaultValue={form.user_id}
-                    setValue={setValue as (name: string, value: unknown) => void}
-                    placeholder="Search user name or mobile"
-                    menuPortal
-                    isClearable={false}
-                    isDisabled
-                  />
+                  <div className="order-edit-locked-select">
+                    <CustomTextFieldSelect
+                      label="User"
+                      controlId="edit-quote-user"
+                      asCol={false}
+                      options={userSelectOptions}
+                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+                      fieldName="user_id"
+                      error={errors.user_id}
+                      requiredMessage="Please select a user"
+                      defaultValue={form.user_id}
+                      setValue={setValue as (name: string, value: unknown) => void}
+                      placeholder="Search user name or mobile"
+                      menuPortal
+                      isClearable={false}
+                      isDisabled
+                    />
+                  </div>
                 </Col>
-                {!isSuperAdminOrStaff ? (
+                <Col xs={12} md={6}>
+                  <div className="order-edit-locked-select">
+                    <CustomTextFieldSelect
+                      label="Franchise"
+                      controlId="edit-quote-franchise"
+                      asCol={false}
+                      options={franchiseSelectOptions}
+                      register={register as unknown as UseFormRegister<AddQuoteFormValues>}
+                      fieldName="franchise_id"
+                      defaultValue={form.franchise_id}
+                      setValue={setValue as (name: string, value: unknown) => void}
+                      placeholder="Franchise"
+                      menuPortal
+                      isClearable={false}
+                      includeEmptyOption={false}
+                      isDisabled
+                    />
+                  </div>
+                </Col>
+              </Row>
+              {!isSuperAdminOrStaff ? (
+                <Row className="gy-3 gx-md-4 align-items-start">
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
                       label="Employee"
@@ -922,8 +965,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       isDisabled={lockedFields}
                     />
                   </Col>
-                ) : null}
-              </Row>
+                </Row>
+              ) : null}
 
               {String(form.user_id ?? "").trim() ? (
                 <section className="border rounded p-3 mt-4 mb-0">
