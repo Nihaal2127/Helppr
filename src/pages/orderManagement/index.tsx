@@ -281,6 +281,15 @@ const OrderManagement = () => {
         accessor: "total_price",
         Cell: priceCell("total_price"),
       },
+      ...(selectedStatus === 5
+        ? [
+            {
+              Header: "Refund amount",
+              accessor: "customer_refunded_amount",
+              Cell: priceCell("customer_refunded_amount"),
+            },
+          ]
+        : []),
       {
         Header: "Partner Payment Status",
         accessor: "partner_payment_status_col",
@@ -308,6 +317,7 @@ const OrderManagement = () => {
     [
       currentPage,
       pageSize,
+      selectedStatus,
       handleOrderVoid,
       handleOrderInvoiceDownload,
       orderShow,

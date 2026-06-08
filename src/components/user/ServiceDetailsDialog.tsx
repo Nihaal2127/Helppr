@@ -6,7 +6,11 @@ import CustomServiceUtilityBox from "../../components/CustomServiceUtilityBox";
 import CustomServiceTable from "../../components/CustomServiceTable";
 import { FinancialModel } from "../../lib/models/FinancialModel";
 import { fetchOrderServiceFinancial } from "../../services/financialService";
-import { formatDate, priceCell, paymentStatusCell } from "../../helper/utility";
+import { formatDate, priceCell } from "../../helper/utility";
+import {
+  customerPaymentStatusLabelFromSlug,
+  partnerPaymentStatusLabelFromSlug,
+} from "../../lib/financial/paymentStatus";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { openDialog } from "../../lib/global/DialogManager";
 
@@ -16,6 +20,22 @@ type ServiceDetailsDialogProps = {
   status: number | null;
   onClose: () => void;
 };
+
+function servicePaymentStatusLabel(
+  row: FinancialModel & { payment_status?: string | null }
+): string {
+  const raw =
+    row.payment_status ??
+    (row.is_paid ? "paid" : "unpaid");
+  const label =
+    customerPaymentStatusLabelFromSlug(raw) ||
+    partnerPaymentStatusLabelFromSlug(raw);
+  if (label === "Partially paid") return "Partially Paid";
+  if (label) return label;
+  const slug = String(raw ?? "").trim().toLowerCase();
+  if (slug === "paid" || row.is_paid) return "Paid";
+  return "Unpaid";
+}
 
 const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
   show: (
@@ -111,43 +131,59 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
       },
       {
         Header: "Paid Amount",
-        accessor: is_partner ? "paid_to_partner" : "customer_paid_amount",
-        Cell: ({ row }: { row: any }) => {
-          const o = row.original ?? {};
-          const v = is_partner
-            ? o.paid_to_partner
-            : o.customer_paid_amount ?? (o.is_paid ? o.total_price : undefined);
-          return (
-            <span>
-              {v !== undefined && v !== null
-                ? `${AppConstant.currencySymbol}${v}`
-                : "-"}
-            </span>
-          );
-        },
+        // accessor: is_partner ? "paid_to_partner" : "customer_paid_amount",
+        // Cell: ({ row }: { row: any }) => {
+        //   const o = row.original ?? {};
+        //   const v = is_partner
+        //     ? o.paid_to_partner
+        //     : o.customer_paid_amount ?? (o.is_paid ? o.total_price : undefined);
+        //   return (
+        //     <span>
+        //       {v !== undefined && v !== null
+        //         ? `${AppConstant.currencySymbol}${v}`
+        //         : "-"}
+        //     </span>
+        //   );
+        // },
+        accessor: "paid_amount",
+        Cell: priceCell("paid_amount"),
       },
       {
         Header: "Pending Amount",
-        accessor: is_partner ? "pending_to_partner" : "customer_pending_amount",
-        Cell: ({ row }: { row: any }) => {
-          const o = row.original ?? {};
-          const v = is_partner
-            ? o.pending_to_partner
-            : o.customer_pending_amount ??
-              (!o.is_paid ? o.total_price : undefined);
-          return (
-            <span>
-              {v !== undefined && v !== null
-                ? `${AppConstant.currencySymbol}${v}`
-                : "-"}
-            </span>
-          );
-        },
+        // accessor: is_partner ? "pending_to_partner" : "customer_pending_amount",
+        // Cell: ({ row }: { row: any }) => {
+        //   const o = row.original ?? {};
+        //   const v = is_partner
+        //     ? o.pending_to_partner
+        //     : o.customer_pending_amount ??
+        //       (!o.is_paid ? o.total_price : undefined);
+        //   return (
+        //     <span>
+        //       {v !== undefined && v !== null
+        //         ? `${AppConstant.currencySymbol}${v}`
+        //         : "-"}
+        //     </span>
+        //   );
+        // },
+        accessor: "pending_amount",
+        Cell: priceCell("pending_amount"),
       },
       {
         Header: "Payment Status",
-        accessor: "is_paid",
-        Cell: paymentStatusCell("is_paid"),
+        accessor: "payment_status",
+        Cell: ({ row }: { row: { original: FinancialModel } }) => {
+          const label = servicePaymentStatusLabel(
+            row.original as FinancialModel & { payment_status?: string | null }
+          );
+          const normalized = label.toLowerCase();
+          const className =
+            normalized === "partially paid"
+              ? "text-warning fw-semibold"
+              : normalized === "unpaid"
+              ? "custom-inactive"
+              : "custom-active";
+          return <span className={className}>{label}</span>;
+        },
       },
       // {
       //   Header: "Status",

@@ -3,11 +3,21 @@ import { Modal } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import { DocumentModel } from "../lib/models/DocumentModel";
 import { AppConstant } from "../lib/global/AppConstant";
-import { verificationStatusCell } from "../helper/utility";
+function formatDocumentPreviewTitle(name: string | null | undefined): string {
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) return "Document";
+  return trimmed
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
 
 export const CustomImagePreviewDialog = (documentPreview: DocumentModel) => {
   const modalContainer = document.createElement("div");
   document.body.appendChild(modalContainer);
+  const title = formatDocumentPreviewTitle(documentPreview.name);
 
   const closeModal = () => {
     ReactDOM.unmountComponentAtNode(modalContainer);
@@ -23,8 +33,7 @@ export const CustomImagePreviewDialog = (documentPreview: DocumentModel) => {
     >
       <Modal.Header className="border-bottom-0">
         <Modal.Title as="h5" className="custom-dialog-title mt-0">
-          Verification Status:{" "}
-          {verificationStatusCell(documentPreview.verification_status)({})}
+          {title}
         </Modal.Title>
         <CustomCloseButton onClose={closeModal} />
       </Modal.Header>
