@@ -281,7 +281,7 @@ const OrderManagement = () => {
         accessor: "total_price",
         Cell: priceCell("total_price"),
       },
-      ...(selectedStatus === 5
+       ...(selectedStatus === 5
         ? [
             {
               Header: "Refund amount",

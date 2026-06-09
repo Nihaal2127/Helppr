@@ -946,12 +946,50 @@ function pickExpenseCategoryRows(
   return [];
 }
 
+function mapApiExpenseCategorySubcategories(
+  raw: Record<string, unknown>
+): ExpenseCategoryModel["subcategories"] {
+  const rawList = raw.subcategories;
+  if (!Array.isArray(rawList)) return undefined;
+  const mapped = rawList
+    .map((item) => {
+      const row =
+        item && typeof item === "object"
+          ? (item as Record<string, unknown>)
+          : null;
+      if (!row) return null;
+      const subCategoryName = String(
+        row.sub_category_name ?? row.subCategoryName ?? ""
+      ).trim();
+      if (!subCategoryName) return null;
+      const subcategoryId = String(
+        row.subcategory_id ??
+          row.sub_category_id ??
+          row.subCategoryId ??
+          ""
+      ).trim();
+      return {
+        subcategoryId: subcategoryId || undefined,
+        subCategoryName,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null);
+  return mapped.length > 0 ? mapped : undefined;
+}
+
 function mapApiExpenseCategory(
   raw: Record<string, unknown>
 ): ExpenseCategoryModel {
   const rowId = String(
     raw._id ?? raw.id ?? raw.expense_category_id ?? generateId()
   );
+  const subcategories = mapApiExpenseCategorySubcategories(raw);
+  const subCategoryNamesFromList =
+    subcategories?.map((row) => row.subCategoryName).filter(Boolean) ?? [];
+  const subCategoryName =
+    String(raw.sub_category_name ?? raw.subCategoryName ?? "").trim() ||
+    subCategoryNamesFromList[0] ||
+    "";
   return {
     id: rowId,
     categoryId:
@@ -961,6 +999,7 @@ function mapApiExpenseCategory(
         raw.subcategory_id ??
           raw.sub_category_id ??
           raw.subCategoryId ??
+          subcategories?.[0]?.subcategoryId ??
           raw.service_id ??
           raw.serviceId ??
           ""
@@ -970,9 +1009,8 @@ function mapApiExpenseCategory(
     franchiseName:
       String(raw.franchise_name ?? raw.franchiseName ?? "").trim() || undefined,
     categoryName: String(raw.category_name ?? raw.categoryName ?? "").trim(),
-    subCategoryName: String(
-      raw.sub_category_name ?? raw.subCategoryName ?? ""
-    ).trim(),
+    subCategoryName,
+    subcategories,
     description: String(raw.description ?? "").trim(),
     createdDate: String(
       raw.created_at ?? raw.createdDate ?? new Date().toISOString()
@@ -990,6 +1028,7 @@ export const fetchExpenseCategoriesPage = async (
     sortOrder?: "asc" | "desc";
     startDate?: string;
     endDate?: string;
+    franchiseId?: string;
   }
 ): Promise<{
   rows: ExpenseCategoryModel[];
@@ -1004,6 +1043,7 @@ export const fetchExpenseCategoriesPage = async (
     ...(filters?.sortOrder ? { sort_order: filters.sortOrder } : {}),
     ...(filters?.startDate ? { startDate: filters.startDate } : {}),
     ...(filters?.endDate ? { endDate: filters.endDate } : {}),
+    ...(filters?.franchiseId ? { franchise_id: filters.franchiseId } : {}),
     _ts: String(Date.now()),
   });
   const res = await apiRequest(
@@ -1082,16 +1122,25 @@ export const fetchAllExpenseCategoriesWithApi = async (): Promise<
 
 /** API create/update using Postman expense-category-management contract. */
 export const saveExpenseCategoryWithApi = async (
-  payload: Omit<ExpenseCategoryModel, "id" | "createdDate">,
+  payload: Omit<ExpenseCategoryModel, "id" | "createdDate"> & {
+    /** Create flow: one or more sub categories sent as an array. */
+    subCategoryNames?: string[];
+  },
   id?: string
 ): Promise<boolean> => {
-  const body = {
+  const isUpdate = Boolean(String(id ?? "").trim());
+  const subCategoryNames = (payload.subCategoryNames ?? [])
+    .map((name) => String(name).trim())
+    .filter(Boolean);
+  const body: Record<string, unknown> = {
     franchise_id: String(payload.franchiseId ?? "").trim(),
     category_name: payload.categoryName.trim(),
-    sub_category_name: payload.subCategoryName.trim(),
     description: (payload.description ?? "").trim(),
   };
-  const isUpdate = Boolean(String(id ?? "").trim());
+  body.sub_category_name =
+    subCategoryNames.length > 0
+      ? subCategoryNames
+      : [payload.subCategoryName.trim()].filter(Boolean);
   const endpoint = isUpdate
     ? ApiPaths.UPDATE_EXPENSE_CATEGORY(String(id).trim())
     : ApiPaths.CREATE_EXPENSE_CATEGORY;

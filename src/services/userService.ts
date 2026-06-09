@@ -200,6 +200,8 @@ export const createWebManagementUser = async (
   const pw = String(body.password ?? "").trim();
   if (pw) {
     requestBody.password = pw;
+    const confirm = String(body.confirm_password ?? "").trim();
+    requestBody.confirm_password = confirm || pw;
   }
   if (body.available_pages !== undefined) {
     requestBody.available_pages = pageRows;
@@ -712,6 +714,19 @@ export type CreateOrUpdateUserOptions = {
   suppressSuccessAlert?: boolean;
 };
 
+/** API requires `confirm_password` whenever `password` is sent. */
+function attachPasswordConfirmFields(body: Record<string, unknown>): void {
+  const password = String(body.password ?? "").trim();
+  if (!password) {
+    delete body.password;
+    delete body.confirm_password;
+    return;
+  }
+  body.password = password;
+  const confirm = String(body.confirm_password ?? "").trim();
+  body.confirm_password = confirm || password;
+}
+
 export const createOrUpdateUser = async (
   payload: any,
   isEditable: boolean,
@@ -741,6 +756,8 @@ export const createOrUpdateUser = async (
   const docFileEntries = Object.entries(partnerDocumentFiles ?? {}).filter(
     (entry): entry is [string, File] => entry[1] instanceof File
   );
+  attachPasswordConfirmFields(mergedPayload);
+
   const shouldSendMultipart = Boolean(image) || docFileEntries.length > 0;
   let bodyToSend: any = mergedPayload;
 

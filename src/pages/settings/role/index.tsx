@@ -474,7 +474,11 @@ const RoleManagement = () => {
     setPasswordModalPending(true);
     try {
       const ok = await createOrUpdateUser(
-        { type: passwordModal.userType, password: pw },
+        {
+          type: passwordModal.userType,
+          password: pw,
+          confirm_password: passwordModalFields.reenterPassword.trim(),
+        },
         true,
         passwordModal.userId
       );

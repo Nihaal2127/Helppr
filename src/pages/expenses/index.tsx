@@ -122,7 +122,26 @@ const ExpensesPage = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [form, setForm] = useState<ExpenseFormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<ExpenseFormErrors>({});
+  const [addFormKey, setAddFormKey] = useState(0);
   const fetchRef = useRef(false);
+
+  const resetAddExpenseFormFields = useCallback(() => {
+    setForm({
+      ...emptyForm,
+      franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId,
+    });
+    setFormErrors({});
+    setValue("expense_modal_franchise", isSuperAdminOrStaff ? "" : sessionFranchiseId, {
+      shouldValidate: false,
+    });
+    setValue("expense_modal_category", "", { shouldValidate: false });
+    setValue("expense_modal_sub_category", "", { shouldValidate: false });
+    setValue("expense_modal_expense_name", "", { shouldValidate: false });
+    setValue("expense_modal_description", "", { shouldValidate: false });
+    setValue("expense_modal_expense_amount", "", { shouldValidate: false });
+    setValue("expense_modal_expense_date", "", { shouldValidate: false });
+    setValue("expense_modal_payment_mode", "cash", { shouldValidate: false });
+  }, [isSuperAdminOrStaff, sessionFranchiseId, setValue]);
 
   const listParamsRef = useRef<ExpensesFilters>({});
 
@@ -278,8 +297,8 @@ const ExpensesPage = () => {
       setIsViewMode(false);
       if (!expense) {
         setEditingExpense(null);
-        setForm({ ...emptyForm, franchiseId: isSuperAdminOrStaff ? "" : sessionFranchiseId });
-        setFormErrors({});
+        setAddFormKey((k) => k + 1);
+        resetAddExpenseFormFields();
         setShowForm(true);
         return;
       }
@@ -307,7 +326,7 @@ const ExpensesPage = () => {
       }
       setShowForm(true);
     },
-    [franchiseIdForExpenseApi, isSuperAdminOrStaff, prefillFormFromExpense, sessionFranchiseId]
+    [franchiseIdForExpenseApi, prefillFormFromExpense, resetAddExpenseFormFields]
   );
 
   const handleOpenView = useCallback(
@@ -726,6 +745,11 @@ const ExpensesPage = () => {
               {isSuperAdminOrStaff && (
                 <div className="col-md-6">
                   <CustomFormSelect
+                    key={
+                      editingExpense
+                        ? `expense-franchise-${editingExpense._id ?? editingExpense.id}`
+                        : `expense-franchise-add-${addFormKey}`
+                    }
                     label="Franchise"
                     controlId="expense_modal_franchise"
                     showRequiredMark
@@ -758,6 +782,11 @@ const ExpensesPage = () => {
              <div className="row g-2">
               <div className="col-md-6">
                 <CustomFormSelect
+                  key={
+                    editingExpense
+                      ? `expense-category-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-category-add-${addFormKey}`
+                  }
                   label="Category"
                   controlId="expense_modal_category"
                   showRequiredMark
@@ -811,6 +840,11 @@ const ExpensesPage = () => {
                   }}
                 >
                   <CustomFormSelect
+                    key={
+                      editingExpense
+                        ? `expense-sub-category-${editingExpense._id ?? editingExpense.id}-${form.categoryId}`
+                        : `expense-sub-category-add-${addFormKey}-${form.categoryId}`
+                    }
                     label="Sub Category"
                     controlId="expense_modal_sub_category"
                     showRequiredMark
@@ -857,6 +891,11 @@ const ExpensesPage = () => {
 
               <div className="col-md-12">
                 <CustomFormInput
+                  key={
+                    editingExpense
+                      ? `expense-name-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-name-add-${addFormKey}`
+                  }
                   label="Expense Name"
                   controlId="expense_modal_expense_name"
                   showRequiredMark
@@ -878,6 +917,11 @@ const ExpensesPage = () => {
 
               <div className="col-md-12">
                 <CustomFormInput
+                  key={
+                    editingExpense
+                      ? `expense-description-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-description-add-${addFormKey}`
+                  }
                   label="Description / Notes"
                   controlId="expense_modal_description"
                   placeholder="Enter Description / Notes"
@@ -893,6 +937,11 @@ const ExpensesPage = () => {
 
               <div className="col-md-6">
                 <CustomFormInput
+                  key={
+                    editingExpense
+                      ? `expense-amount-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-amount-add-${addFormKey}`
+                  }
                   label="Expense Amount"
                   controlId="expense_modal_expense_amount"
                   showRequiredMark
@@ -917,6 +966,11 @@ const ExpensesPage = () => {
 
               <div className="col-md-6">
                 <CustomDatePicker
+                  key={
+                    editingExpense
+                      ? `expense-date-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-date-add-${addFormKey}`
+                  }
                   label="Expense Date"
                   required
                   controlId="expense_modal_expense_date"
@@ -942,6 +996,11 @@ const ExpensesPage = () => {
 
               <div className="col-md-12">
                 <CustomFormSelect
+                  key={
+                    editingExpense
+                      ? `expense-payment-${editingExpense._id ?? editingExpense.id}`
+                      : `expense-payment-add-${addFormKey}`
+                  }
                   label="Payment Mode"
                   controlId="expense_modal_payment_mode"
                   showRequiredMark

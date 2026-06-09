@@ -27,6 +27,7 @@ const PasswordChangeDialog: React.FC<PasswordChangeDialogProps> & {
     const payload = {
       type: user.type,
       password: data.password,
+      confirm_password: data.confirm_password,
     };
 
     let responseUser = await createOrUpdateUser(payload, true, user?._id);

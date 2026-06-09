@@ -57,6 +57,11 @@ export interface StaffSettingsModel {
   franchisePermissions: string[];
 }
 
+export type ExpenseCategorySubcategory = {
+  subcategoryId?: string;
+  subCategoryName: string;
+};
+
 export interface ExpenseCategoryModel {
   id: string;
   /** Optional backend category table id (when returned separately from row id). */
@@ -67,6 +72,8 @@ export interface ExpenseCategoryModel {
   franchiseName?: string;
   categoryName: string;
   subCategoryName: string;
+  /** Nested sub categories from list/detail API (`subcategories`). */
+  subcategories?: ExpenseCategorySubcategory[];
   description?: string;
   createdDate: string;
 }

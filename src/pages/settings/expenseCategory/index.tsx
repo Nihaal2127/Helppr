@@ -22,6 +22,143 @@ import type { ServerTableSortBy } from "../../../lib/global/serverTableSort";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { fetchFranchiseDropDown, FranchiseDropDownOption } from "../../../services/franchiseService";
+import { PinCodeHoverPortal } from "../../../components/PinCodeHoverPortal";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
+
+function subCategoryNamesForRow(row: ExpenseCategoryModel): string[] {
+  const fromList = (row.subcategories ?? [])
+    .map((item) => String(item.subCategoryName ?? "").trim())
+    .filter(Boolean);
+  if (fromList.length > 0) return fromList;
+  const single = String(row.subCategoryName ?? "").trim();
+  return single ? [single] : [];
+}
+
+function ExpenseSubCategoryTableCell({ row }: { row: { original: ExpenseCategoryModel } }) {
+  const items = subCategoryNamesForRow(row.original);
+  if (items.length === 0) return <>-</>;
+
+  if (items.length === 1) {
+    return (
+      <PinCodeHoverPortal items={items} listStyle="ul">
+        <span
+          className="pin-code-hover-trigger d-inline-block text-truncate w-100 min-w-0"
+          style={{ maxWidth: "100%" }}
+        >
+          {items[0]}
+        </span>
+      </PinCodeHoverPortal>
+    );
+  }
+
+  const more = items.length - 1;
+  return (
+    <PinCodeHoverPortal items={items} listStyle="ul">
+      <span className="pin-code-hover-trigger d-flex align-items-center flex-nowrap w-100 min-w-0">
+        <span
+          className="text-truncate min-w-0"
+          style={{ flex: "1 1 0%" }}
+        >
+          {items[0]}....
+        </span>
+        <span className="flex-shrink-0" style={{ color: "red", fontWeight: 600 }}>
+          +{more}
+        </span>
+      </span>
+    </PinCodeHoverPortal>
+  );
+}
+
+type ExpenseSubCategoryNamesEditorProps = {
+  rowKeyPrefix: string;
+  names: string[];
+  error?: string;
+  removeMode: "add" | "edit";
+  onChange: (names: string[]) => void;
+  onClearError: () => void;
+};
+
+function canRemoveSubCategoryRow(
+  index: number,
+  names: string[],
+  removeMode: "add" | "edit"
+): boolean {
+  if (removeMode === "edit") return names.length > 1;
+  return index > 0;
+}
+
+function ExpenseSubCategoryNamesEditor({
+  rowKeyPrefix,
+  names,
+  error,
+  removeMode,
+  onChange,
+  onClearError,
+}: ExpenseSubCategoryNamesEditorProps) {
+
+  return (
+    <div>
+      <Form.Label className="fw-medium mb-2 d-block">
+        Sub Category Name{" "}
+        <span className="text-danger" aria-hidden>
+          *
+        </span>
+      </Form.Label>
+      {names.map((subCategoryName, index) => (
+        <div
+          key={`${rowKeyPrefix}-${index}`}
+          className="d-flex align-items-center gap-2 mb-2"
+        >
+          <Form.Control
+            className="custom-form-input flex-grow-1"
+            type="text"
+            placeholder="Enter Sub Category Name"
+            value={subCategoryName}
+            isInvalid={index === 0 && Boolean(error)}
+            style={subCategoryFieldInputStyle}
+            onChange={(e) => {
+              const value = e.target.value;
+              onChange(
+                names.map((item, itemIndex) =>
+                  itemIndex === index ? value : item
+                )
+              );
+              onClearError();
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Add sub category row"
+            title="Add sub category"
+            style={subCategoryAddIconBtnStyle}
+            onClick={() => {
+              const next = [...names];
+              next.splice(index + 1, 0, "");
+              onChange(next);
+            }}
+          >
+            <i className="bi bi-plus fs-6" aria-hidden />
+          </button>
+          {canRemoveSubCategoryRow(index, names, removeMode) ? (
+            <button
+              type="button"
+              aria-label="Remove sub category row"
+              title="Remove sub category"
+              style={subCategoryRemoveIconBtnStyle}
+              onClick={() => {
+                onChange(names.filter((_, itemIndex) => itemIndex !== index));
+              }}
+            >
+              <i className="bi bi-dash-lg fs-6" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      ))}
+      {error ? <div className="text-danger small">{error}</div> : null}
+    </div>
+  );
+}
 
 const emptyForm = {
   franchiseId: "",
@@ -34,6 +171,43 @@ type ExpenseCategoryFormErrors = {
   franchiseId?: string;
   categoryName?: string;
   subCategoryName?: string;
+  subCategoryNames?: string;
+};
+
+const emptyAddSubCategoryNames = [""];
+
+const subCategoryFieldInputStyle: React.CSSProperties = {
+  boxShadow: "none",
+  borderRadius: "8px",
+  borderColor: "var(--primary-color)",
+  fontSize: "14px",
+  fontWeight: "normal",
+  height: "35px",
+  lineHeight: "18px",
+  backgroundColor: "var(--bg-color)",
+  fontFamily: "Inter",
+  color: "var(--content-txt-color)",
+  marginBottom: 0,
+};
+
+const subCategoryAddIconBtnStyle: React.CSSProperties = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "50%",
+  border: "1px solid var(--primary-color)",
+  backgroundColor: "transparent",
+  color: "var(--primary-color)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  padding: 0,
+};
+
+const subCategoryRemoveIconBtnStyle: React.CSSProperties = {
+  ...subCategoryAddIconBtnStyle,
+  border: "1px solid #dc3545",
+  color: "#dc3545",
 };
 
 const TABLE_PAGE_SIZE = 10;
@@ -47,6 +221,11 @@ const formatLocalDateYmd = (date: Date | null): string => {
 };
 
 const ExpenseCategoryManagement = () => {
+  const {
+    register: headerRegister,
+    setValue: setHeaderValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
   const { register, setValue } = useForm<any>();
   const [items, setItems] = useState<ExpenseCategoryModel[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -66,6 +245,37 @@ const ExpenseCategoryManagement = () => {
   const [tableTotalItems, setTableTotalItems] = useState(0);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
   const [franchiseOptions, setFranchiseOptions] = useState<FranchiseDropDownOption[]>([]);
+  const [addFormKey, setAddFormKey] = useState(0);
+  const [addSubCategoryNames, setAddSubCategoryNames] = useState<string[]>(
+    emptyAddSubCategoryNames
+  );
+  const [editSubCategoryNames, setEditSubCategoryNames] = useState<string[]>(
+    emptyAddSubCategoryNames
+  );
+
+  const resetAddFormFields = useCallback(() => {
+    setForm(emptyForm);
+    setFormErrors({});
+    setAddSubCategoryNames([...emptyAddSubCategoryNames]);
+    setValue("expense_category_franchise_id", "", { shouldValidate: false });
+    setValue("expense_category_name", "", { shouldValidate: false });
+    setValue("expense_category_description", "", { shouldValidate: false });
+  }, [setValue]);
+
+  const syncEditFormWithRhf = useCallback(
+    (item: ExpenseCategoryModel) => {
+      setValue("expense_category_franchise_id", item.franchiseId || "", {
+        shouldValidate: false,
+      });
+      setValue("expense_category_name", item.categoryName || "", {
+        shouldValidate: false,
+      });
+      setValue("expense_category_description", item.description || "", {
+        shouldValidate: false,
+      });
+    },
+    [setValue]
+  );
 
   const closeFormModal = () => {
     setShowForm(false);
@@ -73,13 +283,20 @@ const ExpenseCategoryManagement = () => {
     setEditing(null);
     setForm(emptyForm);
     setFormErrors({});
+    setAddSubCategoryNames([...emptyAddSubCategoryNames]);
+    setEditSubCategoryNames([...emptyAddSubCategoryNames]);
   };
+
+  const hydrateEditSubCategoryNames = useCallback((item: ExpenseCategoryModel) => {
+    const names = subCategoryNamesForRow(item);
+    setEditSubCategoryNames(names.length > 0 ? names : [...emptyAddSubCategoryNames]);
+  }, []);
 
   const openAddForm = () => {
     setEditing(null);
     setIsViewMode(false);
-    setForm(emptyForm);
-    setFormErrors({});
+    setAddFormKey((k) => k + 1);
+    resetAddFormFields();
     setShowForm(true);
   };
 
@@ -100,6 +317,8 @@ const ExpenseCategoryManagement = () => {
       subCategoryName: item.subCategoryName,
       description: item.description || "",
     });
+    hydrateEditSubCategoryNames(item);
+    syncEditFormWithRhf(item);
     setFormErrors({});
     setShowForm(true);
   };
@@ -113,7 +332,18 @@ const ExpenseCategoryManagement = () => {
       subCategoryName: editing.subCategoryName || "",
       description: editing.description || "",
     });
-  }, [editing, isViewMode, showForm]);
+    hydrateEditSubCategoryNames(editing);
+    syncEditFormWithRhf(editing);
+  }, [editing, hydrateEditSubCategoryNames, isViewMode, showForm, syncEditFormWithRhf]);
+
+  const listFilters = useMemo(() => {
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    return fid ? { franchiseId: fid } : {};
+  }, [headerFranchiseId]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [headerFranchiseId]);
 
   const refresh = useCallback(async () => {
     const primarySort = sortBy[0];
@@ -146,13 +376,14 @@ const ExpenseCategoryManagement = () => {
       sortOrder: primarySort ? (primarySort.desc ? "desc" : "asc") : undefined,
       startDate: normalizedStartDate || undefined,
       endDate: normalizedEndDate || undefined,
+      ...listFilters,
     });
     setIsLoading(false);
     if (!pageData) return;
     setItems(pageData.rows);
     setTableTotalPages(Math.max(1, pageData.totalPages || 1));
     setTableTotalItems(pageData.totalItems ?? pageData.rows.length);
-  }, [endDate, keyword, sortBy, startDate, tablePage]);
+  }, [endDate, keyword, listFilters, sortBy, startDate, tablePage]);
 
   useEffect(() => {
     ensureSettingsSeedData();
@@ -202,7 +433,12 @@ const ExpenseCategoryManagement = () => {
         accessor: "categoryName",
         sort: true,
       },
-      { Header: "Sub Category Name", accessor: "subCategoryName", sort: true },
+      {
+        Header: "Sub Category Name",
+        accessor: "subCategoryName",
+        sort: true,
+        Cell: ExpenseSubCategoryTableCell,
+      },
       {
         Header: "Franchise Name",
         accessor: "franchiseName",
@@ -382,8 +618,8 @@ const ExpenseCategoryManagement = () => {
     <div className="main-page-content">
       <CustomHeader title="Expense Category Management"
        titlePrefix={<SettingsNav />}
-       register={register}
-       setValue={setValue}
+       register={headerRegister}
+       setValue={setHeaderValue}
         />
 
       <div className="box-container">
@@ -441,6 +677,8 @@ const ExpenseCategoryManagement = () => {
                         subCategoryName: editing.subCategoryName,
                         description: editing.description || "",
                       });
+                      hydrateEditSubCategoryNames(editing);
+                      syncEditFormWithRhf(editing);
                       setFormErrors({});
                       setIsViewMode(false);
                     }}
@@ -452,14 +690,39 @@ const ExpenseCategoryManagement = () => {
                    
                   </div>
                   <div className="custom-helper-column">
-                  <DetailsRow title="Sub Category Name" value={editing.subCategoryName} />
+                    <div className="info-detail-inline-row">
+                      <span className="info-detail-inline-label custom-personal-row-title">
+                        Sub Category Name
+                      </span>
+                      <div className="info-detail-inline-value custom-personal-row-value text-break">
+                        {subCategoryNamesForRow(editing).length > 0 ? (
+                          <ul className="mb-0 ps-3">
+                            {subCategoryNamesForRow(editing).map((name, idx) => (
+                              <li key={`${name}-${idx}`}>{name}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "-"
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="custom-helper-column">
-                    <DetailsRow title="Franchise Name" value={editing.franchiseName || "-"} />
+                    <DetailsRow
+                      title="Franchise Name"
+                      value={
+                        String(editing.franchiseName ?? "").trim() ||
+                        (String(editing.franchiseId ?? "").trim() &&
+                          franchiseIdToName.get(
+                            String(editing.franchiseId).trim()
+                          )) ||
+                        "-"
+                      }
+                    />
                   </div>
                   <div className="custom-helper-column">
                     <DetailsRow title="Created Date" value={formatDate(editing.createdDate)} />
-                  </div>
+                  </div>   
                 </div>
                 <div className="mt-3 p-3 border rounded">
                   <div className="custom-personal-row-title mb-2">Description</div>
@@ -472,6 +735,7 @@ const ExpenseCategoryManagement = () => {
               <div className="row g-2">
                 <div className="col-md-12">
                   <CustomFormSelect
+                    key={`expense-category-franchise-${editing?.id ?? `add-${addFormKey}`}`}
                     label="Franchise"
                     controlId="expense_category_franchise_id"
                     showRequiredMark
@@ -498,7 +762,7 @@ const ExpenseCategoryManagement = () => {
                 </div>
                 <div className="col-md-12">
                   <CustomFormInput
-                    key={`expense-category-name-${editing?.id ?? "new"}`}
+                    key={`expense-category-name-${editing?.id ?? `add-${addFormKey}`}`}
                     label="Category Name"
                     controlId="expense_category_name"
                     showRequiredMark
@@ -518,29 +782,39 @@ const ExpenseCategoryManagement = () => {
                   />
                 </div>
                 <div className="col-md-12">
-                  <CustomFormInput
-                    key={`expense-sub-category-name-${editing?.id ?? "new"}`}
-                    label="Sub Category Name"
-                    controlId="expense_sub_category_name"
-                    showRequiredMark
-                    placeholder="Enter Sub Category Name"
-                    register={register}
-                    asCol={false}
-                    error={
-                      formErrors.subCategoryName
-                        ? ({ message: formErrors.subCategoryName } as any)
-                        : undefined
-                    }
-                    value={form.subCategoryName}
-                    onChange={(value: string) => {
-                      setForm((p) => ({ ...p, subCategoryName: value }));
-                      setFormErrors((prev) => ({ ...prev, subCategoryName: undefined }));
-                    }}
-                  />
+                  {editing ? (
+                    <ExpenseSubCategoryNamesEditor
+                      rowKeyPrefix={`edit-sub-category-${editing.id}`}
+                      names={editSubCategoryNames}
+                      error={formErrors.subCategoryNames}
+                      removeMode="edit"
+                      onChange={setEditSubCategoryNames}
+                      onClearError={() =>
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          subCategoryNames: undefined,
+                        }))
+                      }
+                    />
+                  ) : (
+                    <ExpenseSubCategoryNamesEditor
+                      rowKeyPrefix={`add-sub-category-${addFormKey}`}
+                      names={addSubCategoryNames}
+                      error={formErrors.subCategoryNames}
+                      removeMode="add"
+                      onChange={setAddSubCategoryNames}
+                      onClearError={() =>
+                        setFormErrors((prev) => ({
+                          ...prev,
+                          subCategoryNames: undefined,
+                        }))
+                      }
+                    />
+                  )}
                 </div>
                 <div className="col-md-12">
                   <CustomFormInput
-                    key={`expense-description-${editing?.id ?? "new"}`}
+                    key={`expense-description-${editing?.id ?? `add-${addFormKey}`}`}
                     label="Description"
                     controlId="expense_category_description"
                     placeholder="Enter Description"
@@ -565,8 +839,20 @@ const ExpenseCategoryManagement = () => {
                   const nextErrors: ExpenseCategoryFormErrors = {};
                   if (!form.franchiseId.trim()) nextErrors.franchiseId = "Franchise is required";
                   if (!form.categoryName.trim()) nextErrors.categoryName = "Category Name is required";
-                  if (!form.subCategoryName.trim()) {
-                    nextErrors.subCategoryName = "Sub Category Name is required";
+                  const trimmedAddSubCategories = addSubCategoryNames
+                    .map((name) => name.trim())
+                    .filter(Boolean);
+                  const trimmedEditSubCategories = editSubCategoryNames
+                    .map((name) => name.trim())
+                    .filter(Boolean);
+                  if (editing) {
+                    if (trimmedEditSubCategories.length === 0) {
+                      nextErrors.subCategoryNames =
+                        "At least one Sub Category Name is required";
+                    }
+                  } else if (trimmedAddSubCategories.length === 0) {
+                    nextErrors.subCategoryNames =
+                      "At least one Sub Category Name is required";
                   }
                   setFormErrors(nextErrors);
                   if (Object.keys(nextErrors).length > 0) {
@@ -574,17 +860,29 @@ const ExpenseCategoryManagement = () => {
                   }
                   const selectedFranchise = franchiseOptions.find((item) => item.value === form.franchiseId);
                   const ok = await saveExpenseCategoryWithApi(
-                    {
-                      franchiseId: form.franchiseId,
-                      franchiseName: selectedFranchise?.label || "",
-                      categoryName: form.categoryName,
-                      subCategoryName: form.subCategoryName,
-                      description: form.description,
-                    },
+                    editing
+                      ? {
+                          franchiseId: form.franchiseId,
+                          franchiseName: selectedFranchise?.label || "",
+                          categoryName: form.categoryName,
+                          subCategoryName: trimmedEditSubCategories[0] || "",
+                          subCategoryNames: trimmedEditSubCategories,
+                          description: form.description,
+                        }
+                      : {
+                          franchiseId: form.franchiseId,
+                          franchiseName: selectedFranchise?.label || "",
+                          categoryName: form.categoryName,
+                          subCategoryName: "",
+                          subCategoryNames: trimmedAddSubCategories,
+                          description: form.description,
+                        },
                     editing?.id
                   );
                   if (!ok) return;
                   setForm(emptyForm);
+                  setAddSubCategoryNames([...emptyAddSubCategoryNames]);
+                  setEditSubCategoryNames([...emptyAddSubCategoryNames]);
                   setEditing(null);
                   setIsViewMode(false);
                   setShowForm(false);
