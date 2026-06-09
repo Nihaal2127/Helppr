@@ -145,6 +145,7 @@ export type CreateWebManagementUserBody = {
   type: number;
   /** Required for most environments when creating a login-capable user. */
   password?: string;
+  confirm_password?: string;
   /** Optional API status (typically `active` or `inactive`). */
   status?: string;
   is_from_web: boolean;
