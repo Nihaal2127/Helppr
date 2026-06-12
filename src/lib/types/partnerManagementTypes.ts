@@ -21,12 +21,19 @@ export type PartnerSubscriptionModel = {
 };
 
 export type PostModel = {
+  /** Mongo `_id` from `GET /api/partner-post/getAll`. */
+  _id?: string;
   id?: number;
   partner_id: string;
   partner_name: string;
   description: string;
   media_type: "image" | "video";
+  no_of_images?: number;
+  no_of_videos?: number;
   location: string;
   uploaded_date: string;
-  status: "pending" | "approved" | "rejected";
+  /** API values from `GET /api/partner-post/getAll` — `published` | `hidden` | `removed`. */
+  status: "published" | "hidden" | "removed";
+  images?: string[];
+  videos?: string[];
 };

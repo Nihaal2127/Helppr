@@ -7,6 +7,7 @@ type PortfolioSeedRow = {
   _id: string;
   partner_id: string;
   partner_name: string;
+  franchise_name?: string;
   category: string;
   service: string;
   total_posts: string;
@@ -96,6 +97,7 @@ export const partnerPortfoliosSeed: PortfolioSeedRow[] = [
     _id: "1",
     partner_id: "PT001",
     partner_name: "Teja Partner",
+    franchise_name: "Hyderabad Franchise",
     category: "Photography",
     service: "Wedding Shoot",
     total_posts: "24",
@@ -167,7 +169,7 @@ export const partnerPostsSeed: PostModel[] = [
     media_type: "image",
     location: "Hyderabad",
     uploaded_date: "2026-03-20",
-    status: "pending",
+    status: "hidden",
   },
   {
     id: 2,
@@ -177,7 +179,7 @@ export const partnerPostsSeed: PostModel[] = [
     media_type: "video",
     location: "Bangalore",
     uploaded_date: "2026-03-19",
-    status: "approved",
+    status: "published",
   },
   {
     id: 3,
@@ -187,7 +189,7 @@ export const partnerPostsSeed: PostModel[] = [
     media_type: "image",
     location: "Chennai",
     uploaded_date: "2026-03-18",
-    status: "rejected",
+    status: "removed",
   },
   {
     id: 4,
@@ -197,6 +199,6 @@ export const partnerPostsSeed: PostModel[] = [
     media_type: "video",
     location: "Hyderabad",
     uploaded_date: "2026-03-17",
-    status: "pending",
+    status: "hidden",
   },
 ];

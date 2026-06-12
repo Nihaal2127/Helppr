@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Button, Col, Row } from "react-bootstrap";
-import { AppConstant } from "../lib/global/AppConstant";
 import { showErrorAlert } from "../lib/global/alertHelper";
 import {
   getSupportedImageExtensions,
   getSupportedImageMaxSizeBytes,
   isSupportedImageFile,
 } from "../helper/utility";
-import { toStorageRelativePath } from "../services/documentUploadService";
+import {
+  resolveMediaAssetSrc,
+  toStorageRelativePath,
+} from "../services/documentUploadService";
 
 interface CustomImageUploaderProps {
   label: string;
@@ -22,18 +24,12 @@ interface CustomImageUploaderProps {
 }
 
 export function resolveExistingImageSrc(url?: string): string {
-  const u = (url ?? "").trim();
-  if (!u) return "";
-  if (u.startsWith("data:")) return u;
-  if (u.startsWith("http://") || u.startsWith("https://")) {
-    return `${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  const resolved = resolveMediaAssetSrc(url);
+  if (!resolved) return "";
+  if (resolved.startsWith("data:") || resolved.startsWith("blob:")) {
+    return resolved;
   }
-  if (u.startsWith("//")) {
-    return `https:${u}${u.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  }
-  const base = AppConstant.IMAGE_BASE_URL.replace(/\/?$/, "/");
-  const path = u.replace(/^\//, "");
-  return `${base}${path}?t=${Date.now()}`;
+  return `${resolved}${resolved.includes("?") ? "&" : "?"}t=${Date.now()}`;
 }
 
 function LocalFilePreview({ file }: { file: File }) {

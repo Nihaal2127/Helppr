@@ -17,10 +17,9 @@ export function formatServicePaymentCadence(paymentType: string): string {
   return t.replace(/_/g, " ");
 }
 
-/** Partner catalog price field label — e.g. `per_day` → `Price/day`. */
+/** Partner catalog price field label — e.g. `per_day` → `Price (per day)`. */
 export function partnerCatalogPriceLabel(paymentType?: string | null): string {
   const cadence = formatServicePaymentCadence(String(paymentType ?? ""));
   if (!cadence) return "Price";
-  const unit = cadence.replace(/^per\s+/, "").trim();
-  return unit ? `Price/${unit}` : "Price";
+  return `Price (${cadence})`;
 }

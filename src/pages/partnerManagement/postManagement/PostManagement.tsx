@@ -1,85 +1,111 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
 import CustomTable from "../../../components/CustomTable";
 import AddEditPostManagementDialog from "./AddEditPostManagementDialog";
 import type { PostModel } from "../../../lib/types/partnerManagementTypes";
-import { fetchPosts } from "../../../services/partnerManagementService";
+import {
+  fetchPostList,
+  fetchPostManagementSummary,
+  postStatusDisplayLabel,
+  postStatusTextClass,
+  USE_MOCK_PARTNER_POSTS_API,
+} from "../../../services/partnerManagementService";
+import type { PostManagementStats } from "../../../services/partnerManagementService";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
 
 type PostManagementProps = {
   onBack?: () => void;
 };
 
+type PostListFilter = "all" | PostModel["status"];
+
+const EMPTY_STATS: PostManagementStats = {
+  Total: 0,
+  Published: 0,
+  Hidden: 0,
+  Removed: 0,
+};
+
 const PostManagement = ({ onBack }: PostManagementProps) => {
-  const { register, setValue } = useForm<any>();
-  const [selectedStatus, setSelectedStatus] = useState<
-    "all" | "pending" | "approved" | "rejected"
-  >("all");
-  const [searchText, setSearchText] = useState("");
-  const [sortValue, setSortValue] = useState<"1" | "-1">("-1");
-
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
+  const [selectedStatus, setSelectedStatus] = useState<PostListFilter>("all");
+  const [filters, setFilters] = useState<{
+    name?: string;
+    sort?: string;
+  }>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [postList, setPostList] = useState<PostModel[]>([]);
+  const [totalPages, setTotalPages] = useState(0);
+  const [summaryData, setSummaryData] = useState<PostManagementStats>(EMPTY_STATS);
+  const listFetchRef = useRef(false);
+  const summaryReqSeqRef = useRef(0);
 
-  const refreshPosts = useCallback(async () => {
-    const res = await fetchPosts();
-    setPostList(res.response ? res.records : []);
-  }, []);
+  const listFilters = useMemo(() => {
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    return {
+      status: selectedStatus,
+      ...(fid ? { franchiseId: fid } : {}),
+      ...filters,
+    };
+  }, [headerFranchiseId, selectedStatus, filters]);
+
+  const refreshSummary = useCallback(async () => {
+    const seq = (summaryReqSeqRef.current += 1);
+    const fid = franchiseIdForApiQuery(headerFranchiseId);
+    const stats = await fetchPostManagementSummary(fid || undefined);
+    if (seq !== summaryReqSeqRef.current) return;
+    setSummaryData(stats);
+  }, [headerFranchiseId]);
+
+  const fetchList = useCallback(async () => {
+    if (listFetchRef.current) return;
+    listFetchRef.current = true;
+    try {
+      const res = await fetchPostList(currentPage, pageSize, listFilters);
+      if (res.response) {
+        setPostList(res.records);
+        setTotalPages(res.totalPages);
+      } else {
+        setPostList([]);
+        setTotalPages(0);
+      }
+    } finally {
+      listFetchRef.current = false;
+    }
+  }, [currentPage, pageSize, listFilters]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await fetchPosts();
-      if (cancelled) return;
-      setPostList(res.response ? res.records : []);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void refreshSummary();
+  }, [refreshSummary]);
 
-  const summaryData = useMemo(() => {
-    return {
-      Total: postList.length,
-      Approved: postList.filter((item) => item.status === "approved").length,
-      Pending: postList.filter((item) => item.status === "pending").length,
-      Rejected: postList.filter((item) => item.status === "rejected").length,
-    };
-  }, [postList]);
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
 
-  const filteredData = useMemo(() => {
-    let data = [...postList];
+  const refreshPosts = useCallback(() => {
+    void Promise.all([refreshSummary(), fetchList()]);
+  }, [refreshSummary, fetchList]);
 
-    if (selectedStatus !== "all") {
-      data = data.filter((item) => item.status === selectedStatus);
-    }
-
-    if (searchText.trim()) {
-      const value = searchText.toLowerCase();
-      data = data.filter((item) =>
-        item.partner_name.toLowerCase().includes(value)
-      );
-    }
-
-    data.sort((a, b) => {
-      const first = new Date(a.uploaded_date).getTime();
-      const second = new Date(b.uploaded_date).getTime();
-      return sortValue === "1" ? first - second : second - first;
-    });
-
-    return data;
-  }, [postList, selectedStatus, searchText, sortValue]);
+  const handleFilterChange = (next: { name?: string; sort?: string }) => {
+    setCurrentPage(1);
+    setFilters((prev) => ({ ...prev, ...next }));
+  };
 
   const handleSummaryClick = (key: string) => {
     const value = key.toLowerCase();
+    setCurrentPage(1);
 
     if (value === "total") {
       setSelectedStatus("all");
       return;
     }
 
-    if (value === "approved" || value === "pending" || value === "rejected") {
+    if (value === "published" || value === "hidden" || value === "removed") {
       setSelectedStatus(value);
       return;
     }
@@ -89,7 +115,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
 
   const handleView = (post: PostModel): void => {
     AddEditPostManagementDialog.show(false, post, () => {
-      void refreshPosts();
+      refreshPosts();
     });
   };
 
@@ -97,7 +123,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
     {
       Header: "SR No",
       accessor: "sr_no",
-      Cell: ({ row }: { row: any }) => row.index + 1,
+      Cell: ({ row }: { row: any }) => (currentPage - 1) * pageSize + row.index + 1,
     },
     {
       Header: "Partner Name",
@@ -108,6 +134,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
       accessor: "no_of_images",
       Cell: ({ row }: { row: any }) => {
         const post = row.original as PostModel;
+        if (post.no_of_images != null) return <span>{post.no_of_images}</span>;
         return <span>{post.media_type === "image" ? 1 : 0}</span>;
       },
     },
@@ -116,6 +143,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
       accessor: "no_of_videos",
       Cell: ({ row }: { row: any }) => {
         const post = row.original as PostModel;
+        if (post.no_of_videos != null) return <span>{post.no_of_videos}</span>;
         return <span>{post.media_type === "video" ? 1 : 0}</span>;
       },
     },
@@ -126,19 +154,14 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
     {
       Header: "Status",
       accessor: "status",
-      Cell: ({ value }: { value: string }) => (
-        <span
-          className={
-            value === "approved"
-              ? "text-success fw-bold text-capitalize"
-              : value === "pending"
-              ? "text-warning fw-bold text-capitalize"
-              : "text-danger fw-bold text-capitalize"
-          }
-        >
-          {value}
-        </span>
-      ),
+      Cell: ({ row }: { row: any }) => {
+        const status = (row.original as PostModel).status;
+        return (
+          <span className={postStatusTextClass(status)}>
+            {postStatusDisplayLabel(status)}
+          </span>
+        );
+      },
     },
     {
       Header: "Action",
@@ -147,12 +170,6 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         const post = row.original as PostModel;
         return (
           <div className="d-flex justify-content-center gap-3">
-            {/* <i
-              className="bi bi-pencil-fill "
-              role="button"
-              onClick={() => handleEdit(post)}
-              style={{ cursor: "pointer" }}
-            /> */}
             <i
               className="bi bi-eye-fill"
               role="button"
@@ -188,15 +205,18 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
         divId="box-post-management"
         title="Post Management"
         data={summaryData}
-        onSelect={() => setSelectedStatus("all")}
+        onSelect={() => {
+          setCurrentPage(1);
+          setSelectedStatus("all");
+        }}
         isSelected={true}
         onFilterChange={() => {}}
         onItemClick={handleSummaryClick}
-        isAddShow={true}
+        isAddShow={USE_MOCK_PARTNER_POSTS_API}
         addButtonLable="Add post"
         onAddClick={() =>
           AddEditPostManagementDialog.show(true, null, () => {
-            void refreshPosts();
+            refreshPosts();
           })
         }
       />
@@ -204,25 +224,23 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
       <CustomUtilityBox
         title="Post Management"
         searchHint="Search Partner Name"
-        onDownloadClick={async () => {}}
-        onSortClick={(value: "1" | "-1") => {
-          setSortValue(value);
-        }}
-        onMoreClick={() => {}}
         onSearch={(value: string) => {
-          setSearchText(value);
+          handleFilterChange({ name: value });
         }}
-        syncKeyword={searchText}
+        syncKeyword={filters.name ?? ""}
       />
 
       <CustomTable
         columns={columns}
-        data={filteredData}
-        pageSize={10}
-        currentPage={1}
-        totalPages={1}
-        onPageChange={() => {}}
-        onLimitChange={() => {}}
+        data={postList}
+        pageSize={pageSize}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page: number) => setCurrentPage(page)}
+        onLimitChange={(limit: number) => {
+          setCurrentPage(1);
+          setPageSize(limit);
+        }}
         theadClass="table-light"
       />
     </div>

@@ -41,6 +41,7 @@ import {
   readHeaderFranchisePreference,
   sessionFranchiseIdForScopedApis,
 } from "../../lib/franchise/headerFranchisePreference";
+import { partnerCatalogPriceLabel } from "../../lib/partner/partnerCatalogPayment";
 
 const PARTNER_ROLE = 2;
 
@@ -957,6 +958,20 @@ function EditPartnerCategoriesServicesDialogView({
                   const rowReadOnly = isExistingRow(row.id);
                   const serviceActive =
                     categoryActive && row.is_active !== false;
+                  const categoryId = String(block.categoryId ?? "").trim();
+                  const selectedService = (() => {
+                    const sid = String(row.serviceId ?? "").trim();
+                    if (!categoryId || !sid) return undefined;
+                    const list =
+                      servicesByCategoryId[categoryId] ??
+                      allServices.filter(
+                        (s) => String(s.category_id) === categoryId
+                      );
+                    return list.find((s) => String(s._id) === sid);
+                  })();
+                  const priceFieldLabel = partnerCatalogPriceLabel(
+                    selectedService?.payment_type
+                  );
 
                   return (
                     <div
@@ -981,29 +996,8 @@ function EditPartnerCategoriesServicesDialogView({
                             !categoryActive
                           }
                           onChange={(sid) => {
-                            const categoryId = String(
-                              block.categoryId ?? ""
-                            ).trim();
-                            const list =
-                              servicesByCategoryId[categoryId] ??
-                              allServices.filter(
-                                (s) =>
-                                  String(s.category_id) === String(categoryId)
-                              );
-                            const hit = list.find(
-                              (s) => String(s._id) === String(sid)
-                            );
-                            const priceNum =
-                              hit?.price !== undefined &&
-                              hit?.price !== null
-                                ? Number(hit.price)
-                                : NaN;
-                            const priceStr = Number.isFinite(priceNum)
-                              ? String(priceNum)
-                              : "";
                             updateServiceRow(block.id, row.id, {
                               serviceId: sid,
-                              price: priceStr,
                             });
                           }}
                         />
@@ -1034,7 +1028,7 @@ function EditPartnerCategoriesServicesDialogView({
                       <div className="add-partner-catalog-field add-partner-catalog-field--price">
                         <Form.Group controlId={`price-${block.id}-${row.id}`}>
                           <Form.Label className="fw-medium mb-1">
-                            <FieldLabelText label="Price" required />
+                            <FieldLabelText label={priceFieldLabel} required />
                           </Form.Label>
                           <InputGroup>
                             <InputGroup.Text

@@ -18,14 +18,23 @@ import { openConfirmDialog } from "../../../components/CustomConfirmDialog";
 import { statusCell } from "../../../helper/utility";
 import {
   fetchPortfolios,
+  fetchPortfolioProfile,
+  USE_MOCK_PARTNER_PORTFOLIOS_API,
   voidPortfolio,
 } from "../../../services/partnerManagementService";
+import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForScopedListApi } from "../../../lib/franchise/headerFranchisePreference";
 
 type PortfolioManagementProps = {
   onBack?: () => void;
 };
 
 const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
+  const {
+    register: headerRegister,
+    setValue: headerSetValue,
+    franchiseId: headerFranchiseId,
+  } = useFranchiseHeaderForm();
   const { register, setValue } = useForm<any>();
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
   const [portfolioData, setPortfolioData] = useState({
@@ -49,11 +58,19 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
   }>({});
   const fetchRef = useRef(false);
 
+  const listFilters = useMemo(() => {
+    const fid = franchiseIdForScopedListApi(headerFranchiseId);
+    return {
+      ...(fid ? { franchiseId: fid } : {}),
+      ...filters,
+    };
+  }, [headerFranchiseId, filters]);
+
   const fetchData = useCallback(async () => {
     if (fetchRef.current) return;
     fetchRef.current = true;
     try {
-      const res = await fetchPortfolios(currentPage, pageSize, filters);
+      const res = await fetchPortfolios(currentPage, pageSize, listFilters);
       if (res.response) {
         setPortfolioRows(res.records);
         setTotalPages(res.totalPages);
@@ -66,7 +83,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
     } finally {
       fetchRef.current = false;
     }
-  }, [currentPage, pageSize, filters]);
+  }, [currentPage, pageSize, listFilters]);
 
   useEffect(() => {
     void fetchData();
@@ -85,7 +102,13 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
     location?: string;
   }) => {
     setCurrentPage(1);
-    setFilters((prev) => ({ ...prev, ...nextFilters }));
+    setFilters((prev) => {
+      const merged = { ...prev, ...nextFilters };
+      if ("status" in nextFilters && nextFilters.status == null) {
+        delete merged.status;
+      }
+      return merged;
+    });
   };
 
   const categoryOptions = useMemo(() => {
@@ -231,8 +254,9 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
           (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Partner Name", accessor: "partner_name" },
-      { Header: "Category", accessor: "category" },
-      { Header: "Service", accessor: "service" },
+      { Header: "Franchise", accessor: "franchise_name" },
+      // { Header: "Category", accessor: "category" },
+      // { Header: "Service", accessor: "service" },
       { Header: "Total Posts", accessor: "total_posts" },
       { Header: "Total Images", accessor: "total_images" },
       { Header: "Total Videos", accessor: "total_videos" },
@@ -240,7 +264,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
       // { Header: "Comments Count", accessor: "comments_count" },
       { Header: "Saves Count", accessor: "saves_count" },
       { Header: "Ratings", accessor: "ratings" },
-      { Header: "Location", accessor: "location" },
+      
       {
         Header: "Status",
         accessor: "is_active",
@@ -253,34 +277,46 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
           <CustomActionColumn
             row={row}
             onView={() => {
-              ViewPortfolioManagementDialog.show(row.original, () =>
-                refreshData()
-              );
+              void (async () => {
+                const res = await fetchPortfolioProfile(
+                  String(row.original._id),
+                  headerFranchiseId,
+                  row.original.franchise_id
+                );
+                ViewPortfolioManagementDialog.show(
+                  res.portfolio ?? row.original,
+                  () => refreshData()
+                );
+              })();
             }}
-            onDelete={async () => {
-              openConfirmDialog(
-                "Are you sure you want to void this portfolio?",
-                "Void",
-                "Cancel",
-                async () => {
-                  await voidPortfolio(String(row.original._id));
-                  refreshData();
-                }
-              );
-            }}
+            onDelete={
+              USE_MOCK_PARTNER_PORTFOLIOS_API
+                ? async () => {
+                    openConfirmDialog(
+                      "Are you sure you want to void this portfolio?",
+                      "Void",
+                      "Cancel",
+                      async () => {
+                        await voidPortfolio(String(row.original._id));
+                        refreshData();
+                      }
+                    );
+                  }
+                : undefined
+            }
           />
         ),
       },
     ],
-    [currentPage, pageSize, refreshData]
+    [currentPage, pageSize, headerFranchiseId, refreshData]
   );
 
   return (
     <div className="main-page-content">
       <CustomHeader
         title="Portfolio Management"
-        register={register}
-        setValue={setValue}
+        register={headerRegister}
+        setValue={headerSetValue}
         titlePrefix={
           <button
             type="button"
@@ -299,7 +335,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
           title="Portfolio Management"
           data={portfolioData}
           onSelect={() => {
-            handleFilterChange({ status: "Total" });
+            handleFilterChange({ status: undefined });
           }}
           isSelected={true}
           onFilterChange={(filter) => {
@@ -310,17 +346,12 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
 
       <CustomUtilityBox
         key={utilitySearchKey}
-        title="Portfolio Management"
-        searchHint="Search Partner Name / Partner ID"
-        onDownloadClick={async () => {}}
-        onSortClick={(value) => {
-          handleFilterChange({ sort: value });
-        }}
-        onMoreClick={() => {}}
+        title=""
+        searchHint="Search Partner Name"
         onSearch={(value) => handleFilterChange({ name: value })}
         syncKeyword={filters.name ?? ""}
       />
-      {portfolioFilterControls}
+      {/* {portfolioFilterControls} */}
 
       <CustomTable
         columns={portfolioColumns}

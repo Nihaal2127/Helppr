@@ -16,6 +16,11 @@ const COUNT_RECORD_HINT_KEYS = [
   "received_amount",
   "pending_order",
   "in_progress_order",
+  "published",
+  "hidden",
+  "removed",
+  "reviewed",
+  "dismissed",
 ];
 
 /** API count payloads are dynamic; coerce after hint-key check (avoids unsafe direct casts). */

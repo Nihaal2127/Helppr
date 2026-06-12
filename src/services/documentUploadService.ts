@@ -3,6 +3,17 @@ import { ApiPaths } from "../lib/global/remote/apiPaths";
 import { AppConstant } from "../lib/global/AppConstant";
 import { showLog } from "../helper/utility";
 
+/** Browser-ready URL for API/storage paths (relative key, CDN URL, blob, or data URI). */
+export function resolveMediaAssetSrc(url?: string | null): string {
+  const u = String(url ?? "").trim();
+  if (!u) return "";
+  if (u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("//")) return `https:${u}`;
+  const base = AppConstant.IMAGE_BASE_URL.replace(/\/?$/, "/");
+  return `${base}${u.replace(/^\//, "")}`;
+}
+
 /** Not a server storage key — preview-only (must not go in `update_file_urls`). */
 export function isNonStorageImageUrl(url: string | null | undefined): boolean {
   const u = String(url ?? "").trim().toLowerCase();

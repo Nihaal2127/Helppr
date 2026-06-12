@@ -207,9 +207,15 @@ export const ApiPaths = {
     `/partner/subscriptions/update/${id}`,
   VOID_PARTNER_SUBSCRIPTION: (id: string) =>
     `/partner/subscriptions/void/${id}`,
-  GET_PARTNER_PORTFOLIOS: () => `/partner/portfolios`,
-  VOID_PARTNER_PORTFOLIO: (id: string) => `/partner/portfolios/void/${id}`,
+  /** Postman folder 42 — Partners browse (Portfolio Management list) */
+  PARTNERS_BROWSE_LIST: () => `/partners`,
+  PARTNERS_BROWSE_PROFILE: (partnerId: string) => `/partners/${partnerId}`,
   GET_PARTNER_POSTS: () => `/partner/posts`,
+  /** Admin moderation — Postman folder 43 — Partner post management */
+  PARTNER_POST_GET_COUNTS: () => `/partner-post/getCounts`,
+  PARTNER_POST_GET_ALL: () => `/partner-post/getAll`,
+  PARTNER_POST_MODERATE: (postId: string) =>
+    `/partner-post/moderate/${postId}`,
   // Content management
   CONTENT_MANAGEMENT_GET_ALL: () => `/content-management/getAll`,
   CONTENT_MANAGEMENT_GET: (id: string) => `/content-management/get/${id}`,

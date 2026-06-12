@@ -85,4 +85,15 @@ export interface CountModel {
   total_in_progress_orders?: number;
   total_partner_pending_amount?: number;
   total_user_pending_amount?: number;
+
+  /**
+   * `POST /getCount` `{ "type": "partner-post-management" }` (type 16).
+   * Post buckets: `published`, `hidden`, `removed`.
+   * Report buckets: `pending`, `reviewed`, `dismissed` (separate from post status).
+   */
+  published?: number;
+  hidden?: number;
+  removed?: number;
+  reviewed?: number;
+  dismissed?: number;
 }

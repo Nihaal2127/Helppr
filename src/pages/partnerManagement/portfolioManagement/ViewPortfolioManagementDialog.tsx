@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Modal, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import { openDialog } from "../../../lib/global/DialogManager";
@@ -8,8 +8,11 @@ type PortfolioModel = {
   _id?: string;
   partner_id: string;
   partner_name: string;
+  franchise_name?: string;
   category: string;
   service: string;
+  category_names?: string[];
+  service_names?: string[];
   total_posts: string;
   total_images: string;
   total_videos: string;
@@ -26,9 +29,34 @@ type ViewPortfolioManagementDialogProps = {
   onRefreshData: () => void;
 };
 
+function BulletValueList({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return <span className="text-muted">—</span>;
+  }
+  return (
+    <ul className="mb-0 ps-3">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
 const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps> & {
   show: (portfolio: PortfolioModel | null, onRefreshData: () => void) => void;
 } = ({ portfolio, onClose }) => {
+  const categoryItems = useMemo(() => {
+    if (portfolio?.category_names?.length) return portfolio.category_names;
+    const single = String(portfolio?.category ?? "").trim();
+    return single ? [single] : [];
+  }, [portfolio?.category, portfolio?.category_names]);
+
+  const serviceItems = useMemo(() => {
+    if (portfolio?.service_names?.length) return portfolio.service_names;
+    const single = String(portfolio?.service ?? "").trim();
+    return single ? [single] : [];
+  }, [portfolio?.service, portfolio?.service_names]);
+
   return (
     <Modal show={true} onHide={onClose} centered>
       <div className="custom-order-model-detail">
@@ -50,11 +78,7 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
               </Col>
             </Row>
 
-            {/* 🔥 3 PER ROW */}
             <Row className="mb-2">
-              {/* <Col md={4} className="custom-helper-column">
-                                <DetailsRow title="Partner ID" value={portfolio?.partner_id} />
-                            </Col> */}
               <Col md={4} className="custom-helper-column">
                 <DetailsRow
                   title="Partner Name"
@@ -62,16 +86,10 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
                 />
               </Col>
               <Col md={4} className="custom-helper-column">
-                <DetailsRow title="Category" value={portfolio?.category} />
-              </Col>
-              <Col md={4} className="custom-helper-column">
-                <DetailsRow title="Location" value={portfolio?.location} />
-              </Col>
-            </Row>
-
-            <Row className="mb-2">
-              <Col md={4} className="custom-helper-column">
-                <DetailsRow title="Service" value={portfolio?.service} />
+                <DetailsRow
+                  title="Franchise"
+                  value={portfolio?.franchise_name}
+                />
               </Col>
               <Col md={4} className="custom-helper-column">
                 <DetailsRow
@@ -79,15 +97,15 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
                   value={portfolio?.total_posts}
                 />
               </Col>
+            </Row>
+
+            <Row className="mb-2">
               <Col md={4} className="custom-helper-column">
                 <DetailsRow
                   title="Total Images"
                   value={portfolio?.total_images}
                 />
               </Col>
-            </Row>
-
-            <Row className="mb-2">
               <Col md={4} className="custom-helper-column">
                 <DetailsRow
                   title="Total Videos"
@@ -100,9 +118,6 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
                   value={portfolio?.likes_count}
                 />
               </Col>
-              {/* <Col md={4} className="custom-helper-column">
-                                <DetailsRow title="Comments Count" value={portfolio?.comments_count} />
-                            </Col> */}
             </Row>
 
             <Row className="mb-2">
@@ -114,6 +129,21 @@ const ViewPortfolioManagementDialog: React.FC<ViewPortfolioManagementDialogProps
               </Col>
               <Col md={4} className="custom-helper-column">
                 <DetailsRow title="Ratings" value={portfolio?.ratings} />
+              </Col>
+            </Row>
+
+            <Row className="mb-2">
+              <Col md={4} className="custom-helper-column">
+                <DetailsRow
+                  title="Categories"
+                  value={<BulletValueList items={categoryItems} />}
+                />
+              </Col>
+              <Col md={4} className="custom-helper-column">
+                <DetailsRow
+                  title="Services"
+                  value={<BulletValueList items={serviceItems} />}
+                />
               </Col>
             </Row>
           </section>

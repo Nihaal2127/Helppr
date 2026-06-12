@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Row, Col, Form, Button } from "react-bootstrap";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
+import CustomFormSelect from "../../../components/CustomFormSelect";
+import { resolveExistingImageSrc } from "../../../components/CustomImageUploader";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import { openDialog } from "../../../lib/global/DialogManager";
 import { DetailsRow, WideLabelValueBlock } from "../../../helper/utility";
 import {
   addPartnerPostMock,
+  moderatePartnerPost,
+  postStatusDisplayLabel,
+  postStatusTextClass,
   updatePartnerPostStatus,
+  USE_MOCK_PARTNER_POSTS_API,
 } from "../../../services/partnerManagementService";
 import type { PostModel } from "../../../lib/types/partnerManagementTypes";
 
@@ -52,16 +58,17 @@ const VIEW_DEMO_MEDIA: MediaItem[] = [
   },
 ];
 
-const statusTextClass = (status: PostModel["status"]) => {
-  if (status === "approved") return "text-success fw-semibold text-capitalize";
-  if (status === "pending") return "text-warning fw-semibold text-capitalize";
-  return "text-danger fw-semibold text-capitalize";
-};
-
 type PostAddFormValues = {
   post_partner_name: string;
   post_description: string;
+  post_moderation_status: PostModel["status"];
 };
+
+const POST_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "published", label: "Published" },
+  { value: "hidden", label: "Hidden" },
+  { value: "removed", label: "Removed" },
+];
 
 const AddEditPostManagementDialog: React.FC<
   AddEditPostManagementDialogProps
@@ -75,7 +82,7 @@ const AddEditPostManagementDialog: React.FC<
         media_type: "image",
         location: "",
         uploaded_date: "",
-        status: "pending",
+        status: "published",
       },
     [post]
   );
@@ -87,6 +94,7 @@ const AddEditPostManagementDialog: React.FC<
     defaultValues: {
       post_partner_name: "",
       post_description: "",
+      post_moderation_status: "published",
     },
   });
 
@@ -112,7 +120,7 @@ const AddEditPostManagementDialog: React.FC<
   useEffect(() => {
     setDisplayStatus(formData.status);
     setStatusDraftInModal(formData.status);
-  }, [formData.status, post?.id]);
+  }, [formData.status, post?._id, post?.id]);
 
   useEffect(() => {
     if (isAddMode) {
@@ -124,14 +132,40 @@ const AddEditPostManagementDialog: React.FC<
       setSelectedMediaIds([]);
       nextMediaIdRef.current = 1;
     } else if (isViewMode && post) {
-      setMediaItems(VIEW_DEMO_MEDIA);
+      const imageItems: MediaItem[] = (post.images ?? []).map((url, idx) => ({
+        id: idx + 1,
+        type: "image" as const,
+        url: resolveExistingImageSrc(url),
+        title: `Image ${idx + 1}`,
+      }));
+      const videoItems: MediaItem[] = (post.videos ?? []).map((url, idx) => ({
+        id: imageItems.length + idx + 1,
+        type: "video" as const,
+        url: resolveExistingImageSrc(url),
+        title: `Video ${idx + 1}`,
+      }));
+      const fromApi = [...imageItems, ...videoItems].filter((item) =>
+        Boolean(item.url?.trim())
+      );
+      setMediaItems(fromApi.length > 0 ? fromApi : VIEW_DEMO_MEDIA);
       setSelectedMediaIds([]);
+      nextMediaIdRef.current =
+        (fromApi.length > 0 ? fromApi.length : VIEW_DEMO_MEDIA.length) + 1;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when dialog mode/post identity changes
-  }, [isAddMode, isViewMode, post?.id, reset]);
+  }, [
+    isAddMode,
+    isViewMode,
+    post?._id,
+    post?.id,
+    post?.images,
+    post?.videos,
+    reset,
+  ]);
 
   const openStatusModal = (): void => {
     setStatusDraftInModal(displayStatus);
+    setValue("post_moderation_status", displayStatus);
     setStatusModalOpen(true);
   };
 
@@ -395,7 +429,9 @@ const AddEditPostManagementDialog: React.FC<
   ) : null;
 
   const statusValueEl = (
-    <span className={statusTextClass(displayStatus)}>{displayStatus}</span>
+    <span className={postStatusTextClass(displayStatus)}>
+      {postStatusDisplayLabel(displayStatus)}
+    </span>
   );
 
   return (
@@ -535,25 +571,32 @@ const AddEditPostManagementDialog: React.FC<
         onHide={() => setStatusModalOpen(false)}
         centered
         size="sm"
+        enforceFocus={false}
       >
         <Modal.Header className="py-3 px-3 border-bottom-0 d-flex align-items-center justify-content-between">
           <Modal.Title as="h6" className="custom-modal-title mb-0">
-            Update status
+            Change post visibility
           </Modal.Title>
           <CustomCloseButton onClose={() => setStatusModalOpen(false)} />
         </Modal.Header>
         <Modal.Body className="px-3 pb-3 pt-0">
-          <Form.Label className="fw-medium">Status</Form.Label>
-          <Form.Select
-            value={statusDraftInModal}
+          <CustomFormSelect
+            label="Post status"
+            controlId="post_moderation_status"
+            options={POST_STATUS_OPTIONS}
+            register={register as unknown as UseFormRegister<any>}
+            fieldName="post_moderation_status"
+            asCol={false}
+            isClearable={false}
+            defaultValue={statusDraftInModal}
+            setValue={(name, value) => {
+              setValue(name as keyof PostAddFormValues, value as never);
+            }}
             onChange={(e) =>
               setStatusDraftInModal(e.target.value as PostModel["status"])
             }
-          >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </Form.Select>
+            menuPortal
+          />
         </Modal.Body>
         <Modal.Footer className="border-0 pt-0">
           <Button
@@ -567,10 +610,21 @@ const AddEditPostManagementDialog: React.FC<
             className="btn-danger"
             size="sm"
             onClick={() => {
-              updatePartnerPostStatus(formData.id, statusDraftInModal);
-              setDisplayStatus(statusDraftInModal);
-              onRefreshData();
-              setStatusModalOpen(false);
+              void (async () => {
+                const postKey = formData._id ?? formData.id;
+                if (USE_MOCK_PARTNER_POSTS_API) {
+                  updatePartnerPostStatus(postKey, statusDraftInModal);
+                } else {
+                  const ok = await moderatePartnerPost(
+                    String(postKey ?? ""),
+                    statusDraftInModal
+                  );
+                  if (!ok) return;
+                }
+                setDisplayStatus(statusDraftInModal);
+                onRefreshData();
+                setStatusModalOpen(false);
+              })();
             }}
           >
             Save
