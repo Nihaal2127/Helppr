@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Row, Col, Card, Button } from "react-bootstrap";
-import { useForm } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
 import AddEditGeneralSettingsDialog from "./AddEditGeneralSettingsDialog";
@@ -12,7 +11,6 @@ export type GeneralSettingsModel = {
 };
 
 const GeneralSettings = () => {
-  const { register, setValue } = useForm<any>();
   const [settingsData, setSettingsData] = useState<GeneralSettingsModel>({
     free_quotes_per_user: 10,
     no_of_quotes: 5,
@@ -30,8 +28,7 @@ const GeneralSettings = () => {
       <CustomHeader
         title="General Settings"
         titlePrefix={<SettingsNav />}
-        register={register}
-        setValue={setValue}
+        hideFranchiseDropdown
       />
 
       <div>

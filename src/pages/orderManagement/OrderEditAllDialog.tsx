@@ -52,6 +52,10 @@ import {
   orderPaymentInvoiceTotal,
   pickChangedOrderEditAllUpdatePayload,
   resolveOrderEditFranchiseId,
+  isCompletedOrderLimitedPaymentEdit,
+  isCompletedOrderWithPartialCustomerPayment,
+  isCompletedOrderWithUnpaidPartnerPayment,
+  partnerPaymentsEditLocked,
   resolvePaymentExtension,
   seedEditOrderFormFromRow,
   serviceNamesJoined,
@@ -371,6 +375,23 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const orderStatusNum = orderRow?.order_status ?? 0;
   const isTerminalOrderStatus =
     orderStatusNum === 3 || orderStatusNum === 4 || orderStatusNum === 5;
+  const completedLimitedPaymentEdit =
+    isCompletedOrderLimitedPaymentEdit(orderRow);
+  const canEditPayments =
+    !isTerminalOrderStatus || completedLimitedPaymentEdit;
+  const customerPaymentsReadOnly = Boolean(
+    orderRow &&
+      completedLimitedPaymentEdit &&
+      !isCompletedOrderWithPartialCustomerPayment(orderRow)
+  );
+  const partnerPaymentsReadOnly =
+    orderRow && partnerPaymentsEditLocked(orderRow) ||
+    Boolean(
+      orderRow &&
+        completedLimitedPaymentEdit &&
+        !isCompletedOrderWithUnpaidPartnerPayment(orderRow)
+    );
+  const servicesReadOnly = Boolean(orderRow && completedLimitedPaymentEdit);
 
   const orderAddressFallback = useMemo(() => {
     const order = orderRow;
@@ -501,7 +522,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     const seed = seedEditOrderFormFromRow(orderRow);
     const primaryItem = getPrimaryServiceItem(orderRow);
     const baselinePaymentExt =
-      !isTerminalOrderStatus && primaryItem
+      canEditPayments && primaryItem
         ? resolvePaymentExtension(orderRow, primaryItem)
         : undefined;
     const baselinePrice = Number.parseFloat(String(seed.service_price ?? "").trim());
@@ -544,7 +565,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     selectedAddressId,
     scheduleMode,
     form.user_id,
-    isTerminalOrderStatus,
+    canEditPayments,
   ]);
 
   const selectedServiceOption = useMemo(() => {
@@ -1108,10 +1129,10 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
             type="radio"
             name="edit-order-address"
             id={`edit-order-addr-${row.id}`}
-            disabled={!row.selectable}
+            disabled={!row.selectable || formFieldsReadOnly}
             checked={selectedAddressId === row.id && row.selectable}
             onChange={() => {
-              if (row.selectable) setSelectedAddressId(row.id);
+              if (row.selectable && !formFieldsReadOnly) setSelectedAddressId(row.id);
             }}
             className="add-quote-address-card-check"
             style={{
@@ -1160,6 +1181,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     });
 
   const lockedFields = catalogBusy || !orderRow;
+  const formFieldsReadOnly = lockedFields || completedLimitedPaymentEdit;
 
   return (
     <Modal
@@ -1183,6 +1205,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
           <form
             key={`order-edit-all-${orderMongoId}`}
             id="order-edit-all-form"
+            className="order-edit-all-form"
             noValidate
             onSubmit={handleSubmit(onSubmit)}
           >
@@ -1234,7 +1257,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                     placeholder="Select employee"
                     menuPortal
                     isClearable
-                    isDisabled={lockedFields}
+                    isDisabled={formFieldsReadOnly}
                   />
                 </Col>
               </Row>
@@ -1357,7 +1380,16 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                       </label>
                     </Col>
                   </Row>
-                  <div className="add-quote-schedule-panel">
+                  <div
+                    className={`add-quote-schedule-panel${
+                      formFieldsReadOnly ? " order-edit-schedule--readonly" : ""
+                    }`}
+                    style={
+                      formFieldsReadOnly
+                        ? { pointerEvents: "none", opacity: 0.65 }
+                        : undefined
+                    }
+                  >
                     <Row className="gy-4 gx-md-5">
                       {scheduleMode === "range" ? (
                         <>
@@ -1551,7 +1583,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                           <Form.Control
                             type="text"
                             inputMode="decimal"
-                            disabled={lockedFields}
+                            disabled={formFieldsReadOnly}
                             className={`custom-form-input border-start-0${
                               errors.service_price ? " is-invalid" : ""
                             }`}
@@ -1594,7 +1626,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                             height: "35px",
                             fontSize: "14px",
                           }}
-                          disabled={lockedFields || isTerminalOrderStatus}
+                          disabled={formFieldsReadOnly || isTerminalOrderStatus}
                           {...register("order_status")}
                         >
                           {ORDER_STATUS_OPTIONS_EDIT.map((o) => (
@@ -1619,7 +1651,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                       as="textarea"
                       rows={3}
                       maxLength={2000}
-                      disabled={lockedFields}
+                      disabled={formFieldsReadOnly}
                       className={`custom-form-input${
                         errors.description ? " is-invalid" : ""
                       }`}
@@ -1685,7 +1717,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
               </section>
             ) : null}
 
-            {!isTerminalOrderStatus ? (
+            {canEditPayments ? (
               <section className="custom-other-details add-quote-form-section mt-3 mb-2">
                 <h6
                   className="mb-1 pb-2 border-bottom"
@@ -1705,6 +1737,9 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                   onExtChange={setPaymentExtLive}
                   onClose={() => {}}
                   onSaved={() => {}}
+                  customerPaymentsReadOnly={customerPaymentsReadOnly}
+                  partnerPaymentsReadOnly={partnerPaymentsReadOnly}
+                  servicesReadOnly={servicesReadOnly}
                 />
               </section>
             ) : null}

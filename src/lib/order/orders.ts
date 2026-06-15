@@ -1348,6 +1348,36 @@ export function resolveCustomerPaymentStatusSlug(
   );
 }
 
+/** Completed tab orders with outstanding customer balance may be edited (payments). */
+export function isCompletedOrderWithPartialCustomerPayment(
+  order?: OrderModel | null
+): boolean {
+  return (
+    order?.order_status === 3 &&
+    resolveCustomerPaymentStatusSlug(order) === "partially_paid"
+  );
+}
+
+/** Completed tab orders with unpaid partner balance may edit partner payments only. */
+export function isCompletedOrderWithUnpaidPartnerPayment(
+  order?: OrderModel | null
+): boolean {
+  return (
+    order?.order_status === 3 &&
+    resolvePartnerPaymentStatusSlug(order) === "unpaid"
+  );
+}
+
+/** Completed orders editable via limited payment sections (user and/or partner). */
+export function isCompletedOrderLimitedPaymentEdit(
+  order?: OrderModel | null
+): boolean {
+  return (
+    isCompletedOrderWithPartialCustomerPayment(order) ||
+    isCompletedOrderWithUnpaidPartnerPayment(order)
+  );
+}
+
 export function resolvePartnerPaymentStatusSlug(
   order?: OrderModel | null
 ): string {

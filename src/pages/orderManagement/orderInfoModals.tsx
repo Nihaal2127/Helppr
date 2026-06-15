@@ -683,6 +683,12 @@ type OrderPaymentEditModalProps = {
   validateRef?: React.MutableRefObject<(() => boolean) | null>;
   /** Live payment rows for a single amount summary in the parent modal. */
   onExtChange?: (ext: OrderPaymentExtV1) => void;
+  /** Lock user payment rows (completed orders — partner unpaid only edit). */
+  customerPaymentsReadOnly?: boolean;
+  /** Lock partner payment rows when not the active edit target. */
+  partnerPaymentsReadOnly?: boolean;
+  /** Lock service amount / additional charges rows. */
+  servicesReadOnly?: boolean;
 };
 
 const nid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -734,9 +740,11 @@ const readOnlyPaymentFieldClass =
 
 const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   show: (order: OrderModel, onSaved: () => void) => void;
-} = ({ order, onClose, onSaved, embedded = false, validateRef, onExtChange }) => {
+} = ({ order, onClose, onSaved, embedded = false, validateRef, onExtChange, customerPaymentsReadOnly = false, partnerPaymentsReadOnly = false, servicesReadOnly = false }) => {
   const primary = getPrimaryServiceItem(order);
-  const partnerLock = partnerPaymentsEditLocked(order);
+  const partnerLock =
+    partnerPaymentsEditLocked(order) || partnerPaymentsReadOnly;
+  const customerLock = customerPaymentsReadOnly;
   const refundN = orderRefundAmount(order);
   const sym = AppConstant.currencySymbol;
 
@@ -915,6 +923,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   }, [ext.partnerPayments, showPartnerPaymentAddHint]);
 
   const tryAddCustomerPayment = () => {
+    if (customerLock) return;
     if (!customerAddPaymentState.allowed) {
       if (customerAddPaymentState.reason) {
         setShowCustomerPaymentAddHint(true);
@@ -1017,7 +1026,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     lockedPartnerPaymentIdsRef.current.has(id);
 
   const confirmRemoveCustomerPaymentRow = (id: string) => {
-    if (isLockedCustomerPaymentRow(id)) return;
+    if (customerLock || isLockedCustomerPaymentRow(id)) return;
     openConfirmDialog(
       "Are you sure you want to delete this user payment entry?",
       "Delete",
@@ -1045,21 +1054,21 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
   };
 
   const validatePayment = React.useCallback((): boolean => {
-    if (customerAddPaymentState.reason) {
+    if (!customerLock && customerAddPaymentState.reason) {
       setShowCustomerPaymentAddHint(true);
       return false;
     }
-    if (partnerAddPaymentState.reason) {
+    if (!partnerLock && partnerAddPaymentState.reason) {
       setShowPartnerPaymentAddHint(true);
       return false;
     }
-    if (ext.serviceAmount < 0) {
+    if (!servicesReadOnly && ext.serviceAmount < 0) {
       showErrorAlert("Service amount cannot be negative.");
       return false;
     }
     const custSum = sumCustomerAmounts(ext.customerPayments);
     const partSum = sumPartnerAmounts(ext.partnerPayments);
-    if (custSum > finalTotal + 0.01) {
+    if (!customerLock && custSum > finalTotal + 0.01) {
       showErrorAlert(
         "Sum of user payment amounts cannot exceed the final total."
       );
@@ -1073,11 +1082,13 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
     }
     return true;
   }, [
+    customerLock,
+    partnerLock,
+    servicesReadOnly,
     customerAddPaymentState.reason,
     partnerAddPaymentState.reason,
     ext,
     finalTotal,
-    partnerLock,
     partnerDueTotal,
   ]);
 
@@ -1199,7 +1210,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         register={register}
                         asCol={false}
                         inputType="text"
-                        inputClassName="text-end"
+                        isEditable={!servicesReadOnly}
+                        inputClassName={
+                          servicesReadOnly
+                            ? "text-end custom-form-input--read-only"
+                            : "text-end"
+                        }
                         inputStyle={tablePriceInputStyle}
                         value={
                           ext.serviceAmount === 0
@@ -1207,6 +1223,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             : String(ext.serviceAmount)
                         }
                         onChange={(val) => {
+                          if (servicesReadOnly) return;
                           const t = val.trim();
                           if (t === "") {
                             if (
@@ -1270,6 +1287,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       />
                     </td>
                     <td className="text-center align-middle">
+                      {!servicesReadOnly ? (
                       <button
                         type="button"
                         className="btn btn-link p-0 text-success"
@@ -1279,6 +1297,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       >
                         <i className="bi bi-plus-circle fs-5" aria-hidden />
                       </button>
+                      ) : null}
                     </td>
                   </tr>
                   {ext.otherCharges.map((row, idx) => (
@@ -1289,7 +1308,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       <td className="align-middle">
                         <Form.Control
                           size="sm"
-                          className="custom-form-input"
+                          readOnly={servicesReadOnly}
+                          className={
+                            servicesReadOnly
+                              ? readOnlyPaymentFieldClass
+                              : "custom-form-input"
+                          }
                           style={{ fontSize: FONT_BODY }}
                           value={row.serviceName ?? ""}
                           onChange={(e) =>
@@ -1303,7 +1327,12 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                       >
                         <Form.Control
                           size="sm"
-                          className="custom-form-input"
+                          readOnly={servicesReadOnly}
+                          className={
+                            servicesReadOnly
+                              ? readOnlyPaymentFieldClass
+                              : "custom-form-input"
+                          }
                           style={{ fontSize: FONT_BODY }}
                           value={row.description}
                           onChange={(e) =>
@@ -1319,10 +1348,16 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                           register={register}
                           asCol={false}
                           inputType="text"
-                          inputClassName="text-end"
+                          isEditable={!servicesReadOnly}
+                          inputClassName={
+                            servicesReadOnly
+                              ? "text-end custom-form-input--read-only"
+                              : "text-end"
+                          }
                           inputStyle={tablePriceInputStyle}
                           value={row.amount === 0 ? "" : String(row.amount)}
                           onChange={(val) => {
+                            if (servicesReadOnly) return;
                             const t = val.trim();
                             if (t === "") {
                               updateOther(row.id, { amount: 0 });
@@ -1336,6 +1371,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                         />
                       </td>
                       <td className="text-center align-middle">
+                        {!servicesReadOnly ? (
                         <i
                           className="bi bi-trash text-danger fs-6"
                           role="button"
@@ -1349,6 +1385,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                             confirmRemoveOtherChargeRow(row.id);
                           }}
                         />
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -1399,6 +1436,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 </span>
               </Col>
               <Col xs="auto">
+                {!customerLock ? (
                 <Button
                   type="button"
                   className="custom-btn-secondary w-auto"
@@ -1407,6 +1445,7 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 >
                   Add User payment
                 </Button>
+                ) : null}
               </Col>
             </Row>
             <div style={paymentSubcard}>
@@ -1458,7 +1497,8 @@ const OrderPaymentEditModal: React.FC<OrderPaymentEditModalProps> & {
                 </thead>
                 <tbody>
                   {ext.customerPayments.map((row, idx) => {
-                    const rowLocked = isLockedCustomerPaymentRow(row.id);
+                    const rowLocked =
+                      customerLock || isLockedCustomerPaymentRow(row.id);
                     const customerRowHighlight =
                       !rowLocked &&
                       showCustomerPaymentAddHint &&

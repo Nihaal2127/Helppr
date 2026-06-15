@@ -23,7 +23,10 @@ import {
   voidPortfolio,
 } from "../../../services/partnerManagementService";
 import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
-import { franchiseIdForScopedListApi } from "../../../lib/franchise/headerFranchisePreference";
+import {
+  franchiseIdForScopedListApi,
+  isFranchisePortalSession,
+} from "../../../lib/franchise/headerFranchisePreference";
 
 type PortfolioManagementProps = {
   onBack?: () => void;
@@ -57,6 +60,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
     location?: string;
   }>({});
   const fetchRef = useRef(false);
+  const hideFranchiseColumn = isFranchisePortalSession();
 
   const listFilters = useMemo(() => {
     const fid = franchiseIdForScopedListApi(headerFranchiseId);
@@ -254,7 +258,9 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
           (currentPage - 1) * pageSize + row.index + 1,
       },
       { Header: "Partner Name", accessor: "partner_name" },
-      { Header: "Franchise", accessor: "franchise_name" },
+      ...(hideFranchiseColumn
+        ? []
+        : [{ Header: "Franchise", accessor: "franchise_name" }]),
       // { Header: "Category", accessor: "category" },
       // { Header: "Service", accessor: "service" },
       { Header: "Total Posts", accessor: "total_posts" },
@@ -308,7 +314,7 @@ const PortfolioManagement = ({ onBack }: PortfolioManagementProps) => {
         ),
       },
     ],
-    [currentPage, pageSize, headerFranchiseId, refreshData]
+    [currentPage, pageSize, headerFranchiseId, refreshData, hideFranchiseColumn]
   );
 
   return (

@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Row, Col, Button, Card } from "react-bootstrap";
-import { useForm } from "react-hook-form";
 import { fetchUserHomeCountsById } from "../../../services/userHomeCountsService";
 import { UserHomeCountsModel } from "../../../lib/models/UserHomeCountsModel";
 import AddEditUserHomeCountsDialog from "./AddEditUserHomeCountsDialog";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
 const UserHomeCounts = () => {
-  const { register, setValue } = useForm<any>();
-
   const [userHomeCounts, setUserHomeCounts] =
     useState<UserHomeCountsModel | null>(null);
   const fetchRef = useRef(false);
@@ -37,8 +34,7 @@ const UserHomeCounts = () => {
         <CustomHeader
           title="User Home Counts"
           titlePrefix={<SettingsNav />}
-          register={register}
-          setValue={setValue}
+          hideFranchiseDropdown
         />
         <div
           className="d-flex justify-content-center align-items-center"

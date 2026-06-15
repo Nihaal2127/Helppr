@@ -7,6 +7,7 @@ import {
   createOrUpdateUser,
   changePassword,
 } from "../../services/adminService";
+import { resolveWebManagementUserType } from "../../services/userService";
 import CustomCloseButton from "../../components/CustomCloseButton";
 
 interface EditProfileProps {
@@ -46,7 +47,7 @@ const EditProfile = ({
       const payload = {
         new_password: data.new_password,
         user_id: user._id,
-        type: 1,
+        type: resolveWebManagementUserType(user.type),
       };
 
       let response = await changePassword(payload);

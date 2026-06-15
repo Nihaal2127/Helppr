@@ -67,6 +67,28 @@ export function mapWebUserTypeToSessionRole(
   return null;
 }
 
+const WEB_MANAGEMENT_USER_TYPE_SET = new Set<number>(
+  Object.values(WEB_MANAGEMENT_USER_TYPE)
+);
+
+/** `POST /user/changePassword` — `type` must match the signed-in dashboard user (`APP_USER_TYPE`). */
+export function resolveWebManagementUserType(
+  userType?: number | null
+): number {
+  const t = Number(userType);
+  if (Number.isFinite(t) && WEB_MANAGEMENT_USER_TYPE_SET.has(t)) {
+    return t;
+  }
+  const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+  if (role === UserRole.ADMIN) return WEB_MANAGEMENT_USER_TYPE.SUPER_ADMIN;
+  if (role === UserRole.FRANCHISE_ADMIN)
+    return WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN;
+  if (role === UserRole.EMPLOYEE)
+    return WEB_MANAGEMENT_USER_TYPE.FRANCHISE_EMPLOYEE;
+  if (role === UserRole.STAFF) return WEB_MANAGEMENT_USER_TYPE.STAFF;
+  return WEB_MANAGEMENT_USER_TYPE.SUPER_ADMIN;
+}
+
 export type AvailablePageEntry = { page: string; url: string };
 
 function normalizeAppPath(path: string): string {

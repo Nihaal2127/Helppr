@@ -2218,6 +2218,43 @@ body:has(.modal.show ~ .modal.show) {
     margin-top: 0.25rem !important;
   }
 
+  /* Edit order — neutral borders on disabled / read-only fields (no primary red). */
+  #order-edit-all-form.order-edit-all-form {
+    .form-control:disabled,
+    .form-control[readonly],
+    .form-select:disabled,
+    .form-control.custom-form-input--read-only,
+    .form-control.custom-form-input--read-only:focus,
+    textarea.form-control:disabled,
+    .custom-form-input .form-control[readonly],
+    .custom-form-input .form-control:disabled {
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+      box-shadow: none !important;
+    }
+
+    .react-select__control--is-disabled {
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+      box-shadow: none !important;
+    }
+
+    .order-payment-table tbody .form-control:disabled,
+    .order-payment-table tbody .form-control[readonly],
+    .order-payment-table tbody .react-select__control--is-disabled {
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+      box-shadow: none !important;
+    }
+
+    .order-edit-schedule--readonly {
+      .form-control,
+      .full-width-date-picker,
+      .form-control:focus,
+      .full-width-date-picker:focus {
+        border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+        box-shadow: none !important;
+      }
+    }
+  }
+
   .add-quote-schedule-panel {
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 8px;

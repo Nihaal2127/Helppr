@@ -20,6 +20,7 @@ import { showOrderInfoDialog as openOrderInfoDialog } from "./showOrderInfoDialo
 import {
   formatServiceScheduleLine,
   getCustomerPaymentStatusLabel,
+  isCompletedOrderLimitedPaymentEdit,
   getOrderCategoryName,
   getOrderPartnerDisplayName,
   getOrderPartnerRef,
@@ -213,7 +214,9 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   }, [paymentExt, orderDetails?.order_payments]);
 
   const canEditOrderHeader =
-    orderDetails?.order_status === 1 || orderDetails?.order_status === 2;
+    orderDetails?.order_status === 1 ||
+    orderDetails?.order_status === 2 ||
+    isCompletedOrderLimitedPaymentEdit(orderDetails);
   const canEditOrderAll = Boolean(orderDetails?._id) && canEditOrderHeader;
   const employeeInfo = orderDetails?.employee_info ?? null;
 
