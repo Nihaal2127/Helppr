@@ -145,6 +145,10 @@ export const ApiPaths = {
   GET_USER_HOME_COUNTS_BY_ID: () => `/user_home_counts/get`,
   CREATE_USER_HOME_COUNTS: "/user_home_counts/create",
   UPDATE_USER_HOME_COUNTS: (id: string) => `/user_home_counts/update/${id}`,
+  /** Settings — global quote config (Postman §33b — create once, then update). */
+  GET_QUOTE_SETTINGS: () => `/quote_settings/get`,
+  CREATE_QUOTE_SETTINGS: "/quote_settings/create",
+  UPDATE_QUOTE_SETTINGS: (id: string) => `/quote_settings/update/${id}`,
   // Expenses management
   GET_EXPENSES: () => `/expense-management/getAll`,
   GET_EXPENSE_BY_ID: (id: string) => `/expense-management/get/${id}`,

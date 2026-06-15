@@ -1,50 +1,71 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { Modal, Button, Row } from "react-bootstrap";
+import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import CustomTextField from "../../../components/CustomTextField";
 import { openDialog } from "../../../lib/global/DialogManager";
-import { GeneralSettingsModel } from "./index";
+import { QuoteSettingsModel } from "../../../lib/models/QuoteSettingsModel";
+import { saveQuoteSettings } from "../../../services/quoteSettingsService";
 
 type AddEditGeneralSettingsDialogProps = {
-  settingsData: GeneralSettingsModel;
+  isEditable: boolean;
+  quoteSettings: QuoteSettingsModel | null;
   onClose: () => void;
-  onSave: (data: GeneralSettingsModel) => void;
+  onRefreshData: () => void;
 };
 
 const AddEditGeneralSettingsDialog: React.FC<AddEditGeneralSettingsDialogProps> & {
   show: (
-    settingsData: GeneralSettingsModel,
-    onSave: (data: GeneralSettingsModel) => void
+    isEditable: boolean,
+    quoteSettings: QuoteSettingsModel | null,
+    onRefreshData: () => void
   ) => void;
-} = ({ settingsData, onClose, onSave }) => {
+} = ({ isEditable, quoteSettings, onClose, onRefreshData }) => {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<GeneralSettingsModel>({
+  } = useForm<Pick<
+    QuoteSettingsModel,
+    "free_quotes_per_user" | "no_of_quotes" | "quotes_price"
+  >>({
     defaultValues: {
-      free_quotes_per_user: settingsData?.free_quotes_per_user || 0,
-      no_of_quotes: settingsData?.no_of_quotes || 0,
-      price: settingsData?.price || "",
+      free_quotes_per_user: quoteSettings?.free_quotes_per_user ?? 0,
+      no_of_quotes: quoteSettings?.no_of_quotes ?? 0,
+      quotes_price: quoteSettings?.quotes_price ?? 0,
     },
   });
 
-  const onSubmitEvent = (data: GeneralSettingsModel) => {
-    onSave(data);
-    onClose();
+  const onSubmitEvent = async (
+    data: Pick<
+      QuoteSettingsModel,
+      "free_quotes_per_user" | "no_of_quotes" | "quotes_price"
+    >
+  ) => {
+    const payload = {
+      free_quotes_per_user: Number(data.free_quotes_per_user),
+      no_of_quotes: Number(data.no_of_quotes),
+      quotes_price: Number(data.quotes_price),
+    };
+
+    const ok = await saveQuoteSettings(payload, quoteSettings);
+
+    if (ok) {
+      onClose?.();
+      onRefreshData();
+    }
   };
 
   return (
     <Modal
-      show={true}
+      show
       onHide={onClose}
       centered
       dialogClassName="custom-big-modal"
     >
       <Modal.Header className="py-3 px-4 border-bottom-0">
         <Modal.Title as="h5" className="custom-modal-title">
-          Update General Settings
+          {isEditable ? "Update" : "Add"} General Settings
         </Modal.Title>
         <CustomCloseButton onClose={onClose} />
       </Modal.Header>
@@ -77,26 +98,31 @@ const AddEditGeneralSettingsDialog: React.FC<AddEditGeneralSettingsDialogProps> 
 
             <CustomTextField
               label="Price"
-              controlId="price"
+              controlId="quotes_price"
               placeholder="Enter price"
               register={register}
-              error={errors.price}
+              error={errors.quotes_price}
               validation={{ required: "Price is required" }}
             />
           </Row>
 
-          <div className="d-flex justify-content-end align-items-center gap-3 mt-4">
-            <Button type="submit" className="custom-btn-primary px-4">
-              Update
-            </Button>
-            <Button
-              type="button"
-              className="custom-btn-secondary px-4"
-              onClick={onClose}
+          <Row className="mt-4">
+            <Col
+              xs={12}
+              className="text-center d-flex justify-content-end gap-3"
             >
-              Cancel
-            </Button>
-          </div>
+              <Button type="submit" className="custom-btn-primary px-4">
+                {isEditable ? "Update" : "Add"}
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary px-4"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+            </Col>
+          </Row>
         </form>
       </Modal.Body>
     </Modal>
@@ -104,14 +130,16 @@ const AddEditGeneralSettingsDialog: React.FC<AddEditGeneralSettingsDialogProps> 
 };
 
 AddEditGeneralSettingsDialog.show = (
-  settingsData: GeneralSettingsModel,
-  onSave: (data: GeneralSettingsModel) => void
+  isEditable: boolean,
+  quoteSettings: QuoteSettingsModel | null,
+  onRefreshData: () => void
 ) => {
   openDialog("general-settings-modal", (close) => (
     <AddEditGeneralSettingsDialog
-      settingsData={settingsData}
+      isEditable={isEditable}
+      quoteSettings={quoteSettings}
       onClose={close}
-      onSave={onSave}
+      onRefreshData={onRefreshData}
     />
   ));
 };

@@ -1,26 +1,36 @@
-import React, { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Row, Col, Card, Button } from "react-bootstrap";
 import CustomHeader from "../../../components/CustomHeader";
 import SettingsNav from "../../../components/SettingsNav";
 import AddEditGeneralSettingsDialog from "./AddEditGeneralSettingsDialog";
-
-export type GeneralSettingsModel = {
-  free_quotes_per_user: number;
-  no_of_quotes: number;
-  price: string;
-};
+import { fetchQuoteSettings } from "../../../services/quoteSettingsService";
+import { QuoteSettingsModel } from "../../../lib/models/QuoteSettingsModel";
+import { AppConstant } from "../../../lib/global/AppConstant";
 
 const GeneralSettings = () => {
-  const [settingsData, setSettingsData] = useState<GeneralSettingsModel>({
-    free_quotes_per_user: 10,
-    no_of_quotes: 5,
-    price: "$10 ",
-  });
+  const [quoteSettings, setQuoteSettings] = useState<QuoteSettingsModel | null>(
+    null
+  );
+  const fetchRef = useRef(false);
 
-  const handleUpdateClick = () => {
-    AddEditGeneralSettingsDialog.show(settingsData, (updatedData) => {
-      setSettingsData(updatedData);
-    });
+  const fetchData = useCallback(async () => {
+    if (fetchRef.current) return;
+    fetchRef.current = true;
+    const { response, quoteSettings: record } = await fetchQuoteSettings();
+    if (response) {
+      setQuoteSettings(record);
+    } else {
+      setQuoteSettings(null);
+    }
+    fetchRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const refreshData = async () => {
+    await fetchData();
   };
 
   return (
@@ -31,46 +41,53 @@ const GeneralSettings = () => {
         hideFranchiseDropdown
       />
 
-      <div>
-        <Card className="border rounded shadow-sm" style={{ width: "400px" }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: "80vh" }}
+      >
+        <Card
+          className="border rounded shadow-sm"
+          style={{
+            width: "400px",
+            backgroundColor: "var(--bg-color)",
+          }}
+        >
           <Card.Body className="p-3">
-            {/* Free Quote */}
             <div className="mb-3">
               <h6 className="text-danger fw-medium mb-2">Free Quote Limit</h6>
-
               <Row className="align-items-center">
                 <Col xs={7}>
                   <span className="fw-medium">Free Quotes per User</span>
                 </Col>
                 <Col xs={5} className="text-end">
                   <span className="text-muted">
-                    {settingsData.free_quotes_per_user}
+                    {quoteSettings?.free_quotes_per_user ?? 0}
                   </span>
                 </Col>
               </Row>
             </div>
 
-            {/* Paid Quotes */}
             <div className="mb-3">
               <h6 className="text-danger fw-medium mb-2">Paid Quotes</h6>
-
               <Row className="align-items-center mb-2">
                 <Col xs={7}>
                   <span className="fw-medium">No of Quotes</span>
                 </Col>
                 <Col xs={5} className="text-end">
                   <span className="text-muted">
-                    {settingsData.no_of_quotes}
+                    {quoteSettings?.no_of_quotes ?? 0}
                   </span>
                 </Col>
               </Row>
-
               <Row className="align-items-center">
                 <Col xs={7}>
                   <span className="fw-medium">Price</span>
                 </Col>
                 <Col xs={5} className="text-end">
-                  <span className="text-muted">{settingsData.price}</span>
+                  <span className="text-muted">
+                    {AppConstant.currencySymbol}
+                    {quoteSettings?.quotes_price ?? 0}
+                  </span>
                 </Col>
               </Row>
             </div>
@@ -78,9 +95,18 @@ const GeneralSettings = () => {
             <div className="text-end">
               <Button
                 className="custom-btn-primary"
-                onClick={handleUpdateClick}
+                onClick={(e) => {
+                  e.preventDefault();
+                  AddEditGeneralSettingsDialog.show(
+                    Boolean(quoteSettings?._id),
+                    quoteSettings,
+                    () => {
+                      void refreshData();
+                    }
+                  );
+                }}
               >
-                Update
+                {quoteSettings?._id ? "Update" : "Add"}
               </Button>
             </div>
           </Card.Body>

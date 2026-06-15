@@ -81,6 +81,92 @@ const toTimeStorageFromDate = (date: Date | null): string =>
 const timeStorageOrNull = (v: string | undefined | null): string | null =>
   v && String(v).trim() ? v : null;
 
+const isMissingOrderEditValue = (value: unknown): boolean =>
+  !String(value ?? "").trim();
+
+/** Completed-tab edit: filled fields stay read-only; missing fields can be set. */
+const completedOrderFieldReadOnly = (
+  completedLimited: boolean,
+  locked: boolean,
+  value: unknown
+): boolean =>
+  locked || (completedLimited && !isMissingOrderEditValue(value));
+
+const orderEditFieldShellStyle = (
+  readOnly: boolean
+): React.CSSProperties | undefined =>
+  readOnly ? { pointerEvents: "none", opacity: 0.65 } : undefined;
+
+/** Partner / category / service — always locked unless completed edit + value missing. */
+const completedCatalogSelectReadOnly = (
+  completedLimited: boolean,
+  locked: boolean,
+  value: unknown
+): boolean =>
+  locked || !completedLimited || !isMissingOrderEditValue(value);
+
+type OrderEditMissingField = {
+  field?: keyof EditOrderFormValues;
+  label: string;
+};
+
+function collectMissingOrderEditRequiredFields(
+  data: EditOrderFormValues,
+  scheduleMode: string,
+  opts: {
+    addressUiReady: boolean;
+    addressRowsCount: number;
+    selectedAddressId: string;
+    orderAddress: string;
+    hasServiceSelected: boolean;
+  }
+): OrderEditMissingField[] {
+  const missing: OrderEditMissingField[] = [];
+
+  if (opts.hasServiceSelected) {
+    if (!String(data.requested_date ?? "").trim()) {
+      missing.push({
+        field: "requested_date",
+        label: scheduleMode === "range" ? "From date" : "Date",
+      });
+    }
+    if (scheduleMode === "range" && !String(data.requested_date_to ?? "").trim()) {
+      missing.push({
+        field: "requested_date_to",
+        label: "To date",
+      });
+    }
+    if (!String(data.requested_time_from ?? "").trim()) {
+      missing.push({
+        field: "requested_time_from",
+        label: "Start time",
+      });
+    }
+    if (!String(data.requested_time_to ?? "").trim()) {
+      missing.push({
+        field: "requested_time_to",
+        label: "End time",
+      });
+    }
+    const priceRaw = String(data.service_price ?? "").trim();
+    const price = Number.parseFloat(priceRaw);
+    if (!priceRaw || Number.isNaN(price) || price < 0) {
+      missing.push({ field: "service_price", label: "Service price" });
+    }
+  }
+
+  if (String(data.user_id ?? "").trim() && opts.addressUiReady) {
+    if (opts.addressRowsCount > 0 && !opts.selectedAddressId.trim()) {
+      missing.push({ label: "Customer address" });
+    }
+    if (opts.addressRowsCount === 0 && !opts.orderAddress.trim()) {
+      missing.push({ label: "Customer address" });
+    }
+  }
+
+  return missing;
+}
+
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
   const y = date.getFullYear();
@@ -236,6 +322,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     setValue,
     watch,
     reset,
+    setError,
     formState: { errors, isSubmitted },
   } = useForm<EditOrderFormValues>({
     defaultValues: {
@@ -385,7 +472,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       !isCompletedOrderWithPartialCustomerPayment(orderRow)
   );
   const partnerPaymentsReadOnly =
-    orderRow && partnerPaymentsEditLocked(orderRow) ||
+    (orderRow != null && partnerPaymentsEditLocked(orderRow)) ||
     Boolean(
       orderRow &&
         completedLimitedPaymentEdit &&
@@ -915,12 +1002,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       return;
     }
 
-    const price = Number.parseFloat(String(data.service_price).trim());
-    if (Number.isNaN(price) || price < 0) {
-      showErrorAlert("Enter a valid service price.");
-      return;
-    }
-
     if (String(data.user_id ?? "").trim() && !addressUi.ready) {
       showErrorAlert(
         "Still loading address options for this franchise. Please wait a moment."
@@ -931,18 +1012,36 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       showErrorAlert(addressUi.error);
       return;
     }
-    if (addressUi.rows.length > 0 && !selectedAddressId.trim()) {
+
+    const missingRequired = collectMissingOrderEditRequiredFields(
+      data,
+      scheduleMode,
+      {
+        addressUiReady: addressUi.ready,
+        addressRowsCount: addressUi.rows.length,
+        selectedAddressId,
+        orderAddress: String(orderRow.address ?? "").trim(),
+        hasServiceSelected,
+      }
+    );
+    if (missingRequired.length > 0) {
+      for (const item of missingRequired) {
+        if (item.field) {
+          setError(item.field, {
+            type: "required",
+            message: `${item.label} is required`,
+          });
+        }
+      }
       showErrorAlert(
-        "Select a customer address for this order. Addresses outside this franchise's service area cannot be used."
+        `Please complete the following required field${
+          missingRequired.length > 1 ? "s" : ""
+        }:\n${missingRequired.map((item) => `• ${item.label}`).join("\n")}`
       );
       return;
     }
-    if (!addressUi.rows.length && !String(orderRow.address ?? "").trim()) {
-      showErrorAlert(
-        "No saved address on file for this customer. Add an address to the user profile before updating."
-      );
-      return;
-    }
+
+    const price = Number.parseFloat(String(data.service_price).trim());
 
     if (
       offerIdWatch &&
@@ -952,29 +1051,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       showErrorAlert(
         couponApplyValidation.reason ?? "Selected coupon cannot be applied."
       );
-      return;
-    }
-
-    if (scheduleMode === "range") {
-      if (!String(data.requested_date ?? "").trim()) {
-        showErrorAlert("Please select from date.");
-        return;
-      }
-      if (!String(data.requested_date_to ?? "").trim()) {
-        showErrorAlert("Please select to date.");
-        return;
-      }
-    } else {
-      if (!String(data.requested_date ?? "").trim()) {
-        showErrorAlert("Please select a date.");
-        return;
-      }
-    }
-    if (
-      !String(data.requested_time_from ?? "").trim() ||
-      !String(data.requested_time_to ?? "").trim()
-    ) {
-      showErrorAlert("Please select start and end time.");
       return;
     }
 
@@ -1079,6 +1155,70 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     onClose();
   };
 
+  const lockedFields = catalogBusy || !orderRow;
+  const employeeReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.employee_id
+  );
+  const addressReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    selectedAddressId
+  );
+  const partnerReadOnly = completedCatalogSelectReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_partner
+  );
+  const categoryReadOnly = completedCatalogSelectReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.category_id
+  );
+  const serviceReadOnly = completedCatalogSelectReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_services
+  );
+  const fromDateReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_date
+  );
+  const toDateReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_date_to
+  );
+  const startTimeReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_time_from
+  );
+  const endTimeReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.requested_time_to
+  );
+  const servicePriceReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.service_price
+  );
+  const descriptionReadOnly = completedOrderFieldReadOnly(
+    completedLimitedPaymentEdit,
+    lockedFields,
+    form.description
+  );
+  const orderStatusReadOnly =
+    isTerminalOrderStatus ||
+    completedOrderFieldReadOnly(
+      completedLimitedPaymentEdit,
+      lockedFields,
+      form.order_status
+    );
+
   const renderAddressCards = (rows: QuoteAddressRowUi[]) =>
     rows.map((row) => {
       const selected = selectedAddressId === row.id && row.selectable;
@@ -1129,10 +1269,10 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
             type="radio"
             name="edit-order-address"
             id={`edit-order-addr-${row.id}`}
-            disabled={!row.selectable || formFieldsReadOnly}
+            disabled={!row.selectable || addressReadOnly}
             checked={selectedAddressId === row.id && row.selectable}
             onChange={() => {
-              if (row.selectable && !formFieldsReadOnly) setSelectedAddressId(row.id);
+              if (row.selectable && !addressReadOnly) setSelectedAddressId(row.id);
             }}
             className="add-quote-address-card-check"
             style={{
@@ -1179,9 +1319,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
         </div>
       );
     });
-
-  const lockedFields = catalogBusy || !orderRow;
-  const formFieldsReadOnly = lockedFields || completedLimitedPaymentEdit;
 
   return (
     <Modal
@@ -1257,7 +1394,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                     placeholder="Select employee"
                     menuPortal
                     isClearable
-                    isDisabled={formFieldsReadOnly}
+                    isDisabled={employeeReadOnly}
                   />
                 </Col>
               </Row>
@@ -1287,6 +1424,24 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                             No saved address on file for this customer.
                           </div>
                         ) : null}
+                        {isSubmitted &&
+                        !addressReadOnly &&
+                        addressUi.ready &&
+                        addressUi.rows.length > 0 &&
+                        !selectedAddressId.trim() ? (
+                          <div className="text-danger small mt-2">
+                            Please select a customer address.
+                          </div>
+                        ) : null}
+                        {isSubmitted &&
+                        !addressReadOnly &&
+                        addressUi.ready &&
+                        addressUi.rows.length === 0 &&
+                        !String(orderRow.address ?? "").trim() ? (
+                          <div className="text-danger small mt-2">
+                            Customer address is required.
+                          </div>
+                        ) : null}
                       </>
                     )}
                   </Col>
@@ -1296,7 +1451,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
               {orderRow ? (
                 <Row className="gy-3 gx-md-4 align-items-start mt-2 order-edit-catalog-row">
                   <Col xs={12} md={6}>
-                    <div className="order-edit-locked-select">
+                    <div
+                      className={
+                        partnerReadOnly ? "order-edit-locked-select" : undefined
+                      }
+                    >
                       <CustomTextFieldSelect
                         label="Partner"
                         controlId="edit-order-partner"
@@ -1313,12 +1472,16 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                         placeholder="Partner"
                         menuPortal
                         isClearable={false}
-                        isDisabled
+                        isDisabled={partnerReadOnly}
                       />
                     </div>
                   </Col>
                   <Col xs={12} md={6}>
-                    <div className="order-edit-locked-select">
+                    <div
+                      className={
+                        categoryReadOnly ? "order-edit-locked-select" : undefined
+                      }
+                    >
                       <CustomTextFieldSelect
                         label="Category"
                         controlId="edit-order-category"
@@ -1335,12 +1498,16 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                         placeholder="Category"
                         menuPortal
                         isClearable={false}
-                        isDisabled
+                        isDisabled={categoryReadOnly}
                       />
                     </div>
                   </Col>
                   <Col xs={12} md={6}>
-                    <div className="order-edit-locked-select">
+                    <div
+                      className={
+                        serviceReadOnly ? "order-edit-locked-select" : undefined
+                      }
+                    >
                       <CustomTextFieldSelect
                         label="Service"
                         controlId="edit-order-service"
@@ -1357,7 +1524,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                         placeholder="Service"
                         menuPortal
                         isClearable={false}
-                        isDisabled
+                        isDisabled={serviceReadOnly}
                       />
                     </div>
                   </Col>
@@ -1380,20 +1547,15 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                       </label>
                     </Col>
                   </Row>
-                  <div
-                    className={`add-quote-schedule-panel${
-                      formFieldsReadOnly ? " order-edit-schedule--readonly" : ""
-                    }`}
-                    style={
-                      formFieldsReadOnly
-                        ? { pointerEvents: "none", opacity: 0.65 }
-                        : undefined
-                    }
-                  >
+                  <div className="add-quote-schedule-panel">
                     <Row className="gy-4 gx-md-5">
                       {scheduleMode === "range" ? (
                         <>
-                          <Col xs={12} md={3}>
+                          <Col
+                            xs={12}
+                            md={3}
+                            style={orderEditFieldShellStyle(fromDateReadOnly)}
+                          >
                             <CustomTextFieldDatePicket
                               label="From date"
                               controlId="edit_requested_date"
@@ -1411,9 +1573,15 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               placeholderText="From date"
                               filterDate={scheduleDateAllowAll}
                               required
+                              error={errors.requested_date}
+                              validation={{ required: "From date is required" }}
                             />
                           </Col>
-                          <Col xs={12} md={3}>
+                          <Col
+                            xs={12}
+                            md={3}
+                            style={orderEditFieldShellStyle(toDateReadOnly)}
+                          >
                             <CustomTextFieldDatePicket
                               label="To date"
                               controlId="edit_requested_date_to"
@@ -1431,9 +1599,15 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               placeholderText="To date"
                               filterDate={scheduleToDateFilter}
                               required
+                              error={errors.requested_date_to}
+                              validation={{ required: "To date is required" }}
                             />
                           </Col>
-                          <Col xs={12} md={3}>
+                          <Col
+                            xs={12}
+                            md={3}
+                            style={orderEditFieldShellStyle(startTimeReadOnly)}
+                          >
                             <CustomTextFieldTimePicket
                               label="Start time"
                               controlId="edit_requested_time_from"
@@ -1456,7 +1630,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
-                          <Col xs={12} md={3}>
+                          <Col
+                            xs={12}
+                            md={3}
+                            style={orderEditFieldShellStyle(endTimeReadOnly)}
+                          >
                             <CustomTextFieldTimePicket
                               label="End time"
                               controlId="edit_requested_time_to"
@@ -1483,7 +1661,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                         </>
                       ) : (
                         <>
-                          <Col xs={12} md={4}>
+                          <Col
+                            xs={12}
+                            md={4}
+                            style={orderEditFieldShellStyle(fromDateReadOnly)}
+                          >
                             <CustomTextFieldDatePicket
                               label="Date"
                               controlId="edit_requested_date"
@@ -1501,9 +1683,15 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               placeholderText="Select date"
                               filterDate={scheduleDateAllowAll}
                               required
+                              error={errors.requested_date}
+                              validation={{ required: "Date is required" }}
                             />
                           </Col>
-                          <Col xs={12} md={4}>
+                          <Col
+                            xs={12}
+                            md={4}
+                            style={orderEditFieldShellStyle(startTimeReadOnly)}
+                          >
                             <CustomTextFieldTimePicket
                               label="Start time"
                               controlId="edit_requested_time_from"
@@ -1526,7 +1714,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                               filterTime={scheduleTimeAllowAll}
                             />
                           </Col>
-                          <Col xs={12} md={4}>
+                          <Col
+                            xs={12}
+                            md={4}
+                            style={orderEditFieldShellStyle(endTimeReadOnly)}
+                          >
                             <CustomTextFieldTimePicket
                               label="End time"
                               controlId="edit_requested_time_to"
@@ -1583,7 +1775,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                           <Form.Control
                             type="text"
                             inputMode="decimal"
-                            disabled={formFieldsReadOnly}
+                            disabled={servicePriceReadOnly}
                             className={`custom-form-input border-start-0${
                               errors.service_price ? " is-invalid" : ""
                             }`}
@@ -1626,7 +1818,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                             height: "35px",
                             fontSize: "14px",
                           }}
-                          disabled={formFieldsReadOnly || isTerminalOrderStatus}
+                          disabled={orderStatusReadOnly}
                           {...register("order_status")}
                         >
                           {ORDER_STATUS_OPTIONS_EDIT.map((o) => (
@@ -1651,7 +1843,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
                       as="textarea"
                       rows={3}
                       maxLength={2000}
-                      disabled={formFieldsReadOnly}
+                      disabled={descriptionReadOnly}
                       className={`custom-form-input${
                         errors.description ? " is-invalid" : ""
                       }`}
