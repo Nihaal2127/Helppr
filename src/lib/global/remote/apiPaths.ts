@@ -226,4 +226,12 @@ export const ApiPaths = {
   CONTENT_MANAGEMENT_CREATE: `/content-management/create`,
   CONTENT_MANAGEMENT_UPDATE: (id: string) => `/content-management/update/${id}`,
   CONTENT_MANAGEMENT_DELETE: (id: string) => `/content-management/delete/${id}`,
+  /** Calendar — appointments linked to orders (Postman § appointment). */
+  APPOINTMENT_GET_ALL: () => `/appointment/getAll`,
+  APPOINTMENT_GET_BY_ID: (id: string) => `/appointment/get/${id}`,
+  APPOINTMENT_GET_BY_ORDER: (orderId: string) =>
+    `/appointment/getByOrder/${orderId}`,
+  APPOINTMENT_CREATE: `/appointment/create`,
+  APPOINTMENT_UPDATE: (id: string) => `/appointment/update/${id}`,
+  APPOINTMENT_DELETE: (id: string) => `/appointment/delete/${id}`,
 };
