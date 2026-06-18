@@ -73,6 +73,26 @@ function rowMatchesFranchiseScopedCatalogRow(
   return rowMatchesCatalogStatus(row, status);
 }
 
+/** Resolves `category_id` whether API sends a string id or a populated `{ _id, name }`. */
+export function normalizeServiceCategoryRef(id: unknown): string {
+  if (id == null) return "";
+  if (typeof id === "object") {
+    const o = id as Record<string, unknown>;
+    const cand = o._id ?? o.id ?? o.category_id;
+    if (cand != null && typeof cand === "object") {
+      return normalizeServiceCategoryRef(cand);
+    }
+    if (cand != null) {
+      const s = String(cand).trim();
+      if (s && s !== "undefined" && s !== "null") return s;
+    }
+    return "";
+  }
+  const s = String(id).trim();
+  if (!s || s === "undefined" || s === "null") return "";
+  return s;
+}
+
 function normalizeFranchiseScopedServiceRow(
   raw: Record<string, unknown>
 ): ServiceModel {
@@ -169,32 +189,14 @@ export const fetchServiceDropDown = async (
             Number.isFinite(Number(service.minimum_deposit))
           ? Number(service.minimum_deposit)
           : undefined,
+      category_id:
+        normalizeServiceCategoryRef(service.category_id) || undefined,
     }));
   } else {
     showLog(response.message || "Failed to fetch service");
     return [];
   }
 };
-
-/** Resolves `category_id` whether API sends a string id or a populated `{ _id, name }`. */
-export function normalizeServiceCategoryRef(id: unknown): string {
-  if (id == null) return "";
-  if (typeof id === "object") {
-    const o = id as Record<string, unknown>;
-    const cand = o._id ?? o.id ?? o.category_id;
-    if (cand != null && typeof cand === "object") {
-      return normalizeServiceCategoryRef(cand);
-    }
-    if (cand != null) {
-      const s = String(cand).trim();
-      if (s && s !== "undefined" && s !== "null") return s;
-    }
-    return "";
-  }
-  const s = String(id).trim();
-  if (!s || s === "undefined" || s === "null" || s === "[object Object]") return "";
-  return s;
-}
 
 type ServiceDropDownRowWithCat = {
   value: string;
@@ -209,13 +211,6 @@ function toDropDownOption(
   return { value: r.value, label: r.label, price: r.price };
 }
 
-/**
- * Category add/edit: each service belongs to at most one category.
- * - **add** — only services with no `category_id`, plus (when `categoryId` is set) services already on that draft/saved category so the multiselect stays consistent.
- * - **edit** — only services whose `category_id` matches this category.
- *
- * Uses unfiltered `GET /service/getDropDown` and filters on `category_id` from each record (see Postman: records include `category_id`).
- */
 export const fetchServicesForCategoryDialog = async (opts: {
   mode: "add" | "edit";
   /** Draft or saved category id for add-with-draft; required for edit (via `mode`). */

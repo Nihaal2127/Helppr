@@ -1,38 +1,27 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Row, Col, Button, Form } from "react-bootstrap";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { useForm, UseFormRegister } from "react-hook-form";
-import { OrderStatusEnum } from "../../lib/order/orders";
 import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchServiceDropDown } from "../../services/servicesService";
-import { fetchUserDropDown } from "../../services/userService";
-import { fetchStateDropDown } from "../../services/stateService";
-import { fetchCityDropDown } from "../../services/cityService";
-import { FranchiseModel } from "../../lib/models/FranchiseModels";
-import { AreaModel } from "../../lib/models/AreaModel";
-import type { ReportOptionType } from "../../lib/reports/reportFilterShared";
+import type { ServiceDropDownOption } from "../../services/servicesService";
+import { UserModel } from "../../lib/models/UserModel";
+import type { ReportOptionType } from "../../lib/reports/reportFilterConstants";
 import {
   reportAllOption as allOption,
   reportFilterLabelClass as filterLabelClass,
   reportMultiSelectChipsMaxHeight as multiSelectChipsMaxHeight,
   reportToIsoCalendarDate as toIsoCalendarDate,
-  loadAllPartnerOptionsForDropdown,
-  loadAllFranchiseRows,
-  loadAllAreaRows,
   CUSTOMER_USER_TYPE,
-} from "../../lib/reports/reportFilterShared";
+  PARTNER_USER_TYPE,
+} from "../../lib/reports/reportFilterConstants";
 
 type OptionType = ReportOptionType;
 
-const QUOTE_STATUS_OPTIONS: OptionType[] = [
-  allOption,
-  { value: "new", label: "New" },
-  { value: "pending", label: "Pending" },
-  { value: "accepted", label: "Accepted" },
-  { value: "success", label: "Success" },
-  { value: "failed", label: "Failed" },
-];
+type OrderReportsPageProps = {
+  franchiseId?: string;
+};
 
 const PARTNER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
   allOption,
@@ -52,7 +41,60 @@ const CUSTOMER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
   { value: "completed", label: "Completed" },
 ];
 
-const OrderReportsPage = () => {
+function userToOption(u: UserModel): OptionType | null {
+  const id = String(u._id ?? "").trim();
+  if (!id) return null;
+  const label =
+    (u.name && String(u.name).trim()) ||
+    u.user_id ||
+    u.phone_number ||
+    id;
+  return { value: id, label: String(label) };
+}
+
+function partnerCategoryIds(partner: UserModel): string[] {
+  const ids = new Set<string>();
+  for (const raw of partner.category_ids ?? []) {
+    const id = String(raw ?? "").trim();
+    if (id) ids.add(id);
+  }
+  for (const ps of partner.partner_services ?? []) {
+    const ref = ps.category_id;
+    let cid = "";
+    if (ref != null && typeof ref === "object") {
+      cid = String((ref as { _id?: string })._id ?? "").trim();
+    } else if (ref != null) {
+      cid = String(ref).trim();
+    }
+    if (cid) ids.add(cid);
+  }
+  return Array.from(ids);
+}
+
+async function loadAllPartnerRows(
+  franchiseId: string
+): Promise<UserModel[]> {
+  const { fetchUser } = await import("../../services/userService");
+  const pageSize = 250;
+  const first = await fetchUser(false, PARTNER_USER_TYPE, 1, pageSize, {
+    status: "true",
+    franchise_id: franchiseId,
+  });
+  if (!first.response) return [];
+  let all = [...first.users];
+  for (let page = 2; page <= first.totalPages; page++) {
+    const next = await fetchUser(false, PARTNER_USER_TYPE, page, pageSize, {
+      status: "true",
+      franchise_id: franchiseId,
+    });
+    if (next.response) {
+      all = all.concat(next.users);
+    }
+  }
+  return all;
+}
+
+const OrderReportsPage = ({ franchiseId = "all" }: OrderReportsPageProps) => {
   const [orderFromDate, setOrderFromDate] = useState("");
   const [orderToDate, setOrderToDate] = useState("");
   const { register: reportFilterRegister, setValue: setReportFilterValue } =
@@ -68,7 +110,6 @@ const OrderReportsPage = () => {
 
   const [userSelections, setUserSelections] = useState<OptionType[]>([]);
   const [orderStatus, setOrderStatus] = useState<OptionType[]>([]);
-  const [quoteStatus, setQuoteStatus] = useState<OptionType[]>([]);
   const [partnerPaymentStatus, setPartnerPaymentStatus] = useState<
     OptionType[]
   >([]);
@@ -78,150 +119,123 @@ const OrderReportsPage = () => {
   const [services, setServices] = useState<OptionType[]>([]);
   const [categories, setCategories] = useState<OptionType[]>([]);
   const [partners, setPartners] = useState<OptionType[]>([]);
-  const [states, setStates] = useState<OptionType[]>([]);
-  const [cities, setCities] = useState<OptionType[]>([]);
-  const [franchises, setFranchises] = useState<OptionType[]>([]);
-  const [areas, setAreas] = useState<OptionType[]>([]);
 
-  const [categoryOptions, setCategoryOptions] = useState<OptionType[]>([
-    allOption,
-  ]);
-  const [serviceOptions, setServiceOptions] = useState<OptionType[]>([
-    allOption,
-  ]);
-  const [partnerOptions, setPartnerOptions] = useState<OptionType[]>([
-    allOption,
-  ]);
-  const [stateListOptions, setStateListOptions] = useState<OptionType[]>([
-    allOption,
-  ]);
-  const [cityOptionsRaw, setCityOptionsRaw] = useState<
-    (OptionType & { state_id?: string })[]
-  >([]);
-  const [userOptions, setUserOptions] = useState<OptionType[]>([allOption]);
-  const [allFranchiseRows, setAllFranchiseRows] = useState<FranchiseModel[]>(
+  const [allCategoryOptions, setAllCategoryOptions] = useState<OptionType[]>(
     []
   );
-  const [allAreaRows, setAllAreaRows] = useState<AreaModel[]>([]);
+  const [allServiceRows, setAllServiceRows] = useState<ServiceDropDownOption[]>(
+    []
+  );
+  const [allPartnerRows, setAllPartnerRows] = useState<UserModel[]>([]);
+  const [allUserRows, setAllUserRows] = useState<UserModel[]>([]);
+
+  const optionsLoadedRef = useRef({
+    categories: false,
+    services: false,
+    partners: false,
+    users: false,
+  });
+  const partnersFranchiseKeyRef = useRef("");
+  const usersFranchiseKeyRef = useRef("");
 
   const orderStatusOptions = useMemo((): OptionType[] => {
     return [
       allOption,
-      ...Array.from(OrderStatusEnum.entries())
-        .filter(([key]) => key !== 1)
-        .map(([key, meta]) => ({
-          value: String(key),
-          label: meta.label,
-        })),
+      { value: "2", label: "In Progress" },
+      { value: "3", label: "Completed" },
+      { value: "4", label: "Cancelled" },
+      { value: "5", label: "Refunded" },
     ];
   }, []);
 
-  const cityOptions = useMemo(
-    (): OptionType[] => [
-      allOption,
-      ...cityOptionsRaw.map(({ value, label }) => ({ value, label })),
-    ],
-    [cityOptionsRaw]
-  );
-
-  const cityIdToStateId = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of cityOptionsRaw) {
-      if (c.value && c.state_id) m.set(c.value, String(c.state_id));
-    }
-    return m;
-  }, [cityOptionsRaw]);
-
-  const franchiseSelectOptions = useMemo((): OptionType[] => {
-    if (allFranchiseRows.length === 0) return [allOption];
-    const sSel = new Set(
-      states.filter((s) => s.value !== "all").map((s) => s.value)
-    );
-    const cSel = new Set(
-      cities.filter((c) => c.value !== "all").map((c) => c.value)
-    );
-    const stActive = sSel.size > 0;
-    const cActive = cSel.size > 0;
-    const out: OptionType[] = [];
-    for (const fr of allFranchiseRows) {
-      const id = fr?._id != null ? String(fr._id) : "";
-      if (!id) continue;
-      const name = (fr.name && String(fr.name)) || id;
-      if (stActive) {
-        const st = fr.state_id != null ? String(fr.state_id) : "";
-        if (st && !sSel.has(st)) continue;
-      }
-      if (cActive) {
-        const cid = fr.city_id != null ? String(fr.city_id) : "";
-        if (cid && !cSel.has(cid)) continue;
-      }
-      out.push({ value: id, label: name });
-    }
-    out.sort((a, b) =>
+  const partnerOptions = useMemo((): OptionType[] => {
+    const opts = allPartnerRows
+      .map(userToOption)
+      .filter((x): x is OptionType => x != null);
+    opts.sort((a, b) =>
       a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
     );
-    return [allOption, ...out];
-  }, [allFranchiseRows, states, cities]);
+    return [allOption, ...opts];
+  }, [allPartnerRows]);
 
-  const areaSelectOptions = useMemo((): OptionType[] => {
-    if (allAreaRows.length === 0) return [allOption];
-    const sSel = new Set(
-      states.filter((s) => s.value !== "all").map((s) => s.value)
-    );
-    const cSel = new Set(
-      cities.filter((c) => c.value !== "all").map((c) => c.value)
-    );
-    const fSel = new Set(
-      franchises.filter((f) => f.value !== "all").map((f) => f.value)
-    );
-    const stActive = sSel.size > 0;
-    const cActive = cSel.size > 0;
-    const fActive = fSel.size > 0;
-    const allowedByFr = new Set<string>();
-    if (fActive) {
-      for (const fr of allFranchiseRows) {
-        if (!fSel.has(String(fr?._id ?? ""))) continue;
-        const raw = (fr as FranchiseModel & { area_id?: string | string[] })
-          .area_id;
-        if (Array.isArray(raw)) {
-          for (const x of raw) {
-            if (x != null) allowedByFr.add(String(x));
-          }
-        } else if (raw) {
-          allowedByFr.add(String(raw));
-        }
-      }
-    }
-    const out: OptionType[] = [];
-    for (const a of allAreaRows) {
-      const id = a?._id != null ? String(a._id) : "";
-      if (!id) continue;
-      const name = (a.name && String(a.name)) || id;
-      const cityId = a.city_id != null ? String(a.city_id) : "";
-      const st = (a as AreaModel & { state_id?: string | null }).state_id
-        ? String((a as AreaModel & { state_id: string }).state_id)
-        : cityId
-        ? cityIdToStateId.get(cityId) ?? null
-        : null;
-      if (stActive && st && !sSel.has(st)) continue;
-      if (cActive && cityId && !cSel.has(cityId)) continue;
-      if (fActive) {
-        if (allowedByFr.size > 0 && !allowedByFr.has(id)) continue;
-      }
-      out.push({ value: id, label: name });
-    }
-    out.sort((a, b) =>
+  const userOptions = useMemo((): OptionType[] => {
+    const opts = allUserRows
+      .map(userToOption)
+      .filter((x): x is OptionType => x != null);
+    opts.sort((a, b) =>
       a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
     );
-    return [allOption, ...out];
-  }, [
-    allAreaRows,
-    allFranchiseRows,
-    cityIdToStateId,
-    states,
-    cities,
-    franchises,
-  ]);
+    return [allOption, ...opts];
+  }, [allUserRows]);
+
+  const categoryOptions = useMemo((): OptionType[] => {
+    const selectedPartnerIds = partners
+      .filter((p) => p.value !== "all")
+      .map((p) => p.value);
+
+    if (selectedPartnerIds.length === 0) {
+      return [allOption, ...allCategoryOptions];
+    }
+
+    const allowed = new Set<string>();
+    for (const pid of selectedPartnerIds) {
+      const partner = allPartnerRows.find((r) => String(r._id) === pid);
+      if (partner) {
+        partnerCategoryIds(partner).forEach((id) => allowed.add(id));
+      }
+    }
+
+    const byId = new Map(allCategoryOptions.map((c) => [c.value, c]));
+    const filtered: OptionType[] = [];
+    allowed.forEach((id) => {
+      const hit = byId.get(id);
+      if (hit) filtered.push(hit);
+    });
+
+    for (const sel of categories) {
+      if (sel.value === "all") continue;
+      if (!filtered.some((c) => c.value === sel.value)) {
+        const hit = byId.get(sel.value);
+        if (hit) filtered.push(hit);
+      }
+    }
+
+    filtered.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    );
+    return [allOption, ...filtered];
+  }, [partners, allPartnerRows, allCategoryOptions, categories]);
+
+  const serviceOptions = useMemo((): OptionType[] => {
+    const selectedCategoryIds = categories
+      .filter((c) => c.value !== "all")
+      .map((c) => c.value);
+
+    let rows = allServiceRows;
+    if (selectedCategoryIds.length > 0) {
+      const allowed = new Set(selectedCategoryIds);
+      rows = allServiceRows.filter(
+        (s) => s.category_id && allowed.has(String(s.category_id))
+      );
+    }
+
+    const opts = rows
+      .filter((s) => s?.value)
+      .map((s) => ({ value: s.value, label: s.label }));
+
+    for (const sel of services) {
+      if (sel.value === "all") continue;
+      if (!opts.some((o) => o.value === sel.value)) {
+        const hit = allServiceRows.find((s) => s.value === sel.value);
+        if (hit) opts.push({ value: hit.value, label: hit.label });
+      }
+    }
+
+    opts.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    );
+    return [allOption, ...opts];
+  }, [categories, allServiceRows, services]);
 
   const handleSelectWithAll = (
     selected: OptionType[],
@@ -236,126 +250,95 @@ const OrderReportsPage = () => {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [categories, stateRows, userDrop, partnerOpts, frRows, arRows] =
-          await Promise.all([
-            fetchCategoryDropDown(),
-            fetchStateDropDown(),
-            fetchUserDropDown(CUSTOMER_USER_TYPE),
-            loadAllPartnerOptionsForDropdown(),
-            loadAllFranchiseRows(),
-            loadAllAreaRows(),
-          ]);
-        if (cancelled) return;
-        setCategoryOptions([
-          allOption,
-          ...categories
-            .filter((c) => c?.value)
-            .map((c) => ({ value: c.value, label: c.label })),
-        ]);
-        setStateListOptions([
-          allOption,
-          ...stateRows
-            .filter((s) => s?.value)
-            .map((s) => ({ value: s.value, label: s.label })),
-        ]);
-        setUserOptions([
-          allOption,
-          ...userDrop.users
-            .filter((u) => u?._id)
-            .map((u) => ({
-              value: u._id,
-              label:
-                (u.name && String(u.name).trim()) ||
-                u.user_id ||
-                u.phone_number ||
-                u._id,
-            })),
-        ]);
-        setPartnerOptions([allOption, ...partnerOpts]);
-        setAllFranchiseRows(frRows);
-        setAllAreaRows(arRows);
-      } catch {
-        if (!cancelled) {
-          /* keep defaults */
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    optionsLoadedRef.current.partners = false;
+    optionsLoadedRef.current.users = false;
+    partnersFranchiseKeyRef.current = "";
+    usersFranchiseKeyRef.current = "";
+    setAllPartnerRows([]);
+    setAllUserRows([]);
+    setPartners([]);
+    setUserSelections([]);
+  }, [franchiseId]);
+
+  const loadCategoryOptions = useCallback(async () => {
+    if (optionsLoadedRef.current.categories) return;
+    optionsLoadedRef.current.categories = true;
+    try {
+      const rows = await fetchCategoryDropDown();
+      setAllCategoryOptions(
+        rows
+          .filter((c) => c?.value)
+          .map((c) => ({ value: c.value, label: c.label }))
+      );
+    } catch {
+      optionsLoadedRef.current.categories = false;
+    }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const hasAll =
-        categories.length === 0 || categories.some((c) => c.value === "all");
-      const specific = categories.filter((c) => c.value !== "all");
-      let rows: { value: string; label: string; price?: number }[] = [];
-      try {
-        if (hasAll || specific.length === 0) {
-          rows = await fetchServiceDropDown();
-        } else {
-          const merged = await Promise.all(
-            specific.map((c) => fetchServiceDropDown(c.value))
-          );
-          const byId = new Map<string, (typeof rows)[0]>();
-          for (const block of merged) {
-            for (const s of block) {
-              if (s?.value) byId.set(s.value, s);
-            }
-          }
-          rows = Array.from(byId.values());
-        }
-        if (cancelled) return;
-        setServiceOptions([
-          allOption,
-          ...rows
-            .filter((s) => s?.value)
-            .map((s) => ({ value: s.value, label: s.label })),
-        ]);
-      } catch {
-        if (!cancelled) setServiceOptions([allOption]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [categories]);
+  const loadServiceOptions = useCallback(async () => {
+    if (optionsLoadedRef.current.services) return;
+    optionsLoadedRef.current.services = true;
+    try {
+      const rows = await fetchServiceDropDown();
+      setAllServiceRows(rows.filter((s) => s?.value));
+    } catch {
+      optionsLoadedRef.current.services = false;
+      setAllServiceRows([]);
+    }
+  }, []);
+
+  const loadPartnerOptions = useCallback(async () => {
+    const key = String(franchiseId ?? "all");
+    if (
+      optionsLoadedRef.current.partners &&
+      partnersFranchiseKeyRef.current === key
+    ) {
+      return;
+    }
+    optionsLoadedRef.current.partners = true;
+    partnersFranchiseKeyRef.current = key;
+    try {
+      const rows = await loadAllPartnerRows(franchiseId);
+      setAllPartnerRows(rows);
+    } catch {
+      optionsLoadedRef.current.partners = false;
+      partnersFranchiseKeyRef.current = "";
+      setAllPartnerRows([]);
+    }
+  }, [franchiseId]);
+
+  const loadUserOptions = useCallback(async () => {
+    const key = String(franchiseId ?? "all");
+    if (
+      optionsLoadedRef.current.users &&
+      usersFranchiseKeyRef.current === key
+    ) {
+      return;
+    }
+    optionsLoadedRef.current.users = true;
+    usersFranchiseKeyRef.current = key;
+    try {
+      const { fetchUserDropDown } = await import("../../services/userService");
+      const userDrop = await fetchUserDropDown(CUSTOMER_USER_TYPE, undefined, {
+        franchise_id: franchiseId,
+      });
+      setAllUserRows(userDrop.users.filter((u) => u?._id));
+    } catch {
+      optionsLoadedRef.current.users = false;
+      usersFranchiseKeyRef.current = "";
+      setAllUserRows([]);
+    }
+  }, [franchiseId]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const hasStateAll =
-        states.length === 0 || states.some((s) => s.value === "all");
-      const stateIds = states
-        .filter((s) => s.value !== "all")
-        .map((s) => s.value);
-      try {
-        const cityRows = hasStateAll
-          ? await fetchCityDropDown()
-          : await fetchCityDropDown(stateIds);
-        if (cancelled) return;
-        setCityOptionsRaw(
-          (cityRows as { value: string; label: string; state_id?: string }[])
-            .filter((c) => c?.value)
-            .map((c) => ({
-              value: c.value,
-              label: c.label,
-              state_id: c.state_id ? String(c.state_id) : undefined,
-            }))
-        );
-      } catch {
-        if (!cancelled) setCityOptionsRaw([]);
+    setCategories((prev) => {
+      const valid = new Set(categoryOptions.map((o) => o.value));
+      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
+        return prev;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [states]);
+      return prev.filter((p) => p.value === "all" || valid.has(p.value));
+    });
+  }, [categoryOptions]);
 
   useEffect(() => {
     setServices((prev) => {
@@ -368,34 +351,24 @@ const OrderReportsPage = () => {
   }, [serviceOptions]);
 
   useEffect(() => {
-    setCities((prev) => {
-      const valid = new Set(cityOptions.map((o) => o.value));
+    setPartners((prev) => {
+      const valid = new Set(partnerOptions.map((o) => o.value));
       if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
         return prev;
       }
       return prev.filter((p) => p.value === "all" || valid.has(p.value));
     });
-  }, [cityOptions]);
+  }, [partnerOptions]);
 
   useEffect(() => {
-    setFranchises((prev) => {
-      const valid = new Set(franchiseSelectOptions.map((o) => o.value));
+    setUserSelections((prev) => {
+      const valid = new Set(userOptions.map((o) => o.value));
       if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
         return prev;
       }
       return prev.filter((p) => p.value === "all" || valid.has(p.value));
     });
-  }, [franchiseSelectOptions]);
-
-  useEffect(() => {
-    setAreas((prev) => {
-      const valid = new Set(areaSelectOptions.map((o) => o.value));
-      if (prev.every((p) => p.value === "all" || valid.has(p.value))) {
-        return prev;
-      }
-      return prev.filter((p) => p.value === "all" || valid.has(p.value));
-    });
-  }, [areaSelectOptions]);
+  }, [userOptions]);
 
   const handleReset = () => {
     setOrderFromDate("");
@@ -404,16 +377,11 @@ const OrderReportsPage = () => {
     setReportFilterValue("order_to_date", "");
     setUserSelections([]);
     setOrderStatus([]);
-    setQuoteStatus([]);
     setPartnerPaymentStatus([]);
     setCustomerPaymentStatus([]);
     setServices([]);
     setCategories([]);
     setPartners([]);
-    setStates([]);
-    setCities([]);
-    setFranchises([]);
-    setAreas([]);
   };
 
   return (
@@ -503,20 +471,19 @@ const OrderReportsPage = () => {
               </Col>
 
               <Col md={6}>
-                <Form.Label className={filterLabelClass}>
-                  Quote status
-                </Form.Label>
+                <Form.Label className={filterLabelClass}>Partner</Form.Label>
                 <CustomMultiSelect
                   label=""
-                  controlId="Quote status"
-                  options={QUOTE_STATUS_OPTIONS}
-                  value={quoteStatus}
+                  controlId="Partner"
+                  options={partnerOptions}
+                  value={partners}
                   onChange={(selectedOptions) =>
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
-                      setQuoteStatus
+                      setPartners
                     )
                   }
+                  onMenuOpen={() => void loadPartnerOptions()}
                   asCol={false}
                   selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
@@ -535,6 +502,7 @@ const OrderReportsPage = () => {
                       setCategories
                     )
                   }
+                  onMenuOpen={() => void loadCategoryOptions()}
                   asCol={false}
                   selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
@@ -553,24 +521,7 @@ const OrderReportsPage = () => {
                       setServices
                     )
                   }
-                  asCol={false}
-                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className={filterLabelClass}>Partner</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="Partner"
-                  options={partnerOptions}
-                  value={partners}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(
-                      selectedOptions as OptionType[],
-                      setPartners
-                    )
-                  }
+                  onMenuOpen={() => void loadServiceOptions()}
                   asCol={false}
                   selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
@@ -589,6 +540,7 @@ const OrderReportsPage = () => {
                       setUserSelections
                     )
                   }
+                  onMenuOpen={() => void loadUserOptions()}
                   asCol={false}
                   selectedChipsMaxHeight={multiSelectChipsMaxHeight}
                 />
@@ -627,86 +579,6 @@ const OrderReportsPage = () => {
                     handleSelectWithAll(
                       selectedOptions as OptionType[],
                       setCustomerPaymentStatus
-                    )
-                  }
-                  asCol={false}
-                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
-                />
-              </Col>
-            </Row>
-
-            <h6
-              style={{ color: "var(--primary-txt-color)" }}
-              className="fw-semibold mt-4 mb-3"
-            >
-              Location filters
-            </h6>
-            <Row className="g-3">
-              <Col md={6}>
-                <Form.Label className={filterLabelClass}>State</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="State"
-                  options={stateListOptions}
-                  value={states}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(
-                      selectedOptions as OptionType[],
-                      setStates
-                    )
-                  }
-                  asCol={false}
-                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className={filterLabelClass}>City</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="City"
-                  options={cityOptions}
-                  value={cities}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(
-                      selectedOptions as OptionType[],
-                      setCities
-                    )
-                  }
-                  asCol={false}
-                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className={filterLabelClass}>Franchise</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="Franchise"
-                  options={franchiseSelectOptions}
-                  value={franchises}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(
-                      selectedOptions as OptionType[],
-                      setFranchises
-                    )
-                  }
-                  asCol={false}
-                  selectedChipsMaxHeight={multiSelectChipsMaxHeight}
-                />
-              </Col>
-
-              <Col md={6}>
-                <Form.Label className={filterLabelClass}>Area</Form.Label>
-                <CustomMultiSelect
-                  label=""
-                  controlId="Area"
-                  options={areaSelectOptions}
-                  value={areas}
-                  onChange={(selectedOptions) =>
-                    handleSelectWithAll(
-                      selectedOptions as OptionType[],
-                      setAreas
                     )
                   }
                   asCol={false}

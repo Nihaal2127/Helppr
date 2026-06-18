@@ -1,32 +1,26 @@
-import { fetchUser } from "../../services/userService";
 import { fetchFranchise } from "../../services/franchiseService";
 import { fetchArea } from "../../services/areaService";
 import { FranchiseModel } from "../models/FranchiseModels";
 import { AreaModel } from "../models/AreaModel";
+import {
+  PARTNER_USER_TYPE,
+} from "./reportFilterConstants";
+import type { ReportOptionType } from "./reportFilterConstants";
 
-export type ReportOptionType = { value: string; label: string };
-
-export const reportAllOption: ReportOptionType = { value: "all", label: "All" };
-
-export const reportFilterLabelClass = "small fw-semibold mb-1";
-
-/** Match Order reports multiselect chip cap. */
-export const reportMultiSelectChipsMaxHeight = "90px" as const;
-
-export const CUSTOMER_USER_TYPE = 4;
-export const PARTNER_USER_TYPE = 2;
-
-export function reportToIsoCalendarDate(date: Date | null): string {
-  if (!date) return "";
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, "0");
-  const d = `${date.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+export type { ReportOptionType } from "./reportFilterConstants";
+export {
+  reportAllOption,
+  reportFilterLabelClass,
+  reportMultiSelectChipsMaxHeight,
+  reportToIsoCalendarDate,
+  CUSTOMER_USER_TYPE,
+  PARTNER_USER_TYPE,
+} from "./reportFilterConstants";
 
 export async function loadAllPartnerOptionsForDropdown(): Promise<
   ReportOptionType[]
 > {
+  const { fetchUser } = await import("../../services/userService");
   const pageSize = 250;
   const first = await fetchUser(false, PARTNER_USER_TYPE, 1, pageSize, {
     status: "true",

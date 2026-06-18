@@ -94,6 +94,8 @@ interface CustomMultiSelectProps {
   logicIgnoreOptionValues?: string[];
   /** Pinned below the scrollable option list inside the dropdown menu. */
   menuFooter?: React.ReactNode;
+  /** Called when the dropdown menu opens (e.g. lazy-load options). */
+  onMenuOpen?: () => void;
 }
 
 const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
@@ -112,6 +114,7 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
   selectedChipsMaxHeight,
   logicIgnoreOptionValues,
   menuFooter,
+  onMenuOpen: onMenuOpenProp,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const customStyles = useMemo(
@@ -254,7 +257,10 @@ const CustomMultiSelect: React.FC<CustomMultiSelectProps> = ({
           maxMenuHeight={280}
           menuShouldScrollIntoView={false}
           menuIsOpen={isMenuOpen}
-          onMenuOpen={() => setIsMenuOpen(true)}
+          onMenuOpen={() => {
+            setIsMenuOpen(true);
+            onMenuOpenProp?.();
+          }}
           onMenuClose={() => setIsMenuOpen(false)}
           closeMenuOnSelect={false}
           blurInputOnSelect={false}

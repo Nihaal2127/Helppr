@@ -990,7 +990,6 @@ function EditPartnerCategoriesServicesDialogView({
                           value={row.serviceId}
                           placeholder="Select service"
                           isDisabled={
-                            blockReadOnly ||
                             rowReadOnly ||
                             catalogLocked ||
                             !categoryActive

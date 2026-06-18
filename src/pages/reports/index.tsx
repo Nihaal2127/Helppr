@@ -1,10 +1,11 @@
-import React, { useState } from "react";
-import { Button } from "react-bootstrap";
-import { useForm } from "react-hook-form";
+import React, { Suspense, lazy, useState } from "react";
+import { Button, Spinner } from "react-bootstrap";
 import CustomHeader from "../../components/CustomHeader";
-import OrderReportsPage from "./OrderReports";
-import QuotationReportsPage from "./QuotationReports";
-import PartnerReportsPage from "./PartnerReports";
+import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
+
+const OrderReportsPage = lazy(() => import("./OrderReports"));
+const QuotationReportsPage = lazy(() => import("./QuotationReports"));
+const PartnerReportsPage = lazy(() => import("./PartnerReports"));
 
 type ReportTabKey = "order_reports" | "quotation_reports" | "partner_reports";
 
@@ -16,13 +17,14 @@ const reportTabs: { key: ReportTabKey; label: string }[] = [
 
 const Reports = () => {
   const [selectedTab, setSelectedTab] = useState<ReportTabKey>("order_reports");
-  const { register, setValue } = useForm<any>();
-  // const [selectedtab, setSelectedTab] = useState<ReportTabKey>("quotation_reports");
+  const { register, setValue, franchiseId } = useFranchiseHeaderForm();
 
   const renderTabContent = () => {
     switch (selectedTab) {
       case "order_reports":
-        return <OrderReportsPage />;
+        return (
+          <OrderReportsPage franchiseId={franchiseId} />
+        );
 
       case "quotation_reports":
         return <QuotationReportsPage />;
@@ -59,7 +61,15 @@ const Reports = () => {
         ))}
       </div>
 
-      {renderTabContent()}
+      <Suspense
+        fallback={
+          <div className="d-flex justify-content-center py-5">
+            <Spinner animation="border" size="sm" role="status" />
+          </div>
+        }
+      >
+        {renderTabContent()}
+      </Suspense>
     </div>
   );
 };
