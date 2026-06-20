@@ -10,6 +10,9 @@ import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { FranchiseModel } from "../../lib/models/FranchiseModels";
 import { AreaModel } from "../../lib/models/AreaModel";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
+import { buildQuoteReportExportPayload } from "../../lib/reports/reportExportPayload";
 import type { ReportOptionType } from "../../lib/reports/reportFilterShared";
 import {
   reportAllOption as allOption,
@@ -33,7 +36,11 @@ const QUOTE_STATUS_OPTIONS: OptionType[] = [
   { value: "failed", label: "Failed" },
 ];
 
-const QuotationReportsPage = () => {
+type QuotationReportsPageProps = {
+  franchiseId?: string;
+};
+
+const QuotationReportsPage = ({ franchiseId = "all" }: QuotationReportsPageProps) => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const { register: reportFilterRegister, setValue: setReportFilterValue } =
@@ -359,6 +366,26 @@ const QuotationReportsPage = () => {
     });
   }, [areaSelectOptions]);
 
+  const handleExport = async () => {
+    await exportData(
+      ApiPaths.EXPORT_QUOTE_REPORT,
+      buildQuoteReportExportPayload({
+        fromDate,
+        toDate,
+        franchiseId,
+        quoteStatus,
+        categories,
+        services,
+        partners,
+        users: userSelections,
+        states,
+        cities,
+        areas,
+        franchises,
+      })
+    );
+  };
+
   const handleReset = () => {
     setFromDate("");
     setToDate("");
@@ -550,6 +577,7 @@ const QuotationReportsPage = () => {
                     size="sm"
                     className="custom-btn-primary px-3"
                     style={{ width: "80px" }}
+                    onClick={() => void handleExport()}
                   >
                     Export
                   </Button>

@@ -9,6 +9,9 @@ import { fetchStateDropDown } from "../../services/stateService";
 import { fetchCityDropDown } from "../../services/cityService";
 import { FranchiseModel } from "../../lib/models/FranchiseModels";
 import { AreaModel } from "../../lib/models/AreaModel";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
+import { buildPartnerReportExportPayload } from "../../lib/reports/reportExportPayload";
 import type { ReportOptionType } from "../../lib/reports/reportFilterShared";
 import {
   reportAllOption as allOption,
@@ -22,7 +25,11 @@ import {
 
 type OptionType = ReportOptionType;
 
-const PartnerReportsPage = () => {
+type PartnerReportsPageProps = {
+  franchiseId?: string;
+};
+
+const PartnerReportsPage = ({ franchiseId = "all" }: PartnerReportsPageProps) => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const { register: reportFilterRegister, setValue: setReportFilterValue } =
@@ -331,6 +338,24 @@ const PartnerReportsPage = () => {
     });
   }, [areaSelectOptions]);
 
+  const handleExport = async () => {
+    await exportData(
+      ApiPaths.EXPORT_PARTNER_REPORT,
+      buildPartnerReportExportPayload({
+        fromDate,
+        toDate,
+        franchiseId,
+        partners,
+        categories,
+        services,
+        states,
+        cities,
+        areas,
+        franchises,
+      })
+    );
+  };
+
   const handleReset = () => {
     setFromDate("");
     setToDate("");
@@ -480,6 +505,7 @@ const PartnerReportsPage = () => {
                     size="sm"
                     className="custom-btn-primary px-3"
                     style={{ width: "80px" }}
+                    onClick={() => void handleExport()}
                   >
                     Export
                   </Button>

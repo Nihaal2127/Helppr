@@ -7,7 +7,9 @@ import { fetchCategoryDropDown } from "../../services/categoryService";
 import { fetchServiceDropDown } from "../../services/servicesService";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import { UserModel } from "../../lib/models/UserModel";
-import type { ReportOptionType } from "../../lib/reports/reportFilterConstants";
+import { exportData } from "../../services/exportService";
+import { ApiPaths } from "../../lib/global/remote/apiPaths";
+import { buildOrderReportExportPayload } from "../../lib/reports/reportExportPayload";
 import {
   reportAllOption as allOption,
   reportFilterLabelClass as filterLabelClass,
@@ -16,6 +18,7 @@ import {
   CUSTOMER_USER_TYPE,
   PARTNER_USER_TYPE,
 } from "../../lib/reports/reportFilterConstants";
+import type { ReportOptionType } from "../../lib/reports/reportFilterConstants";
 
 type OptionType = ReportOptionType;
 
@@ -370,6 +373,24 @@ const OrderReportsPage = ({ franchiseId = "all" }: OrderReportsPageProps) => {
     });
   }, [userOptions]);
 
+  const handleExport = async () => {
+    await exportData(
+      ApiPaths.EXPORT_ORDER_REPORT,
+      buildOrderReportExportPayload({
+        fromDate: orderFromDate,
+        toDate: orderToDate,
+        franchiseId,
+        orderStatus,
+        partnerPaymentStatus,
+        customerPaymentStatus,
+        categories,
+        services,
+        partners,
+        users: userSelections,
+      })
+    );
+  };
+
   const handleReset = () => {
     setOrderFromDate("");
     setOrderToDate("");
@@ -603,6 +624,7 @@ const OrderReportsPage = ({ franchiseId = "all" }: OrderReportsPageProps) => {
                     size="sm"
                     className="custom-btn-primary px-3"
                     style={{ width: "50px" }}
+                    onClick={() => void handleExport()}
                   >
                     Export
                   </Button>

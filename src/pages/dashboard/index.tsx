@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Row, Col } from "react-bootstrap";
 import {
@@ -14,18 +14,19 @@ import { Bar, Pie } from "react-chartjs-2";
 import CustomHeader from "../../components/CustomHeader";
 import CustomFormSelect from "../../components/CustomFormSelect";
 import { DashboardCard, formatDate } from "../../helper/utility";
-import { DashboardModel } from "../../lib/dashboard/dashboardModel";
-import { getDashboardData } from "../../lib/dashboard/dashboardService";
+import {
+  DEFAULT_DASHBOARD_STATS,
+  DashboardStatsModel,
+} from "../../lib/dashboard/dashboardModel";
+import {
+  getDashboardStats,
+  resolveDashboardDateRange,
+} from "../../lib/dashboard/dashboardService";
+import type { DashboardDateRangeType } from "../../lib/dashboard/dashboardService";
+import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import CustomDatePicker from "../../components/CustomDatePicker";
 import { dateToLocalYmd, todayLocalYmd } from "../../helper/dateFormat";
 import { AppConstant } from "../../lib/global/AppConstant";
-
-type DateRangeType =
-  | "TODAY"
-  | "THIS_WEEK"
-  | "THIS_MONTH"
-  | "THIS_YEAR"
-  | "CUSTOM_RANGE";
 
 ChartJS.register(
   CategoryScale,
@@ -36,59 +37,67 @@ ChartJS.register(
   Legend
 );
 
-const DEFAULT_DASHBOARD: DashboardModel = {
-  total_service: 0,
-  inactive_service: 0,
-  active_service: 0,
-  total_partner: 0,
-  inactive_partner: 0,
-  active_partner: 0,
-  pending_order: 0,
-  in_progress_order: 0,
-  completed_order: 0,
-  cancelled_order: 0,
-  received_amount: 0,
-  pending_amount: 0,
-  revenue: 0,
-  customer_amount: 0,
-  partner_amount: 0,
-  commission_amount: 0,
-};
-
 const formatDashboardAmount = (value: number) =>
   `${AppConstant.currencySymbol}${Number(value || 0).toLocaleString()}`;
 
 const Dashboard = () => {
+  const {
+    register: headerRegister,
+    setValue: headerSetValue,
+    franchiseId,
+  } = useFranchiseHeaderForm();
   const { register, setValue } = useForm<any>();
   const [selectedDate, setSelectedDate] = useState<string>(todayLocalYmd());
-  const [dateRangeType, setDateRangeType] = useState<DateRangeType>("TODAY");
+  const [dateRangeType, setDateRangeType] =
+    useState<DashboardDateRangeType>("TODAY");
   const currentYear = new Date().getFullYear();
   const [weekStartDate, setWeekStartDate] = useState<string>(todayLocalYmd());
   const [customFromDate, setCustomFromDate] = useState<string>("");
   const [customToDate, setCustomToDate] = useState<string>("");
 
-  const [dashboardDetails, setDashboardDetails] =
-    useState<DashboardModel>(DEFAULT_DASHBOARD);
+  const [dashboardStats, setDashboardStats] =
+    useState<DashboardStatsModel>(DEFAULT_DASHBOARD_STATS);
   const fetchRef = useRef(false);
 
+  const dashboardQueryRange = useMemo(
+    () =>
+      resolveDashboardDateRange({
+        dateRangeType,
+        selectedDate,
+        weekStartDate,
+        customFromDate,
+        customToDate,
+      }),
+    [
+      dateRangeType,
+      selectedDate,
+      weekStartDate,
+      customFromDate,
+      customToDate,
+    ]
+  );
+
   const fetchDataFromApi = useCallback(async () => {
-    if (fetchRef.current) return;
+    if (!dashboardQueryRange || fetchRef.current) return;
     fetchRef.current = true;
     try {
-      const { response, dashboard } = await getDashboardData(selectedDate);
-      if (response && dashboard) {
-        setDashboardDetails({ ...DEFAULT_DASHBOARD, ...dashboard });
+      const { response, stats } = await getDashboardStats({
+        range: dashboardQueryRange,
+        franchiseId,
+      });
+      if (response && stats) {
+        setDashboardStats({ ...DEFAULT_DASHBOARD_STATS, ...stats });
       }
     } finally {
       fetchRef.current = false;
     }
-  }, [selectedDate]);
+  }, [dashboardQueryRange, franchiseId]);
 
   useEffect(() => {
     void fetchDataFromApi();
   }, [fetchDataFromApi]);
 
-  const handleDateRangeTypeChange = (value: DateRangeType) => {
+  const handleDateRangeTypeChange = (value: DashboardDateRangeType) => {
     setDateRangeType(value);
 
     const today = new Date();
@@ -112,7 +121,6 @@ const Dashboard = () => {
     }
 
     if (value === "THIS_YEAR") {
-      // API expects a single date; backend will infer the range (year) from this date.
       setSelectedDate(dateToLocalYmd(today));
     }
 
@@ -129,10 +137,13 @@ const Dashboard = () => {
     { value: "CUSTOM_RANGE", label: "Custom Range" },
   ];
 
-  const customerPay = dashboardDetails.customer_amount;
-  const partnerPay = dashboardDetails.partner_amount;
-  const commissionPay = dashboardDetails.commission_amount;
-  const totalPaymentsAmount = customerPay + partnerPay + commissionPay;
+  const customerPay = dashboardStats.payments.customer;
+  const partnerPay = dashboardStats.payments.partner;
+  const commissionPay = dashboardStats.payments.commission;
+  const totalPaymentsAmount =
+    dashboardStats.payments.total_payments > 0
+      ? dashboardStats.payments.total_payments
+      : customerPay + partnerPay + commissionPay;
 
   /** When breakdown is all zero, show sample bars aligned with Customer / Partner / Commission / Total. */
   const PAYMENTS_CHART_DUMMY = {
@@ -215,15 +226,14 @@ const Dashboard = () => {
   } as const;
 
   const quotesTotalRaw =
-    dashboardDetails.total_quote != null
-      ? dashboardDetails.total_quote
-      : dashboardDetails.pending_order;
+    dashboardStats.quotes.requests_received +
+    dashboardStats.quotes.in_progress +
+    dashboardStats.quotes.completed +
+    dashboardStats.quotes.cancelled;
   const ordersTotalRaw =
-    dashboardDetails.total_order != null
-      ? dashboardDetails.total_order
-      : dashboardDetails.in_progress_order +
-        dashboardDetails.completed_order +
-        dashboardDetails.cancelled_order;
+    dashboardStats.orders.in_progress +
+    dashboardStats.orders.completed +
+    dashboardStats.orders.cancelled;
 
   /** Sample split when API returns no quote/order totals — keeps the pie usable for layout review. */
   const ORDERS_VS_QUOTES_DESIGN_DUMMY = { quotes: 42, orders: 118 } as const;
@@ -282,8 +292,8 @@ const Dashboard = () => {
       <div className="main-page-content dashboard-page">
         <CustomHeader
           title="Dashboard"
-          register={register}
-          setValue={setValue}
+          register={headerRegister}
+          setValue={headerSetValue}
         />
 
         <div className="custom-dashboard-card">
@@ -335,7 +345,9 @@ const Dashboard = () => {
                   fieldName="date_range_type"
                   defaultValue={dateRangeType}
                   onChange={(e) =>
-                    handleDateRangeTypeChange(e.target.value as DateRangeType)
+                    handleDateRangeTypeChange(
+                      e.target.value as DashboardDateRangeType
+                    )
                   }
                   asCol={false}
                   noBottomMargin
@@ -402,22 +414,22 @@ const Dashboard = () => {
           <div className="d-flex gap-2">
             <DashboardCard
               title="Requests Received"
-              count={dashboardDetails!.pending_order}
+              count={dashboardStats.quotes.requests_received}
               color="var(--btn-info)"
             />
             <DashboardCard
               title="In Progress"
-              count={dashboardDetails!.in_progress_order}
+              count={dashboardStats.quotes.in_progress}
               color="var(--btn-warning)"
             />
             <DashboardCard
               title="Completed"
-              count={dashboardDetails!.completed_order}
+              count={dashboardStats.quotes.completed}
               color="var(--btn-success)"
             />
             <DashboardCard
               title="Cancelled"
-              count={dashboardDetails!.cancelled_order}
+              count={dashboardStats.quotes.cancelled}
               color="var(--btn-danger)"
             />
           </div>
@@ -430,17 +442,17 @@ const Dashboard = () => {
             {/* <DashboardCard title="Requests Received" count={dashboardDetails!.pending_order} color="var(--btn-info)" /> */}
             <DashboardCard
               title="In Progress"
-              count={dashboardDetails!.in_progress_order}
+              count={dashboardStats.orders.in_progress}
               color="var(--btn-warning)"
             />
             <DashboardCard
               title="Completed"
-              count={dashboardDetails!.completed_order}
+              count={dashboardStats.orders.completed}
               color="var(--btn-success)"
             />
             <DashboardCard
               title="Cancelled"
-              count={dashboardDetails!.cancelled_order}
+              count={dashboardStats.orders.cancelled}
               color="var(--btn-danger)"
             />
           </div>
@@ -456,17 +468,17 @@ const Dashboard = () => {
             />
             <DashboardCard
               title="Customer"
-              count={formatDashboardAmount(dashboardDetails.customer_amount)}
+              count={formatDashboardAmount(dashboardStats.payments.customer)}
               color="var(--btn-info)"
             />
             <DashboardCard
               title="Partner"
-              count={formatDashboardAmount(dashboardDetails.partner_amount)}
+              count={formatDashboardAmount(dashboardStats.payments.partner)}
               color="var(--btn-warning)"
             />
             <DashboardCard
               title="Commission"
-              count={formatDashboardAmount(dashboardDetails.commission_amount)}
+              count={formatDashboardAmount(dashboardStats.payments.commission)}
               color="var(--btn-success)"
             />
           </div>
@@ -479,17 +491,17 @@ const Dashboard = () => {
               <div className="d-flex gap-2">
                 <DashboardCard
                   title="Total"
-                  count={dashboardDetails!.total_service}
+                  count={dashboardStats.services.total}
                   color="var(--btn-info)"
                 />
                 <DashboardCard
                   title="Active"
-                  count={dashboardDetails!.active_service}
+                  count={dashboardStats.services.active}
                   color="var(--btn-success)"
                 />
                 <DashboardCard
                   title="Inactive"
-                  count={dashboardDetails!.inactive_service}
+                  count={dashboardStats.services.inactive}
                   color="var(--btn-danger)"
                 />
               </div>
@@ -501,17 +513,17 @@ const Dashboard = () => {
               <div className="d-flex gap-2">
                 <DashboardCard
                   title="Total"
-                  count={dashboardDetails!.total_partner}
+                  count={dashboardStats.partners.total}
                   color="var(--btn-info)"
                 />
                 <DashboardCard
                   title="Active"
-                  count={dashboardDetails!.active_partner}
+                  count={dashboardStats.partners.active}
                   color="var(--btn-success)"
                 />
                 <DashboardCard
                   title="Inactive"
-                  count={dashboardDetails!.inactive_partner}
+                  count={dashboardStats.partners.inactive}
                   color="var(--btn-danger)"
                 />
               </div>
@@ -569,7 +581,7 @@ const Dashboard = () => {
                 style={{ height: 240, minHeight: 220 }}
               >
                 <Pie
-                  key={`${selectedDate}-${hasRealOrdersQuotesData}`}
+                  key={`${dashboardQueryRange?.fromDate ?? ""}-${dashboardQueryRange?.toDate ?? ""}-${dateRangeType}-${hasRealOrdersQuotesData}`}
                   data={ordersVsQuotesPieData}
                   options={ordersVsQuotesPieOptions}
                 />

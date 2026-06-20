@@ -27,10 +27,10 @@ const Reports = () => {
         );
 
       case "quotation_reports":
-        return <QuotationReportsPage />;
+        return <QuotationReportsPage franchiseId={franchiseId} />;
 
       case "partner_reports":
-        return <PartnerReportsPage />;
+        return <PartnerReportsPage franchiseId={franchiseId} />;
 
       default:
         return null;

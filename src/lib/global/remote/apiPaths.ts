@@ -5,7 +5,13 @@ export const ApiPaths = {
   SEND_OTP: () => `/otp/send-otp`,
   VERIFY_OTP: () => `/otp/verify-otp`,
   GET_COUNT: "/getCount",
+  /** @deprecated Legacy dashboard — prefer `GET_DASHBOARD_STATS`. */
   GET_DASHBOARD_DATA: () => `/dashboard/getData`,
+  /** Admin home dashboard KPIs (`from_date`, `to_date`, optional `franchise_id`). */
+  GET_DASHBOARD_STATS: () => `/dashboard/stats`,
+  EXPORT_ORDER_REPORT: `/export/order-report`,
+  EXPORT_QUOTE_REPORT: `/export/quote-report`,
+  EXPORT_PARTNER_REPORT: `/export/partner-report`,
   GET_USER_BY_ID: () => `/user/get`,
   CREATE_USER: "/user/create",
   GET_USER: () => `/user/getAll`,

@@ -1,25 +1,73 @@
-export interface DashboardModel {
-  total_service: number | 0;
-  inactive_service: number | 0;
-  active_service: number | 0;
-  total_partner: number | 0;
-  inactive_partner: number | 0;
-  active_partner: number | 0;
-  pending_order: number | 0;
-  in_progress_order: number | 0;
-  completed_order: number | 0;
-  cancelled_order: number | 0;
-  /** When set by API, used for quotes slice in Orders vs Quotes chart */
-  total_quote?: number;
-  /** When set by API, used for orders slice in Orders vs Quotes chart */
-  total_order?: number;
-  received_amount: number | 0;
-  pending_amount: number | 0;
-  revenue: number | 0;
-  /** Customer-side payment total for the selected period */
-  customer_amount: number | 0;
-  /** Partner payout / partner share for the selected period */
-  partner_amount: number | 0;
-  /** Platform commission for the selected period */
-  commission_amount: number | 0;
+export interface DashboardQuotesStats {
+  requests_received: number;
+  in_progress: number;
+  completed: number;
+  cancelled: number;
 }
+
+export interface DashboardOrdersStats {
+  in_progress: number;
+  completed: number;
+  cancelled: number;
+}
+
+export interface DashboardPaymentsStats {
+  total_payments: number;
+  customer: number;
+  partner: number;
+  commission: number;
+}
+
+export interface DashboardServicesStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+export interface DashboardPartnersStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+/** `GET /api/dashboard/stats` — `record` shape (Postman §03 — Dashboard). */
+export interface DashboardStatsModel {
+  quotes: DashboardQuotesStats;
+  orders: DashboardOrdersStats;
+  payments: DashboardPaymentsStats;
+  services: DashboardServicesStats;
+  partners: DashboardPartnersStats;
+  franchise_id?: string | null;
+  from_date?: string | null;
+  to_date?: string | null;
+}
+
+export const DEFAULT_DASHBOARD_STATS: DashboardStatsModel = {
+  quotes: {
+    requests_received: 0,
+    in_progress: 0,
+    completed: 0,
+    cancelled: 0,
+  },
+  orders: {
+    in_progress: 0,
+    completed: 0,
+    cancelled: 0,
+  },
+  payments: {
+    total_payments: 0,
+    customer: 0,
+    partner: 0,
+    commission: 0,
+  },
+  services: {
+    total: 0,
+    active: 0,
+    inactive: 0,
+  },
+  partners: {
+    total: 0,
+    active: 0,
+    inactive: 0,
+  },
+};
