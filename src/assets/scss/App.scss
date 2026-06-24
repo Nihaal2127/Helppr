@@ -240,6 +240,157 @@ body {
   z-index: 3000 !important;
 }
 
+/* Month picker — 3×4 grid with light cell borders */
+.react-datepicker.custom-month-year-picker {
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: "Inter", sans-serif;
+
+  .react-datepicker__month-container {
+    float: none;
+    width: 270px;
+  }
+
+  .react-datepicker__header {
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 10px 0;
+  }
+
+  .react-datepicker__current-month {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .react-datepicker__navigation {
+    top: 8px;
+  }
+
+  .react-datepicker__month {
+    margin: 0;
+    padding: 0;
+  }
+
+  .react-datepicker__monthPicker {
+    display: block;
+    width: 100%;
+  }
+
+  .react-datepicker__month-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    width: 100%;
+  }
+
+  .react-datepicker__month-text {
+    flex: 1 1 33.333%;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    min-width: 0;
+    margin: -1px 0 0 -1px !important;
+    padding: 14px 4px;
+    border: 1px solid #ebebeb;
+    border-radius: 0 !important;
+    font-size: 13px;
+    font-weight: 500;
+    color: #444;
+    box-sizing: border-box;
+    line-height: 1.2;
+
+    &:not([aria-disabled="true"]):hover {
+      border-radius: 0 !important;
+      background-color: #f0f7ff;
+    }
+
+    &--selected,
+    &--keyboard-selected {
+      border-radius: 0 !important;
+      background-color: #d6e9f8 !important;
+      color: #1b6bac !important;
+      font-weight: 600;
+    }
+  }
+}
+
+/* Year picker — inline row (e.g. 2024  2025  2026) */
+.react-datepicker.custom-year-picker {
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: "Inter", sans-serif;
+
+  .react-datepicker__month-container {
+    float: none;
+    min-width: 240px;
+  }
+
+  .react-datepicker__header {
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 8px 0;
+  }
+
+  .react-datepicker-year-header {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+  }
+
+  .react-datepicker__navigation {
+    top: 6px;
+  }
+
+  .react-datepicker__year {
+    margin: 0;
+    padding: 0;
+  }
+
+  .react-datepicker__year-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    max-width: none !important;
+    width: 100%;
+  }
+
+  .react-datepicker__year-text {
+    flex: 1 1 33.333%;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    min-width: 0;
+    margin: -1px 0 0 -1px !important;
+    padding: 14px 8px;
+    border: 1px solid #ebebeb;
+    border-radius: 0 !important;
+    font-size: 14px;
+    font-weight: 500;
+    color: #444;
+    box-sizing: border-box;
+    line-height: 1.2;
+
+    &:not([aria-disabled="true"]):hover {
+      border-radius: 0 !important;
+      background-color: #f0f7ff;
+    }
+
+    &--selected,
+    &--keyboard-selected {
+      border-radius: 0 !important;
+      background-color: #d6e9f8 !important;
+      color: #1b6bac !important;
+      font-weight: 600;
+    }
+  }
+}
+
 .custom-utilty-box,
 .custom-utilty-tools-inline,
 .custom-utility-control-slot {
@@ -3849,33 +4000,31 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
   flex-wrap: wrap;
 }
 
-.dashboard-page .custom-dashboard-card .custom-dashboard-border {
-  // flex: 1 1 calc(50% - 0.5rem);
-  // min-width: 140px;
+
+.dashboard-date-range-select {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap; // optional for mobile responsiveness
 }
 
-.dashboard-page .dashboard-date-range-select,
-.dashboard-page .dashboard-date-range-picker {
+.dashboard-date-range-picker {
   min-width: 200px;
   max-width: 260px;
-  flex: 1 1 200px;
+  flex: 1;
+  margin-bottom: 0 !important;
 }
 
-.dashboard-page .dashboard-date-range-controls {
-  // width: 100%;
+.dashboard-date-range-select {
+  display: flex;
+  gap: 12px;
+  align-items: end;
 }
 
 @media (max-width: 991.98px) {
   .dashboard-page .custom-dashboard-card>.d-flex.justify-content-between {
     flex-direction: column;
     align-items: flex-start !important;
-  }
-
-  .dashboard-page .dashboard-date-range-select,
-  .dashboard-page .dashboard-date-range-picker {
-    // min-width: 100%;
-    // max-width: 100%;
-    // flex: 1 1 100%;
   }
 
   .dashboard-page .dashboard-stats-row>[class*="col-"],

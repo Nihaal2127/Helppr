@@ -30,6 +30,10 @@ interface CustomDatePickerProps {
   enforceAdultAge?: boolean;
   /** Show required asterisk when validation does not include `required`. */
   required?: boolean;
+  /** Month-only or year-only selection (e.g. dashboard filters). */
+  pickerMode?: "date" | "month" | "year";
+  /** Month/year dropdowns on the calendar header (easier range navigation). */
+  showMonthYearDropdowns?: boolean;
 }
 
 const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
@@ -50,6 +54,8 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   birthDatePicker = false,
   enforceAdultAge = true,
   required = false,
+  pickerMode = "date",
+  showMonthYearDropdowns = false,
 }) => {
   const showRequiredMark = required || isValidationRequired(validation);
   const Wrapper = asCol ? Col : "div";
@@ -73,16 +79,35 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     ? new Date(new Date().getFullYear() - 100, 0, 1)
     : undefined;
 
+  const normalizePickerDate = (date: Date | null): Date | null => {
+    if (!date) return null;
+    if (pickerMode === "month") {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+    if (pickerMode === "year") {
+      return new Date(date.getFullYear(), 0, 1);
+    }
+    return date;
+  };
+
   const handleDateChange = (date: Date | null) => {
-    const ymd = date ? dateToLocalYmd(date) : "";
+    const normalized = normalizePickerDate(date);
+    const ymd = normalized ? dateToLocalYmd(normalized) : "";
     setValue(controlId, ymd || null, { shouldValidate: true });
-    onChange(date);
+    onChange(normalized);
     setIsOpen(false);
   };
 
   const handleIconClick = () => {
     setIsOpen(true);
   };
+
+  const calendarClassName =
+    pickerMode === "month"
+      ? "custom-month-year-picker"
+      : pickerMode === "year"
+        ? "custom-year-picker"
+        : undefined;
 
   return (
     <Wrapper {...wrapperProps}>
@@ -104,7 +129,17 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             onSelect={() => setIsOpen(false)}
             onClickOutside={() => setIsOpen(false)}
             onInputClick={() => setIsOpen(true)}
-            dateFormat="dd/MM/yyyy"
+            dateFormat={
+              pickerMode === "month"
+                ? "MMMM yyyy"
+                : pickerMode === "year"
+                  ? "yyyy"
+                  : "dd/MM/yyyy"
+            }
+            showMonthYearPicker={pickerMode === "month"}
+            showYearPicker={pickerMode === "year"}
+            yearItemNumber={pickerMode === "year" ? 3 : undefined}
+            calendarClassName={calendarClassName}
             placeholderText={placeholderText}
             className={`form-control ${
               error ? "is-invalid" : ""
@@ -126,10 +161,12 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                     return date >= today;
                   })
             }
-            showYearDropdown={birthDatePicker}
-            showMonthDropdown={birthDatePicker}
-            scrollableYearDropdown={birthDatePicker}
-            yearDropdownItemNumber={birthDatePicker ? 100 : undefined}
+            showYearDropdown={birthDatePicker || showMonthYearDropdowns}
+            showMonthDropdown={birthDatePicker || showMonthYearDropdowns}
+            scrollableYearDropdown={birthDatePicker || showMonthYearDropdowns}
+            yearDropdownItemNumber={
+              birthDatePicker ? 100 : showMonthYearDropdowns ? 15 : undefined
+            }
             maxDate={birthDatePicker ? maxDob : undefined}
             minDate={birthDatePicker ? minDob : undefined}
             showPopperArrow={false}

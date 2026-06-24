@@ -50,7 +50,6 @@ const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<string>(todayLocalYmd());
   const [dateRangeType, setDateRangeType] =
     useState<DashboardDateRangeType>("TODAY");
-  const currentYear = new Date().getFullYear();
   const [weekStartDate, setWeekStartDate] = useState<string>(todayLocalYmd());
   const [customFromDate, setCustomFromDate] = useState<string>("");
   const [customToDate, setCustomToDate] = useState<string>("");
@@ -130,7 +129,7 @@ const Dashboard = () => {
   };
 
   const dateRangeOptions = [
-    { value: "TODAY", label: "Today" },
+    { value: "TODAY", label: "This Day" },
     { value: "THIS_WEEK", label: "This Week" },
     { value: "THIS_MONTH", label: "This Month" },
     { value: "THIS_YEAR", label: "This Year" },
@@ -311,15 +310,18 @@ const Dashboard = () => {
                 )}
                 {dateRangeType === "THIS_MONTH" && (
                   <>
-                    Current Month :{" "}
-                    {new Date(selectedDate).toLocaleString("default", {
+                    Month :{" "}
+                    {new Date(`${selectedDate}T00:00:00`).toLocaleString("default", {
                       month: "long",
                       year: "numeric",
                     })}
                   </>
                 )}
                 {dateRangeType === "THIS_YEAR" && (
-                  <>Current Year : {currentYear}</>
+                  <>
+                    Year :{" "}
+                    {new Date(`${selectedDate}T00:00:00`).getFullYear()}
+                  </>
                 )}
                 {dateRangeType === "CUSTOM_RANGE" && (
                   <>
@@ -336,38 +338,58 @@ const Dashboard = () => {
               </h3>
             </div>
             <div className="d-flex flex-wrap align-items-center gap-2 dashboard-date-range-controls">
-              <div className="dashboard-date-range-select">
-                <CustomFormSelect
-                  label=""
-                  controlId="Date Range"
-                  options={dateRangeOptions}
-                  register={register}
-                  fieldName="date_range_type"
-                  defaultValue={dateRangeType}
-                  onChange={(e) =>
-                    handleDateRangeTypeChange(
-                      e.target.value as DashboardDateRangeType
-                    )
-                  }
-                  asCol={false}
-                  noBottomMargin
-                />
+            <div className="dashboard-date-range-select">
+                <div className="dashboard-date-range-picker">
+                  <CustomFormSelect
+                    label=""
+                    controlId="Date Range"
+                    options={dateRangeOptions}
+                    register={register}
+                    fieldName="date_range_type"
+                    defaultValue={dateRangeType}
+                    onChange={(e) =>
+                      handleDateRangeTypeChange(
+                        e.target.value as DashboardDateRangeType
+                      )
+                    }
+                    asCol={false}
+                    noBottomMargin
+                  />
+                </div>
+
+                {dateRangeType !== "CUSTOM_RANGE" && (
+                  <div className="dashboard-date-range-picker">
+                    <CustomDatePicker
+                      label=""
+                      controlId="service_date"
+                      selectedDate={selectedDate}
+                      onChange={(date) => {
+                        const iso = date ? dateToLocalYmd(date) : "";
+                        setSelectedDate(iso);
+                      }}
+                      placeholderText={
+                        dateRangeType === "THIS_MONTH"
+                          ? "Select month"
+                          : dateRangeType === "THIS_YEAR"
+                            ? "Select year"
+                            : "Select date"
+                      }
+                      pickerMode={
+                        dateRangeType === "THIS_MONTH"
+                          ? "month"
+                          : dateRangeType === "THIS_YEAR"
+                            ? "year"
+                            : "date"
+                      }
+                      register={register}
+                      setValue={setValue}
+                      asCol={false}
+                      filterDate={() => true}
+                      groupClassName="mb-0"
+                    />
+                  </div>
+                )}
               </div>
-              {/* Date picker hidden for now; API still uses selectedDate state */}
-              {/* <CustomDatePicker
-                                label=""
-                                controlId="service_date"
-                                selectedDate={selectedDate}
-                                onChange={(date) => {
-                                    const newSelectedDate = date?.toISOString() || "";
-                                    setSelectedDate(newSelectedDate);
-                                }}
-                                placeholderText="Select date"
-                                register={register}
-                                setValue={setValue}
-                                asCol={true}
-                                filterDate={() => true}
-                            /> */}
             </div>
           </div>
           {dateRangeType === "CUSTOM_RANGE" && (
@@ -385,6 +407,7 @@ const Dashboard = () => {
                   setValue={setValue}
                   groupClassName="w-100 mb-0"
                   asCol={false}
+                  showMonthYearDropdowns
                   filterDate={() => true}
                 />
               </div>
@@ -401,6 +424,7 @@ const Dashboard = () => {
                   setValue={setValue}
                   groupClassName="w-100 mb-0"
                   asCol={false}
+                  showMonthYearDropdowns
                   filterDate={() => true}
                 />
               </div>

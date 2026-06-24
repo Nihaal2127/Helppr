@@ -58,17 +58,18 @@ export function resolveDashboardDateRange(input: {
 
   if (dateRangeType === "THIS_MONTH") {
     const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
     return {
       fromDate: dateToLocalYmd(monthStart),
-      toDate: selectedDate,
+      toDate: dateToLocalYmd(monthEnd),
       dateRangeType,
     };
   }
 
-  const yearStart = new Date(anchor.getFullYear(), 0, 1);
+  const year = anchor.getFullYear();
   return {
-    fromDate: dateToLocalYmd(yearStart),
-    toDate: selectedDate,
+    fromDate: `${year}-01-01`,
+    toDate: `${year}-12-31`,
     dateRangeType,
   };
 }

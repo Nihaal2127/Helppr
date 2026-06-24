@@ -8,10 +8,9 @@ export const PARTNER_PAYOUT_PAYMENT_METHODS = PAYMENT_METHODS;
 /** Methods accepted by `POST /api/partner_payout/create` (Postman §37). */
 export const PARTNER_PAYOUT_CREATE_METHODS = [
   { value: "cash", label: "Cash" },
-  { value: "upi", label: "UPI" },
-  { value: "bank_transfer", label: "Bank transfer" },
+  // { value: "bank_transfer", label: "Online transfer" },
   { value: "cheque", label: "Cheque" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ] as const;
 
 export type PartnerPayoutPaymentMethod =
