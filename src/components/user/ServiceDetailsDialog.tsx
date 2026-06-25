@@ -201,37 +201,37 @@ const ServiceDetailsDialog: React.FC<ServiceDetailsDialogProps> & {
       //     return "-";
       //   },
       // },
-      {
-        Header: "Refund",
-        accessor: "refund",
-        Cell: ({ row }: { row: any }) => {
-          const record = row.original ?? {};
-          const refunded =
-            record.refund === true ||
-            record.refund === 1 ||
-            String(record.refund).toLowerCase() === "yes";
-          const refundedAmount =
-            record.refunded_amount ??
-            record.refund_amount ??
-            record.refund_price ??
-            0;
+      // {
+      //   Header: "Refund",
+      //   accessor: "refund",
+      //   Cell: ({ row }: { row: any }) => {
+      //     const record = row.original ?? {};
+      //     const refunded =
+      //       record.refund === true ||
+      //       record.refund === 1 ||
+      //       String(record.refund).toLowerCase() === "yes";
+      //     const refundedAmount =
+      //       record.refunded_amount ??
+      //       record.refund_amount ??
+      //       record.refund_price ??
+      //       0;
 
-          if (!refunded) {
-            return <span className="custom-inactive">No</span>;
-          }
+      //     if (!refunded) {
+      //       return <span className="custom-inactive">No</span>;
+      //     }
 
-          return (
-            <div className="pin-code-hover-wrapper">
-              <span className="custom-active">Yes</span>
-              <div className="pin-code-hover-card">
-                <div className="pin-code-hover-item">
-                  Refunded amount: {refundedAmount}
-                </div>
-              </div>
-            </div>
-          );
-        },
-      },
+      //     return (
+      //       <div className="pin-code-hover-wrapper">
+      //         <span className="custom-active">Yes</span>
+      //         <div className="pin-code-hover-card">
+      //           <div className="pin-code-hover-item">
+      //             Refunded amount: {refundedAmount}
+      //           </div>
+      //         </div>
+      //       </div>
+      //     );
+      //   },
+      // },
     ],
     [currentPage, pageSize, is_partner]
   );
