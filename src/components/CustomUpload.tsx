@@ -54,13 +54,29 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
   };
 
   const handleOnUploadSave = () => {
-    if (fileInputs.length > 0) {
-      onClose();
-      onUploadSave(fileInputs.filter((f) => f !== null) as File[], replaceUrls);
-    } else {
+    const files = fileInputs.filter((f) => f !== null) as File[];
+    if (files.length === 0) {
       showErrorAlert("Please select file");
+      return;
     }
+    if (!isSupportedImageFile(files[0])) {
+      showErrorAlert(
+        `Only ${getSupportedImageExtensions().join(
+          ", "
+        )} formats up to ${Math.floor(
+          getSupportedImageMaxSizeBytes() / 1024
+        )}KB are supported.`
+      );
+      return;
+    }
+    onClose();
+    onUploadSave(files, replaceUrls);
   };
+
+  const maxKb = Math.floor(getSupportedImageMaxSizeBytes() / 1024);
+  const formatLabel = getSupportedImageExtensions()
+    .map((ext) => ext.toUpperCase())
+    .join(", ");
 
   return (
     <>
@@ -117,6 +133,15 @@ const CustomUploadDialog: React.FC<CustomUploadDialogProps> & {
               }
             }}
           />
+
+          <div
+            className="small mt-3 text-start"
+            style={{ color: "var(--placeholder-txt)", lineHeight: 1.5 }}
+          >
+            <div>• {formatLabel}</div>
+            <div>• Max size: {maxKb} KB</div>
+          </div>
+
           <Row className="mt-4">
             <Button
               type="submit"
