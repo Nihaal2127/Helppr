@@ -215,6 +215,7 @@ export interface OrderModel {
   total_service_charge?: number | null;
   service_price?: number | null;
   order_description?: string | null;
+  customer_description?: string | null;
   payment_status?: string | null;
   customer_paid_amount?: number | null;
   customer_refunded_amount?: number | null;
@@ -437,6 +438,7 @@ export function buildCreateOrderPayload(input: {
   /** Invoice grand total for customer payment status; defaults to `totalServiceCharge`. */
   invoiceTotal?: number;
   orderDescription?: string;
+  customerDescription?: string;
   offerId?: string;
   serviceItem: Pick<
     OrderItemModel,
@@ -495,6 +497,9 @@ export function buildCreateOrderPayload(input: {
     service_id: input.serviceId,
     type: 2,
     partner_id: input.partnerId,
+    ...(input.customerDescription?.trim()
+      ? { customer_description: input.customerDescription.trim() }
+      : {}),
     order_description: input.orderDescription?.trim() || undefined,
     service_items: [line],
   };
@@ -795,6 +800,7 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
     null;
   const desc =
     str(r.order_description) || str(r.comments) || str(r.comment) || null;
+  const customerDesc = str(r.customer_description) || null;
   const isPaidRaw = r.is_paid;
   const is_paid =
     isPaidRaw === true ||
@@ -876,7 +882,8 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       ? (r.service_items as OrderModel["service_items"])
       : [],
     comment: desc,
-    order_description: str(r.order_description) || null,
+    order_description: str(r.order_description) || desc,
+    customer_description: customerDesc,
     order_date:
       normalizeOrderApiDateYmd(r.order_date) ||
       normalizeOrderApiDateYmd(r.from_date) ||
@@ -2832,9 +2839,8 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
     requested_time_to: workTimeToTimeStorage(primary?.service_to_time ?? ""),
     service_price:
       Number.isFinite(priceNum) && priceNum >= 0 ? String(priceNum) : "",
-    description: String(
-      order.order_description ?? order.comment ?? ""
-    ).trim(),
+    user_description: String(order.customer_description ?? "").trim(),
+    admin_description: String(order.order_description ?? "").trim(),
     order_status: String(order.order_status ?? 1),
     customer_payment_status: getCustomerPaymentStatusLabel(order),
     partner_payment_status: getPartnerPaymentStatusLabel(order),
@@ -2999,7 +3005,10 @@ export function buildOrderEditAllUpdatePayload(input: {
     category_id: categoryId,
     service_id: serviceId,
     address: addressLine || order.address,
-    order_description: String(form.description ?? "").trim() || undefined,
+    customer_description:
+      String(form.user_description ?? "").trim() || undefined,
+    order_description:
+      String(form.admin_description ?? "").trim() || undefined,
     order_status: statusSlug,
     total_service_charge: servicePrice,
     service_items: { update: [lineUpdate] },

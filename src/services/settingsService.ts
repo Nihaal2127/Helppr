@@ -25,7 +25,7 @@ import {
 } from "./userService";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { fetchFranchiseById } from "./franchiseService";
-import { normalizeCalendarYmd } from "../helper/dateFormat";
+import { normalizeCalendarYmd, todayLocalYmd } from "../helper/dateFormat";
 import { sessionMayUseFranchiseIdApiFilter } from "../lib/franchise/headerFranchisePreference";
 
 const generateId = () =>
@@ -94,6 +94,21 @@ export const getOffers = (): OfferModel[] => {
   return [...mockOffers];
 };
 
+function pickOfferRows(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const data = payload.data;
+  if (
+    data &&
+    typeof data === "object" &&
+    Array.isArray((data as { records?: unknown }).records)
+  ) {
+    return (data as { records: Record<string, unknown>[] }).records;
+  }
+  if (Array.isArray(payload.records)) {
+    return payload.records as Record<string, unknown>[];
+  }
+  return [];
+}
+
 function mapApiOfferRecord(raw: Record<string, unknown>): OfferModel | null {
   const id = String(raw._id ?? raw.id ?? "").trim();
   if (!id) return null;
@@ -101,6 +116,10 @@ function mapApiOfferRecord(raw: Record<string, unknown>): OfferModel | null {
   const offerType: OfferModel["offerType"] =
     typeRaw === "fixed" ? "fixed" : "percentage";
   const isActive = raw.is_active !== false && raw.is_active !== 0;
+  const startDate =
+    normalizeCalendarYmd(String(raw.start_date ?? raw.startDate ?? "")) ?? "";
+  const endDate =
+    normalizeCalendarYmd(String(raw.end_date ?? raw.endDate ?? "")) ?? "";
   return {
     id,
     offerId: String(raw.unique_id ?? raw.offer_id ?? raw.offerId ?? id).trim(),
@@ -112,14 +131,43 @@ function mapApiOfferRecord(raw: Record<string, unknown>): OfferModel | null {
     partnerContribution:
       Number(raw.partner_contribution ?? raw.partnerContribution ?? 0) || 0,
     applicableOn: "orders",
-    startDate: String(raw.start_date ?? raw.startDate ?? ""),
-    endDate: String(raw.end_date ?? raw.endDate ?? ""),
+    startDate,
+    endDate,
     status: isActive ? "active" : "inactive",
     createdAt: String(raw.created_at ?? raw.createdAt ?? ""),
   };
 }
 
-/** `GET /offer/getAll?is_active=true` — coupons for create order. */
+/**
+ * True when today's local calendar date is within the offer window (inclusive).
+ * Hides not-yet-started (today < start) and expired (today > end) coupons.
+ */
+export function isOfferWithinValidityPeriod(
+  offer: Pick<OfferModel, "startDate" | "endDate">,
+  todayYmd: string = todayLocalYmd()
+): boolean {
+  const start = normalizeCalendarYmd(offer.startDate);
+  const end = normalizeCalendarYmd(offer.endDate);
+  if (start && todayYmd < start) return false;
+  if (end && todayYmd > end) return false;
+  return true;
+}
+
+/** @deprecated Use isOfferWithinValidityPeriod */
+export function isOfferNotExpired(
+  offer: Pick<OfferModel, "endDate" | "startDate">,
+  todayYmd: string = todayLocalYmd()
+): boolean {
+  return isOfferWithinValidityPeriod(offer, todayYmd);
+}
+
+function activeValidOffersForToday(offers: OfferModel[]): OfferModel[] {
+  return offers.filter(
+    (o) => o.status === "active" && isOfferWithinValidityPeriod(o)
+  );
+}
+
+/** `GET /offer/getAll?is_active=true` — coupons valid for today (start ≤ today ≤ end). */
 export async function fetchActiveOffers(): Promise<OfferModel[]> {
   try {
     const res = await apiRequest(
@@ -130,23 +178,21 @@ export async function fetchActiveOffers(): Promise<OfferModel[]> {
       true,
       true
     );
-    if (!res.success) return getOffers().filter((o) => o.status === "active");
-    const records =
-      (res.data as { records?: unknown[] })?.records ??
-      (res.data as { data?: { records?: unknown[] } })?.data?.records;
-    if (!Array.isArray(records)) {
-      return getOffers().filter((o) => o.status === "active");
+    if (!res.success) return activeValidOffersForToday(getOffers());
+    const payload =
+      res.data && typeof res.data === "object"
+        ? (res.data as Record<string, unknown>)
+        : {};
+    const records = pickOfferRows(payload);
+    if (!records.length) {
+      return activeValidOffersForToday(getOffers());
     }
-    const mapped = records
-      .map((r) =>
-        r && typeof r === "object"
-          ? mapApiOfferRecord(r as Record<string, unknown>)
-          : null
-      )
-      .filter((o): o is OfferModel => o != null && o.status === "active");
-    return mapped.length ? mapped : getOffers().filter((o) => o.status === "active");
+    return records
+      .map((r) => mapApiOfferRecord(r))
+      .filter((o): o is OfferModel => o != null && o.status === "active")
+      .filter((o) => isOfferWithinValidityPeriod(o));
   } catch {
-    return getOffers().filter((o) => o.status === "active");
+    return activeValidOffersForToday(getOffers());
   }
 }
 

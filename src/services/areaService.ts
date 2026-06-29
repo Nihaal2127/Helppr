@@ -148,16 +148,19 @@ function pincodesFromAreaRecord(row: AreaModel): string[] {
 }
 
 /**
- * All areas for a city via `GET /area/getAll?city_id=` (Add/Edit user & partner forms).
+ * Areas for a city via `GET /area/getAll?city_id=` (Add/Edit user & partner forms).
+ * When `franchiseId` is set, only areas linked to that franchise are returned.
  */
 export async function fetchAreasByCityForForm(
   cityId: string,
-  stateId?: string
+  stateId?: string,
+  franchiseId?: string
 ): Promise<AreaFormSelectOption[]> {
   const city = String(cityId ?? "").trim();
   if (!city) return [];
 
   const state = String(stateId ?? "").trim();
+  const franchise = String(franchiseId ?? "").trim();
   const byId = new Map<string, AreaFormSelectOption>();
   let page = 1;
   const pageSize = 200;
@@ -169,6 +172,7 @@ export async function fetchAreasByCityForForm(
       {
         city_id: city,
         ...(state ? { state_id: state } : {}),
+        ...(franchise ? { franchise_id: franchise } : {}),
       },
       []
     );

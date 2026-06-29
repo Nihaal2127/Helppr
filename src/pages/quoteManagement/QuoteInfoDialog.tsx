@@ -279,8 +279,18 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           <Row className="g-2 mt-1">
             <Col xs={12} className="info-detail-fields-col">
               <DetailsRow
-                title="Quote description"
+                title="User description"
                 value={(displayQuote.description ?? "").trim() || undefined}
+              />
+            </Col>
+          </Row>
+          <Row className="g-2 mt-1">
+            <Col xs={12} className="info-detail-fields-col">
+              <DetailsRow
+                title="Admin description"
+                value={
+                  (displayQuote.admin_description ?? "").trim() || undefined
+                }
               />
             </Col>
           </Row>

@@ -70,6 +70,11 @@ import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlock
 import { FieldLabelText } from "../../components/RequiredFieldMark";
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { OrderPaymentEditModal } from "./orderInfoModals";
+import {
+  applyMissingRequiredFieldErrors,
+  formatMissingRequiredFieldsAlert,
+} from "../../lib/form/missingRequiredFields";
+import type { MissingRequiredField } from "../../lib/form/missingRequiredFields";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
@@ -105,11 +110,6 @@ const completedCatalogSelectReadOnly = (
 ): boolean =>
   locked || !completedLimited || !isMissingOrderEditValue(value);
 
-type OrderEditMissingField = {
-  field?: keyof EditOrderFormValues;
-  label: string;
-};
-
 function collectMissingOrderEditRequiredFields(
   data: EditOrderFormValues,
   scheduleMode: string,
@@ -120,8 +120,18 @@ function collectMissingOrderEditRequiredFields(
     orderAddress: string;
     hasServiceSelected: boolean;
   }
-): OrderEditMissingField[] {
-  const missing: OrderEditMissingField[] = [];
+): MissingRequiredField[] {
+  const missing: MissingRequiredField[] = [];
+
+  if (!String(data.requested_partner ?? "").trim()) {
+    missing.push({ field: "requested_partner", label: "Partner" });
+  }
+  if (!String(data.category_id ?? "").trim()) {
+    missing.push({ field: "category_id", label: "Category" });
+  }
+  if (!String(data.requested_services ?? "").trim()) {
+    missing.push({ field: "requested_services", label: "Service" });
+  }
 
   if (opts.hasServiceSelected) {
     if (!String(data.requested_date ?? "").trim()) {
@@ -262,6 +272,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const [loadError, setLoadError] = useState("");
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [formHydrated, setFormHydrated] = useState(false);
+  const [baselineReady, setBaselineReady] = useState(false);
   const paymentValidateRef = useRef<(() => boolean) | null>(null);
   const editAllBaselineRef = useRef<{
     payload: Record<string, unknown>;
@@ -339,7 +350,8 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
-      description: "",
+      user_description: "",
+      admin_description: "",
       order_status: "1",
       customer_payment_status: "Unpaid",
       partner_payment_status: "Unpaid",
@@ -353,6 +365,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
   const hasServiceSelected = Boolean(serviceId);
   useEffect(() => {
     setFormHydrated(false);
+    setBaselineReady(false);
     editAllBaselineRef.current = null;
   }, [orderMongoId]);
 
@@ -603,7 +616,6 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     if (!orderRow || !formHydrated || catalogBusy || !franchisePinsLoadDone) {
       return;
     }
-    if (String(form.user_id ?? "").trim() && !addressUi.ready) return;
     if (editAllBaselineRef.current) return;
 
     const seed = seedEditOrderFormFromRow(orderRow);
@@ -642,6 +654,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
         paymentExt: baselinePaymentExt,
       };
     }
+    setBaselineReady(true);
   }, [
     orderRow,
     formHydrated,
@@ -1002,7 +1015,11 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       return;
     }
 
-    if (String(data.user_id ?? "").trim() && !addressUi.ready) {
+    if (
+      String(data.user_id ?? "").trim() &&
+      !addressUi.ready &&
+      !franchisePinsLoadDone
+    ) {
       showErrorAlert(
         "Still loading address options for this franchise. Please wait a moment."
       );
@@ -1025,19 +1042,10 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
       }
     );
     if (missingRequired.length > 0) {
-      for (const item of missingRequired) {
-        if (item.field) {
-          setError(item.field, {
-            type: "required",
-            message: `${item.label} is required`,
-          });
-        }
-      }
-      showErrorAlert(
-        `Please complete the following required field${
-          missingRequired.length > 1 ? "s" : ""
-        }:\n${missingRequired.map((item) => `• ${item.label}`).join("\n")}`
-      );
+      applyMissingRequiredFieldErrors(missingRequired, (field, error) => {
+        setError(field as never, error);
+      });
+      showErrorAlert(formatMissingRequiredFieldsAlert(missingRequired));
       return;
     }
 
@@ -1206,11 +1214,8 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
     lockedFields,
     form.service_price
   );
-  const descriptionReadOnly = completedOrderFieldReadOnly(
-    completedLimitedPaymentEdit,
-    lockedFields,
-    form.description
-  );
+  const userDescriptionReadOnly = lockedFields;
+  const adminDescriptionReadOnly = lockedFields;
   const orderStatusReadOnly =
     isTerminalOrderStatus ||
     completedOrderFieldReadOnly(
@@ -1835,29 +1840,57 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
 
               <Row className="mt-3 g-3">
                 <Col xs={12}>
-                  <Form.Group controlId="description" className="mb-0">
+                  <Form.Group controlId="user_description" className="mb-0">
                     <Form.Label className="fw-medium mb-1">
-                      Order notes
+                      User description
                     </Form.Label>
                     <Form.Control
                       as="textarea"
                       rows={3}
                       maxLength={2000}
-                      disabled={descriptionReadOnly}
+                      disabled={userDescriptionReadOnly}
                       className={`custom-form-input${
-                        errors.description ? " is-invalid" : ""
+                        errors.user_description ? " is-invalid" : ""
                       }`}
                       style={{
                         ...partnerCatalogControlStyle,
                         minHeight: "96px",
                         resize: "vertical",
                       }}
-                      placeholder="Optional notes for this order"
-                      {...register("description")}
+                      placeholder="Optional notes from the customer"
+                      {...register("user_description")}
                     />
-                    {errors.description?.message ? (
+                    {errors.user_description?.message ? (
                       <div className="text-danger small mt-1">
-                        {String(errors.description.message)}
+                        {String(errors.user_description.message)}
+                      </div>
+                    ) : null}
+                  </Form.Group>
+                </Col>
+                <Col xs={12}>
+                  <Form.Group controlId="admin_description" className="mb-0">
+                    <Form.Label className="fw-medium mb-1">
+                      Admin description
+                    </Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      maxLength={2000}
+                      disabled={adminDescriptionReadOnly}
+                      className={`custom-form-input${
+                        errors.admin_description ? " is-invalid" : ""
+                      }`}
+                      style={{
+                        ...partnerCatalogControlStyle,
+                        minHeight: "96px",
+                        resize: "vertical",
+                      }}
+                      placeholder="Optional internal notes for this order"
+                      {...register("admin_description")}
+                    />
+                    {errors.admin_description?.message ? (
+                      <div className="text-danger small mt-1">
+                        {String(errors.admin_description.message)}
                       </div>
                     ) : null}
                   </Form.Group>
@@ -1938,7 +1971,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
           </form>
         )}
       </Modal.Body>
-      {!loadError && orderRow ? (
+      {!loadError && orderRow && formHydrated ? (
         <Modal.Footer className="add-quote-modal-footer border-top-0 justify-content-end">
           <Button
             type="button"
@@ -1951,7 +1984,7 @@ const OrderEditAllDialog: React.FC<OrderEditAllDialogProps> & {
             type="submit"
             form="order-edit-all-form"
             className="custom-btn-primary"
-            disabled={lockedFields}
+            disabled={lockedFields || !baselineReady}
           >
             Update
           </Button>

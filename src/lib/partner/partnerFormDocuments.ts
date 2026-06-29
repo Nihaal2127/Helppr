@@ -16,15 +16,43 @@ export const PARTNER_CREATE_DOCUMENT_SLOTS: {
   key: PartnerCreateDocumentKey;
   title: string;
 }[] = [
-  { key: "vehicle_registration", title: "Vehicle Registration" },
-  {
-    key: "police_verification",
-    title: "Police Verification Certificate",
-  },
   { key: "pan_card", title: "PAN Card" },
-  { key: "driving_license", title: "Driving License" },
   { key: "aadhar_card", title: "Aadhar Card" },
+  { key: "driving_license", title: "Driving License" },
+  { key: "vehicle_registration", title: "Vehicle Registration" },
+    {
+    key: "police_verification",
+    title: "Others",
+  },
 ];
+
+/** Map API `documents[].name` to UI label (e.g. police verification → Others). */
+export function partnerDocumentDisplayTitle(
+  name: string | null | undefined
+): string {
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) return "";
+  const n = trimmed.toLowerCase();
+  if (
+    (n.includes("police") && n.includes("verification")) ||
+    n.includes("police_verification_certificate")
+  ) {
+    return "Others";
+  }
+   if(n.includes("aadhar") && n.includes("card") || n.includes("aadhar_card")){
+    return "Aadhar Card";
+   }
+   if(n.includes("pan") && n.includes("card") || n.includes("pan_card")){
+    return "PAN Card";
+   }
+   if(n.includes("driving") && n.includes("license") || n.includes("driving_license")){
+    return "Driving License";
+   }
+   if(n.includes("vehicle") && n.includes("registration") || n.includes("vehicle_registration")){
+    return "Vehicle Registration";
+   }
+  return trimmed;
+}
 
 export function partnerBankAccountsFromUser(
   user: UserModel | undefined

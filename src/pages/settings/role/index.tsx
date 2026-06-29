@@ -36,6 +36,7 @@ import {
   voidRole,
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
+import ScreenPermissionChecklist from "../../../components/ScreenPermissionChecklist";
 import GenderRadioField from "../../../components/GenderRadioField";
 import {
   formatGenderLabel,
@@ -49,6 +50,10 @@ import {
   isFranchiseEmployeeExcludedScreenKey,
   labelForFranchiseEmployeeScreenKey,
 } from "../../../lib/layout/franchiseEmployeeScreenPermissions";
+import {
+  screenPermissionKeysFromItems,
+  screenPermissionsForPayload,
+} from "../../../lib/layout/screenPermissionSelection";
 import { AppConstant, UserRole } from "../../../lib/global/AppConstant";
 import { getLocalStorage } from "../../../lib/global/localStorageHelper";
 import profilePlaceholder from "../../../assets/icons/profile.svg";
@@ -101,8 +106,14 @@ const emptyRoleForm = {
 };
 
 const employeeScreenPermissionMenuItems = getFranchiseEmployeeScreenMenuItems();
+const employeeScreenPermissionKeys = screenPermissionKeysFromItems(
+  employeeScreenPermissionMenuItems
+);
 const staffScreenPermissionMenuItems = mainMenuItems.filter(
   ({ key }) => key !== "my-franchise"
+);
+const staffScreenPermissionKeys = screenPermissionKeysFromItems(
+  staffScreenPermissionMenuItems
 );
 
 const emptyStaffForm = {
@@ -1002,24 +1013,6 @@ const RoleManagement = () => {
     setStaffUtilityKey((k) => k + 1);
   };
 
-  const toggleScreenPermission = (key: string) => {
-    setForm((prev) => {
-      const next = new Set(prev.screenPermissions);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return { ...prev, screenPermissions: Array.from(next) };
-    });
-  };
-
-  const toggleStaffScreenPermission = (key: string) => {
-    setStaffForm((prev) => {
-      const next = new Set(prev.screenPermissions);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return { ...prev, screenPermissions: Array.from(next) };
-    });
-  };
-
   return (
     <div className="main-page-content">
       <CustomHeader
@@ -1674,38 +1667,14 @@ const RoleManagement = () => {
               </div>
               {form.roleType === "employee" && (
                 <div className="col-md-12">
-                  <div className="staff-permission-section">
-                    <div className="staff-permission-section__head fw-medium mb-1">
-                      Screen Permissions
-                    </div>
-                    <div className="staff-permission-section__body">
-                      <div
-                        className="d-grid"
-                        style={{
-                          gap: "10px 20px",
-                          gridTemplateColumns: "repeat(2, 1fr)",
-                        }}
-                      >
-                        {employeeScreenPermissionMenuItems.map(
-                          ({ key, label }) => (
-                            <Form.Check
-                              key={key}
-                              type="checkbox"
-                              id={`role_screen_perm_${key}`}
-                              className="custom-checkbox-check"
-                              label={
-                                <span className="custom-radio-text">
-                                  {label}
-                                </span>
-                              }
-                              checked={form.screenPermissions.includes(key)}
-                              onChange={() => toggleScreenPermission(key)}
-                            />
-                          )
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <ScreenPermissionChecklist
+                    idPrefix="role_screen_perm"
+                    items={employeeScreenPermissionMenuItems}
+                    selectedKeys={form.screenPermissions}
+                    onChange={(screenPermissions) =>
+                      setForm((prev) => ({ ...prev, screenPermissions }))
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -1780,7 +1749,10 @@ const RoleManagement = () => {
                   status: form.status,
                   screenPermissions:
                     form.roleType === "employee"
-                      ? form.screenPermissions.filter(
+                      ? screenPermissionsForPayload(
+                          form.screenPermissions,
+                          employeeScreenPermissionKeys
+                        ).filter(
                           (k) => !isFranchiseEmployeeExcludedScreenKey(k)
                         )
                       : form.screenPermissions,
@@ -2095,34 +2067,14 @@ const RoleManagement = () => {
                 </Form.Group>
               </div>
               <div className="col-md-12">
-                <div className="staff-permission-section">
-                  <div className="staff-permission-section__head">
-                    Screen Permissions
-                  </div>
-                  <div className="staff-permission-section__body">
-                    <div
-                      className="d-grid"
-                      style={{
-                        gap: "10px 20px",
-                        gridTemplateColumns: "repeat(2, 1fr)",
-                      }}
-                    >
-                      {staffScreenPermissionMenuItems.map(({ key, label }) => (
-                        <Form.Check
-                          key={key}
-                          type="checkbox"
-                          id={`staff_screen_perm_${key}`}
-                          className="custom-checkbox-check"
-                          label={
-                            <span className="custom-radio-text">{label}</span>
-                          }
-                          checked={staffForm.screenPermissions.includes(key)}
-                          onChange={() => toggleStaffScreenPermission(key)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <ScreenPermissionChecklist
+                  idPrefix="staff_screen_perm"
+                  items={staffScreenPermissionMenuItems}
+                  selectedKeys={staffForm.screenPermissions}
+                  onChange={(screenPermissions) =>
+                    setStaffForm((prev) => ({ ...prev, screenPermissions }))
+                  }
+                />
               </div>
             </div>
           )}
@@ -2195,9 +2147,10 @@ const RoleManagement = () => {
                   date_of_birth: staffForm.date_of_birth.trim() || undefined,
                   profile_url: staffForm.profile_url.trim() || undefined,
                   status: staffForm.status,
-                  screenPermissions: staffForm.screenPermissions.filter(
-                    (k) => k !== "my-franchise"
-                  ),
+                  screenPermissions: screenPermissionsForPayload(
+                    staffForm.screenPermissions,
+                    staffScreenPermissionKeys
+                  ).filter((k) => k !== "my-franchise"),
                   allFranchises: staffForm.allFranchises,
                   franchisePermissions: staffForm.allFranchises
                     ? []

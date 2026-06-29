@@ -42,6 +42,7 @@ import {
 import EditPartnerCategoriesServicesDialog from "./EditPartnerCategoriesServicesDialog";
 import AddEditUserDialog from "./AddEditUserDialog";
 import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
+import { resolvePartnerFranchiseFieldsFromUser } from "../../lib/partner/partnerFranchiseDisplay";
 import { formatGenderLabel } from "../../lib/user/genderOptions";
 import PartnerSubscriptionDetailsRows from "../../components/partner/PartnerSubscriptionDetailsRows";
 
@@ -65,31 +66,31 @@ type PartnerVerificationDocSlot = {
 /** Fixed rows; matched to `documents[].name` from the API (case-insensitive). */
 const PARTNER_VERIFICATION_DOCUMENT_SLOTS: PartnerVerificationDocSlot[] = [
   {
+    id: "pan_card",
+    title: "PAN Card",
+    match: (n) => n.includes("pan") && n.includes("card"),
+  },
+  {
+    id: "aadhar_card",
+    title: "Aadhar Card",
+    match: (n) => n.includes("aadhar") || n.includes("aadhaar"),
+  },
+  {
+    id: "driving_license", 
+    title: "Driving License",
+    match: (n) => n.includes("driving") && n.includes("license"),
+  },
+  {
     id: "vehicle_registration",
     title: "Vehicle Registration",
     match: (n) => n.includes("vehicle") && n.includes("registration"),
   },
   {
     id: "police_verification",
-    title: "Police Verification Certificate",
+    title: "Others",
     match: (n) =>
       (n.includes("police") && n.includes("verification")) ||
       n.includes("police_verification_certificate"),
-  },
-  {
-    id: "pan_card",
-    title: "PAN Card",
-    match: (n) => n.includes("pan") && n.includes("card"),
-  },
-  {
-    id: "driving_license",
-    title: "Driving License",
-    match: (n) => n.includes("driving") && n.includes("license"),
-  },
-  {
-    id: "aadhar_card",
-    title: "Aadhar Card",
-    match: (n) => n.includes("aadhar") || n.includes("aadhaar"),
   },
 ];
 
@@ -146,6 +147,10 @@ function PartnerVerificationReviewModalView({
   const [partnerLevelRejectReason, setPartnerLevelRejectReason] =
     useState("");
   const [partnerLevelSubmitting, setPartnerLevelSubmitting] = useState(false);
+  const [partnerFranchiseFields, setPartnerFranchiseFields] = useState({
+    franchiseName: "—",
+    franchiseEmail: "—",
+  });
 
   const fetchDataFromApi = useCallback(async () => {
     if (fetchRef.current) return;
@@ -254,6 +259,17 @@ function PartnerVerificationReviewModalView({
     [userDetails]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const resolved = await resolvePartnerFranchiseFieldsFromUser(userDetails);
+      if (!cancelled) setPartnerFranchiseFields(resolved);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userDetails]);
+
   const addDocument = useCallback(
     (document: DocumentModel) => {
       CustomUploadDialog.show(async (files, _replaceUrls) => {
@@ -333,6 +349,28 @@ function PartnerVerificationReviewModalView({
     ) {
       showErrorAlert("Please enter a rejection reason.");
       return;
+    }
+    if (partnerLevelDecision === "approve") {
+      const missingMandatoryDocs: string[] = [];
+      for (const slotId of ["pan_card", "aadhar_card"] as const) {
+        const slot = PARTNER_VERIFICATION_DOCUMENT_SLOTS.find(
+          (s) => s.id === slotId
+        );
+        if (!slot) continue;
+        const doc = findPartnerVerificationDocForSlot(
+          userDetails?.documents,
+          slot
+        );
+        if (!String(doc?.document_image ?? "").trim()) {
+          missingMandatoryDocs.push(slot.title);
+        }
+      }
+      if (missingMandatoryDocs.length > 0) {
+        showErrorAlert(
+          `${missingMandatoryDocs.join(" and ")} must be uploaded before approving the partner.`
+        );
+        return;
+      }
     }
     setPartnerLevelSubmitting(true);
     try {
@@ -531,6 +569,7 @@ function PartnerVerificationReviewModalView({
                     ? userDetails.address
                     : ""
                 }
+                franchiseName={partnerFranchiseFields.franchiseName}
                 accountStatusMode="verification"
                 partnerVerificationStatus={userDetails?.is_verified}
               />
@@ -751,7 +790,6 @@ function PartnerVerificationReviewModalView({
                     String(doc?.document_image ?? "").trim()
                   );
                   const canAct = Boolean(pendingOrRejected);
-                  const addDisabled = !doc?._id || !canAct;
 
                   return (
                     <Row
@@ -769,16 +807,10 @@ function PartnerVerificationReviewModalView({
                       >
                         {!hasFile ? (
                           <label
-                            className={`custom-document-add mb-0 ${
-                              addDisabled ? "opacity-50" : ""
-                            }`}
-                            style={{
-                              cursor: addDisabled ? "not-allowed" : "pointer",
-                              pointerEvents: addDisabled ? "none" : "auto",
-                            }}
+                            className="custom-document-add mb-0"
+                            style={{ cursor: "pointer" }}
                             onClick={(e) => {
                               e.preventDefault();
-                              if (addDisabled) return;
                               if (doc) {
                                 addDocument(doc);
                               } else {

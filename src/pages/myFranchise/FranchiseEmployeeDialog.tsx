@@ -18,6 +18,11 @@ import {
   isFranchiseEmployeeExcludedScreenKey,
 } from "../../lib/layout/franchiseEmployeeScreenPermissions";
 import {
+  screenPermissionKeysFromItems,
+  screenPermissionsForPayload,
+} from "../../lib/layout/screenPermissionSelection";
+import ScreenPermissionChecklist from "../../components/ScreenPermissionChecklist";
+import {
   formatGenderLabel,
   normalizeGenderValue,
 } from "../../lib/user/genderOptions";
@@ -111,6 +116,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     () => getFranchiseEmployeeScreenMenuItems(),
     []
   );
+  const franchiseScreenPermissionKeys = useMemo(
+    () => screenPermissionKeysFromItems(franchiseScreenMenuItems),
+    [franchiseScreenMenuItems]
+  );
 
   const {
     register,
@@ -191,9 +200,10 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
   const parseSubmitPayload = (data: EmployeeFormValues & { phone?: string }) => {
     const is_active = String(data.is_active ?? "") === "true";
     const chat_enabled = is_active ? Boolean(data.chat_enabled) : false;
-    const keys = screenPermissionKeys.filter(
-      (k) => !isFranchiseEmployeeExcludedScreenKey(k)
-    );
+    const keys = screenPermissionsForPayload(
+      screenPermissionKeys,
+      franchiseScreenPermissionKeys
+    ).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
     const national = sanitizeIndiaNationalPhoneInput(
       String(data.phone ?? "").trim()
     );
@@ -587,39 +597,14 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
           />
         </div>
         <div className="col-12 mb-1">
-          <div className="staff-permission-section">
-            <div className="staff-permission-section__head fw-medium mb-1 mt-3">
-              Screen permissions
-            </div>
-            <div className="staff-permission-section__body">
-              <div
-                className="d-grid"
-                style={{
-                  gap: "10px 20px",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                }}
-              >
-                {franchiseScreenMenuItems.map(({ key, label }) => (
-                  <Form.Check
-                    key={key}
-                    type="checkbox"
-                    id={`franchise_emp_screen_${key}`}
-                    className="custom-checkbox-check"
-                    label={<span className="custom-radio-text">{label}</span>}
-                    checked={screenPermissionKeys.includes(key)}
-                    onChange={() => {
-                      setScreenPermissionKeys((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(key)) next.delete(key);
-                        else next.add(key);
-                        return Array.from(next);
-                      });
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+          <ScreenPermissionChecklist
+            idPrefix="franchise_emp_screen"
+            title="Screen permissions"
+            headClassName="fw-medium mb-1 mt-3"
+            items={franchiseScreenMenuItems}
+            selectedKeys={screenPermissionKeys}
+            onChange={setScreenPermissionKeys}
+          />
         </div>
       </div>
       <Row className="mt-4">

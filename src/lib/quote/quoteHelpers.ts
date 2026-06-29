@@ -496,6 +496,7 @@ export type QuoteViewData = {
   payment_reference?: string;
   payment_date?: string;
   description?: string;
+  admin_description?: string;
   cancellation_reason?: string;
   rejection_reason?: string;
 };
@@ -699,6 +700,8 @@ export function mergeQuoteViewData(
     ),
     category_name: coalesceText(fresh.category_name, keep.category_name) || undefined,
     description: coalesceText(fresh.description, keep.description) || undefined,
+    admin_description:
+      coalesceText(fresh.admin_description, keep.admin_description) || undefined,
     requested_date: coalesceText(fresh.requested_date, keep.requested_date),
     requested_time: coalesceText(fresh.requested_time, keep.requested_time),
     from_date: coalesceText(fresh.from_date, keep.from_date) || undefined,
@@ -865,6 +868,7 @@ export function toQuoteViewData(row: QuoteRow): QuoteViewData {
     payment_reference: row.payment_reference,
     payment_date: row.payment_date,
     description: row.description,
+    admin_description: row.admin_description,
     cancellation_reason: row.cancellation_reason,
     rejection_reason: row.rejection_reason,
   };
@@ -1091,8 +1095,12 @@ export function useQuoteCustomerAddressPanel(args: {
       ) ?? null;
     if (!customer) {
       setSelectedAddressId("");
-      if (!franchisePinsLoadDone || quoteCustomerRecords.length === 0) {
+      if (!franchisePinsLoadDone) {
         setAddressUi({ ready: false, rows: [], error: "" });
+        return;
+      }
+      if (quoteCustomerRecords.length === 0) {
+        setAddressUi({ ready: true, rows: [], error: "" });
         return;
       }
       setAddressUi({
@@ -1616,7 +1624,8 @@ export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
         row.total_service_charge ?? row.service_price;
       return n != null && Number.isFinite(n) ? String(n) : "";
     })(),
-    description: String(row.description ?? "").trim(),
+    user_description: String(row.description ?? "").trim(),
+    admin_description: String(row.admin_description ?? "").trim(),
     quote_status: statusKey || "new",
   };
 }

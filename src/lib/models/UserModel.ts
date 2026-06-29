@@ -127,6 +127,19 @@ export interface UserModel {
   verified_at?: string | null;
   document_uploaded_count?: number;
 
+  /** Partner franchise (when API returns flat or populated `franchise_id`). */
+  franchise_id?:
+    | string
+    | {
+        _id?: string;
+        name?: string;
+        email?: string;
+        franchise_name?: string;
+      }
+    | null;
+  franchise_name?: string | null;
+  franchise_email?: string | null;
+
   /** Additional saved addresses when the API returns them (e.g. after add from user view). */
   extra_addresses?:
     | {

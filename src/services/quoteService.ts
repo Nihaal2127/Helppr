@@ -1695,7 +1695,9 @@ function toQuoteApiBody(
     "description" in out &&
     out.description != null &&
     String(out.description).trim() &&
-    !("quote_description" in out)
+    !("quote_description" in out) &&
+    !("admin_description" in out) &&
+    !("user_description" in out)
   ) {
     out.quote_description = out.description;
     delete out.description;
@@ -2240,8 +2242,9 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
         r.quote_description ??
           r.customer_description ??
           r.description ??
-          r.notes
+          r.user_description
       ) || undefined,
+    admin_description: str(r.admin_description ?? "") || undefined,
   };
 }
 
@@ -2883,8 +2886,10 @@ export type CreateQuoteBody = {
   total_work_hours: number;
   work_start_time: string;
   work_end_time: string;
-  /** Sent as `quote_description` on `POST /quote/create`. */
+  /** User notes (`quote_description`). */
   quote_description?: string;
+  /** Admin notes. */
+  admin_description?: string;
 };
 
 export async function createQuote(body: CreateQuoteBody): Promise<boolean> {
@@ -3076,7 +3081,8 @@ export function buildCreateQuotePayload(input: {
   requested_time: string;
   requested_time_from: string;
   requested_time_to: string;
-  description?: string;
+  user_description?: string;
+  admin_description?: string;
 }): CreateQuoteBody | null {
   const created_by_id = str(getLocalStorage(AppConstant.createdById));
   const franchise_id = str(input.franchise_id);
@@ -3096,7 +3102,8 @@ export function buildCreateQuotePayload(input: {
   });
   if (!metrics) return null;
 
-  const desc = str(input.description);
+  const userDescription = str(input.user_description);
+  const adminDescription = str(input.admin_description);
   return {
     user_id,
     category_id,
@@ -3113,6 +3120,7 @@ export function buildCreateQuotePayload(input: {
     total_work_hours: metrics.total_work_hours,
     work_start_time: metrics.work_start_time,
     work_end_time: metrics.work_end_time,
-    ...(desc ? { quote_description: desc } : {}),
+    ...(userDescription ? { quote_description: userDescription } : {}),
+    ...(adminDescription ? { admin_description: adminDescription } : {}),
   };
 }

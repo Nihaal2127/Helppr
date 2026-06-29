@@ -211,6 +211,7 @@ export function PersonalAccountDetailsGrid({
   pincode,
   isActive,
   address,
+  franchiseName,
   accountStatusMode = "active",
   partnerVerificationStatus,
 }: {
@@ -231,6 +232,8 @@ export function PersonalAccountDetailsGrid({
   pincode?: string | null;
   isActive?: boolean;
   address?: string | null;
+  franchiseName?: string | null;
+  franchiseEmail?: string | null;
   /** Partner verification dialog: Status shows pending / rejected / approved. */
   accountStatusMode?: "active" | "verification";
   partnerVerificationStatus?: boolean | string | null;
@@ -297,6 +300,12 @@ export function PersonalAccountDetailsGrid({
             <DetailsRow compact title="Registered Date" value={regDisplay} />
             <DetailsRow compact title="State" value={stateName ?? "—"} />
             <DetailsRow compact title="Postal Code" value={pincode ?? "—"} />
+            <DetailsRow
+              compact
+              title="Franchise Name"
+              value={franchiseName ?? "—"}
+            />
+           
           </Col>
         </Row>
       </div>
@@ -603,7 +612,7 @@ export const DetailsRowLinkDocument = ({
   isEditable: boolean;
   onAddClick: () => void;
   onViewClick: () => void;
-  onDeleteClick: () => void;
+  onDeleteClick?: () => void;
   /** When false and not editable, hide the Add action (e.g. static verification preview rows). */
   hideAdd?: boolean;
   /** When set (e.g. add-partner flow), show image uploaded plus filename instead of Add; click opens replace upload. */
@@ -663,6 +672,21 @@ export const DetailsRowLinkDocument = ({
             >
               ReUpload
             </label>
+            {onDeleteClick ? (
+              <>
+                <span className="text-muted">|</span>
+                <label
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDeleteClick();
+                  }}
+                  className="custom-document-delete mb-0"
+                  title="Remove document"
+                >
+                  Delete
+                </label>
+              </>
+            ) : null}
           </div>
         ) : (
           <label

@@ -18,8 +18,10 @@ export type AddQuoteFormValues = {
   requested_time_from: string;
   requested_time_to: string;
   service_price: string;
-  /** Optional; sent as `description` on create. */
-  description: string;
+  /** User notes; sent as `quote_description`. */
+  user_description: string;
+  /** Admin notes; sent as `admin_description`. */
+  admin_description: string;
 };
 
 export type QuoteRow = {
@@ -101,5 +103,8 @@ export type QuoteRow = {
   franchise_city_name?: string;
   address_id?: string;
   employee_email?: string;
+  /** User notes from API `quote_description`. */
   description?: string;
+  /** Admin notes from API `admin_description`. */
+  admin_description?: string;
 };

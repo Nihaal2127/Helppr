@@ -55,7 +55,8 @@ import type {
   PartnerSubscriptionSetValueFn,
 } from "../../components/partner/PartnerSubscriptionFormSection";
 import type { FieldError } from "react-hook-form";
-import { fetchFranchiseDropDown } from "../../services/franchiseService";
+import { fetchFranchiseDropDown, fetchFranchiseById } from "../../services/franchiseService";
+import type { FranchiseDropDownOption } from "../../services/franchiseService";
 import {
   franchiseIdForApiQuery,
   readHeaderFranchisePreference,
@@ -332,7 +333,7 @@ function AddEditUserDialogView({
     SubscriptionPlanOption[]
   >([]);
   const [franchiseDropdownOptions, setFranchiseDropdownOptions] = useState<
-    OptionType[]
+    FranchiseDropDownOption[]
   >([]);
   const prevAddPartnerFranchiseRef = useRef<string | null>(null);
 
@@ -468,6 +469,48 @@ function AddEditUserDialogView({
     setValue("pincode", "", { shouldValidate: false });
   }, [setValue]);
 
+  const applyAddPartnerFranchiseLocation = useCallback(
+    async (franchiseId: string) => {
+      const fid = String(franchiseId ?? "").trim();
+      if (!fid || !isAddPartner) return;
+
+      let stateId = "";
+      let cityId = "";
+
+      const fromDropdown = franchiseDropdownOptions.find(
+        (o) => String(o.value) === fid
+      );
+      if (fromDropdown?.state_id) {
+        stateId = String(fromDropdown.state_id).trim();
+        cityId = String(fromDropdown.city_id ?? "").trim();
+      } else {
+        const franchise = await fetchFranchiseById(fid, {
+          skipAdminContactEnrichment: true,
+        });
+        stateId = String(franchise?.state_id ?? "").trim();
+        cityId = String(franchise?.city_id ?? "").trim();
+      }
+
+      if (!stateId) return;
+
+      setValue("state_id", stateId, { shouldValidate: true, shouldDirty: true });
+      setValue("area_id", "", { shouldValidate: false });
+      setValue("pincode", "", { shouldValidate: false });
+      setAreas([]);
+      setAreaPincodes(new Map());
+      setPincodeOptions([]);
+
+      await fetchCityFromApi(stateId);
+
+      if (cityId) {
+        setValue("city_id", cityId, { shouldValidate: true, shouldDirty: true });
+      } else {
+        setValue("city_id", "", { shouldValidate: false });
+      }
+    },
+    [isAddPartner, franchiseDropdownOptions, setValue, fetchCityFromApi]
+  );
+
   const fetchStateFromApi = useCallback(async () => {
     try {
       const stateOptions = await fetchStateDropDown();
@@ -597,17 +640,37 @@ function AddEditUserDialogView({
     setServicesByCategoryId({});
     setCategoryIds([]);
     setServiceIds([]);
-    const sid = String(watchedStateId ?? "").trim();
-    if (sid) {
-      void fetchCityFromApi(sid);
+    if (fid) {
+      void applyAddPartnerFranchiseLocation(fid);
     } else {
+      setValue("state_id", "", { shouldValidate: false });
+      setValue("city_id", "", { shouldValidate: false });
+      setValue("area_id", "", { shouldValidate: false });
+      setValue("pincode", "", { shouldValidate: false });
       setCity([]);
+      setAreas([]);
+      setAreaPincodes(new Map());
+      setPincodeOptions([]);
     }
   }, [
     isAddPartner,
     effectiveAddPartnerFranchiseId,
-    watchedStateId,
-    fetchCityFromApi,
+    applyAddPartnerFranchiseLocation,
+    setValue,
+  ]);
+
+  useEffect(() => {
+    if (!isAddPartner) return;
+    const fid = effectiveAddPartnerFranchiseId;
+    if (!fid) return;
+    if (String(getValues("state_id") ?? "").trim()) return;
+    void applyAddPartnerFranchiseLocation(fid);
+  }, [
+    isAddPartner,
+    effectiveAddPartnerFranchiseId,
+    franchiseDropdownOptions,
+    applyAddPartnerFranchiseLocation,
+    getValues,
   ]);
 
   useEffect(() => {
@@ -617,10 +680,12 @@ function AddEditUserDialogView({
       try {
         const rows = await fetchFranchiseDropDown({ fullList: true });
         if (cancelled) return;
-        const opts = (Array.isArray(rows) ? rows : [])
+        const opts: FranchiseDropDownOption[] = (Array.isArray(rows) ? rows : [])
           .map((r) => ({
             value: String(r.value ?? "").trim(),
             label: String(r.label ?? "").trim(),
+            state_id: r.state_id ? String(r.state_id).trim() : undefined,
+            city_id: r.city_id ? String(r.city_id).trim() : undefined,
           }))
           .filter((o) => o.value);
         setFranchiseDropdownOptions(opts);
@@ -689,7 +754,16 @@ function AddEditUserDialogView({
         return;
       }
 
-      const rows = await fetchAreasByCityForForm(cityId, stateId || undefined);
+      const franchiseScopeId =
+        isAddPartner || isPartnerEdit
+          ? String(catalogFranchiseApiId || locationFranchiseId || "").trim()
+          : "";
+
+      const rows = await fetchAreasByCityForForm(
+        cityId,
+        stateId || undefined,
+        franchiseScopeId || undefined
+      );
       if (cancelled) return;
 
       const areaOptions: { value: string; label: string }[] = [];
@@ -712,7 +786,16 @@ function AddEditUserDialogView({
     return () => {
       cancelled = true;
     };
-  }, [watchedCityId, watchedStateId, setValue, watch]);
+  }, [
+    watchedCityId,
+    watchedStateId,
+    setValue,
+    watch,
+    isAddPartner,
+    isPartnerEdit,
+    catalogFranchiseApiId,
+    locationFranchiseId,
+  ]);
 
   useEffect(() => {
     const areaId = String(watchedAreaId ?? "").trim();
@@ -1131,6 +1214,16 @@ function AddEditUserDialogView({
       if (!planId) {
         showErrorAlert("Please select a subscription plan.");
         return;
+      }
+      if (isAddPartner) {
+        if (!String(data.subscription_start_date ?? "").trim()) {
+          showErrorAlert("Please select subscription start date.");
+          return;
+        }
+        if (!String(data.subscription_end_date ?? "").trim()) {
+          showErrorAlert("Please select subscription end date.");
+          return;
+        }
       }
     }
 
@@ -1798,7 +1891,7 @@ function AddEditUserDialogView({
                 <PartnerSubscriptionFormSection
                   {...partnerSubscriptionForm}
                   planOptions={partnerPlanSelectOptions}
-                  subscriptionDatesRequired={false}
+                  subscriptionDatesRequired
                   subscriptionStartStr={
                     toYmdString(subscriptionStartStr) ?? null
                   }

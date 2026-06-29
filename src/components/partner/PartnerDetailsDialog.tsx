@@ -37,7 +37,11 @@ import {
 } from "../../lib/partner/partnerCategoryServiceView";
 import EditPartnerCategoriesServicesDialog from "../../pages/userManagement/EditPartnerCategoriesServicesDialog";
 import AddEditUserDialog from "../../pages/userManagement/AddEditUserDialog";
-import { partnerBankAccountsFromUser } from "../../lib/partner/partnerFormDocuments";
+import {
+  partnerBankAccountsFromUser,
+  partnerDocumentDisplayTitle,
+} from "../../lib/partner/partnerFormDocuments";
+import { resolvePartnerFranchiseFieldsFromUser } from "../../lib/partner/partnerFranchiseDisplay";
 import PartnerSubscriptionDetailsRows from "./PartnerSubscriptionDetailsRows";
 import PartnerVerificationStatusModal from "./PartnerVerificationStatusModal";
 
@@ -72,12 +76,27 @@ function PartnerDetailsDialogView({
   >([]);
   const [verificationStatusModalOpen, setVerificationStatusModalOpen] =
     useState(false);
+  const [partnerFranchiseFields, setPartnerFranchiseFields] = useState({
+    franchiseName: "—",
+    franchiseEmail: "—",
+  });
   const fetchRef = useRef(false);
 
   const partnerBankAccounts = useMemo(
     () => partnerBankAccountsFromUser(userDetails),
     [userDetails]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const resolved = await resolvePartnerFranchiseFieldsFromUser(userDetails);
+      if (!cancelled) setPartnerFranchiseFields(resolved);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userDetails]);
 
   const fetchDataFromApi = useCallback(async () => {
     if (fetchRef.current) return;
@@ -271,6 +290,8 @@ function PartnerDetailsDialogView({
                     ? userDetails.address
                     : ""
                 }
+                franchiseName={partnerFranchiseFields.franchiseName}
+                // franchiseEmail={partnerFranchiseFields.franchiseEmail}
               />
             </div>
             <img
@@ -523,13 +544,13 @@ function PartnerDetailsDialogView({
                         document.name ??
                         ""
                       }
-                      title={document.name || ""}
+                      title={partnerDocumentDisplayTitle(document.name)}
                       isEditable={
                         document.document_image === "" ? false : true
                       }
                       onViewClick={() => CustomImagePreviewDialog(document)}
                       onAddClick={() => addDocument(document)}
-                      onDeleteClick={() => addDocument(document)}
+                      // onDeleteClick={() => addDocument(document)}
                     />
                   ))
                 )}

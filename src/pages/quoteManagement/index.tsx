@@ -228,7 +228,8 @@ const QuoteManagement = () => {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
-      description: "",
+      user_description: "",
+      admin_description: "",
     },
   });
   const addQuote = watchAddQuote();
@@ -297,7 +298,8 @@ const QuoteManagement = () => {
     setAddQuoteValue("requested_time_from", "", { shouldValidate: false });
     setAddQuoteValue("requested_time_to", "", { shouldValidate: false });
     setAddQuoteValue("service_price", "", { shouldValidate: false });
-    setAddQuoteValue("description", "", { shouldValidate: false });
+    setAddQuoteValue("user_description", "", { shouldValidate: false });
+    setAddQuoteValue("admin_description", "", { shouldValidate: false });
     setCreateQuoteAddressId("");
     setAddQuoteAddressUi(emptyAddQuoteAddressUi());
   }, [setAddQuoteValue]);
@@ -988,6 +990,12 @@ const QuoteManagement = () => {
         Cell: ({ row }: { row: any }) =>
           (currentPage - 1) * pageSize + row.index + 1,
       },
+      {
+        Header: "Quote ID",
+        accessor: "quote_id",
+        sort: true,
+        Cell: ({ row }: { row: any }) => row.original.quote_id ?? "-",
+      },
     ];
 
     if (selectedTab === "success") {
@@ -1007,8 +1015,11 @@ const QuoteManagement = () => {
           selectedTab === "success"
             ? row.original.services ?? row.original.requested_services ?? "-"
             : row.original.requested_services,
-      },
-      {
+      }
+    );
+
+    if (selectedTab !== "new") {
+      cols.push({
         Header: "Partner",
         accessor:
           selectedTab === "success" ? "partner_name" : "requested_partner",
@@ -1017,7 +1028,10 @@ const QuoteManagement = () => {
           selectedTab === "success"
             ? row.original.partner_name ?? "-"
             : row.original.requested_partner,
-      },
+      });
+    }
+
+    cols.push(
       { Header: "User Name", accessor: "user_name", sort: true },
       {
         Header: "Total price",
@@ -1077,7 +1091,8 @@ const QuoteManagement = () => {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
-      description: "",
+      user_description: "",
+      admin_description: "",
     });
     if (isSuperAdminOrStaff && prefillFranchiseId) {
       lastQuoteCatalogFranchiseIdRef.current = "";
@@ -1229,7 +1244,9 @@ const QuoteManagement = () => {
       requested_time: data.requested_time,
       requested_time_from: data.requested_time_from,
       requested_time_to: data.requested_time_to,
-      description: String(data.description ?? "").trim() || undefined,
+      user_description: String(data.user_description ?? "").trim() || undefined,
+      admin_description:
+        String(data.admin_description ?? "").trim() || undefined,
     });
 
     if (!body) {
@@ -1741,7 +1758,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -1796,7 +1816,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -1855,7 +1878,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -1925,7 +1951,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -1978,7 +2007,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -2039,7 +2071,10 @@ const QuoteManagement = () => {
                               setAddQuoteValue("service_price", "", {
                                 shouldValidate: false,
                               });
-                              setAddQuoteValue("description", "", {
+                              setAddQuoteValue("user_description", "", {
+                                shouldValidate: false,
+                              });
+                              setAddQuoteValue("admin_description", "", {
                                 shouldValidate: false,
                               });
                             }
@@ -2356,9 +2391,9 @@ const QuoteManagement = () => {
                   </Row>
                   <Row className="g-3">
                     <Col xs={12}>
-                      <Form.Group controlId="description">
+                      <Form.Group controlId="user_description">
                         <Form.Label className="fw-medium mb-1">
-                          Quote description
+                          User description
                         </Form.Label>
                         <Form.Control
                           as="textarea"
@@ -2366,7 +2401,7 @@ const QuoteManagement = () => {
                           maxLength={2000}
                           disabled={addQuoteFieldsLocked}
                           className={`custom-form-input${
-                            addQuoteErrors.description ? " is-invalid" : ""
+                            addQuoteErrors.user_description ? " is-invalid" : ""
                           }`}
                           style={{
                             ...partnerCatalogControlStyle,
@@ -2374,12 +2409,45 @@ const QuoteManagement = () => {
                             resize: "vertical",
                           }}
                           placeholder="Optional notes for this quote"
-                          {...addQuoteRegister("description")}
+                          {...addQuoteRegister("user_description")}
                         />
-                        {addQuoteErrors.description ? (
+                        {addQuoteErrors.user_description ? (
                           <div className="text-danger small mt-1">
                             {String(
-                              (addQuoteErrors.description as { message?: string })
+                              (addQuoteErrors.user_description as { message?: string })
+                                ?.message ?? ""
+                            )}
+                          </div>
+                        ) : null}
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Row className="g-3">
+                    <Col xs={12}>
+                      <Form.Group controlId="admin_description">
+                        <Form.Label className="fw-medium mb-1">
+                          Admin description
+                        </Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={3}
+                          maxLength={2000}
+                          disabled={addQuoteFieldsLocked}
+                          className={`custom-form-input${
+                            addQuoteErrors.admin_description ? " is-invalid" : ""
+                          }`}
+                          style={{
+                            ...partnerCatalogControlStyle,
+                            minHeight: "96px",
+                            resize: "vertical",
+                          }}
+                          placeholder="Optional admin notes"
+                          {...addQuoteRegister("admin_description")}
+                        />
+                        {addQuoteErrors.admin_description ? (
+                          <div className="text-danger small mt-1">
+                            {String(
+                              (addQuoteErrors.admin_description as { message?: string })
                                 ?.message ?? ""
                             )}
                           </div>

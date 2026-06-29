@@ -2005,7 +2005,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
     const prefillFranchiseId = franchiseIdForApiQuery(
       readHeaderFranchisePreference()
     );
-    setValue("comments", "");
+    setValue("user_description", "");
+    setValue("admin_description", "");
     setValue("offer_id", "");
     setValue("customer_user_id", "");
     setValue("city_id", "");
@@ -2496,8 +2497,12 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         order.payment_mode_id != null ? String(order.payment_mode_id) : "2"
       );
       setValue(
-        "comments",
-        (order.order_description ?? order.comment ?? "").trim()
+        "user_description",
+        String(order.customer_description ?? "").trim()
+      );
+      setValue(
+        "admin_description",
+        String(order.order_description ?? "").trim()
       );
       setValue("offer_id", order.offer_id ?? "");
       const defaultEmployee =
@@ -3066,8 +3071,10 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
           data.created_by_id || getLocalStorage(AppConstant.createdById),
         address: firstAddr || selectedUser?.address,
         service_items: payloadServiceItems,
-        comments: data.comments ?? "",
-        order_description: (data.comments ?? "").trim() || undefined,
+        customer_description:
+          String(data.user_description ?? "").trim() || undefined,
+        order_description:
+          String(data.admin_description ?? "").trim() || undefined,
         name: selectedUser?.name,
         email: selectedUser?.email,
         contact: selectedUser?.phone_number,
@@ -3127,7 +3134,8 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
         scheduleMetrics: createMetrics,
         totalServiceCharge: baseServiceCharge,
         invoiceTotal: Math.max(0, createFinalTotal),
-        orderDescription: (data.comments ?? "").trim() || undefined,
+        customerDescription: String(data.user_description ?? "").trim() || undefined,
+        orderDescription: String(data.admin_description ?? "").trim() || undefined,
         offerId: data.offer_id ? String(data.offer_id) : undefined,
         serviceItem: {
           service_date: primaryLine?.service_date ?? "",
@@ -3798,9 +3806,20 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     <Row className="g-3">
                       <Col xs={12}>
                         <CustomFormInput
-                          label="Order description"
-                          controlId="comments"
-                          placeholder="Optional description for this order"
+                          label="User description"
+                          controlId="user_description"
+                          placeholder="Optional notes from the customer"
+                          register={register}
+                          as="textarea"
+                          asCol={false}
+                          rows={3}
+                        />
+                      </Col>
+                      <Col xs={12}>
+                        <CustomFormInput
+                          label="Admin description"
+                          controlId="admin_description"
+                          placeholder="Optional internal notes for this order"
                           register={register}
                           as="textarea"
                           asCol={false}
@@ -4715,9 +4734,18 @@ const CreateUpdateOrderDialog: React.FC<CreateUpdateOrderDialogProps> & {
                     style={{ padding: "10px" }}
                   >
                     <CustomFormInput
-                      label="Order description"
-                      controlId="comments"
-                      placeholder="Optional description for this order"
+                      label="User description"
+                      controlId="user_description"
+                      placeholder="Optional notes from the customer"
+                      register={register}
+                      as="textarea"
+                      asCol={false}
+                      rows={3}
+                    />
+                    <CustomFormInput
+                      label="Admin description"
+                      controlId="admin_description"
+                      placeholder="Optional internal notes for this order"
                       register={register}
                       as="textarea"
                       asCol={false}

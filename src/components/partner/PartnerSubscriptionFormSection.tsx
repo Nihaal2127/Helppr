@@ -34,7 +34,7 @@ export type PartnerSubscriptionFormSectionProps = {
   toYmdString: (v: unknown) => string | null;
   /** Update Partner: single column, no bordered section heading. */
   layout?: "default" | "stacked";
-  /** Add Partner: subscription dates are optional (no asterisk / required rule). */
+  /** Add Partner: subscription plan and dates are required (asterisk / validation). */
   subscriptionDatesRequired?: boolean;
 };
 
@@ -83,6 +83,11 @@ const PartnerSubscriptionFormSection: React.FC<
       setValue={rhfSetValue(setValue)}
       placeholder="Select subscription plan"
       menuPortal
+      requiredMessage={
+        subscriptionDatesRequired
+          ? "Please select a subscription plan"
+          : undefined
+      }
       onChange={(e) => {
         const v = String((e.target as HTMLSelectElement).value ?? "");
         const opt = planOptions.find((o) => o.value === v);

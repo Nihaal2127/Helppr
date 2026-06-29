@@ -300,13 +300,21 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
               </Col>
               <Col xs={12} className="info-detail-fields-col">
                 <DetailsRow
-                  title="Order description"
+                  title="User description"
+                  value={
+                    (orderDetails?.customer_description ?? "").trim() || undefined
+                  }
+                />
+              </Col>
+              <Col xs={12} className="info-detail-fields-col">
+                <DetailsRow
+                  title="Admin description"
                   value={
                     (
                       orderDetails?.order_description ??
                       orderDetails?.comment ??
                       ""
-                    ).trim() || "—"
+                    ).trim() || undefined
                   }
                 />
               </Col>

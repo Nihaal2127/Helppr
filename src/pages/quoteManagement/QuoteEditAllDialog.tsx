@@ -52,6 +52,11 @@ import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdown
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
 import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
+import {
+  applyMissingRequiredFieldErrors,
+  formatMissingRequiredFieldsAlert,
+} from "../../lib/form/missingRequiredFields";
+import type { MissingRequiredField } from "../../lib/form/missingRequiredFields";
 
 const toTimeStorageFromDate = (date: Date | null): string =>
   date
@@ -114,6 +119,65 @@ function isScheduleEndAfterStartSameDay(start: string, end: string): boolean {
 }
 
 const scheduleTimeAllowAll = (): boolean => true;
+
+function collectMissingQuoteEditRequiredFields(
+  data: EditQuoteFormValues,
+  scheduleMode: string,
+  opts: {
+    addressUiReady: boolean;
+    addressRowsCount: number;
+    selectedAddressId: string;
+  }
+): MissingRequiredField[] {
+  const missing: MissingRequiredField[] = [];
+
+  if (!String(data.requested_partner ?? "").trim()) {
+    missing.push({ field: "requested_partner", label: "Partner" });
+  }
+  if (!String(data.category_id ?? "").trim()) {
+    missing.push({ field: "category_id", label: "Category" });
+  }
+  if (!String(data.requested_services ?? "").trim()) {
+    missing.push({ field: "requested_services", label: "Service" });
+  }
+
+  if (String(data.user_id ?? "").trim() && opts.addressUiReady) {
+    if (!opts.selectedAddressId.trim()) {
+      missing.push({ label: "Customer address" });
+    }
+  }
+
+  const hasServiceSelected = Boolean(
+    String(data.requested_services ?? "").trim()
+  );
+  if (hasServiceSelected) {
+    if (!String(data.requested_date ?? "").trim()) {
+      missing.push({
+        field: "requested_date",
+        label: scheduleMode === "range" ? "From date" : "Date",
+      });
+    }
+    if (
+      scheduleMode === "range" &&
+      !String(data.requested_date_to ?? "").trim()
+    ) {
+      missing.push({ field: "requested_date_to", label: "To date" });
+    }
+    if (!String(data.requested_time_from ?? "").trim()) {
+      missing.push({ field: "requested_time_from", label: "Start time" });
+    }
+    if (!String(data.requested_time_to ?? "").trim()) {
+      missing.push({ field: "requested_time_to", label: "End time" });
+    }
+    const priceRaw = String(data.service_price ?? "").trim();
+    const price = Number.parseFloat(priceRaw);
+    if (!priceRaw || Number.isNaN(price) || price < 0) {
+      missing.push({ field: "service_price", label: "Service price" });
+    }
+  }
+
+  return missing;
+}
 
 type QuoteEditAllDialogProps = {
   quoteMongoId: string;
@@ -189,6 +253,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     watch,
     reset,
     getValues,
+    setError,
     formState: { errors, isSubmitted },
   } = useForm<EditQuoteFormValues>({
     defaultValues: {
@@ -205,7 +270,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       requested_time_from: "",
       requested_time_to: "",
       service_price: "",
-      description: "",
+      user_description: "",
+      admin_description: "",
       quote_status: "new",
     },
   });
@@ -738,10 +804,6 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     }
 
     const price = Number.parseFloat(String(data.service_price).trim());
-    if (Number.isNaN(price) || price < 0) {
-      showErrorAlert("Enter a valid service price.");
-      return;
-    }
 
     if (String(data.user_id ?? "").trim() && !addressUi.ready) {
       showErrorAlert(
@@ -753,52 +815,21 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       showErrorAlert(addressUi.error);
       return;
     }
-    if (!selectedAddressId.trim()) {
-      if (!addressUi.rows.length) {
-        showErrorAlert(
-          "No saved address on file for this customer. Add an address to the user profile before updating."
-        );
-      } else {
-        showErrorAlert(
-          "Select a customer address for this quote. Addresses outside this franchise's service area cannot be used."
-        );
-      }
-      return;
-    }
 
-    if (!String(data.requested_partner ?? "").trim()) {
-      showErrorAlert("Please select a partner.");
-      return;
-    }
-    if (!String(data.category_id ?? "").trim()) {
-      showErrorAlert("Please select a category.");
-      return;
-    }
-    if (!String(data.requested_services ?? "").trim()) {
-      showErrorAlert("Please select a service.");
-      return;
-    }
-
-    if (activeScheduleMode === "range") {
-      if (!String(data.requested_date ?? "").trim()) {
-        showErrorAlert("Please select from date.");
-        return;
+    const missingRequired = collectMissingQuoteEditRequiredFields(
+      data,
+      activeScheduleMode,
+      {
+        addressUiReady: addressUi.ready,
+        addressRowsCount: addressUi.rows.length,
+        selectedAddressId,
       }
-      if (!String(data.requested_date_to ?? "").trim()) {
-        showErrorAlert("Please select to date.");
-        return;
-      }
-    } else {
-      if (!String(data.requested_date ?? "").trim()) {
-        showErrorAlert("Please select a date.");
-        return;
-      }
-    }
-    if (
-      !String(data.requested_time_from ?? "").trim() ||
-      !String(data.requested_time_to ?? "").trim()
-    ) {
-      showErrorAlert("Please select start and end time.");
+    );
+    if (missingRequired.length > 0) {
+      applyMissingRequiredFieldErrors(missingRequired, (field, error) => {
+        setError(field as never, error);
+      });
+      showErrorAlert(formatMissingRequiredFieldsAlert(missingRequired));
       return;
     }
 
@@ -850,7 +881,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       work_end_time: metrics.work_end_time,
       work_hours_per_day: metrics.work_hours_per_day,
       total_work_hours: metrics.total_work_hours,
-      quote_description: String(data.description ?? "").trim() || undefined,
+      quote_description:
+        String(data.user_description ?? "").trim() || undefined,
+      admin_description:
+        String(data.admin_description ?? "").trim() || undefined,
     };
 
     let ok = await updateQuote(id, patch);
@@ -929,7 +963,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
               : "0 2px 12px rgba(0, 0, 0, 0.05)",
             transform: selected ? "translateY(-2px)" : undefined,
           }}
-        >
+        > 
           <Form.Check
             type="radio"
             name="edit-quote-address"
@@ -1667,9 +1701,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
               <Row className="mt-3 g-3">
                 <Col xs={12}>
-                  <Form.Group controlId="description" className="mb-0">
+                  <Form.Group controlId="user_description" className="mb-0">
                     <Form.Label className="fw-medium mb-1">
-                      Quote description
+                      User description
                     </Form.Label>
                     <Form.Control
                       as="textarea"
@@ -1677,7 +1711,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       maxLength={2000}
                       disabled={lockedFields}
                       className={`custom-form-input${
-                        errors.description ? " is-invalid" : ""
+                        errors.user_description ? " is-invalid" : ""
                       }`}
                       style={{
                         ...partnerCatalogControlStyle,
@@ -1685,11 +1719,42 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         resize: "vertical",
                       }}
                       placeholder="Optional notes for this quote"
-                      {...register("description")}
+                      {...register("user_description")}
                     />
-                    {errors.description?.message ? (
+                    {errors.user_description?.message ? (
                       <div className="text-danger small mt-1">
-                        {String(errors.description.message)}
+                        {String(errors.user_description.message)}
+                      </div>
+                    ) : null}
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Row className="mt-3 g-3">
+                <Col xs={12}>
+                  <Form.Group controlId="admin_description" className="mb-0">
+                    <Form.Label className="fw-medium mb-1">
+                      Admin description
+                    </Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      maxLength={2000}
+                      disabled={lockedFields}
+                      className={`custom-form-input${
+                        errors.admin_description ? " is-invalid" : ""
+                      }`}
+                      style={{
+                        ...partnerCatalogControlStyle,
+                        minHeight: "96px",
+                        resize: "vertical",
+                      }}
+                      placeholder="Optional admin notes"
+                      {...register("admin_description")}
+                    />
+                    {errors.admin_description?.message ? (
+                      <div className="text-danger small mt-1">
+                        {String(errors.admin_description.message)}
                       </div>
                     ) : null}
                   </Form.Group>
