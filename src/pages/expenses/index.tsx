@@ -22,7 +22,7 @@ import { DetailsRow, capitalizeString, formatDate } from "../../helper/utility";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   ensureSettingsSeedData,
-  fetchAllExpenseCategoriesWithApi,
+  fetchExpenseCategoriesPage,
   getExpenseCategories,
 } from "../../services/settingsService";
 import {
@@ -145,23 +145,48 @@ const ExpensesPage = () => {
 
   const listParamsRef = useRef<ExpensesFilters>({});
 
+  const effectiveFormFranchiseId = useMemo(() => {
+    if (isSuperAdminOrStaff) return String(form.franchiseId ?? "").trim();
+    return String(sessionFranchiseId ?? "").trim();
+  }, [form.franchiseId, isSuperAdminOrStaff, sessionFranchiseId]);
+
   useEffect(() => {
     let cancelled = false;
     ensureSettingsSeedData();
+    const franchiseId = effectiveFormFranchiseId;
+    if (!franchiseId) {
+      setExpenseCategories([]);
+      return () => {
+        cancelled = true;
+      };
+    }
     (async () => {
-      const categories = await fetchAllExpenseCategoriesWithApi();
-      if (cancelled) return;
-      if (categories && categories.length > 0) {
-        setExpenseCategories(categories);
-        return;
+      let page = 1;
+      const batch = 100;
+      const all: ExpenseCategoryModel[] = [];
+      for (;;) {
+        const chunk = await fetchExpenseCategoriesPage(page, batch, { franchiseId });
+        if (cancelled) return;
+        if (!chunk) {
+          setExpenseCategories(
+            getExpenseCategories().filter(
+              (item) => String(item.franchiseId ?? "").trim() === franchiseId
+            )
+          );
+          return;
+        }
+        if (chunk.rows.length === 0) break;
+        all.push(...chunk.rows);
+        if (chunk.rows.length < batch) break;
+        page += 1;
+        if (page > 500) break;
       }
-      // Fallback only when API is unavailable, to keep page usable.
-      setExpenseCategories(getExpenseCategories());
+      setExpenseCategories(all);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [effectiveFormFranchiseId]);
 
   useEffect(() => {
     if (!isFranchiseScopedUser) {
@@ -771,8 +796,22 @@ const ExpensesPage = () => {
                     }
                     setValue={setValue}
                     onChange={(e) => {
-                      setForm((p) => ({ ...p, franchiseId: e.target.value }));
-                      setFormErrors((prev) => ({ ...prev, franchiseId: undefined }));
+                      setForm((p) => ({
+                        ...p,
+                        franchiseId: e.target.value,
+                        categoryId: "",
+                        categoryName: "",
+                        subCategoryId: "",
+                        subCategoryName: "",
+                      }));
+                      setValue("expense_modal_category", "", { shouldValidate: false });
+                      setValue("expense_modal_sub_category", "", { shouldValidate: false });
+                      setFormErrors((prev) => ({
+                        ...prev,
+                        franchiseId: undefined,
+                        categoryId: undefined,
+                        subCategoryId: undefined,
+                      }));
                     }}
                     menuPortal
                   />
@@ -853,10 +892,13 @@ const ExpensesPage = () => {
                         value: "",
                         label: form.categoryId ? "Select Sub Category" : "Select Category first",
                       },
-                      ...expenseCategories
-                        .filter((item) => (item.categoryId || item.id) === form.categoryId)
+                      ...(
+                        expenseCategories.find(
+                          (item) => (item.categoryId || item.id) === form.categoryId
+                        )?.subcategories ?? []
+                      )
                         .map((item) => ({
-                          value: item.subCategoryId || "",
+                          value: item.subcategoryId || "",
                           label: item.subCategoryName,
                         }))
                         .filter((item) => Boolean(item.value)),
@@ -873,10 +915,11 @@ const ExpensesPage = () => {
                     setValue={setValue}
                     onChange={(e) => {
                       const newSubCategoryId = e.target.value;
-                      const pickedSubCategory = expenseCategories.find(
-                        (item) =>
-                          (item.categoryId || item.id) === form.categoryId &&
-                          (item.subCategoryId || "") === newSubCategoryId
+                      const selectedCategory = expenseCategories.find(
+                        (item) => (item.categoryId || item.id) === form.categoryId
+                      );
+                      const pickedSubCategory = selectedCategory?.subcategories?.find(
+                        (item) => (item.subcategoryId || "") === newSubCategoryId
                       );
                       setForm((p) => ({
                         ...p,
