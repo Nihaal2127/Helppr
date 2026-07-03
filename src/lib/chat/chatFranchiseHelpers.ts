@@ -66,8 +66,11 @@ async function resolveUserFranchiseId(userId: string): Promise<string> {
   if (cached) return cached;
 
   const res = await fetchUserById(userId);
+  const rawFranchise = res.user?.franchise_id;
   const fid = String(
-    res.user?.franchise_id ?? res.user?.franchiseId ?? ""
+    typeof rawFranchise === "string"
+      ? rawFranchise
+      : rawFranchise?._id ?? ""
   ).trim();
   if (fid) userFranchiseCache.set(userId, fid);
   return fid;
