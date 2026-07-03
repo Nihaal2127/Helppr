@@ -23,7 +23,6 @@ const ChatMessageImage: React.FC<ChatMessageImageProps> = ({
   const candidates = useMemo(() => resolveChatMediaUrlCandidates(fileUrl), [fileUrl]);
   const [srcIndex, setSrcIndex] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   const downloadName = fileName || alt || "image.jpg";
 
@@ -47,15 +46,12 @@ const ChatMessageImage: React.FC<ChatMessageImageProps> = ({
     });
   };
 
-  const handleDownload = async (event: React.MouseEvent) => {
+  const handleDownload = (event: React.MouseEvent) => {
     event.stopPropagation();
     const key = String(fileUrl ?? "").trim();
-    if (!key || downloading) return;
+    if (!key) return;
 
-    setDownloading(true);
-    const ok = await downloadChatMediaFile(key, downloadName);
-    setDownloading(false);
-
+    const ok = downloadChatMediaFile(key, downloadName);
     if (!ok) {
       showErrorAlert("Could not download the image. Please try again.");
     }
@@ -102,11 +98,10 @@ const ChatMessageImage: React.FC<ChatMessageImageProps> = ({
           type="button"
           className="normal-chat-bubble-image-download-btn"
           onClick={handleDownload}
-          disabled={downloading}
           aria-label={`Download ${downloadName}`}
           title="Download image"
         >
-          <i className={`bi ${downloading ? "bi-hourglass-split" : "bi-download"}`} />
+          <i className="bi bi-download" />
         </button>
       )}
     </div>

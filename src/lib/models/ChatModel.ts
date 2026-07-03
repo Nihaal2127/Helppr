@@ -8,6 +8,8 @@ export type ChatUserDisplay = {
   type?: number | string;
   profile_url?: string;
   role?: string;
+  franchise_id?: string;
+  franchiseId?: string;
 };
 
 export type ChatMessageType = "text" | "image" | "file" | "system";
@@ -119,6 +121,10 @@ export function mapChatUserDisplay(raw: unknown): ChatUserDisplay | undefined {
     type: row.type as number | string | undefined,
     profile_url: String(row.profile_url ?? row.profileUrl ?? "").trim() || undefined,
     role: String(row.role ?? "").trim() || undefined,
+    franchise_id:
+      String(row.franchise_id ?? row.franchiseId ?? "").trim() || undefined,
+    franchiseId:
+      String(row.franchiseId ?? row.franchise_id ?? "").trim() || undefined,
   };
 }
 
@@ -278,6 +284,20 @@ export function mapChatRecord(raw: Record<string, unknown>): ChatRecordModel {
       ? raw.participants.map((p) => String(p))
       : undefined,
     participantUsers,
+    roles: Array.isArray(raw.roles)
+      ? raw.roles
+          .map((entry) => {
+            const row = toRecord(entry);
+            if (!row) return null;
+            const userId = String(row.userId ?? row.user_id ?? "").trim();
+            const role = String(row.role ?? "").trim();
+            if (!userId) return null;
+            return { userId, role };
+          })
+          .filter((entry): entry is { userId: string; role: string } =>
+            Boolean(entry)
+          )
+      : undefined,
     franchise_id: String(raw.franchise_id ?? "").trim() || undefined,
     franchiseId: String(raw.franchiseId ?? raw.franchise_id ?? "").trim() || undefined,
     order_id: orderId || undefined,
@@ -388,14 +408,60 @@ export function chatCustomerDisplayName(chat: ChatRecordModel): string {
 }
 
 export function chatHasAssignedEmployee(chat: ChatRecordModel): boolean {
-  return Boolean(
-    String(chat.assignedTo ?? "").trim() || String(chat.assignedToUser?._id ?? "").trim()
-  );
+  return Boolean(chatAssignedFranchiseEmployee(chat));
+}
+
+/** Assigned handler only when they are a franchise employee (type 3), not franchise admin. */
+export function chatAssignedFranchiseEmployee(
+  chat: ChatRecordModel
+): ChatUserDisplay | undefined {
+  const assigneeId = String(
+    chat.assignedTo ?? chat.assignedToUser?._id ?? ""
+  ).trim();
+  if (!assigneeId) return undefined;
+
+  const assignee =
+    chat.assignedToUser?._id === assigneeId
+      ? chat.assignedToUser
+      : chat.participantUsers?.find((user) => user._id === assigneeId);
+
+  if (!assignee) return undefined;
+
+  const type = Number(assignee.type);
+  const role = String(assignee.role ?? "").toLowerCase();
+  if (type === FRANCHISE_EMPLOYEE_USER_TYPE || role === "employee") {
+    return assignee;
+  }
+
+  return undefined;
 }
 
 export function chatEmployeeDisplayName(chat: ChatRecordModel): string {
-  if (!chatHasAssignedEmployee(chat)) return "";
-  return chat.assignedToUser?.name || "Employee";
+  const employee = chatAssignedFranchiseEmployee(chat);
+  if (!employee) return "";
+  return employee.name || chat.assignedToUser?.name || "Employee";
+}
+
+/** Apply assignee immediately after transfer (before GET /chat/:id catches up). */
+export function chatWithAssignee(
+  chat: ChatRecordModel,
+  assigneeId: string,
+  assigneeLabel?: string
+): ChatRecordModel {
+  const id = String(assigneeId ?? "").trim();
+  if (!id) return chat;
+
+  const fromParticipants = chat.participantUsers?.find((user) => user._id === id);
+  const assignedToUser: ChatUserDisplay =
+    fromParticipants ??
+    (chat.assignedToUser?._id === id
+      ? chat.assignedToUser
+      : {
+          _id: id,
+          name: assigneeLabel ?? chat.assignedToUser?.name ?? "Handler",
+        });
+
+  return { ...chat, assignedTo: id, assignedToUser };
 }
 
 /** Mongo order id from inbox `context.orderId` or legacy root fields. */
@@ -423,4 +489,57 @@ export function chatLinkedQuoteId(chat: ChatRecordModel): string {
   return String(
     chat.context?.quoteId ?? chat.quoteId ?? chat.quote_id ?? ""
   ).trim();
+}
+
+const FRANCHISE_ADMIN_USER_TYPE = 1;
+const FRANCHISE_EMPLOYEE_USER_TYPE = 3;
+
+function franchiseIdFromParticipant(user: ChatUserDisplay): string {
+  return String(user.franchiseId ?? user.franchise_id ?? "").trim();
+}
+
+function isFranchiseStaffParticipant(user: ChatUserDisplay): boolean {
+  const type = Number(user.type);
+  const role = String(user.role ?? "").toLowerCase();
+  return (
+    type === FRANCHISE_ADMIN_USER_TYPE ||
+    type === FRANCHISE_EMPLOYEE_USER_TYPE ||
+    role === "admin" ||
+    role === "franchise_admin" ||
+    role === "employee"
+  );
+}
+
+/** Franchise id for inbox filtering — direct field, assignee, or staff participants. */
+export function chatLinkedFranchiseId(chat: ChatRecordModel): string {
+  const direct = String(chat.franchiseId ?? chat.franchise_id ?? "").trim();
+  if (direct) return direct;
+
+  const assigneeFranchise = String(
+    chat.assignedToUser?.franchiseId ?? chat.assignedToUser?.franchise_id ?? ""
+  ).trim();
+  if (assigneeFranchise) return assigneeFranchise;
+
+  for (const user of chat.participantUsers ?? []) {
+    if (!isFranchiseStaffParticipant(user)) continue;
+    const franchiseId = franchiseIdFromParticipant(user);
+    if (franchiseId) return franchiseId;
+  }
+
+  const adminRoleIds = new Set(
+    (chat.roles ?? [])
+      .filter((entry) => String(entry.role ?? "").toLowerCase() === "admin")
+      .map((entry) => String(entry.userId ?? "").trim())
+      .filter(Boolean)
+  );
+
+  if (adminRoleIds.size > 0) {
+    for (const user of chat.participantUsers ?? []) {
+      if (!adminRoleIds.has(user._id)) continue;
+      const franchiseId = franchiseIdFromParticipant(user);
+      if (franchiseId) return franchiseId;
+    }
+  }
+
+  return "";
 }

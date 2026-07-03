@@ -8,9 +8,9 @@ import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   ChatRecordModel,
   ChatUserDisplay,
+  chatAssignedFranchiseEmployee,
   chatCustomerDisplayName,
   chatEmployeeDisplayName,
-  chatHasAssignedEmployee,
 } from "../../lib/models/ChatModel";
 import { APP_USER_TYPE } from "../../services/userService";
 
@@ -47,17 +47,11 @@ const ChatConversationSidebar: React.FC<ChatConversationSidebarProps> = ({
   onTransferClick,
 }) => {
   const customerName = chatMeta ? chatCustomerDisplayName(chatMeta) : "—";
-  const hasEmployee = chatMeta ? chatHasAssignedEmployee(chatMeta) : false;
+  const assignedEmployee = chatMeta ? chatAssignedFranchiseEmployee(chatMeta) : undefined;
+  const hasEmployee = Boolean(assignedEmployee);
   const participants = chatMeta?.participantUsers ?? [];
   const admin = participantByType(participants, APP_USER_TYPE.FRANCHISE_ADMIN);
-  const employee = participantByType(participants, APP_USER_TYPE.FRANCHISE_EMPLOYEE);
-  const employeeName =
-    hasEmployee && chatMeta
-      ? employee?.name ||
-        chatMeta.assignedToUser?.name ||
-        chatEmployeeDisplayName(chatMeta) ||
-        "—"
-      : "";
+  const employeeName = hasEmployee ? chatEmployeeDisplayName(chatMeta!) : "";
   const partner = participantByType(participants, APP_USER_TYPE.PARTNER);
   const customer = participantByType(participants, APP_USER_TYPE.CUSTOMER);
 
@@ -74,26 +68,12 @@ const ChatConversationSidebar: React.FC<ChatConversationSidebarProps> = ({
       )}
 
       <div className="border rounded-3 bg-white p-3 normal-chat-sidebar-card">
-        <h6 className="normal-chat-section-title">Transfer chats info</h6>
         <div className="mb-3 small">
-          {transferHistory.length === 0 ? (
-            <div className="text-muted">No transfer history yet.</div>
-          ) : (
-            <ul className="list-unstyled mb-2 ps-0">
-              {transferHistory.map((entry, idx) => (
-                <li key={`${entry.employeeName}-${idx}`} className="mb-2">
-                  <span className="fw-semibold">{entry.employeeName}</span>
-                  <span className="text-muted"> · {entry.date}</span>
-                  {entry.note ? (
-                    <span className="d-block text-muted">({entry.note})</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="fw-semibold">
-            {hasEmployee ? `Current employee — ${employeeName}` : "No employee assigned"}
-          </div>
+          {hasEmployee ? (
+            <div className="fw-semibold">
+              Current employee — {employeeName}
+            </div>
+          ) : null}
         </div>
 
         <h6 className="normal-chat-section-title">User Details</h6>
@@ -164,8 +144,8 @@ const ChatConversationSidebar: React.FC<ChatConversationSidebarProps> = ({
                 const isPdf = /\.pdf(\?.*)?$/i.test(att.fileName);
                 const canDownload = isPdf || att.isImage;
 
-                const handleAttachmentDownload = async () => {
-                  const ok = await downloadChatMediaFile(
+                const handleAttachmentDownload = () => {
+                  const ok = downloadChatMediaFile(
                     att.mediaKey ?? att.url,
                     att.fileName
                   );
@@ -205,7 +185,7 @@ const ChatConversationSidebar: React.FC<ChatConversationSidebarProps> = ({
                       <button
                         type="button"
                         className="normal-chat-attachment-download-btn text-decoration-none"
-                        onClick={() => void handleAttachmentDownload()}
+                        onClick={handleAttachmentDownload}
                         aria-label={`Download ${att.fileName}`}
                       >
                         {card}

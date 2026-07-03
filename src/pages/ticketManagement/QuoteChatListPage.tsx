@@ -11,15 +11,18 @@ import {
   chatLastMessageAtIso,
 } from "../../lib/models/ChatModel";
 import { formatChatInboxListTime, orderChatTitleFromRecord } from "../../lib/chat/chatDisplayHelpers";
-import { filterChatsByType } from "../../services/chatService";
+import { filterChatsByFranchise, filterChatsByType } from "../../services/chatService";
 import GroupChatListItem from "../../components/chat/GroupChatListItem";
 import ChatInboxListItem from "../../components/chat/ChatInboxListItem";
+import ChatListPageHeader from "../../components/chat/ChatListPageHeader";
+import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 
 const QuoteChatListPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
+  const { register, setValue, franchiseId } = useFranchiseHeaderForm();
   const { inbox, inboxLoading, socketConnected, socketError, typingByChatId, isChatParticipantOnline } = useChatContext();
 
   const isGroupList = location.pathname.includes("/group-chats");
@@ -28,7 +31,10 @@ const QuoteChatListPage = () => {
 
   const chats = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return filterChatsByType(inbox, chatType).filter((chat) => {
+    return filterChatsByFranchise(
+      filterChatsByType(inbox, chatType),
+      franchiseId
+    ).filter((chat) => {
       if (unreadOnly && !((chat.unreadCount ?? 0) > 0)) return false;
       if (keyword.length === 0) return true;
       const orderId = chatLinkedOrderId(chat).toLowerCase();
@@ -45,7 +51,7 @@ const QuoteChatListPage = () => {
         orderUniqueId.includes(keyword)
       );
     });
-  }, [inbox, chatType, isGroupList, unreadOnly, search]);
+  }, [inbox, chatType, isGroupList, unreadOnly, search, franchiseId]);
 
   const listPath = isGroupList
     ? ROUTES.TICKET_MANAGEMENT_GROUP_CHAT.path
@@ -56,28 +62,14 @@ const QuoteChatListPage = () => {
 
   return (
     <div className="main-page-content">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div className="d-flex align-items-center gap-2">
-          <button
-            type="button"
-            className="financial-subpage-back text-danger"
-            onClick={() => navigate(ROUTES.TICKET_MANAGEMENT.path)}
-            aria-label="Back to ticket management"
-          >
-            <i className="bi bi-chevron-left" />
-          </button>
-          <h4 className="m-0 p-0">{isGroupList ? "Group Chats" : "Quote Chats"}</h4>
-          {socketConnected ? (
-            <span className="badge bg-success-subtle text-success border border-success-subtle">
-              Live
-            </span>
-          ) : (
-            <span className="badge bg-warning-subtle text-warning border border-warning-subtle">
-              {socketError ? "Offline" : "Connecting…"}
-            </span>
-          )}
-        </div>
-      </div>
+      <ChatListPageHeader
+        title={isGroupList ? "Group Chats" : "Quote Chats"}
+        backPath={ROUTES.TICKET_MANAGEMENT.path}
+        register={register}
+        setValue={setValue}
+        socketConnected={socketConnected}
+        socketError={socketError}
+      />
 
       <div className="d-flex align-items-center gap-2 mb-3" role="tablist">
         <button

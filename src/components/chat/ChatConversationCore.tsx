@@ -27,12 +27,14 @@ import {
   ChatType,
 
   mapChatRecord,
-
+  chatWithAssignee,
+  chatAssignedFranchiseEmployee,
 } from "../../lib/models/ChatModel";
 
 import { useChatThread } from "../../lib/chat/useChatThread";
 
 import { useChatContext } from "../../lib/chat/ChatProvider";
+import { enrichChatFranchiseFromCache } from "../../lib/chat/chatFranchiseHelpers";
 
 import { emitTypingStart, emitTypingStop } from "../../lib/chat/chatSocket";
 
@@ -236,7 +238,8 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
   const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { socketConnected, socketError, subscribeChatUpdated } = useChatContext();
+  const { socketConnected, socketError, subscribeChatUpdated, refreshInbox } =
+    useChatContext();
 
 
 
@@ -335,7 +338,9 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
     fetchChatById(chatId, { skipLoader: true }).then((res) => {
 
-      if (res.response && res.chat) setChatMeta(res.chat);
+      if (res.response && res.chat) {
+        setChatMeta(enrichChatFranchiseFromCache(res.chat));
+      }
 
     });
 
@@ -343,25 +348,26 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
 
 
+  const customerId = useMemo(
+    () =>
+      chatMeta?.participantUsers?.find((u) => Number(u.type) === APP_USER_TYPE.CUSTOMER)
+        ?._id ?? "",
+    [chatMeta?.participantUsers]
+  );
+
+  const assignedEmployee = useMemo(
+    () => (chatMeta ? chatAssignedFranchiseEmployee(chatMeta) : undefined),
+    [chatMeta]
+  );
+
+  const employeeId = useMemo(
+    () => assignedEmployee?._id ?? "",
+    [assignedEmployee]
+  );
+
   useEffect(() => {
 
-    if (!chatMeta) return;
-
-
-
-    const customerId =
-
-      chatMeta.participantUsers?.find((u) => Number(u.type) === APP_USER_TYPE.CUSTOMER)
-
-        ?._id ?? "";
-
-    const employeeId = String(chatMeta.assignedTo ?? "").trim();
-
-
-
     let cancelled = false;
-
-
 
     if (customerId) {
 
@@ -377,8 +383,6 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
     }
 
-
-
     if (employeeId) {
 
       fetchUserById(employeeId).then((res) => {
@@ -393,15 +397,13 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
     }
 
-
-
     return () => {
 
       cancelled = true;
 
     };
 
-  }, [chatMeta]);
+  }, [customerId, employeeId]);
 
 
 
@@ -495,7 +497,7 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
       if (record) {
         const updatedId = String(record._id ?? record.id ?? "").trim();
         if (updatedId === chatId) {
-          setChatMeta(mapChatRecord(record));
+          setChatMeta(enrichChatFranchiseFromCache(mapChatRecord(record)));
         }
         return;
       }
@@ -503,7 +505,7 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
       const updatedChatId = String(data.chatId ?? data.chat_id ?? "").trim();
       if (updatedChatId === chatId) {
         void fetchChatById(chatId, { skipLoader: true }).then((res) => {
-          if (res.chat) setChatMeta(res.chat);
+          if (res.chat) setChatMeta(enrichChatFranchiseFromCache(res.chat));
         });
       }
     });
@@ -932,19 +934,47 @@ const ChatConversationCore: React.FC<ChatConversationCoreProps> = ({
 
     setTransferSubmitting(true);
 
+    const normalizedAssignee = String(assigneeId ?? "").trim();
+
     try {
 
       const { transferChat } = await import("../../services/chatService");
 
-      const ok = await transferChat(chatId, assigneeId);
+      const ok = await transferChat(chatId, normalizedAssignee);
 
       if (ok) {
 
         setShowTransferModal(false);
 
+        const assigneeLabel = assigneeOptions.find(
+          (option) => option.value === normalizedAssignee
+        )?.label;
+
+        setChatMeta((prev) => {
+          if (!prev) return prev;
+          return enrichChatFranchiseFromCache(
+            chatWithAssignee(prev, normalizedAssignee, assigneeLabel)
+          );
+        });
+
         const res = await fetchChatById(chatId, { skipLoader: true });
 
-        if (res.chat) setChatMeta(res.chat);
+        if (res.chat) {
+          setChatMeta((prev) => {
+            const fetched = enrichChatFranchiseFromCache(res.chat!);
+            const fetchedAssignee = String(fetched.assignedTo ?? "").trim();
+            if (fetchedAssignee === normalizedAssignee) return fetched;
+            return enrichChatFranchiseFromCache(
+              chatWithAssignee(
+                fetched,
+                normalizedAssignee,
+                assigneeLabel ?? prev?.assignedToUser?.name
+              )
+            );
+          });
+        }
+
+        void refreshInbox({ skipLoader: true, force: true });
 
       }
 

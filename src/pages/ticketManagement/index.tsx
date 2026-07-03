@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import CustomHeader from "../../components/CustomHeader";
@@ -7,6 +7,7 @@ import { ROUTES } from "../../routes/Routes";
 import { useChatContext } from "../../lib/chat/ChatProvider";
 import {
   countUnreadChats,
+  filterChatsByFranchise,
   filterChatsByType,
 } from "../../services/chatService";
 import { readHeaderFranchisePreference } from "../../lib/franchise/headerFranchisePreference";
@@ -17,18 +18,10 @@ type ChatCardType = "normal" | "dispute" | "quote" | "group";
 const TicketManagement = () => {
   const navigate = useNavigate();
   const { register, setValue } = useForm();
-  const { inbox, refreshInbox, inboxLoading } = useChatContext();
+  const { inbox, inboxLoading } = useChatContext();
 
   const [franchiseId, setFranchiseId] = useState(() => readHeaderFranchisePreference());
   const [selectedChatCard, setSelectedChatCard] = useState<ChatCardType | "">("");
-
-  const refreshHub = useCallback(async () => {
-    await refreshInbox({ skipLoader: true });
-  }, [refreshInbox]);
-
-  useEffect(() => {
-    void refreshHub();
-  }, [refreshHub]);
 
   useEffect(() => {
     const onFranchiseChange = () => {
@@ -39,10 +32,27 @@ const TicketManagement = () => {
       window.removeEventListener(HEADER_FRANCHISE_CHANGED_EVENT, onFranchiseChange);
   }, []);
 
-  const supportChats = useMemo(() => filterChatsByType(inbox, "support"), [inbox]);
-  const disputeChats = useMemo(() => filterChatsByType(inbox, "dispute"), [inbox]);
-  const quoteChats = useMemo(() => filterChatsByType(inbox, "quote"), [inbox]);
-  const orderChats = useMemo(() => filterChatsByType(inbox, "order"), [inbox]);
+  const scopedInbox = useMemo(
+    () => filterChatsByFranchise(inbox, franchiseId),
+    [inbox, franchiseId]
+  );
+
+  const supportChats = useMemo(
+    () => filterChatsByType(scopedInbox, "support"),
+    [scopedInbox]
+  );
+  const disputeChats = useMemo(
+    () => filterChatsByType(scopedInbox, "dispute"),
+    [scopedInbox]
+  );
+  const quoteChats = useMemo(
+    () => filterChatsByType(scopedInbox, "quote"),
+    [scopedInbox]
+  );
+  const orderChats = useMemo(
+    () => filterChatsByType(scopedInbox, "order"),
+    [scopedInbox]
+  );
   const hubLoading = inboxLoading;
 
   const chatCards: {

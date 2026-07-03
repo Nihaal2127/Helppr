@@ -16,7 +16,17 @@ import {
   mapChatRecord,
 } from "../models/ChatModel";
 import { chatMessagePreviewText } from "./chatDisplayHelpers";
-import { fetchChatInbox, fetchChatPresence } from "../../services/chatService";
+import {
+  enrichChatFranchiseFromCache,
+  enrichChatInboxFranchiseIds,
+  shouldEnrichChatFranchiseIds,
+} from "./chatFranchiseHelpers";
+import {
+  franchiseIdForApiQuery,
+  HEADER_FRANCHISE_CHANGED_EVENT,
+  readHeaderFranchisePreference,
+} from "../franchise/headerFranchisePreference";
+import { fetchChatInbox } from "../../services/chatService";
 import {
   acquireChatSocket,
   releaseChatSocket,
@@ -48,7 +58,7 @@ type ChatContextValue = {
   socketError: string | null;
   typingByChatId: Record<string, string>;
   isChatParticipantOnline: (chat: ChatRecordModel) => boolean;
-  refreshInbox: (opts?: { skipLoader?: boolean }) => Promise<void>;
+  refreshInbox: (opts?: { skipLoader?: boolean; force?: boolean }) => Promise<void>;
   setActiveChatId: (chatId: string | null) => void;
   joinChat: (chatId: string) => void;
   leaveChat: (chatId: string) => void;
@@ -144,11 +154,19 @@ function mergeChatRecord(
   existing: ChatRecordModel,
   incoming: ChatRecordModel
 ): ChatRecordModel {
+  const franchiseId =
+    String(incoming.franchiseId ?? incoming.franchise_id ?? "").trim() ||
+    String(existing.franchiseId ?? existing.franchise_id ?? "").trim() ||
+    undefined;
+
   return {
     ...existing,
     ...incoming,
     participantUsers: incoming.participantUsers ?? existing.participantUsers,
     assignedToUser: incoming.assignedToUser ?? existing.assignedToUser,
+    ...(franchiseId
+      ? { franchiseId, franchise_id: franchiseId }
+      : {}),
   };
 }
 
@@ -217,6 +235,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const activeChatIdRef = useRef<string | null>(null);
   const inboxRef = useRef<ChatRecordModel[]>([]);
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const inboxRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastInboxFetchAtRef = useRef(0);
 
   inboxRef.current = inbox;
 
@@ -232,18 +252,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       });
     },
     []
-  );
-
-  const syncInboxPresence = useCallback(
-    async (chats: ChatRecordModel[]) => {
-      if (!chats.length) return;
-      const results = await Promise.all(
-        chats.map((chat) => fetchChatPresence(chat._id, { skipLoader: true }))
-      );
-      if (!mountedRef.current) return;
-      applyPresenceEntries(results.flat());
-    },
-    [applyPresenceEntries]
   );
 
   const isChatParticipantOnline = useCallback(
@@ -263,20 +271,49 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setInbox((prev) => patchInboxUnread(prev, id, 0));
   }, []);
 
-  const refreshInbox = useCallback(async (opts?: { skipLoader?: boolean }) => {
+  const applyEnrichedInbox = useCallback((enriched: ChatRecordModel[]) => {
+    if (!mountedRef.current) return;
+    setInbox((prev) => mergeInboxFromServer(prev, enriched));
+    enriched.forEach((chat) => joinChatRoom(chat._id));
+  }, []);
+
+  const enrichCurrentInbox = useCallback(async () => {
+    const current = inboxRef.current;
+    if (!current.length || !shouldEnrichChatFranchiseIds()) return;
+    const enriched = await enrichChatInboxFranchiseIds(current);
+    applyEnrichedInbox(enriched);
+  }, [applyEnrichedInbox]);
+
+  const refreshInbox = useCallback(async (opts?: { skipLoader?: boolean; force?: boolean }) => {
     const silent = opts?.skipLoader ?? true;
-    if (!silent) setInboxLoading(true);
-    try {
-      const res = await fetchChatInbox({ skipLoader: silent });
-      if (mountedRef.current && res.response) {
-        setInbox((prev) => mergeInboxFromServer(prev, res.chats));
-        res.chats.forEach((chat) => joinChatRoom(chat._id));
-        void syncInboxPresence(res.chats);
-      }
-    } finally {
-      if (mountedRef.current && !silent) setInboxLoading(false);
+    const force = opts?.force ?? false;
+    const now = Date.now();
+    if (!force && now - lastInboxFetchAtRef.current < 2500 && inboxRef.current.length > 0) {
+      return;
     }
-  }, [syncInboxPresence]);
+    if (inboxRefreshInFlightRef.current) {
+      return inboxRefreshInFlightRef.current;
+    }
+
+    const showLoader = !silent || inboxRef.current.length === 0;
+    if (showLoader) setInboxLoading(true);
+
+    const task = (async () => {
+      try {
+        const res = await fetchChatInbox({ skipLoader: silent });
+        if (!mountedRef.current || !res.response) return;
+        lastInboxFetchAtRef.current = Date.now();
+        const enriched = await enrichChatInboxFranchiseIds(res.chats);
+        applyEnrichedInbox(enriched);
+      } finally {
+        inboxRefreshInFlightRef.current = null;
+        if (mountedRef.current && showLoader) setInboxLoading(false);
+      }
+    })();
+
+    inboxRefreshInFlightRef.current = task;
+    return task;
+  }, [applyEnrichedInbox]);
 
   const applyIncomingMessage = useCallback((message: ChatMessageModel) => {
     const chatId = String(message.chatId ?? "").trim();
@@ -321,7 +358,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     if (!record) return;
 
-    const updated = mapChatRecord(record);
+    const updated = enrichChatFranchiseFromCache(mapChatRecord(record));
     setInbox((prev) => {
       const idx = prev.findIndex((chat) => sameChatId(chat._id, updated._id));
       if (idx < 0) return prev;
@@ -329,7 +366,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const localKey = inboxSortKey(existing);
       const remoteKey = inboxSortKey(updated);
       const unreadCount = Math.max(existing.unreadCount ?? 0, updated.unreadCount ?? 0);
-      const merged = mergeChatRecord(existing, updated);
+      const merged = enrichChatFranchiseFromCache(
+        mergeChatRecord(existing, updated)
+      );
 
       if (localKey >= remoteKey) {
         merged.lastMessage = existing.lastMessage ?? existing.last_message ?? merged.lastMessage;
@@ -382,7 +421,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setSocketConnected(true);
       setSocketError(null);
       inboxRef.current.forEach((chat) => joinChatRoom(chat._id));
-      void refreshInbox({ skipLoader: true });
     });
     const offDisconnect = onChatDisconnect(() => setSocketConnected(false));
     const offConnectError = onChatConnectError((message) => {
@@ -436,6 +474,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       releaseChatSocket();
     };
   }, [applyChatUpdatedPayload, applyIncomingMessage, applyPresenceEntries, refreshInbox]);
+
+  useEffect(() => {
+    const onFranchiseChange = () => {
+      const franchiseId = franchiseIdForApiQuery(readHeaderFranchisePreference());
+      if (franchiseId) void enrichCurrentInbox();
+    };
+    window.addEventListener(HEADER_FRANCHISE_CHANGED_EVENT, onFranchiseChange);
+    return () =>
+      window.removeEventListener(HEADER_FRANCHISE_CHANGED_EVENT, onFranchiseChange);
+  }, [enrichCurrentInbox]);
 
   useEffect(() => {
     if (!socketConnected) return;

@@ -9,19 +9,25 @@ import {
   chatLastMessageAtIso,
 } from "../../lib/models/ChatModel";
 import { formatChatInboxListTime } from "../../lib/chat/chatDisplayHelpers";
-import { filterChatsByType } from "../../services/chatService";
+import { filterChatsByFranchise, filterChatsByType } from "../../services/chatService";
 import ChatInboxListItem from "../../components/chat/ChatInboxListItem";
+import ChatListPageHeader from "../../components/chat/ChatListPageHeader";
+import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 
 const DisputeChatListPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
+  const { register, setValue, franchiseId } = useFranchiseHeaderForm();
   const { inbox, inboxLoading, socketConnected, socketError, typingByChatId, isChatParticipantOnline } = useChatContext();
   const filter = searchParams.get("filter") === "unread" ? "unread" : "all";
 
   const chats = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return filterChatsByType(inbox, "dispute").filter((chat) => {
+    return filterChatsByFranchise(
+      filterChatsByType(inbox, "dispute"),
+      franchiseId
+    ).filter((chat) => {
       const matchFilter = filter === "unread" ? (chat.unreadCount ?? 0) > 0 : true;
       const customer = chatCustomerDisplayName(chat).toLowerCase();
       const employee = chatEmployeeDisplayName(chat).toLowerCase();
@@ -34,32 +40,18 @@ const DisputeChatListPage = () => {
         chat._id.toLowerCase().includes(keyword);
       return matchFilter && matchSearch;
     });
-  }, [filter, inbox, search]);
+  }, [filter, inbox, search, franchiseId]);
 
   return (
     <div className="main-page-content">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div className="d-flex align-items-center gap-2">
-          <button
-            type="button"
-            className="financial-subpage-back text-danger"
-            onClick={() => navigate(ROUTES.TICKET_MANAGEMENT.path)}
-            aria-label="Back to ticket management"
-          >
-            <i className="bi bi-chevron-left" />
-          </button>
-          <h4 className="m-0 p-0">Dispute Chats</h4>
-          {socketConnected ? (
-            <span className="badge bg-success-subtle text-success border border-success-subtle">
-              Live
-            </span>
-          ) : (
-            <span className="badge bg-warning-subtle text-warning border border-warning-subtle">
-              {socketError ? "Offline" : "Connecting…"}
-            </span>
-          )}
-        </div>
-      </div>
+      <ChatListPageHeader
+        title="Dispute Chats"
+        backPath={ROUTES.TICKET_MANAGEMENT.path}
+        register={register}
+        setValue={setValue}
+        socketConnected={socketConnected}
+        socketError={socketError}
+      />
 
       <div className="d-flex align-items-center gap-2 mb-3" role="tablist">
         <button

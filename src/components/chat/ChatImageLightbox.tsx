@@ -31,7 +31,6 @@ const ChatImageLightbox: React.FC<ChatImageLightboxProps> = ({
 
   const [srcIndex, setSrcIndex] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   const isFirst = currentIndex <= 0;
   const isLast = currentIndex >= images.length - 1;
@@ -75,14 +74,11 @@ const ChatImageLightbox: React.FC<ChatImageLightboxProps> = ({
     });
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     const key = String(current.fileUrl ?? "").trim();
-    if (!key || downloading) return;
+    if (!key) return;
 
-    setDownloading(true);
-    const ok = await downloadChatMediaFile(key, downloadName);
-    setDownloading(false);
-
+    const ok = downloadChatMediaFile(key, downloadName);
     if (!ok) {
       showErrorAlert("Could not download the image. Please try again.");
     }
@@ -104,12 +100,12 @@ const ChatImageLightbox: React.FC<ChatImageLightboxProps> = ({
           <button
             type="button"
             className="normal-chat-image-lightbox-action-btn"
-            onClick={() => void handleDownload()}
-            disabled={downloading || loadFailed}
+            onClick={handleDownload}
+            disabled={loadFailed}
             aria-label={`Download ${downloadName}`}
             title="Download image"
           >
-            <i className={`bi ${downloading ? "bi-hourglass-split" : "bi-download"}`} />
+            <i className="bi bi-download" />
           </button>
           <CustomCloseButton inline onClose={onClose} />
         </div>

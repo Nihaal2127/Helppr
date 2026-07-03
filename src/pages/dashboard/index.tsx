@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { Row, Col } from "react-bootstrap";
 import {
@@ -56,7 +56,6 @@ const Dashboard = () => {
 
   const [dashboardStats, setDashboardStats] =
     useState<DashboardStatsModel>(DEFAULT_DASHBOARD_STATS);
-  const fetchRef = useRef(false);
 
   const dashboardQueryRange = useMemo(
     () =>
@@ -76,25 +75,26 @@ const Dashboard = () => {
     ]
   );
 
-  const fetchDataFromApi = useCallback(async () => {
-    if (!dashboardQueryRange || fetchRef.current) return;
-    fetchRef.current = true;
-    try {
+  useEffect(() => {
+    if (!dashboardQueryRange) return;
+
+    let cancelled = false;
+
+    void (async () => {
       const { response, stats } = await getDashboardStats({
         range: dashboardQueryRange,
         franchiseId,
       });
+      if (cancelled) return;
       if (response && stats) {
         setDashboardStats({ ...DEFAULT_DASHBOARD_STATS, ...stats });
       }
-    } finally {
-      fetchRef.current = false;
-    }
-  }, [dashboardQueryRange, franchiseId]);
+    })();
 
-  useEffect(() => {
-    void fetchDataFromApi();
-  }, [fetchDataFromApi]);
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardQueryRange, franchiseId]);
 
   const handleDateRangeTypeChange = (value: DashboardDateRangeType) => {
     setDateRangeType(value);

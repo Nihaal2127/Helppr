@@ -403,47 +403,30 @@ export function isPdfAttachment(msg: ChatMessageModel): boolean {
   return /\.pdf(\?.*)?$/i.test(chatMessageAttachmentLabel(msg));
 }
 
-function triggerBlobDownload(blob: Blob, fileName: string) {
-  const blobUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = blobUrl;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(blobUrl);
-}
-
-async function fetchBlobFromUrl(url: string): Promise<Blob | null> {
-  try {
-    const res = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return blob.size > 0 ? blob : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Download a chat attachment via fetch + blob (saves locally). Returns true when saved. */
-export async function downloadChatMediaFile(
+/**
+ * Open/download a chat attachment via direct URL (no fetch — avoids CORS on S3).
+ * Preview still uses <img>; downloads use <a target="_blank"> per backend guidance.
+ */
+export function downloadChatMediaFile(
   fileUrl: string,
-  fileName: string
-): Promise<boolean> {
+  fileName?: string
+): boolean {
   const raw = String(fileUrl ?? "").trim();
   if (!raw) return false;
 
-  const candidates = resolveChatMediaUrlCandidates(raw);
-  const name = String(fileName ?? "").trim() || "download";
+  const url = resolveChatMediaUrl(raw);
+  if (!url) return false;
 
-  for (const url of candidates) {
-    const blob = await fetchBlobFromUrl(url);
-    if (!blob) continue;
-    triggerBlobDownload(blob, name);
-    return true;
-  }
-
-  return false;
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  const name = String(fileName ?? "").trim();
+  if (name) anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  return true;
 }
 
 export function messageHasAttachment(msg: ChatMessageModel): boolean {
@@ -498,6 +481,15 @@ function formatTransferHistoryDate(iso?: string): string {
   return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 }
 
+function parseTransferSystemContent(content: string): string {
+  const raw = String(content ?? "").trim();
+  const match = raw.match(/transferred from\s+(.+?)\s+to\s+(.+?)$/i);
+  if (match) {
+    return `${match[1].trim()} → ${match[2].trim()}`;
+  }
+  return raw || "System";
+}
+
 export function transferHistoryFromMessages(
   messages: ChatMessageModel[]
 ): ChatTransferHistoryItem[] {
@@ -508,7 +500,7 @@ export function transferHistoryFromMessages(
         /transfer|assigned|reassign|handed/i.test(String(m.content ?? ""))
     )
     .map((m) => ({
-      employeeName: String(m.content ?? "System").trim(),
+      employeeName: parseTransferSystemContent(String(m.content ?? "")),
       date: formatTransferHistoryDate(m.createdAt),
     }));
 }

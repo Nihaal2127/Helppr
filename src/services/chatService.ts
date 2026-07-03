@@ -1,6 +1,11 @@
 import { chatApiRequest } from "../lib/global/remote/chatApiHelper";
 import { ChatApiPaths } from "../lib/global/remote/chatApiPaths";
 import {
+  franchiseIdForApiQuery,
+  sessionMayUseFranchiseIdApiFilter,
+} from "../lib/franchise/headerFranchisePreference";
+import { resolveChatFranchiseId } from "../lib/chat/chatFranchiseHelpers";
+import {
   ChatMessageModel,
   ChatRecordModel,
   ChatType,
@@ -230,6 +235,17 @@ export function filterChatsByType(
   type: ChatType
 ): ChatRecordModel[] {
   return chats.filter((c) => c.type === type);
+}
+
+/** Super admin / staff inbox filter by header franchise selection. */
+export function filterChatsByFranchise(
+  chats: ChatRecordModel[],
+  selectedFranchiseId?: string | null
+): ChatRecordModel[] {
+  if (!sessionMayUseFranchiseIdApiFilter()) return chats;
+  const franchiseId = franchiseIdForApiQuery(selectedFranchiseId);
+  if (!franchiseId) return chats;
+  return chats.filter((chat) => resolveChatFranchiseId(chat) === franchiseId);
 }
 
 export type ChatPresenceEntry = {

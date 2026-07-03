@@ -55,21 +55,19 @@ export function canStaffTransferChat(
 
 /**
  * Who may send messages from the web dashboard:
- * - Group chat — any logged-in user (no assignment restriction)
- * - Super admin / staff — view only (general / dispute)
- * - Franchise admin — only when assigned (view while employee handles; send after self-transfer)
- * - Employee — only while assigned as handler (view-only after transfer away)
+ * - Super admin / staff — view only (all chat types)
+ * - Franchise admin / employee — only while assigned as handler (`assignedTo`)
  */
 export function canStaffSendChatMessages(
   chat: ChatRecordModel | null,
-  chatKind: ChatPermissionKind,
+  _chatKind: ChatPermissionKind,
   externallyDisabled = false
 ): boolean {
-  if (externallyDisabled || !chat) return false;
+  if (externallyDisabled) return false;
   const userId = sessionUserId();
   if (!userId) return false;
-  if (chatKind === "group") return true;
   if (isViewOnlyStaffSession()) return false;
+  if (!chat) return false;
   return isAssignedChatHandler(chat, userId);
 }
 
