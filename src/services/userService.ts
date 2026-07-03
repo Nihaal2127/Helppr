@@ -592,6 +592,71 @@ export const fetchUser = async (
   }
 };
 
+function userSelectLabel(user: UserModel): string {
+  const name = String(user.name ?? "").trim();
+  if (name) return name;
+  const email = String(user.email ?? "").trim();
+  if (email) return email;
+  const phone = String(user.phone_number ?? "").trim();
+  if (phone) return phone;
+  return String(user.user_id ?? "").trim() || "User";
+}
+
+/** Paginate `GET /user/getAll` for one user type (scoped by token / franchise filter). */
+async function fetchAllUsersByType(
+  type: number,
+  filters: UserListFilters = {}
+): Promise<UserModel[]> {
+  const pageSize = 200;
+  let page = 1;
+  const allUsers: UserModel[] = [];
+
+  for (;;) {
+    const res = await fetchUser(false, type, page, pageSize, filters);
+    if (!res.response) break;
+    allUsers.push(...(res.users ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 100) break;
+  }
+
+  return allUsers;
+}
+
+/**
+ * Franchise admins + employees for chat transfer (`GET /user/getAll`, type `1` and `3`).
+ * Franchise portal users are scoped by Bearer token; super admin/staff use optional franchise scope.
+ */
+export async function fetchChatTransferAssigneeOptions(
+  franchiseId?: string,
+  excludeUserId?: string
+): Promise<{ value: string; label: string }[]> {
+  const filters: UserListFilters = franchiseId
+    ? { franchise_id: franchiseId }
+    : {};
+
+  const [admins, employees] = await Promise.all([
+    fetchAllUsersByType(APP_USER_TYPE.FRANCHISE_ADMIN, filters),
+    fetchAllUsersByType(APP_USER_TYPE.FRANCHISE_EMPLOYEE, filters),
+  ]);
+
+  const exclude = String(excludeUserId ?? "").trim();
+  const seen = new Set<string>();
+  const options: { value: string; label: string }[] = [];
+
+  for (const user of [...admins, ...employees]) {
+    const value = String(user._id ?? "").trim();
+    if (!value || seen.has(value)) continue;
+    if (exclude && value === exclude) continue;
+    seen.add(value);
+    options.push({ value, label: userSelectLabel(user) });
+  }
+
+  return options.sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
+}
+
 export const fetchUserById = async (
   id: string
 ): Promise<{ response: boolean; user: UserModel | null }> => {

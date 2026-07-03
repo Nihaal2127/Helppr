@@ -3,6 +3,7 @@ import { Modal } from "react-bootstrap";
 import CustomCloseButton from "./CustomCloseButton";
 import { DocumentModel } from "../lib/models/DocumentModel";
 import { AppConstant } from "../lib/global/AppConstant";
+import { partnerDocumentDisplayTitle } from "../lib/partner/partnerFormDocuments";
 function formatDocumentPreviewTitle(name: string | null | undefined): string {
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return "Document";
@@ -17,7 +18,12 @@ function formatDocumentPreviewTitle(name: string | null | undefined): string {
 export const CustomImagePreviewDialog = (documentPreview: DocumentModel) => {
   const modalContainer = document.createElement("div");
   document.body.appendChild(modalContainer);
-  const title = formatDocumentPreviewTitle(documentPreview.name);
+  const rawName = String(documentPreview.name ?? "").trim();
+  const mappedTitle = partnerDocumentDisplayTitle(documentPreview.name);
+  const title =
+    mappedTitle && mappedTitle !== rawName
+      ? mappedTitle
+      : formatDocumentPreviewTitle(documentPreview.name);
 
   const closeModal = () => {
     ReactDOM.unmountComponentAtNode(modalContainer);

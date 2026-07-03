@@ -1,4 +1,5 @@
 import { AppConstant } from "./AppConstant";
+import { disconnectChatSocket } from "../chat/chatSocket";
 
 export const getLocalStorage = (key: string) => {
   return localStorage.getItem(key);
@@ -13,6 +14,7 @@ export const removeItemLocalStorage = (key: string) => {
 };
 
 export const clearLocalStorage = () => {
+  disconnectChatSocket();
   localStorage.clear();
   sessionStorage.clear();
 };

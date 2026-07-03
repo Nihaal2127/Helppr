@@ -13,7 +13,7 @@ type TransferChatFormValues = {
 type TransferChatModalProps = {
   show: boolean;
   onClose: () => void;
-  onTransfer?: (values: TransferChatFormValues) => void;
+  onTransfer?: (values: TransferChatFormValues) => void | Promise<void>;
   assigneeOptions: { value: string; label: string }[];
   isSubmitting?: boolean;
 };
@@ -37,9 +37,10 @@ const TransferChatModal: React.FC<TransferChatModalProps> = ({
     },
   });
 
-  const handleFormSubmit = (values: TransferChatFormValues) => {
+  const handleFormSubmit = async (values: TransferChatFormValues) => {
     if (onTransfer) {
-      onTransfer(values);
+      await onTransfer(values);
+      return;
     }
     onClose();
   };
@@ -61,12 +62,9 @@ const TransferChatModal: React.FC<TransferChatModalProps> = ({
         <form noValidate onSubmit={handleSubmit(handleFormSubmit)}>
           <Row>
             <Col xs={12}>
-              <div className="mb-2 d-flex align-items-center justify-content-between">
-                <label className="fw-medium mb-0">Select Assignee</label>
-              </div>
               <CustomFormSelect
-                label=""
-                controlId="transfer assignee"
+                label="Select Assignee"
+                controlId="transfer_assignee"
                 options={assigneeOptions}
                 register={register as any}
                 fieldName="transfer_assignee"
@@ -75,6 +73,7 @@ const TransferChatModal: React.FC<TransferChatModalProps> = ({
                 setValue={setValue as any}
                 asCol={false}
                 menuPortal
+                isClearable={false}
               />
             </Col>
           </Row>

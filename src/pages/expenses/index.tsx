@@ -81,6 +81,70 @@ const emptyForm: ExpenseFormState = {
   paymentModeId: "cash",
 };
 
+const resolveExpenseCategoryFields = (
+  expense: ExpenseModel,
+  categories: ExpenseCategoryModel[]
+): Pick<ExpenseFormState, "categoryId" | "subCategoryId" | "categoryName" | "subCategoryName"> => {
+  const raw = expense as Record<string, unknown>;
+  let categoryId = String(raw.category_id ?? raw.categoryId ?? "").trim();
+  let categoryName = String(raw.category_name ?? raw.categoryName ?? "").trim();
+  let subCategoryId = String(raw.subcategory_id ?? raw.subCategoryId ?? "").trim();
+  let subCategoryName = String(raw.sub_category_name ?? raw.subCategoryName ?? "").trim();
+
+  const matchedCategory =
+    categories.find((c) => {
+      const cid = String(c.categoryId ?? c.id ?? "").trim();
+      const rowId = String(c.id ?? "").trim();
+      return (
+        (categoryId && (cid === categoryId || rowId === categoryId)) ||
+        (categoryName && c.categoryName === categoryName)
+      );
+    }) ?? null;
+
+  if (matchedCategory) {
+    categoryId = categoryId || String(matchedCategory.categoryId ?? matchedCategory.id ?? "").trim();
+    categoryName = categoryName || matchedCategory.categoryName;
+    const matchedSub = matchedCategory.subcategories?.find(
+      (s) =>
+        (subCategoryId && s.subcategoryId === subCategoryId) ||
+        (subCategoryName && s.subCategoryName === subCategoryName)
+    );
+    if (matchedSub) {
+      subCategoryId = subCategoryId || String(matchedSub.subcategoryId ?? "").trim();
+      subCategoryName = subCategoryName || matchedSub.subCategoryName;
+    }
+  }
+
+  return { categoryId, subCategoryId, categoryName, subCategoryName };
+};
+
+const buildExpenseFormState = (
+  expense: ExpenseModel,
+  categories: ExpenseCategoryModel[] = []
+): ExpenseFormState => {
+  const raw = expense as Record<string, unknown>;
+  const categoryFields = resolveExpenseCategoryFields(expense, categories);
+  const expenseAmountRaw = raw.expense_amount ?? raw.expenseAmount;
+
+  return {
+    franchiseId: String(raw.franchise_id ?? raw.franchiseId ?? "").trim(),
+    ...categoryFields,
+    expenseName: String(raw.expense_name ?? raw.expenseName ?? "").trim(),
+    description: String(raw.description ?? raw.expense_description ?? "").trim(),
+    expenseAmount:
+      expenseAmountRaw !== undefined && expenseAmountRaw !== null
+        ? String(expenseAmountRaw)
+        : "",
+    expenseDate: toDateInputValue(String(raw.expense_date ?? raw.expenseDate ?? "")),
+    paymentModeId:
+      normalizePaymentMethod(String(raw.payment_mode ?? raw.paymentMode ?? "")) ||
+      paymentMethodFromExpenseModeId(
+        (raw.payment_mode_id ?? raw.paymentModeId) as string | number | null | undefined
+      ) ||
+      "cash",
+  };
+};
+
 const ExpensesPage = () => {
   const { register, setValue } = useForm<any>();
   const currentUserRole = getLocalStorage(AppConstant.userRole);
@@ -124,6 +188,31 @@ const ExpensesPage = () => {
   const [formErrors, setFormErrors] = useState<ExpenseFormErrors>({});
   const [addFormKey, setAddFormKey] = useState(0);
   const fetchRef = useRef(false);
+  const syncExpenseFormControls = useCallback(
+    (next: ExpenseFormState) => {
+      setValue("expense_modal_franchise", next.franchiseId, { shouldValidate: false });
+      setValue("expense_modal_category", next.categoryId, { shouldValidate: false });
+      setValue("expense_modal_sub_category", next.subCategoryId, { shouldValidate: false });
+      setValue("expense_modal_expense_name", next.expenseName, { shouldValidate: false });
+      setValue("expense_modal_description", next.description, { shouldValidate: false });
+      setValue("expense_modal_expense_amount", next.expenseAmount, { shouldValidate: false });
+      setValue("expense_modal_expense_date", next.expenseDate, { shouldValidate: false });
+      setValue("expense_modal_payment_mode", next.paymentModeId, { shouldValidate: false });
+    },
+    [setValue]
+  );
+
+  const applyExpenseToEditForm = useCallback(
+    (expense: ExpenseModel, categories: ExpenseCategoryModel[] = expenseCategories) => {
+      const nextForm = buildExpenseFormState(expense, categories);
+      setForm(nextForm);
+      syncExpenseFormControls(nextForm);
+      return nextForm;
+    },
+    [expenseCategories, syncExpenseFormControls]
+  );
+
+  const isExpenseEditMode = Boolean(editingExpense) && !isViewMode && showForm;
 
   const resetAddExpenseFormFields = useCallback(() => {
     setForm({
@@ -187,6 +276,75 @@ const ExpensesPage = () => {
       cancelled = true;
     };
   }, [effectiveFormFranchiseId]);
+
+  useEffect(() => {
+    if (!isExpenseEditMode || !editingExpense || expenseCategories.length === 0) return;
+    setForm((prev) => {
+      const resolved = resolveExpenseCategoryFields(editingExpense, expenseCategories);
+      const unchanged =
+        prev.categoryId === resolved.categoryId &&
+        prev.subCategoryId === resolved.subCategoryId &&
+        prev.categoryName === resolved.categoryName &&
+        prev.subCategoryName === resolved.subCategoryName;
+      if (unchanged) return prev;
+      const next = { ...prev, ...resolved };
+      syncExpenseFormControls(next);
+      return next;
+    });
+  }, [isExpenseEditMode, editingExpense, expenseCategories, syncExpenseFormControls]);
+
+  const modalCategoryOptions = useMemo(() => {
+    const fromCategories = Array.from(
+      new Map(
+        expenseCategories.map((c) => [
+          c.categoryId || c.id,
+          { value: c.categoryId || c.id, label: c.categoryName },
+        ])
+      ).values()
+    );
+    const options: { value: string; label: string }[] = [
+      { value: "", label: "Select Category" },
+      ...fromCategories,
+    ];
+    if (editingExpense && form.categoryId && form.categoryName) {
+      if (!options.some((o) => o.value === form.categoryId)) {
+        options.push({ value: form.categoryId, label: form.categoryName });
+      }
+    }
+    return options;
+  }, [editingExpense, expenseCategories, form.categoryId, form.categoryName]);
+
+  const modalSubCategoryOptions = useMemo(() => {
+    const selectedCategory = expenseCategories.find(
+      (item) => (item.categoryId || item.id) === form.categoryId
+    );
+    const fromSubcategories = (selectedCategory?.subcategories ?? [])
+      .map((item) => ({
+        value: item.subcategoryId || "",
+        label: item.subCategoryName,
+      }))
+      .filter((item) => Boolean(item.value));
+
+    const options: { value: string; label: string }[] = [
+      {
+        value: "",
+        label: form.categoryId ? "Select Sub Category" : "Select Category first",
+      },
+      ...fromSubcategories,
+    ];
+    if (editingExpense && form.subCategoryId && form.subCategoryName) {
+      if (!options.some((o) => o.value === form.subCategoryId)) {
+        options.push({ value: form.subCategoryId, label: form.subCategoryName });
+      }
+    }
+    return options;
+  }, [
+    editingExpense,
+    expenseCategories,
+    form.categoryId,
+    form.subCategoryId,
+    form.subCategoryName,
+  ]);
 
   useEffect(() => {
     if (!isFranchiseScopedUser) {
@@ -289,33 +447,10 @@ const ExpensesPage = () => {
     fetchData();
   }, [fetchData, filterEpoch]);
 
-  const prefillFormFromExpense = useCallback((expense: ExpenseModel): ExpenseFormState => {
-    const categoryName = expense.category_name ?? expense.categoryName ?? "";
-    const subCategoryName = expense.sub_category_name ?? expense.subCategoryName ?? "";
-
-    return {
-      franchiseId: String((expense as any).franchise_id ?? (expense as any).franchiseId ?? ""),
-      categoryId: String((expense as any).category_id ?? (expense as any).categoryId ?? ""),
-      subCategoryId: String((expense as any).subcategory_id ?? (expense as any).subCategoryId ?? ""),
-      categoryName,
-      subCategoryName,
-      expenseName: expense.expense_name ?? expense.expenseName ?? "",
-      description: expense.description ?? (expense as any).expense_description ?? "",
-      expenseAmount:
-        expense.expense_amount !== undefined && expense.expense_amount !== null
-          ? String(expense.expense_amount)
-          : expense.expenseAmount !== undefined && expense.expenseAmount !== null
-            ? String(expense.expenseAmount)
-            : "",
-      expenseDate: toDateInputValue(expense.expense_date ?? expense.expenseDate),
-      paymentModeId:
-        normalizePaymentMethod(expense.payment_mode ?? expense.paymentMode) ||
-        paymentMethodFromExpenseModeId(
-          expense.payment_mode_id ?? expense.paymentModeId
-        ) ||
-        "cash",
-    };
-  }, []);
+  const prefillFormFromExpense = useCallback(
+    (expense: ExpenseModel): ExpenseFormState => buildExpenseFormState(expense, expenseCategories),
+    [expenseCategories]
+  );
 
   const handleOpenEdit = useCallback(
     async (expense?: ExpenseModel | null) => {
@@ -337,21 +472,21 @@ const ExpensesPage = () => {
         });
         if (latest.response && latest.expense) {
           setEditingExpense(latest.expense);
-          setForm(prefillFormFromExpense(latest.expense));
+          applyExpenseToEditForm(latest.expense);
           setFormErrors({});
         } else {
           setEditingExpense(expense);
-          setForm(prefillFormFromExpense(expense));
+          applyExpenseToEditForm(expense);
           setFormErrors({});
         }
       } else {
         setEditingExpense(expense);
-        setForm(prefillFormFromExpense(expense));
+        applyExpenseToEditForm(expense);
         setFormErrors({});
       }
       setShowForm(true);
     },
-    [franchiseIdForExpenseApi, prefillFormFromExpense, resetAddExpenseFormFields]
+    [applyExpenseToEditForm, franchiseIdForExpenseApi, resetAddExpenseFormFields]
   );
 
   const handleOpenView = useCallback(
@@ -706,7 +841,12 @@ const ExpensesPage = () => {
                 <i
                   className="bi bi-pencil-fill fs-6 text-danger"
                   style={{ cursor: "pointer" }}
-                  onClick={() => setIsViewMode(false)}
+                  onClick={() => {
+                    if (editingExpense) {
+                      applyExpenseToEditForm(editingExpense);
+                    }
+                    setIsViewMode(false);
+                  }}
                 ></i>
               </div>
 
@@ -795,6 +935,7 @@ const ExpensesPage = () => {
                         : undefined
                     }
                     setValue={setValue}
+                    isDisabled={Boolean(editingExpense)}
                     onChange={(e) => {
                       setForm((p) => ({
                         ...p,
@@ -823,23 +964,13 @@ const ExpensesPage = () => {
                 <CustomFormSelect
                   key={
                     editingExpense
-                      ? `expense-category-${editingExpense._id ?? editingExpense.id}`
+                      ? `expense-category-${editingExpense._id ?? editingExpense.id}-${form.categoryId}-${expenseCategories.length}`
                       : `expense-category-add-${addFormKey}`
                   }
                   label="Category"
                   controlId="expense_modal_category"
                   showRequiredMark
-                  options={[
-                    { value: "", label: "Select Category" },
-                    ...Array.from(
-                      new Map(
-                        expenseCategories.map((c) => [
-                          c.categoryId || c.id,
-                          { value: c.categoryId || c.id, label: c.categoryName },
-                        ])
-                      ).values()
-                    ),
-                  ]}
+                  options={modalCategoryOptions}
                   register={register}
                   fieldName="expense_modal_category"
                   asCol={false}
@@ -850,6 +981,7 @@ const ExpensesPage = () => {
                       : undefined
                   }
                   setValue={setValue}
+                  isDisabled={Boolean(editingExpense)}
                   onChange={(e) => {
                     const newCategoryId = e.target.value;
                     const pickedCategory = expenseCategories.find(
@@ -874,35 +1006,20 @@ const ExpensesPage = () => {
               <div className="col-md-6">
                 <div
                   style={{
-                    pointerEvents: form.categoryName ? "auto" : "none",
-                    opacity: form.categoryName ? 1 : 0.65,
+                    pointerEvents: editingExpense || form.categoryName ? "auto" : "none",
+                    opacity: editingExpense || form.categoryName ? 1 : 0.65,
                   }}
                 >
                   <CustomFormSelect
                     key={
                       editingExpense
-                        ? `expense-sub-category-${editingExpense._id ?? editingExpense.id}-${form.categoryId}`
+                        ? `expense-sub-category-${editingExpense._id ?? editingExpense.id}-${form.categoryId}-${form.subCategoryId}-${expenseCategories.length}`
                         : `expense-sub-category-add-${addFormKey}-${form.categoryId}`
                     }
                     label="Sub Category"
                     controlId="expense_modal_sub_category"
                     showRequiredMark
-                    options={[
-                      {
-                        value: "",
-                        label: form.categoryId ? "Select Sub Category" : "Select Category first",
-                      },
-                      ...(
-                        expenseCategories.find(
-                          (item) => (item.categoryId || item.id) === form.categoryId
-                        )?.subcategories ?? []
-                      )
-                        .map((item) => ({
-                          value: item.subcategoryId || "",
-                          label: item.subCategoryName,
-                        }))
-                        .filter((item) => Boolean(item.value)),
-                    ]}
+                    options={modalSubCategoryOptions}
                     register={register}
                     fieldName="expense_modal_sub_category"
                     asCol={false}
@@ -913,6 +1030,7 @@ const ExpensesPage = () => {
                         : undefined
                     }
                     setValue={setValue}
+                    isDisabled={Boolean(editingExpense)}
                     onChange={(e) => {
                       const newSubCategoryId = e.target.value;
                       const selectedCategory = expenseCategories.find(

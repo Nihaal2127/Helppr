@@ -131,6 +131,26 @@ const emptyStaffForm = {
   confirmPassword: "",
 };
 
+const emptyStaffRhf = {
+  staff_name: "",
+  staff_date_of_birth: "",
+  staff_email: "",
+  staff_phone: "",
+  staff_password: "",
+  staff_confirm_password: "",
+};
+
+function staffRhfFromForm(form: typeof emptyStaffForm) {
+  return {
+    staff_name: form.name,
+    staff_date_of_birth: form.date_of_birth,
+    staff_email: form.email,
+    staff_phone: form.phone_number,
+    staff_password: form.password,
+    staff_confirm_password: form.confirmPassword,
+  };
+}
+
 /** Profile image for franchise/staff role view: backend path or absolute URL; mock `uploads/…` uses placeholder. */
 function franchiseRoleProfileImageSrc(profileUrl?: string): string {
   const u = (profileUrl ?? "").trim();
@@ -261,6 +281,7 @@ const RoleManagement = () => {
     useState<FranchiseDropDownOption[]>([]);
   const [roleImageFile, setRoleImageFile] = useState<File | null>(null);
   const [staffImageFile, setStaffImageFile] = useState<File | null>(null);
+  const [staffAddFormKey, setStaffAddFormKey] = useState(0);
   const [franchiseAdminSummaryCounts, setFranchiseAdminSummaryCounts] =
     useState<SummaryCounts>(EMPTY_SUMMARY_COUNTS);
   const [employeeSummaryCounts, setEmployeeSummaryCounts] =
@@ -339,12 +360,14 @@ const RoleManagement = () => {
         setStaffForm({ ...emptyStaffForm });
         setStaffImageFile(null);
         setStaffIsViewMode(false);
+        reset(emptyStaffRhf);
+        setStaffAddFormKey((k) => k + 1);
         setShowStaffModal(true);
         return;
       }
       setStaffEditing(item);
       setStaffIsViewMode(viewMode);
-      setStaffForm({
+      const nextStaffForm = {
         name: item.name,
         email: item.email ?? "",
         phone_number: nationalDigitsWithoutIndia91(
@@ -363,11 +386,13 @@ const RoleManagement = () => {
           : [],
         password: "",
         confirmPassword: "",
-      });
+      };
+      setStaffForm(nextStaffForm);
+      reset(staffRhfFromForm(nextStaffForm));
       setShowStaffModal(true);
       setStaffImageFile(null);
     },
-    []
+    [reset],
   );
 
   useEffect(() => {
@@ -406,7 +431,7 @@ const RoleManagement = () => {
 
   useEffect(() => {
     if (!showStaffModal || !staffEditing) return;
-    setStaffForm({
+    const nextStaffForm = {
       name: staffEditing.name,
       email: staffEditing.email ?? "",
       phone_number: nationalDigitsWithoutIndia91(
@@ -425,10 +450,12 @@ const RoleManagement = () => {
         : [],
       password: "",
       confirmPassword: "",
-    });
+    };
+    setStaffForm(nextStaffForm);
+    reset(staffRhfFromForm(nextStaffForm));
     setStaffImageFile(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- same pattern as role modal above
-  }, [showStaffModal, staffEditing?.id]);
+  }, [showStaffModal, staffEditing?.id, reset]);
 
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -1121,13 +1148,7 @@ const RoleManagement = () => {
             }}
             isAddShow={true}
             addButtonLable="Add"
-            onAddClick={() => {
-              setStaffEditing(null);
-              setStaffIsViewMode(false);
-              setStaffForm({ ...emptyStaffForm });
-              setStaffImageFile(null);
-              setShowStaffModal(true);
-            }}
+            onAddClick={() => openStaffWithData()}
           />
         )}
       </div>
@@ -1823,7 +1844,7 @@ const RoleManagement = () => {
         >
           {staffIsViewMode && staffEditing ? (
             <section
-              className="custom-other-details staff-settings-view-card"
+              className="custom-other-details staff-settings-view-card modal-readonly-details"
               style={{ padding: "14px" }}
             >
               <div className="d-flex justify-content-end mb-2">
@@ -1863,16 +1884,16 @@ const RoleManagement = () => {
                 style={{ borderColor: "var(--lb1-border)" }}
               >
                 <div className="col-md-12 custom-helper-column">
-                  <FullDetailsRow title="Email" value={staffEditing.email} />
-                  <FullDetailsRow
+                  <DetailsRow title="Email" value={staffEditing.email || "-"} />
+                  <DetailsRow
                     title="Phone"
-                    value={staffEditing.phone_number}
+                    value={staffEditing.phone_number || "-"}
                   />
-                  <FullDetailsRow
+                  <DetailsRow
                     title="Gender"
                     value={formatGenderLabel(staffEditing.gender)}
                   />
-                  <FullDetailsRow
+                  <DetailsRow
                     title="Date of Birth"
                     value={
                       staffEditing.date_of_birth
@@ -1908,7 +1929,10 @@ const RoleManagement = () => {
               </div>
             </section>
           ) : (
-            <div className="row g-2">
+            <div
+              className="row g-2"
+              key={staffEditing ? undefined : `add-${staffAddFormKey}`}
+            >
               <div className="col-md-12">
                 <CustomFormInput
                   label="Name"

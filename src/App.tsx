@@ -53,6 +53,7 @@ import {
 } from "./context/SidebarContext";
 
 import MobileAppTopBar from "./components/MobileAppTopBar";
+import { ChatProvider } from "./lib/chat/ChatProvider";
 
 
 
@@ -159,11 +160,14 @@ function AppLayoutShell({
         {showSidebarChrome && <AppLayoutChrome />}
 
         <Suspense fallback={null}>
-
-          <AppRoutes isAuthenticated={isAuthenticated} />
-
+          {isAuthenticated ? (
+            <ChatProvider>
+              <AppRoutes isAuthenticated={isAuthenticated} />
+            </ChatProvider>
+          ) : (
+            <AppRoutes isAuthenticated={isAuthenticated} />
+          )}
           {children}
-
         </Suspense>
 
       </main>

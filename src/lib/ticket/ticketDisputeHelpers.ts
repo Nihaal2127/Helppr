@@ -1,12 +1,53 @@
+import { DisputeRecordModel } from "../models/ChatModel";
 import { TicketModel } from "../models/TicketModel";
 
 export type DisputeStatusUi = "open" | "pending" | "closed";
 
-/** Composite label for dispute list / edit (maps existing status + resolve_status). */
+export type DisputeApiStatus = "open" | "in_review" | "resolved" | "closed" | string;
+
+/** Legacy ticket composite status (support tickets). */
 export function ticketToDisputeStatusUi(t: TicketModel | null): DisputeStatusUi {
   if (!t || Number(t.status) !== 1) return "closed";
   if (Number(t.resolve_status) === 1) return "pending";
   return "open";
+}
+
+export function disputeApiStatusLabel(status?: DisputeApiStatus): string {
+  const s = String(status ?? "").toLowerCase();
+  switch (s) {
+    case "open":
+      return "Open";
+    case "in_review":
+      return "In Review";
+    case "resolved":
+      return "Resolved";
+    case "closed":
+      return "Closed";
+    default:
+      return status ? String(status) : "-";
+  }
+}
+
+export function disputeApiStatusToUi(status?: DisputeApiStatus): DisputeStatusUi {
+  const s = String(status ?? "").toLowerCase();
+  if (s === "open") return "open";
+  if (s === "in_review") return "pending";
+  return "closed";
+}
+
+export function disputeStatusUiToApiStatus(ui: DisputeStatusUi): DisputeApiStatus {
+  if (ui === "open") return "open";
+  if (ui === "pending") return "in_review";
+  return "closed";
+}
+
+export function disputeRecordToStatusUi(d: DisputeRecordModel | null): DisputeStatusUi {
+  return disputeApiStatusToUi(d?.status);
+}
+
+export function isDisputeChatClosed(status?: DisputeApiStatus): boolean {
+  const s = String(status ?? "").toLowerCase();
+  return s === "closed" || s === "resolved";
 }
 
 export function disputeStatusUiLabel(ui: DisputeStatusUi): string {
@@ -22,7 +63,7 @@ export function disputeStatusUiLabel(ui: DisputeStatusUi): string {
   }
 }
 
-/** Persist API fields used elsewhere (status 1=open ticket, 2=closed; resolve_status 1=pending workflow). */
+/** Legacy ticket API fields. */
 export function disputeStatusUiToApi(
   ui: DisputeStatusUi,
   ticket: TicketModel | null

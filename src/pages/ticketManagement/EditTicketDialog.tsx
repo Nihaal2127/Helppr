@@ -11,9 +11,13 @@ import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { openDialog } from "../../lib/global/DialogManager";
 import {
+  disputeRecordToStatusUi,
   disputeStatusUiToApi,
+  disputeStatusUiToApiStatus,
   ticketToDisputeStatusUi,
 } from "../../lib/ticket/ticketDisputeHelpers";
+import { DisputeRecordModel } from "../../lib/models/ChatModel";
+import { updateDisputeStatus } from "../../services/disputeService";
 
 type EditTicketDialogProps = {
   isEditable: boolean;
@@ -213,6 +217,83 @@ function EditTicketDialogModal({
   );
 }
 
+function EditDisputeStatusDialogModal({
+  dispute,
+  onClose,
+  onRefreshData,
+}: {
+  dispute: DisputeRecordModel;
+  onClose: () => void;
+  onRefreshData: () => void;
+}) {
+  const { register, handleSubmit } = useForm<{ disputeStatus: string }>({
+    defaultValues: {
+      disputeStatus: disputeRecordToStatusUi(dispute),
+    },
+  });
+
+  const onSubmit = async (data: { disputeStatus: string }) => {
+    const apiStatus = disputeStatusUiToApiStatus(
+      data.disputeStatus as "open" | "pending" | "closed"
+    );
+    const ok = await updateDisputeStatus(dispute._id, apiStatus);
+    if (ok) {
+      onClose();
+      onRefreshData();
+    }
+  };
+
+  return (
+    <Modal show centered onHide={onClose} dialogClassName="custom-big-modal">
+      <Modal.Header className="py-3 px-4 border-bottom-0">
+        <Modal.Title as="h5" className="custom-modal-title">
+          Update Dispute Status
+        </Modal.Title>
+        <CustomCloseButton onClose={onClose} />
+      </Modal.Header>
+      <Modal.Body className="px-4 pb-4 pt-0">
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Row className="align-items-center">
+            <Col sm={4} className="mt-2">
+              <label className="custom-profile-lable">Status</label>
+            </Col>
+            <Col>
+              <Form.Select {...register("disputeStatus")} className="mt-2">
+                <option value="open">Open</option>
+                <option value="pending">In Review</option>
+                <option value="closed">Closed</option>
+              </Form.Select>
+            </Col>
+          </Row>
+          <Row className="mt-4">
+            <Col xs={12} className="text-end d-flex justify-content-end gap-3">
+              <Button type="submit" className="custom-btn-primary">
+                Update
+              </Button>
+              <Button type="button" className="custom-btn-secondary" onClick={onClose}>
+                Cancel
+              </Button>
+            </Col>
+          </Row>
+        </form>
+      </Modal.Body>
+    </Modal>
+  );
+}
+
+function showEditDisputeDialog(
+  dispute: DisputeRecordModel,
+  onRefreshData: () => void
+) {
+  openDialog("edit-dispute-modal", (close) => (
+    <EditDisputeStatusDialogModal
+      dispute={dispute}
+      onClose={close}
+      onRefreshData={onRefreshData}
+    />
+  ));
+}
+
 function showEditTicketDialog(
   isEditable: boolean,
   ticket: TicketModel | null,
@@ -232,10 +313,12 @@ function showEditTicketDialog(
 
 type EditTicketDialogWithShow = typeof EditTicketDialogModal & {
   show: typeof showEditTicketDialog;
+  showDispute: typeof showEditDisputeDialog;
 };
 
 const EditTicketDialog = Object.assign(EditTicketDialogModal, {
   show: showEditTicketDialog,
+  showDispute: showEditDisputeDialog,
 }) as EditTicketDialogWithShow;
 
 export default EditTicketDialog;
