@@ -30,15 +30,6 @@ function isStaffDeniedPath(pathname: string): boolean {
   return false;
 }
 
-function isEmployeeDeniedPath(pathname: string): boolean {
-  if (isStaffDeniedPath(pathname)) return true;
-  if (matchesPrefix(pathname, "/my-franchise")) return true;
-  if (matchesPrefix(pathname, "/expenses")) return true;
-  if (pathname === "/financial" || pathname.startsWith("/financial-"))
-    return true;
-  return false;
-}
-
 function isAdminDeniedPath(pathname: string): boolean {
   return matchesPrefix(pathname, "/my-franchise");
 }
@@ -57,7 +48,8 @@ export function isAuthenticatedPathAllowed(
   if (p === "/profile" || p.startsWith("/profile/")) return true;
 
   const r = (role && String(role).trim()) || UserRole.EMPLOYEE;
-  const allowKey = allowedMenuKeys && allowedMenuKeys.size > 0 ? keyForPath(p) : null;
+  const menuKey = keyForPath(p);
+  const hasAllowList = Boolean(allowedMenuKeys && allowedMenuKeys.size > 0);
 
   if (r === UserRole.ADMIN) {
     return !isAdminDeniedPath(p);
@@ -67,23 +59,21 @@ export function isAuthenticatedPathAllowed(
   }
   if (r === UserRole.STAFF) {
     // Staff: backend can explicitly allow screens via `accessible_screens`.
-    // If allow-list includes this path's menu key, do not apply static deny prefixes.
-    if (isStaffDeniedPath(p) && !(allowKey && allowedMenuKeys?.has(allowKey))) return false;
+    if (
+      isStaffDeniedPath(p) &&
+      !(hasAllowList && menuKey && allowedMenuKeys!.has(menuKey))
+    ) {
+      return false;
+    }
   }
   if (r === UserRole.EMPLOYEE) {
-    if (isEmployeeDeniedPath(p)) return false;
-  } else if (
-    r !== UserRole.ADMIN &&
-    r !== UserRole.FRANCHISE_ADMIN &&
-    r !== UserRole.STAFF
-  ) {
-    if (isEmployeeDeniedPath(p)) return false;
+    // Franchise employee: only backend `accessible_screens` / `available_pages`.
+    if (!hasAllowList) return false;
+    if (menuKey && !allowedMenuKeys!.has(menuKey)) return false;
+    return true;
   }
 
-  if (allowedMenuKeys && allowedMenuKeys.size > 0) {
-    const key = allowKey ?? keyForPath(p);
-    if (key && !allowedMenuKeys.has(key)) return false;
-  }
+  if (hasAllowList && menuKey && !allowedMenuKeys!.has(menuKey)) return false;
   return true;
 }
 

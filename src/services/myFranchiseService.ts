@@ -3,7 +3,6 @@ import { fetchCategory } from "./categoryService";
 import { fetchService } from "./servicesService";
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
-import { isFranchiseEmployeeExcludedScreenKey } from "../lib/layout/franchiseEmployeeScreenPermissions";
 import { showErrorAlert } from "../lib/global/alertHelper";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import { AppConstant, UserRole } from "../lib/global/AppConstant";
@@ -1888,13 +1887,8 @@ export async function setEmployeeChatEnabled(
   employee: EmployeeRow,
   chat_enabled: boolean
 ): Promise<boolean> {
-  const keysFromRow =
-    employee.screenPermissionKeys?.filter(
-      (k) => !isFranchiseEmployeeExcludedScreenKey(k)
-    ) ?? [];
-  const keysFromScreens = menuKeysFromAvailablePages(
-    employee.accessible_screens
-  ).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
+  const keysFromRow = employee.screenPermissionKeys ?? [];
+  const keysFromScreens = menuKeysFromAvailablePages(employee.accessible_screens);
   const screenPermissionKeys =
     keysFromRow.length > 0 ? keysFromRow : keysFromScreens;
   if (!screenPermissionKeys.length) {
@@ -2191,9 +2185,7 @@ type FranchiseEmployeeInput = {
 export async function createFranchiseEmployee(
   input: FranchiseEmployeeInput
 ): Promise<boolean> {
-  const keys = (input.screenPermissionKeys ?? []).filter(
-    (k) => !isFranchiseEmployeeExcludedScreenKey(k)
-  );
+  const keys = input.screenPermissionKeys ?? [];
   const accessible_screens = mapMenuKeysToAvailablePages(keys);
 
   const createdById = (getLocalStorage(AppConstant.createdById) ?? "").trim();
@@ -2246,9 +2238,7 @@ export async function updateFranchiseEmployee(
     return false;
   }
 
-  const keys = (input.screenPermissionKeys ?? []).filter(
-    (k) => !isFranchiseEmployeeExcludedScreenKey(k)
-  );
+  const keys = input.screenPermissionKeys ?? [];
   const availablePages = mapMenuKeysToAvailablePages(keys);
 
   const franchiseId = (await resolveSessionFranchiseId())?.trim();

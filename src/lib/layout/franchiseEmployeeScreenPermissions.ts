@@ -1,28 +1,16 @@
 import { mainMenuItems } from "../global/layout/menuItems";
 
-/**
- * Excluded in Settings → Franchise Employee and My Franchise → Add employee, aligned with
- * `roleAccess` / sidebar (not offered as assignable pages).
- */
-export const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = [
-  "content-management",
-  "location-management",
-  "franchise-management",
-  "service-management",
-  "settings",
-] as const;
+/** @deprecated No frontend exclusions — all screens may be assigned per backend policy. */
+export const FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS = [] as const;
 
-export function isFranchiseEmployeeExcludedScreenKey(key: string): boolean {
-  return (
-    FRANCHISE_EMPLOYEE_EXCLUDED_SCREEN_KEYS as readonly string[]
-  ).includes(key);
+/** @deprecated Always false — permissions come from backend only. */
+export function isFranchiseEmployeeExcludedScreenKey(_key: string): boolean {
+  return false;
 }
 
-/** Main-nav entries assignable to a franchise employee (label + path from `mainMenuItems`). */
+/** Main-nav entries assignable to a franchise employee (all sidebar modules). */
 export function getFranchiseEmployeeScreenMenuItems() {
-  return mainMenuItems.filter(
-    ({ key }) => !isFranchiseEmployeeExcludedScreenKey(key)
-  );
+  return mainMenuItems;
 }
 
 export function labelForFranchiseEmployeeScreenKey(key: string): string {

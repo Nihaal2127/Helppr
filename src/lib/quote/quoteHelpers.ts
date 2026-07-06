@@ -1568,7 +1568,7 @@ export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
       const fromYmd = row.from_date ? ymdChunk(row.from_date) : "";
       const toYmd = row.to_date ? ymdChunk(row.to_date) : "";
       requested_date = fromYmd;
-      requested_date_to = toYmd && toYmd !== fromYmd ? toYmd : "";
+      requested_date_to = toYmd || "";
       requested_time_from = workTimeToTimeStorage(row.work_start_time);
       requested_time_to = workTimeToTimeStorage(row.work_end_time);
     }
@@ -1580,8 +1580,7 @@ export function seedEditQuoteFormFromRow(row: QuoteRow): EditQuoteFormValues {
 
     if (fromYmd) {
       requested_date = fromYmd;
-      requested_date_to =
-        toYmd && toYmd !== fromYmd ? toYmd : "";
+      requested_date_to = toYmd || "";
     } else {
       const dateRaw = String(row.requested_date ?? "").trim();
       const dateParts = dateRaw

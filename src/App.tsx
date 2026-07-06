@@ -8,7 +8,7 @@ import AppRoutes from "./routes/AppRoutes";
 
 import { getLocalStorage } from "./lib/global/localStorageHelper";
 
-import { AppConstant } from "./lib/global/AppConstant";
+import { AppConstant, UserRole } from "./lib/global/AppConstant";
 
 import { useViewport } from "./lib/global/useViewPort";
 
@@ -310,7 +310,10 @@ function App() {
 
     void (async () => {
 
-      const changed = await refreshSessionAccessibleMenuKeys();
+      const role = String(getLocalStorage(AppConstant.userRole) ?? "").trim();
+      const changed = await refreshSessionAccessibleMenuKeys({
+        force: role === UserRole.EMPLOYEE,
+      });
 
       if (!cancelled && changed) {
 

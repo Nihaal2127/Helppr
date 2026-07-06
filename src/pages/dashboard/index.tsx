@@ -357,7 +357,8 @@ const Dashboard = () => {
                   />
                 </div>
 
-                {dateRangeType !== "CUSTOM_RANGE" && (
+                {dateRangeType !== "CUSTOM_RANGE" &&
+                  dateRangeType !== "THIS_WEEK" && (
                   <div className="dashboard-date-range-picker">
                     <CustomDatePicker
                       label=""

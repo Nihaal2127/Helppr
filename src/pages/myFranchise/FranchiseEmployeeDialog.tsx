@@ -15,7 +15,6 @@ import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
   getFranchiseEmployeeScreenMenuItems,
-  isFranchiseEmployeeExcludedScreenKey,
 } from "../../lib/layout/franchiseEmployeeScreenPermissions";
 import {
   screenPermissionKeysFromItems,
@@ -203,7 +202,7 @@ const FranchiseEmployeeDialog: React.FC<FranchiseEmployeeDialogProps> & {
     const keys = screenPermissionsForPayload(
       screenPermissionKeys,
       franchiseScreenPermissionKeys
-    ).filter((k) => !isFranchiseEmployeeExcludedScreenKey(k));
+    );
     const national = sanitizeIndiaNationalPhoneInput(
       String(data.phone ?? "").trim()
     );

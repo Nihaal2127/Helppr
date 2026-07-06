@@ -47,7 +47,6 @@ import { showErrorAlert } from "../../../lib/global/alertHelper";
 import { mainMenuItems } from "../../../lib/layout/menuItems";
 import {
   getFranchiseEmployeeScreenMenuItems,
-  isFranchiseEmployeeExcludedScreenKey,
   labelForFranchiseEmployeeScreenKey,
 } from "../../../lib/layout/franchiseEmployeeScreenPermissions";
 import {
@@ -331,10 +330,7 @@ const RoleManagement = () => {
         assignedFranchise:
           (item.assignedFranchise ?? "").trim() || nameFromId || "",
         status: item.status,
-        screenPermissions:
-          item.roleType === "employee"
-            ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
-            : rawPerms,
+        screenPermissions: rawPerms,
         password: "",
         confirmPassword: "",
       };
@@ -418,10 +414,7 @@ const RoleManagement = () => {
             ) ?? ""
           : ""),
       status: editing.status,
-      screenPermissions:
-        editing.roleType === "employee"
-          ? rawPerms.filter((k) => !isFranchiseEmployeeExcludedScreenKey(k))
-          : rawPerms,
+      screenPermissions: rawPerms,
       password: "",
       confirmPassword: "",
     });
@@ -1773,8 +1766,6 @@ const RoleManagement = () => {
                       ? screenPermissionsForPayload(
                           form.screenPermissions,
                           employeeScreenPermissionKeys
-                        ).filter(
-                          (k) => !isFranchiseEmployeeExcludedScreenKey(k)
                         )
                       : form.screenPermissions,
                 };

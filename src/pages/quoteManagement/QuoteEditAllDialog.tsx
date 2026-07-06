@@ -242,6 +242,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const catalogSeqRef = useRef(0);
   const initialStatusKeyRef = useRef("");
   const skipAutoPriceRef = useRef(true);
+  const skipScheduleRevalidateRef = useRef(true);
   const [apiServiceFees, setApiServiceFees] = useState<
     ServiceDropDownOption | undefined
   >(undefined);
@@ -392,9 +393,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   useEffect(() => {
     if (!quoteRow || catalogBusy || !franchisePinsLoadDone) return;
     skipAutoPriceRef.current = true;
+    skipScheduleRevalidateRef.current = true;
     reset(seedEditQuoteFormFromRow(quoteRow));
     const t = window.setTimeout(() => {
       skipAutoPriceRef.current = false;
+      skipScheduleRevalidateRef.current = false;
     }, 0);
     return () => window.clearTimeout(t);
   }, [quoteRow, catalogBusy, franchisePinsLoadDone, reset]);
@@ -616,11 +619,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     return merged ?? apiServiceFees;
   }, [selectedServiceOption, selectedPartnerCatalogRecord, serviceId, apiServiceFees]);
 
-  const editEndMinTime = useMemo(
-    () =>
-      scheduleEndTimeMinAfterStart(String(form.requested_time_from ?? "")),
-    [form.requested_time_from]
-  );
+  const editEndMinTime = useMemo(() => {
+    const from = String(form.requested_time_from ?? "").trim();
+    const to = String(form.requested_time_to ?? "").trim();
+    if (from && to && !isScheduleEndAfterStartSameDay(from, to)) {
+      return undefined;
+    }
+    return scheduleEndTimeMinAfterStart(from);
+  }, [form.requested_time_from, form.requested_time_to]);
 
   const editPriceBreakdown = useMemo(
     () => computeQuotePriceBreakdown(form.service_price, feeOptionForPreview),
@@ -666,6 +672,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   ]);
 
   useEffect(() => {
+    if (skipScheduleRevalidateRef.current) return;
     const from = String(form.requested_time_from ?? "").trim();
     const to = String(form.requested_time_to ?? "").trim();
     if (!from || !to) return;
