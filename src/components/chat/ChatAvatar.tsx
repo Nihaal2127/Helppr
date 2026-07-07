@@ -1,7 +1,7 @@
 import React from "react";
 import { initialsFromName } from "../../lib/chat/chatDisplayHelpers";
 
-const CHAT_AVATAR_IMAGE_BASE_URL = "https://d20g1bd5nfpo8h.cloudfront.net/";
+const CHAT_AVATAR_IMAGE_BASE_URL = "https://d2snwgkdggvp65.cloudfront.net/";
 
 function resolveChatAvatarImageSrc(imageUrl?: string | null): string | null {
   const raw = String(imageUrl ?? "").trim();

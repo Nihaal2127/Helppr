@@ -158,7 +158,7 @@ export function initialsFromName(name?: string): string {
 }
 
 /** CDN for chat attachments (web uploads via document_upload type 7). */
-const CHAT_MEDIA_CDN_BASE = "https://d20g1bd5nfpo8h.cloudfront.net/";
+const CHAT_MEDIA_CDN_BASE = "https://d2snwgkdggvp65.cloudfront.net/";
 
 /** Document upload `type` → CDN folder(s). Web chat uses type 7; mobile chat uses type 24. */
 const DOCUMENT_UPLOAD_FOLDERS_BY_TYPE: Record<string, string[]> = {
