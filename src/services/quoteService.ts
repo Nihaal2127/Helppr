@@ -2,7 +2,6 @@ import type {
   QuoteRow,
   QuoteTabKey,
 } from "../lib/types/quoteTypes";
-import { quoteListMockData } from "../mockData/quoteMockData";
 import {
   APP_USER_TYPE,
   fetchPartnerDropDown,
@@ -168,17 +167,6 @@ export async function fetchFranchiseRelatedCatalog(
 ): Promise<{ success: boolean; record: FranchiseRelatedCatalogRecord | null }> {
   const id = str(franchiseId);
   if (!id) return { success: false, record: null };
-  if (USE_MOCK_QUOTE_API) {
-    return {
-      success: true,
-      record: {
-        categories: [],
-        services: [],
-        partners: [],
-        employees: [],
-      },
-    };
-  }
 
   const existing = relatedCatalogInflight.get(id);
   if (existing) return existing;
@@ -1522,12 +1510,6 @@ export function filterCatalogPartnerRecordsByService(
   return filtered.length ? filtered : partners;
 }
 
-/**
- * Set to `true` for in-memory mock rows (no network).
- * Set to `false` to use live APIs under `/api/quote/*` (see Help-PR-Area-Franchise-Subscription Postman collection).
- */
-const USE_MOCK_QUOTE_API = false;
-
 /** `GET /user/getDropDown?type=4` — customers / end users (see `APP_USER_TYPE` in `userService`). */
 const CUSTOMER_USER_TYPE = APP_USER_TYPE.CUSTOMER;
 /** `GET /user/getDropDown?type=3` — franchise employees. */
@@ -1665,7 +1647,6 @@ export function mapQuoteTabCountsFromRecord(
 export async function fetchQuoteCounts(
   franchiseId?: string | null
 ): Promise<Partial<Record<QuoteTabKey, number>> | null> {
-  if (USE_MOCK_QUOTE_API) return null;
   const params = new URLSearchParams();
   const fid = franchiseIdForApiQuery(franchiseId);
   if (fid) params.set("franchise_id", fid);
@@ -2248,167 +2229,6 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   };
 }
 
-function filterQuotesByStatusTab(
-  records: QuoteRow[],
-  tab: QuoteTabKey
-): QuoteRow[] {
-  const want = tab.toLowerCase();
-  return records.filter((r) => normalizeQuoteApiStatus(r.status) === want);
-}
-
-/** Schedule bounds for list filters (prefers API `from_date` / `to_date`). */
-function quoteScheduleBoundsMs(row: QuoteRow): {
-  fromMs: number | null;
-  toMs: number | null;
-} {
-  let fromYmd = str(row.from_date);
-  let toYmd = str(row.to_date);
-  if (!fromYmd) {
-    const raw = str(row.requested_date);
-    if (raw) {
-      const parts = raw.split(/\s+to\s+/i).map((p) => p.trim()).filter(Boolean);
-      fromYmd = isoOrDateToYmd(parts[0] ?? "");
-      toYmd = parts.length > 1 ? isoOrDateToYmd(parts[1]) : fromYmd;
-    }
-  }
-  if (!fromYmd && row.scheduled_date) {
-    fromYmd = isoOrDateToYmd(row.scheduled_date);
-    toYmd = fromYmd;
-  }
-  if (!toYmd && fromYmd) toYmd = fromYmd;
-  const fromMs = fromYmd
-    ? new Date(fromYmd + "T00:00:00").getTime()
-    : null;
-  const toMs = toYmd ? new Date(toYmd + "T23:59:59.999").getTime() : null;
-  return { fromMs, toMs };
-}
-
-/** Quote schedule range overlaps filter `[filterFrom, filterTo]` (inclusive days). */
-function quoteScheduleOverlapsFilter(
-  row: QuoteRow,
-  filterFromMs: number | null,
-  filterToMs: number | null
-): boolean {
-  if (filterFromMs == null && filterToMs == null) return true;
-  const { fromMs, toMs } = quoteScheduleBoundsMs(row);
-  if (fromMs == null && toMs == null) return false;
-  const qStart = fromMs ?? toMs;
-  const qEnd = toMs ?? fromMs;
-  if (qStart == null || qEnd == null) return false;
-  if (filterFromMs != null && qEnd < filterFromMs) return false;
-  if (filterToMs != null && qStart > filterToMs) return false;
-  return true;
-}
-
-function matchesKeyword(row: QuoteRow, keyword: string): boolean {
-  if (!keyword) return true;
-  const searchable = [
-    row.quote_id,
-    row.order_id,
-    row.requested_services,
-    row.services,
-    row.requested_partner,
-    row.partner_name,
-    row.user_name,
-    row.category_name,
-    row.phone_number,
-    row.service_price != null ? String(row.service_price) : "",
-    `${row.door_no}, ${row.street}, ${row.area ?? ""}, ${row.city}`,
-    row.status,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return searchable.includes(keyword);
-}
-
-function sortValueForColumn(row: QuoteRow, sortId: string): string | number {
-  switch (sortId) {
-    case "quote_id":
-      return row.quote_id ?? "";
-    case "requested_services":
-      return row.requested_services ?? "";
-    case "requested_partner":
-      return row.requested_partner ?? "";
-    case "partner_name":
-      return row.partner_name ?? "";
-    case "user_name":
-      return row.user_name ?? "";
-    case "total_price":
-      return row.total_price ?? row.service_price ?? 0;
-    case "service_price":
-      return row.service_price ?? row.total_price ?? 0;
-    case "from_date":
-      return row.from_date ?? row.requested_date ?? row.scheduled_date ?? "";
-    case "to_date":
-      return row.to_date ?? row.from_date ?? "";
-    case "requested_date":
-      return row.requested_date ?? row.from_date ?? "";
-    case "requested_time":
-      return row.requested_time ?? "";
-    case "services":
-      return row.services ?? row.requested_services ?? "";
-    case "scheduled_date":
-      return row.scheduled_date ?? "";
-    case "order_id":
-      return row.order_id ?? "";
-    case "status":
-      return row.status ?? "";
-    case "address":
-    case "location":
-      return [row.door_no, row.street, row.area, row.city, row.pincode]
-        .filter(Boolean)
-        .join(", ");
-    case "time":
-    case "time_range":
-      return `${row.service_from_time ?? ""} ${row.service_to_time ?? ""}`;
-    default:
-      return "";
-  }
-}
-
-function sortQuotesInMemory(rows: QuoteRow[], sort: QuoteListSort): QuoteRow[] {
-  const safe = normalizeQuoteListSort(sort);
-  if (!safe.length) return rows;
-  const { id, desc } = safe[0];
-  const dir = desc ? -1 : 1;
-  return [...rows].sort((a, b) => {
-    const va = sortValueForColumn(a, id);
-    const vb = sortValueForColumn(b, id);
-    if (typeof va === "number" && typeof vb === "number") {
-      return (va - vb) * dir;
-    }
-    return (
-      String(va).localeCompare(String(vb), undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }) * dir
-    );
-  });
-}
-
-function filterQuotesForTab(
-  rows: QuoteRow[],
-  tab: QuoteTabKey,
-  filters: QuoteListFilters
-): QuoteRow[] {
-  const keyword = (filters.keyword ?? "").trim().toLowerCase();
-  const fromTs =
-    filters.from_date != null
-      ? new Date(filters.from_date).setHours(0, 0, 0, 0)
-      : null;
-  const toTs =
-    filters.to_date != null
-      ? new Date(filters.to_date).setHours(23, 59, 59, 999)
-      : null;
-
-  return rows.filter((row) => {
-    if (!matchesKeyword(row, keyword)) return false;
-    return quoteScheduleOverlapsFilter(row, fromTs, toTs);
-  });
-}
-
 export async function fetchQuotes(
   tab: QuoteTabKey,
   page: number,
@@ -2421,19 +2241,6 @@ export async function fetchQuotes(
   totalPages: number;
   totalCount: number;
 }> {
-  if (USE_MOCK_QUOTE_API) {
-    const allRows = filterQuotesByStatusTab(quoteListMockData.records, tab);
-    const filtered = filterQuotesForTab(allRows, tab, filters);
-    const sorted = sortQuotesInMemory(filtered, sort);
-
-    const totalCount = sorted.length;
-    const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
-    const start = Math.max(0, (page - 1) * pageSize);
-    const records = sorted.slice(start, start + pageSize);
-
-    return { response: true, quotes: records, totalPages, totalCount };
-  }
-
   const fid = franchiseIdForApiQuery(filters.franchise_id);
   const params = new URLSearchParams({
     page: String(page),
@@ -2491,22 +2298,6 @@ export async function fetchQuoteServiceOptionsForCategory(
   const cid = str(categoryId);
   if (!cid) return [];
 
-  if (USE_MOCK_QUOTE_API) {
-    const names = new Set<string>();
-    for (const row of quoteListMockData.records) {
-      if (str(row.category_id) !== cid) continue;
-      const raw = str(row.requested_services);
-      if (!raw) continue;
-      for (const part of raw.split(",")) {
-        const s = part.trim();
-        if (s) names.add(s);
-      }
-    }
-    return Array.from(names)
-      .sort((a, b) => a.localeCompare(b))
-      .map((s) => ({ value: s, label: s }));
-  }
-
   return fetchServiceDropDown(cid);
 }
 
@@ -2523,63 +2314,6 @@ export async function fetchQuoteCreateOptions(opts?: {
   quoteEmployeeOptions: OptionType[];
   quoteCategoryOptions: OptionType[];
 }> {
-  if (USE_MOCK_QUOTE_API) {
-    const allMock = quoteListMockData.records;
-
-    const partners = Array.from(
-      new Set(
-        allMock
-          .map((row) => str(row.requested_partner || row.partner_name))
-          .filter(Boolean)
-      )
-    );
-
-    const userById = new Map<string, QuoteUserOption>();
-    for (const row of allMock) {
-      const uid = str(row.user_id);
-      if (!uid) continue;
-      const name = str(row.user_name) || uid;
-      const phone = str(row.phone_number);
-      const label = phone ? `${name} (${phone})` : name;
-      if (!userById.has(uid)) {
-        userById.set(uid, { value: uid, label, user_name: name });
-      }
-    }
-
-    const employeeById = new Map<string, OptionType>();
-    for (const row of allMock) {
-      const eid = str(row.employee_id);
-      if (!eid) continue;
-      const ename = str(row.employee_name) || eid;
-      if (!employeeById.has(eid)) {
-        employeeById.set(eid, { value: eid, label: ename });
-      }
-    }
-
-    const categoryById = new Map<string, OptionType>();
-    for (const row of allMock) {
-      const cid = str(row.category_id);
-      if (!cid) continue;
-      const cname = str(row.category_name) || cid;
-      if (!categoryById.has(cid)) {
-        categoryById.set(cid, { value: cid, label: cname });
-      }
-    }
-
-    return {
-      quotePartnerOptions: partners.map((p) => ({ value: p, label: p })),
-      quoteUserOptions: Array.from(userById.values()).sort((a, b) =>
-        a.user_name.localeCompare(b.user_name)
-      ),
-      quoteEmployeeOptions: Array.from(employeeById.values()).sort((a, b) =>
-        a.label.localeCompare(b.label)
-      ),
-      quoteCategoryOptions: Array.from(categoryById.values()).sort((a, b) =>
-        a.label.localeCompare(b.label)
-      ),
-    };
-  }
-
   const scopedFranchiseId = franchiseIdForApiQuery(opts?.franchiseId);
   const extra = scopedFranchiseId
     ? { franchise_id: scopedFranchiseId }
@@ -2625,24 +2359,6 @@ export async function fetchQuoteCreateOptions(opts?: {
 export async function fetchQuotePartnerDropDown(serviceId?: string): Promise<{
   partners: Array<any>;
 }> {
-  if (USE_MOCK_QUOTE_API) {
-    const partnerSet = new Set<string>();
-    for (const r of quoteListMockData.records) {
-      if (r.requested_partner) partnerSet.add(String(r.requested_partner));
-      if (r.partner_name) partnerSet.add(String(r.partner_name));
-    }
-
-    const partners = Array.from(partnerSet);
-    return {
-      partners: partners.map((name, idx) => ({
-        _id: `QT-PT-${idx + 1}`,
-        partner_id: `P-${idx + 1}`,
-        partner_name: name,
-        name,
-      })),
-    };
-  }
-
   // Prefer `GET /user/getPartnerDropDown?service_id=…` (Postman); fall back to `GET /user/getDropDown?type=2&service_id=…`.
   const sid = str(serviceId);
   const fromPartnerApi = await fetchPartnerDropDown(sid || undefined);

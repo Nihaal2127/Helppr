@@ -545,9 +545,7 @@ const MyFranchise = () => {
               name: String(category.name ?? ""),
               service_ids: [],
               service_names: [],
-              description: String(
-                category.desc ?? category.description ?? ""
-              ).trim(),
+              description: String(category.desc ?? "").trim(),
               image_url: category.image_url,
               status: mapApprovalStatusFromRecord(
                 category as unknown as Record<string, unknown>

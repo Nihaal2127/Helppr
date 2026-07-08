@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Row, Col, Button } from "react-bootstrap";
+import { Row, Col, Button, Modal } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import circleEdit from "../../assets/icons/circle_edit.svg";
 import loginLogo from "../../assets/icons/login_logo.svg";
@@ -7,13 +7,15 @@ import EditProfile from "./EditProfile";
 import { UserModel } from "../../lib/models/UserModel";
 import { getCreatedById } from "../../lib/global/localStorageHelper";
 import { fetchById, createOrUpdateUser } from "../../services/adminService";
-import CustomPhotoUpload from "../../components/CustomPhotoUpload";
+import CustomImageUploader, {
+  resolveExistingImageSrc,
+} from "../../components/CustomImageUploader";
+import CustomCloseButton from "../../components/CustomCloseButton";
 import {
   createOrUpdateDocument,
   normalizeReplaceStoragePaths,
 } from "../../services/documentUploadService";
 import { showErrorAlert } from "../../lib/global/alertHelper";
-import { AppConstant } from "../../lib/global/AppConstant";
 import { showLog } from "../../helper/utility";
 import { ROUTES } from "../../routes/Routes";
 
@@ -53,6 +55,8 @@ const Profile = () => {
 
   const onUploadCloseModal = () => {
     setUploadShow(false);
+    setFileInputs([]);
+    setReplaceUrl([]);
     fetchData();
   };
 
@@ -143,9 +147,7 @@ const Profile = () => {
                 <img
                   src={
                     userDetails?.profile_url
-                      ? `${AppConstant.IMAGE_BASE_URL}${
-                          userDetails?.profile_url
-                        }?t=${Date.now()}`
+                      ? resolveExistingImageSrc(userDetails.profile_url)
                       : loginLogo
                   }
                   alt="Profile"
@@ -328,20 +330,55 @@ const Profile = () => {
       )}
 
       {uploadShow && (
-        <CustomPhotoUpload
-          isOpen={uploadShow}
-          onClose={onUploadCloseModal}
-          onUploadSave={onUploadSave}
-          {...(userDetails?.profile_url
-            ? { existingImages: [userDetails.profile_url] }
-            : [])}
-          onFileChange={(files, replaceUrlsFromUploader) => {
-            setFileInputs(files);
-            setReplaceUrl(
-              normalizeReplaceStoragePaths(replaceUrlsFromUploader)
-            );
-          }}
-        />
+        <Modal
+          show={uploadShow}
+          onHide={onUploadCloseModal}
+          centered
+          dialogClassName="custom-big-modal"
+        >
+          <Modal.Header className="py-3 px-4 border-bottom-0">
+            <Modal.Title as="h5" className="custom-modal-title">
+              Profile photo
+            </Modal.Title>
+            <CustomCloseButton onClose={onUploadCloseModal} />
+          </Modal.Header>
+          <Modal.Body className="px-4 pb-4 pt-0">
+            <CustomImageUploader
+              key={`profile-upload-${userDetails?._id ?? "new"}`}
+              label="Profile photo"
+              hideLabel
+              maxFiles={1}
+              isEditable={Boolean(userDetails?.profile_url)}
+              {...(userDetails?.profile_url
+                ? { existingImages: [userDetails.profile_url] }
+                : {})}
+              onFileChange={(files, replaceUrlsFromUploader) => {
+                setFileInputs(files);
+                setReplaceUrl(
+                  normalizeReplaceStoragePaths(replaceUrlsFromUploader)
+                );
+              }}
+            />
+            <div className="d-flex justify-content-end gap-3 mt-4">
+              <Button
+                type="button"
+                className="custom-btn-primary"
+                onClick={() => {
+                  void onUploadSave();
+                }}
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                className="custom-btn-secondary"
+                onClick={onUploadCloseModal}
+              >
+                Cancel
+              </Button>
+            </div>
+          </Modal.Body>
+        </Modal>
       )}
     </>
   );
