@@ -764,12 +764,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       if (!isNewTabQuoteEdit) {
         setValue("category_id", "", { shouldValidate: false });
         setValue("requested_services", "", { shouldValidate: false });
+        setValue("service_price", "", { shouldValidate: false });
       }
-      clearScheduleAndPriceFields();
     },
     [
       applySelectFieldValue,
-      clearScheduleAndPriceFields,
       getValues,
       isNewTabQuoteEdit,
       setValue,
@@ -1028,6 +1027,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
   const lockedFields = catalogBusy || !quoteRow;
   const quoteStatusKey = normalizeQuoteApiStatus(quoteRow?.status) || "new";
+  const isPendingQuoteEdit = quoteStatusKey === "pending";
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
   const categoryFieldDisabled =
@@ -1203,7 +1203,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         }
                         menuPortal
                         isClearable
-                        isDisabled={lockedFields}
+                        isDisabled={lockedFields || isPendingQuoteEdit}
                       />
                     </Col>
                   </Row>
@@ -1248,7 +1248,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               : "Select partner first"
                         }
                         menuPortal
-                        isDisabled={categoryFieldDisabled || isNewTabQuoteEdit}
+                        isDisabled={
+                          categoryFieldDisabled ||
+                          isNewTabQuoteEdit ||
+                          isPendingQuoteEdit
+                        }
                       />
                     </Col>
                     <Col xs={12} md={6}>
@@ -1295,7 +1299,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         }
                         menuPortal
                         isClearable={!isNewTabQuoteEdit}
-                        isDisabled={serviceFieldDisabled || isNewTabQuoteEdit}
+                        isDisabled={
+                          serviceFieldDisabled ||
+                          isNewTabQuoteEdit ||
+                          isPendingQuoteEdit
+                        }
                       />
                     </Col>
                   </Row>
@@ -1330,7 +1338,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       }
                       menuPortal
                       isClearable
-                      isDisabled={lockedFields}
+                      isDisabled={lockedFields || isPendingQuoteEdit}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1373,7 +1381,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             : "Select partner first"
                       }
                       menuPortal
-                      isDisabled={categoryFieldDisabled || isNewTabQuoteEdit}
+                      isDisabled={
+                        categoryFieldDisabled ||
+                        isNewTabQuoteEdit ||
+                        isPendingQuoteEdit
+                      }
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1420,7 +1432,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       }
                       menuPortal
                       isClearable={!isNewTabQuoteEdit}
-                      isDisabled={serviceFieldDisabled || isNewTabQuoteEdit}
+                      isDisabled={
+                        serviceFieldDisabled ||
+                        isNewTabQuoteEdit ||
+                        isPendingQuoteEdit
+                      }
                     />
                   </Col>
                 </Row>

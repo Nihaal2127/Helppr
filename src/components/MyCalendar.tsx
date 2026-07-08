@@ -529,7 +529,7 @@ const MyCalendar: React.FC<MyCalendarProps> = ({ franchiseId = "all" }) => {
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
+          initialView="dayGridMonth"
           selectable
           scrollTimeReset={false}
           nowIndicator

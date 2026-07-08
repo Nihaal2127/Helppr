@@ -311,21 +311,15 @@ const CustomHeader = ({
 
       <Row className="g-0 p-0 mb-4 align-items-center custom-page-header">
         <Col
-          sm={6}
-          className="p-0 m-0 custom-page-header__title"
+          className="p-0 m-0 custom-page-header__title flex-grow-1 min-w-0"
         >
-          <div className="d-flex align-items-center gap-2 flex-wrap">
+          <div className="custom-page-header__title-row">
             {titlePrefix}
-            <h4 className="m-0 p-0 d-flex align-items-center flex-wrap gap-2">
-              <span>{title}</span>
+            <h4 className="custom-page-header__heading m-0 p-0">
+              {title}
               {franchiseTitleName ? (
-                <span
-                  className="fw-normal"
-                  style={{
-                    fontSize: "1rem",
-                    color: "var(--primary-new-txt-color)",
-                  }}
-                >
+                <span className="custom-page-header__franchise-suffix">
+                  {" "}
                   - {franchiseTitleName}
                 </span>
               ) : null}
@@ -333,8 +327,8 @@ const CustomHeader = ({
           </div>
         </Col>
         <Col
-          sm={6}
-          className="d-none d-lg-flex justify-content-end align-items-center gap-3 p-0 m-0 custom-page-header__actions"
+          xs="auto"
+          className="d-none d-lg-flex justify-content-end align-items-center gap-3 p-0 m-0 flex-shrink-0 custom-page-header__actions"
         >
           {headerToolbar}
         </Col>

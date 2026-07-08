@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Col, Row } from "react-bootstrap";
+import { Button } from "react-bootstrap";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
@@ -215,8 +215,8 @@ function ShowPartnerPayout() {
     url.walletStatus !== "all";
 
   const filterControls = (
-    <Row className="row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mb-3 align-items-end">
-      <Col>
+    <>
+      <div className="partner-payout-filter-field">
         <CustomFormSelect
           label="Wallet Status"
           controlId="wallet_status_filter"
@@ -241,8 +241,8 @@ function ShowPartnerPayout() {
             patchUrl({ wallet_status: e.target.value, page: 1 })
           }
         />
-      </Col>
-      <Col>
+      </div>
+      <div className="partner-payout-filter-field partner-payout-filter-field--date">
         <CustomDatePicker
           label="From Date"
           controlId="from_date_filter"
@@ -258,8 +258,8 @@ function ShowPartnerPayout() {
           placeholderText="From Date"
           filterDate={() => true}
         />
-      </Col>
-      <Col>
+      </div>
+      <div className="partner-payout-filter-field partner-payout-filter-field--date">
         <CustomDatePicker
           label="To Date"
           controlId="to_date_filter"
@@ -275,32 +275,12 @@ function ShowPartnerPayout() {
           placeholderText="To Date"
           filterDate={() => true}
         />
-      </Col>
-      <Col xs="auto" className="d-flex align-items-end">
-        <Button
-          variant="outline-secondary"
-          size="sm"
-          className="custom-btn-secondary partner-payout-clear-btn px-3"
-          type="button"
-          disabled={!filtersActive}
-          onClick={() => {
-            patchUrl({
-              search: undefined,
-              from_date: undefined,
-              to_date: undefined,
-              wallet_status: undefined,
-              page: 1,
-            });
-          }}
-        >
-          Clear
-        </Button>
-      </Col>
-    </Row>
+      </div>
+    </>
   );
 
   return (
-    <div className="main-page-content">
+    <div className="main-page-content financial-partner-payout-page">
       <CustomHeader
         title="Financial — Partner Payout"
         titlePrefix={<FinancialSubPageBackButton />}
@@ -309,7 +289,7 @@ function ShowPartnerPayout() {
         rightActions={
           <Button
             type="button"
-            className="custom-btn-secondary w-auto btn btn-primary"
+            className="custom-btn-secondary custom-header-action-btn"
             onClick={() =>
               AddPayoutDialog.show(() => void loadList(), franchiseIdForApi)
             }
@@ -324,13 +304,34 @@ function ShowPartnerPayout() {
         searchOnlyToolbar
         title="Partner Payout"
         searchHint="Search partner name or ID…"
+        toolsInlineRow
+        toolsInlineClassName="custom-utilty-tools-inline--partner-payout-wide-search"
+        controlSlot={filterControls}
+        afterSearchSlot={
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            className="custom-btn-secondary partner-payout-clear-btn px-3"
+            type="button"
+            disabled={!filtersActive}
+            onClick={() => {
+              patchUrl({
+                search: undefined,
+                from_date: undefined,
+                to_date: undefined,
+                wallet_status: undefined,
+                page: 1,
+              });
+            }}
+          >
+            Clear
+          </Button>
+        }
         onSearch={(value) => {
           patchUrl({ search: value.trim() || undefined, page: 1 });
         }}
         syncKeyword={url.search}
       />
-
-      {filterControls}
 
       <CustomTable
         columns={columns}
