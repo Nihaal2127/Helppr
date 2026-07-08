@@ -230,6 +230,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
           <h6 className={QUOTE_SECTION_TITLE_CLASS}>Quote details</h6>
           <Row className="g-2">
             <Col xs={12} md={6} className="info-detail-fields-col">
+              <DetailsRow title="Quote ID" value={displayQuote.quote_id} />
               <DetailsRow title="Service" value={serviceLabel} />
               <DetailsRow
                 title="Category"

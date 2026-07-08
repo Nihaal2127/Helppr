@@ -6,6 +6,7 @@ import React, {
   useMemo,
 } from "react";
 import { Button, Form } from "react-bootstrap";
+import { useSearchParams } from "react-router-dom";
 import CustomHeader from "../../components/CustomHeader";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { OrderModel, OrderStatusEnum } from "../../lib/order/orders";
@@ -34,6 +35,9 @@ import { getCount } from "../../services/getCountService";
 import type { GetCountExtra } from "../../services/getCountService";
 import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
+import {
+  openOrderFromNotification,
+} from "../../lib/notifications/notificationNavigation";
 
 const toIsoCalendarDate = (date: Date | null): string | null => {
   if (!date) return null;
@@ -44,6 +48,8 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
 };
 
 const OrderManagement = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notificationDeepLinkHandledRef = useRef<string | null>(null);
   const { register, setValue, franchiseId: headerFranchiseId } =
     useFranchiseHeaderForm();
   const { register: dateFilterRegister, setValue: setDateFilterValue } =
@@ -100,6 +106,31 @@ const OrderManagement = () => {
   const refreshData = useCallback(async () => {
     await fetchData({ status: selectedStatus.toString() });
   }, [fetchData, selectedStatus]);
+
+  useEffect(() => {
+    const openId = String(searchParams.get("openId") ?? "").trim();
+    const tabRaw = String(searchParams.get("tab") ?? "").trim();
+    if (!openId) return;
+
+    const linkKey = `${tabRaw}|${openId}`;
+    if (notificationDeepLinkHandledRef.current === linkKey) return;
+    notificationDeepLinkHandledRef.current = linkKey;
+
+    const tabNum = Number(tabRaw);
+    if (ORDER_TAB_KEYS.includes(tabNum as OrderTabKey)) {
+      setSelectedStatus(tabNum as OrderTabKey);
+      setCurrentPage(1);
+    }
+
+    openOrderFromNotification(openId, () => {
+      void refreshData();
+    });
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("openId");
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, refreshData]);
 
   /** Tab badges: `POST /getCount` `{ type: "order-management", franchise_id? }`; falls back to list totals if unmapped. */
   const reloadTabCounts = useCallback(async () => {

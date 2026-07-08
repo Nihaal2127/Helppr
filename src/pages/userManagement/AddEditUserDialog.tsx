@@ -104,6 +104,20 @@ const PARTNER_ROLE = 2;
 const FRANCHISE_EMPLOYEE_ROLE = 3;
 const USER_ROLE = 4;
 
+const LETTERS_AND_SPACES_ONLY = /^[A-Za-z\s]+$/;
+
+function sanitizeLettersAndSpaces(value: string): string {
+  return value.replace(/[^A-Za-z\s]/g, "");
+}
+
+const ADD_PARTNER_LETTERS_ONLY_FIELD_RULE = {
+  ...REQUIRED_FIELD_RULE,
+  pattern: {
+    value: LETTERS_AND_SPACES_ONLY,
+    message: "Only letters are allowed",
+  },
+};
+
 /** Local guard — keeps catalog UI safe without an extra module export (avoids dev HMR load issues). */
 function ensurePartnerCatalogBlocks(
   blocks: PartnerCategoryBlock[] | null | undefined
@@ -1625,7 +1639,7 @@ function AddEditUserDialogView({
                         controlId="date_of_birth"
                         selectedDate={toYmdString(dateOfBirthStr)}
                         birthDatePicker
-                        enforceAdultAge={Boolean(isEditable)}
+                        enforceAdultAge
                         onChange={(date) => {
                           const value = date ? dateToLocalYmd(date) : "";
                           setValue("date_of_birth", value, {
@@ -2523,7 +2537,15 @@ function AddEditUserDialogView({
                           placeholder="Enter bank name"
                           register={register}
                           error={errors.partner_bank_legal_name}
-                          validation={REQUIRED_FIELD_RULE}
+                          validation={ADD_PARTNER_LETTERS_ONLY_FIELD_RULE}
+                          value={watch("partner_bank_legal_name") ?? ""}
+                          onChange={(value) =>
+                            setValue(
+                              "partner_bank_legal_name",
+                              sanitizeLettersAndSpaces(value),
+                              { shouldValidate: true, shouldDirty: true }
+                            )
+                          }
                           hideValidationFeedback
                           labelSize={3}
                         />
@@ -2533,7 +2555,15 @@ function AddEditUserDialogView({
                           placeholder="Enter branch name"
                           register={register}
                           error={errors.partner_bank_branch}
-                          validation={REQUIRED_FIELD_RULE}
+                          validation={ADD_PARTNER_LETTERS_ONLY_FIELD_RULE}
+                          value={watch("partner_bank_branch") ?? ""}
+                          onChange={(value) =>
+                            setValue(
+                              "partner_bank_branch",
+                              sanitizeLettersAndSpaces(value),
+                              { shouldValidate: true, shouldDirty: true }
+                            )
+                          }
                           hideValidationFeedback
                           labelSize={3}
                         />

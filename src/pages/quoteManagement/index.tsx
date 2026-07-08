@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { Button, Col, Form, InputGroup, Modal, Row } from "react-bootstrap";
+import { useSearchParams } from "react-router-dom";
 import CustomHeader from "../../components/CustomHeader";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
@@ -70,6 +71,9 @@ import {
 } from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
+import {
+  openQuoteFromNotification,
+} from "../../lib/notifications/notificationNavigation";
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -187,6 +191,8 @@ function isScheduleEndAfterStartSameDay(start: string, end: string): boolean {
 const addQuoteTimePickerAllowAllHours = (): boolean => true;
 
 const QuoteManagement = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notificationDeepLinkHandledRef = useRef<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<QuoteTabKey>("new");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [fromDate, setFromDate] = useState<string | null>(null);
@@ -667,6 +673,33 @@ const QuoteManagement = () => {
       fetchData(),
     ]).then(() => undefined);
   }, [fetchData, refreshQuoteSummaryFromGetCount]);
+
+  useEffect(() => {
+    const openId = String(searchParams.get("openId") ?? "").trim();
+    const tabRaw = String(searchParams.get("tab") ?? "")
+      .trim()
+      .toLowerCase();
+    if (!openId) return;
+
+    const linkKey = `${tabRaw}|${openId}`;
+    if (notificationDeepLinkHandledRef.current === linkKey) return;
+    notificationDeepLinkHandledRef.current = linkKey;
+
+    const tab = quoteTabs.some((t) => t.key === tabRaw)
+      ? (tabRaw as QuoteTabKey)
+      : "pending";
+    setSelectedTab(tab);
+    setCurrentPage(1);
+
+    openQuoteFromNotification(openId, tab, () => {
+      void refreshCountsThenFetchQuotes();
+    });
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("openId");
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, refreshCountsThenFetchQuotes]);
 
   const handleServerSortChange = useCallback(
     (next: { id: string; desc: boolean }[]) => {
