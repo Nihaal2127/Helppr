@@ -20,7 +20,7 @@ import {
   NotificationFilters,
   NotificationModel,
 } from "../../lib/models/NotificationModel";
-import { formatDate } from "../../helper/utility";
+import { formatDateTime } from "../../helper/utility";
 import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { HEADER_FRANCHISE_CHANGED_EVENT } from "../../lib/franchise/headerFranchisePreference";
 import { toIsoCalendarDate } from "../../lib/quote/quoteHelpers";
@@ -203,12 +203,7 @@ const NotificationsPage: React.FC = () => {
           </span>
         ),
       },
-      // {
-      //   Header: "Module",
-      //   accessor: "entity.type",
-      //   Cell: ({ row }: { row: { original: NotificationModel } }) =>
-      //     String(row.original.entity?.type || "—").toUpperCase(),
-      // },
+    
        {
         Header: "Category",
         accessor: "category",
@@ -234,7 +229,7 @@ const NotificationsPage: React.FC = () => {
         Header: "Created At",
         accessor: "createdAt",
         Cell: ({ row }: { row: { original: NotificationModel } }) =>
-          formatDate(row.original.createdAt),
+          formatDateTime(row.original.createdAt),
       },
       {
         Header: "Action",
