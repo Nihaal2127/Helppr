@@ -67,6 +67,8 @@ const NotificationsPage: React.FC = () => {
     defaultNotificationFilters
   );
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchClearVersion, setSearchClearVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -269,6 +271,7 @@ const NotificationsPage: React.FC = () => {
 
   const clearFiltersDisabled =
     !filters.keyword?.trim() &&
+    !searchDraft.trim() &&
     filters.category === "all" &&
     filters.status === "all" &&
     !filters.fromDate?.trim() &&
@@ -276,6 +279,8 @@ const NotificationsPage: React.FC = () => {
 
   const clearNotificationFilters = () => {
     setFilters(defaultNotificationFilters);
+    setSearchDraft("");
+    setSearchClearVersion((v) => v + 1);
     setCurrentPage(1);
     setValue("notification_category", "all", { shouldValidate: false });
     setValue("notification_status", "all", { shouldValidate: false });
@@ -384,9 +389,12 @@ const NotificationsPage: React.FC = () => {
         hideUtilityActions
         onSearch={(value) => {
           setCurrentPage(1);
+          setSearchDraft(value);
           setFilters((prev) => ({ ...prev, keyword: value }));
         }}
-        syncKeyword={filters.keyword}
+        onSearchInputChange={setSearchDraft}
+        syncKeyword={filters.keyword ?? ""}
+        searchClearVersion={searchClearVersion}
       />
 
       <Row className="g-3 mb-3 align-items-end">

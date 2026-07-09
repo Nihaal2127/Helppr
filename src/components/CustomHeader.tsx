@@ -13,7 +13,7 @@ import {
 } from "../services/notificationService";
 import { activateNotification } from "../lib/notifications/notificationNavigation";
 import type { NotificationModel } from "../lib/models/NotificationModel";
-import { formatDate } from "../helper/utility";
+import { formatDateTime } from "../helper/utility";
 import { getLocalStorage } from "../lib/global/localStorageHelper";
 import {
   HEADER_FRANCHISE_CHANGED_EVENT,
@@ -316,7 +316,7 @@ const CustomHeader = ({
                       {item.message}
                     </div>
                     <div className="custom-notification-item-time">
-                      {formatDate(item.createdAt)}
+                      {formatDateTime(item.createdAt)}
                     </div>
                   </button>
                 ))

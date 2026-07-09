@@ -2181,21 +2181,21 @@ function AddEditUserDialogView({
                 ) : null}
                 {isEditable ? (
                   <>
-                    <CustomTextFieldRadio
+                    {/* <CustomTextFieldRadio
                       label="Status"
                       name="is_active"
                       options={getStatusOptions()}
                       defaultValue={String(watch("is_active") ?? user?.is_active ?? true)}
                       isEditable={true}
                       setValue={setValue}
-                    />
+                    /> */}
                     {role !== USER_ROLE ? (
                       <CustomTextFieldRadio
-                        label="Block"
+                        label="Status"
                         name="is_blocked"
                         options={[
-                          { value: "true", label: "Yes" },
-                          { value: "false", label: "No" },
+                          { value: "true", label: "Active" },
+                          { value: "false", label: "Inactive" },
                         ]}
                         defaultValue={String(
                           watch("is_blocked") ?? (user as any)?.is_blocked ?? false

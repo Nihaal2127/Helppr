@@ -10,6 +10,7 @@ import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
+import { FieldLabelText } from "../../components/RequiredFieldMark";
 import { showErrorAlert } from "../../lib/global/alertHelper";
 import {
   fetchCategoriesAsSelectOptions,
@@ -694,7 +695,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               )}
 
               <Col md={6} className="mb-3">
-                <label className="fw-medium mb-1">Tax</label>
+                <label className="fw-medium mb-1">
+                  <FieldLabelText label="Tax" required />
+                </label>
                 <div className="custom-form-group">
                   <div className="input-group">
                     <input
@@ -728,7 +731,9 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               </Col>
 
               <Col md={6}>
-                <label className="fw-medium mb-1">Commission</label>
+                <label className="fw-medium mb-1">
+                  <FieldLabelText label="Commission" required />
+                </label>
                 <div className="custom-form-group">
                   <div className="input-group">
                     <input
@@ -846,8 +851,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               </Col>
 
               <Col md={6}>
+                <label className="form-label fw-medium mb-2 d-block">
+                  <FieldLabelText label="Service image" required />
+                </label>
                 <CustomImageUploader
-                  label="Service image"
+                  label=""
+                  hideLabel
                   maxFiles={1}
                   isEditable={isEditable}
                   existingImages={serviceImagePath ? [serviceImagePath] : []}

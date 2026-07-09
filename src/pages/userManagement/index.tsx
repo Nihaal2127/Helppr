@@ -79,8 +79,8 @@ const UserManagement = () => {
     setParnterData({
       Total: userCountModel.total_partner ?? 0,
       Active: userCountModel.active_partner ?? 0,
-      Inactive: userCountModel.inactive_partner ?? 0,
-      Blocked: Number(userCountModel.blocked_partner ?? 0),
+      // Inactive: userCountModel.inactive_partner ?? 0,
+      Inactive: Number(userCountModel.blocked_partner ?? 0),
     });
     setVerificationData({
       Total: userCountModel.total_document,

@@ -195,6 +195,8 @@ const QuoteManagement = () => {
   const notificationDeepLinkHandledRef = useRef<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<QuoteTabKey>("new");
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchClearVersion, setSearchClearVersion] = useState(0);
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
@@ -1412,13 +1414,17 @@ const QuoteManagement = () => {
             size="sm"
             className="custom-btn-secondary partner-payout-clear-btn px-3"
             type="button"
-            disabled={!fromDate && !toDate && !searchKeyword.trim()}
+            disabled={
+              !fromDate && !toDate && !searchKeyword.trim() && !searchDraft.trim()
+            }
             onClick={() => {
               setFromDate(null);
               setToDate(null);
               setSearchKeyword("");
+              setSearchDraft("");
               setQuoteFilterValue("from_date", "");
               setQuoteFilterValue("to_date", "");
+              setSearchClearVersion((v) => v + 1);
               setUtilitySearchKey((k) => k + 1);
               setCurrentPage(1);
               setSortBy([]);
@@ -1430,9 +1436,12 @@ const QuoteManagement = () => {
         hideUtilityActions
         onSearch={(value) => {
           setSearchKeyword(value);
+          setSearchDraft(value);
           setCurrentPage(1);
         }}
+        onSearchInputChange={setSearchDraft}
         syncKeyword={searchKeyword}
+        searchClearVersion={searchClearVersion}
       />
 
       <CustomTable

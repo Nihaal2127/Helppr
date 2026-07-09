@@ -67,6 +67,9 @@ const OrderManagement = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchClearVersion, setSearchClearVersion] = useState(0);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
   const [orderCountsByTab, setOrderCountsByTab] = useState<
     Partial<Record<OrderTabKey, number>>
@@ -75,12 +78,14 @@ const OrderManagement = () => {
 
   const listFilters = useMemo(() => {
     const fid = franchiseIdForApiQuery(headerFranchiseId);
+    const keyword = searchKeyword.trim();
     return {
       from_date: fromDate,
       to_date: toDate,
+      ...(keyword ? { keyword } : {}),
       ...(fid ? { franchise_id: fid } : {}),
     };
-  }, [fromDate, toDate, headerFranchiseId]);
+  }, [fromDate, toDate, headerFranchiseId, searchKeyword]);
 
   const fetchData = useCallback(
     async (filters: { keyword?: string; status?: string; sort?: string }) => {
@@ -198,23 +203,21 @@ const OrderManagement = () => {
     void Promise.all([reloadTabCounts(), refreshData()]);
   }, [reloadTabCounts, refreshData, currentPage, selectedStatus]);
 
-  const handleFilterChange = async (filters: {
-    keyword?: string;
-    status?: string;
-    sort?: string;
-  }) => {
+  const clearOrderFilters = useCallback(() => {
+    setFromDate(null);
+    setToDate(null);
+    setSearchKeyword("");
+    setSearchDraft("");
+    setDateFilterValue("from_date", "");
+    setDateFilterValue("to_date", "");
+    setSearchClearVersion((v) => v + 1);
+    setUtilitySearchKey((k) => k + 1);
     setCurrentPage(1);
-    setTotalPages(0);
-    if (Object.keys(filters).length === 0) {
-      fetchRef.current = false;
-    } else {
-      await fetchData({
-        ...filters,
-        status: filters.status ?? selectedStatus.toString(),
-        ...listFilters,
-      });
-    }
-  };
+  }, [setDateFilterValue]);
+
+  const hasActiveOrderFilters = Boolean(
+    fromDate || toDate || searchKeyword.trim() || searchDraft.trim()
+  );
 
   const handleStatusCardSelect = (statusKey: OrderTabKey) => {
     setSelectedStatus(statusKey);
@@ -461,22 +464,22 @@ const OrderManagement = () => {
             <Button
               variant="outline-secondary"
               size="sm"
-              className="custom-btn-secondary partner-payout-clear-btn px-3"
+              className="custom-btn-secondary partner-payout-clear-btn order-management-clear-btn px-3"
               type="button"
-              disabled={!fromDate && !toDate}
-              onClick={() => {
-                setFromDate(null);
-                setToDate(null);
-                setDateFilterValue("from_date", "");
-                setDateFilterValue("to_date", "");
-                setUtilitySearchKey((k) => k + 1);
-                setCurrentPage(1);
-              }}
+              disabled={!hasActiveOrderFilters}
+              onClick={clearOrderFilters}
             >
               Clear
             </Button>
           }
-          onSearch={(value) => handleFilterChange({ keyword: value })}
+          onSearch={(value) => {
+            setSearchKeyword(value);
+            setSearchDraft(value);
+            setCurrentPage(1);
+          }}
+          onSearchInputChange={setSearchDraft}
+          syncKeyword={searchKeyword}
+          searchClearVersion={searchClearVersion}
         />
 
         <CustomTable

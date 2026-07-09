@@ -32,6 +32,8 @@ function ShowPartnerPayout() {
     franchiseId: headerFranchiseId,
   } = useFranchiseHeaderForm();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchClearVersion, setSearchClearVersion] = useState(0);
 
   const url = useMemo(
     () => readPartnerPayoutListUrl(searchParams),
@@ -212,7 +214,8 @@ function ShowPartnerPayout() {
     !!url.search ||
     !!url.fromDate ||
     !!url.toDate ||
-    url.walletStatus !== "all";
+    url.walletStatus !== "all" ||
+    !!searchDraft.trim();
 
   const filterControls = (
     <>
@@ -315,6 +318,8 @@ function ShowPartnerPayout() {
             type="button"
             disabled={!filtersActive}
             onClick={() => {
+              setSearchDraft("");
+              setSearchClearVersion((v) => v + 1);
               patchUrl({
                 search: undefined,
                 from_date: undefined,
@@ -328,9 +333,12 @@ function ShowPartnerPayout() {
           </Button>
         }
         onSearch={(value) => {
+          setSearchDraft(value);
           patchUrl({ search: value.trim() || undefined, page: 1 });
         }}
-        syncKeyword={url.search}
+        onSearchInputChange={setSearchDraft}
+        syncKeyword={url.search ?? ""}
+        searchClearVersion={searchClearVersion}
       />
 
       <CustomTable
