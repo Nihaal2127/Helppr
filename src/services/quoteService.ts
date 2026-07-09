@@ -11,7 +11,7 @@ import { apiRequest } from "../lib/global/remote/apiHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
 import type { ServerTableSortBy } from "../lib/global/serverTableSort";
 import { fetchCategoryDropDown } from "./categoryService";
-import { fetchServiceDropDown } from "./servicesService";
+import { fetchServiceById, fetchServiceDropDown } from "./servicesService";
 import type { ServiceDropDownOption } from "./servicesService";
 import { normalizeServiceCategoryRef } from "./servicesService";
 import {
@@ -1167,6 +1167,16 @@ export function buildQuotePrefilledCategoryOptions(
   return [{ value: cid, label: name || cid }];
 }
 
+function enrichQuoteServiceOptionLabel(
+  opt: ServiceDropDownOption,
+  sid: string,
+  nameCandidates: unknown[]
+): ServiceDropDownOption {
+  const human = pickHumanQuoteServiceLabel([...nameCandidates, opt.label], sid);
+  if (!human || human === opt.label) return opt;
+  return { ...opt, label: human };
+}
+
 export function buildQuotePrefilledServiceOptions(
   quoteCatalogServices: ServiceDropDownOption[],
   serviceId: string,
@@ -1176,12 +1186,14 @@ export function buildQuotePrefilledServiceOptions(
 ): ServiceDropDownOption[] {
   const sid = str(serviceId);
   if (!sid) return [];
+  const nameCandidates = [serviceName, ...extraNameCandidates];
   const match = quoteCatalogServices.find((o) => String(o.value) === sid);
-  if (match) return [match];
+  if (match) {
+    return [enrichQuoteServiceOptionLabel(match, sid, nameCandidates)];
+  }
   const cid = normalizeServiceCategoryRef(categoryId);
   const label =
-    pickHumanQuoteServiceLabel([serviceName, ...extraNameCandidates], sid) ||
-    sid;
+    pickHumanQuoteServiceLabel(nameCandidates, sid) || sid;
   return [
     {
       value: sid,
@@ -1189,6 +1201,63 @@ export function buildQuotePrefilledServiceOptions(
       category_id: cid || undefined,
     },
   ];
+}
+
+function applyQuoteServiceNameFromFees(
+  quote: QuoteRow,
+  serviceFees: ServiceDropDownOption | undefined
+): QuoteRow {
+  const feeLabel = pickHumanQuoteServiceLabel(
+    [serviceFees?.label],
+    quote.service_id
+  );
+  if (!feeLabel) return quote;
+  const next = { ...quote };
+  if (!next.service_name) next.service_name = feeLabel;
+  if (
+    !next.requested_services ||
+    isMongoObjectId(next.requested_services) ||
+    next.requested_services === next.service_id
+  ) {
+    next.requested_services = feeLabel;
+  }
+  return next;
+}
+
+/** Resolve catalogue service name from `service_id` when quote GET omits populated refs. */
+export async function enrichQuoteRowServiceName(
+  quote: QuoteRow
+): Promise<QuoteRow> {
+  const sid = str(quote.service_id);
+  if (!sid) return quote;
+
+  const existing = pickHumanQuoteServiceLabel(
+    [quote.service_name, quote.requested_services],
+    sid
+  );
+  if (existing) {
+    return {
+      ...quote,
+      service_name: existing,
+      requested_services: existing,
+    };
+  }
+
+  const { service } = await fetchServiceById(sid);
+  let name = str(service?.name);
+  if (!name || isMongoObjectId(name)) {
+    const cid = str(quote.category_id);
+    const list = await fetchServiceDropDown(cid || undefined);
+    const match = list.find((o) => String(o.value) === sid);
+    name = str(match?.label);
+  }
+  if (!name || isMongoObjectId(name)) return quote;
+
+  return {
+    ...quote,
+    service_name: name,
+    requested_services: name,
+  };
 }
 
 /**
@@ -2045,7 +2114,8 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     ) || mongoId;
 
   const catalogServiceId = resolveQuoteCatalogServiceId(r);
-  const requested_services = resolveQuoteServiceDisplayName(r, catalogServiceId);
+  const service_name = resolveQuoteServiceDisplayName(r, catalogServiceId);
+  const requested_services = service_name;
 
   const fromD = isoOrDateToYmd(str(r.from_date ?? r.fromDate ?? ""));
   const toD = isoOrDateToYmd(str(r.to_date ?? r.toDate ?? ""));
@@ -2240,6 +2310,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     })(),
     category_id: refId(r.category_id) || refId(categoryRef) || undefined,
     category_name: str(r.category_name ?? categoryRef?.name) || undefined,
+    service_name: service_name || undefined,
     area: area || undefined,
     landmark: landmark || undefined,
     state: state || undefined,
@@ -2523,18 +2594,23 @@ export function extractServiceFeesFromQuoteRecord(
     innerCatalogService) as Record<string, unknown> | undefined;
   const catalogInner = innerCatalogService ?? packageServiceRef;
 
+  const feeLabel = pickHumanQuoteServiceLabel(
+    [
+      innerCatalogService?.name,
+      innerCatalogService?.service_name,
+      packageServiceRef?.name,
+      packageServiceRef?.service_name,
+      feeSourceRow?.name,
+      feeSourceRow?.service_name,
+      raw.service_name,
+    ],
+    catalogServiceId || serviceId
+  );
+
   const catalogOpt: ServiceDropDownOption | undefined = feeSourceRow
     ? {
         value: catalogServiceId || providingRowId || str(feeSourceRow._id),
-        label:
-          str(
-            innerCatalogService?.name ??
-              innerCatalogService?.service_name ??
-              packageServiceRef?.name ??
-              packageServiceRef?.service_name ??
-              feeSourceRow.name ??
-              feeSourceRow.service_name
-          ) || serviceId,
+        label: feeLabel,
         ...quoteServiceFeeFieldsFromRow(
           catalogInner ?? undefined,
           feeSourceRow
@@ -2554,6 +2630,11 @@ export function extractServiceFeesFromQuoteRecord(
             : feeSourceRow.price != null
             ? Number(feeSourceRow.price)
             : undefined,
+      }
+    : catalogServiceId || serviceId
+    ? {
+        value: catalogServiceId || serviceId,
+        label: feeLabel,
       }
     : undefined;
 
@@ -2610,10 +2691,26 @@ export async function fetchQuoteDetailById(quoteMongoId: string): Promise<{
     return { quote: null, serviceFees: undefined };
   }
   const record = raw as Record<string, unknown>;
-  return {
-    quote: mapServerQuoteRecord(record),
-    serviceFees: extractServiceFeesFromQuoteRecord(record),
-  };
+  let serviceFees = extractServiceFeesFromQuoteRecord(record);
+  let quote = applyQuoteServiceNameFromFees(
+    mapServerQuoteRecord(record),
+    serviceFees
+  );
+  quote = await enrichQuoteRowServiceName(quote);
+  const resolvedName = pickHumanQuoteServiceLabel(
+    [quote.service_name, quote.requested_services],
+    quote.service_id
+  );
+  if (
+    resolvedName &&
+    serviceFees &&
+    (!serviceFees.label ||
+      isMongoObjectId(serviceFees.label) ||
+      serviceFees.label === quote.service_id)
+  ) {
+    serviceFees = { ...serviceFees, label: resolvedName };
+  }
+  return { quote, serviceFees };
 }
 
 export async function fetchCustomerQuotes(

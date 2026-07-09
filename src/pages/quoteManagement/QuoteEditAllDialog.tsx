@@ -524,7 +524,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     return buildQuotePrefilledServiceOptions(
       quoteCatalogServices,
       String(form.requested_services ?? quoteRow?.service_id ?? ""),
-      quoteRow?.requested_services,
+      quoteRow?.service_name ?? quoteRow?.requested_services,
       String(form.category_id ?? quoteRow?.category_id ?? ""),
       [quoteRow?.services, apiServiceFees?.label]
     );
@@ -535,6 +535,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.requested_services,
     form.category_id,
     quoteRow?.service_id,
+    quoteRow?.service_name,
     quoteRow?.requested_services,
     quoteRow?.services,
     quoteRow?.category_id,
@@ -1260,7 +1261,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     </Col>
                     <Col xs={12} md={6}>
                       <CustomTextFieldSelect
-                        key={`edit-quote-svc-${form.category_id || "none"}`}
+                        key={`edit-quote-svc-${form.category_id || "none"}-${quoteRow?.service_name || form.requested_services || ""}`}
                         label="Service"
                         controlId="edit-quote-service"
                         asCol={false}
@@ -1393,7 +1394,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                   </Col>
                   <Col xs={12} md={6}>
                     <CustomTextFieldSelect
-                      key={`edit-quote-svc-${form.category_id || "none"}`}
+                      key={`edit-quote-svc-${form.category_id || "none"}-${quoteRow?.service_name || form.requested_services || ""}`}
                       label="Service"
                       controlId="edit-quote-service"
                       asCol={false}

@@ -139,6 +139,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
       isSuccess || isAccepted
         ? displayQuote.services_summary
         : undefined,
+      displayQuote.service_name,
       displayQuote.requested_services,
       serviceFees?.label,
     ];
@@ -148,6 +149,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
     }
     return "-";
   }, [
+    displayQuote.service_name,
     displayQuote.requested_services,
     displayQuote.services_summary,
     isSuccess,
