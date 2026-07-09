@@ -525,7 +525,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       quoteCatalogServices,
       String(form.requested_services ?? quoteRow?.service_id ?? ""),
       quoteRow?.requested_services,
-      String(form.category_id ?? quoteRow?.category_id ?? "")
+      String(form.category_id ?? quoteRow?.category_id ?? ""),
+      [quoteRow?.services, apiServiceFees?.label]
     );
   }, [
     isNewTabQuoteEdit,
@@ -535,7 +536,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.category_id,
     quoteRow?.service_id,
     quoteRow?.requested_services,
+    quoteRow?.services,
     quoteRow?.category_id,
+    apiServiceFees?.label,
   ]);
 
   const editPartnerOptions = useMemo(() => {

@@ -6,6 +6,7 @@ export const AppConstant = {
   /** Chat Service VPS — REST + Socket.IO (see CHAT_MODULE_FRONTEND.md). */
   CHAT_SERVICE_URL:
     process.env.REACT_APP_CHAT_SERVICE_URL?.trim() || "https://13.201.79.72",
+    CHAT_AVATAR_IMAGE_BASE_URL: "https://d20g1bd5nfpo8h.cloudfront.net/",
   IMAGE_BASE_URL: "", //Help Pr Live
   // BASE_URL: "http://localhost:5001/api",
   // BASE_URL: "https://raamisegei.execute-api.us-east-1.amazonaws.com/dev/api",

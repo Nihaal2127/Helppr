@@ -1171,17 +1171,21 @@ export function buildQuotePrefilledServiceOptions(
   quoteCatalogServices: ServiceDropDownOption[],
   serviceId: string,
   serviceName?: string,
-  categoryId?: string
+  categoryId?: string,
+  extraNameCandidates: unknown[] = []
 ): ServiceDropDownOption[] {
   const sid = str(serviceId);
   if (!sid) return [];
   const match = quoteCatalogServices.find((o) => String(o.value) === sid);
   if (match) return [match];
   const cid = normalizeServiceCategoryRef(categoryId);
+  const label =
+    pickHumanQuoteServiceLabel([serviceName, ...extraNameCandidates], sid) ||
+    sid;
   return [
     {
       value: sid,
-      label: str(serviceName) || sid,
+      label,
       category_id: cid || undefined,
     },
   ];
@@ -1749,6 +1753,67 @@ function isMongoObjectId(value: string): boolean {
   return /^[a-f\d]{24}$/i.test(value.trim());
 }
 
+/** First human-readable service label from a quote API row (skips raw ObjectIds). */
+function pickHumanQuoteServiceLabel(
+  candidates: unknown[],
+  catalogServiceId?: string
+): string {
+  const sid = str(catalogServiceId);
+  for (const c of candidates) {
+    const label = str(c);
+    if (!label) continue;
+    if (sid && label === sid) continue;
+    if (isMongoObjectId(label)) continue;
+    return label;
+  }
+  return "";
+}
+
+export function resolveQuoteServiceDisplayName(
+  r: Record<string, unknown>,
+  catalogServiceId?: string
+): string {
+  const servicePackageRef = nestedObj(r.service_id);
+  const packageServiceRef = servicePackageRef
+    ? nestedObj(servicePackageRef.service) ??
+      nestedObj(servicePackageRef.service_id)
+    : undefined;
+  const innerCatalogService = servicePackageRef
+    ? nestedObj(servicePackageRef.service_id) ?? packageServiceRef
+    : undefined;
+  const serviceRef =
+    innerCatalogService ??
+    packageServiceRef ??
+    servicePackageRef ??
+    nestedObj(r.service);
+  const requestedServicesRef = nestedObj(r.requested_services);
+  const sid = catalogServiceId || resolveQuoteCatalogServiceId(r);
+
+  return pickHumanQuoteServiceLabel(
+    [
+      r.service_name,
+      requestedServicesRef?.name,
+      requestedServicesRef?.service_name,
+      typeof r.requested_services === "string" ||
+      typeof r.requested_services === "number"
+        ? r.requested_services
+        : undefined,
+      packageServiceRef?.name,
+      packageServiceRef?.service_name,
+      innerCatalogService?.name,
+      innerCatalogService?.service_name,
+      servicePackageRef?.name,
+      servicePackageRef?.service_name,
+      serviceRef?.name,
+      serviceRef?.service_name,
+      r.services,
+      r.service_summary,
+      r.name,
+    ],
+    sid
+  );
+}
+
 /** Human-readable order number for Success quotes — not the order Mongo `_id`. */
 function resolveQuoteOrderDisplayId(
   r: Record<string, unknown>
@@ -1965,8 +2030,6 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
   const innerCatalogService = servicePackageRef
     ? nestedObj(servicePackageRef.service_id) ?? packageServiceRef
     : undefined;
-  const serviceRef =
-    innerCatalogService ?? packageServiceRef ?? servicePackageRef ?? nestedObj(r.service);
   const addressRef =
     nestedObj(r.address_id) ??
     nestedObj(r.address) ??
@@ -1981,20 +2044,8 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
         r.reference
     ) || mongoId;
 
-  const requested_services = str(
-    r.service_name ??
-      r.requested_services ??
-      packageServiceRef?.name ??
-      packageServiceRef?.service_name ??
-      innerCatalogService?.name ??
-      innerCatalogService?.service_name ??
-      servicePackageRef?.name ??
-      servicePackageRef?.service_name ??
-      serviceRef?.name ??
-      serviceRef?.service_name ??
-      r.name ??
-      ""
-  );
+  const catalogServiceId = resolveQuoteCatalogServiceId(r);
+  const requested_services = resolveQuoteServiceDisplayName(r, catalogServiceId);
 
   const fromD = isoOrDateToYmd(str(r.from_date ?? r.fromDate ?? ""));
   const toD = isoOrDateToYmd(str(r.to_date ?? r.toDate ?? ""));
@@ -2194,7 +2245,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     state: state || undefined,
     address_line: address_line || undefined,
     pincode: pincode || undefined,
-    service_id: resolveQuoteCatalogServiceId(r) || undefined,
+    service_id: catalogServiceId || undefined,
     partner_id: refId(r.partner_id) || refId(partnerRef) || undefined,
     partner_user_id:
       str(r.partner_user_id ?? partnerRef?.user_id) || undefined,
