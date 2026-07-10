@@ -1032,6 +1032,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const lockedFields = catalogBusy || !quoteRow;
   const quoteStatusKey = normalizeQuoteApiStatus(quoteRow?.status) || "new";
   const isPendingQuoteEdit = quoteStatusKey === "pending";
+  const isAcceptedQuoteEdit = quoteStatusKey === "accepted";
+  const isCatalogFieldsReadOnly = isPendingQuoteEdit || isAcceptedQuoteEdit;
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
   const categoryFieldDisabled =
@@ -1206,8 +1208,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             : "Search partner name"
                         }
                         menuPortal
-                        isClearable
-                        isDisabled={lockedFields || isPendingQuoteEdit}
+                        isClearable={!isCatalogFieldsReadOnly}
+                        isDisabled={lockedFields || isCatalogFieldsReadOnly}
                       />
                     </Col>
                   </Row>
@@ -1223,7 +1225,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         error={errors.category_id}
                         requiredMessage="Please select a category"
                         defaultValue={form.category_id}
-                        isClearable={!isNewTabQuoteEdit}
+                        isClearable={!isNewTabQuoteEdit && !isCatalogFieldsReadOnly}
                         setValue={(name, value) => {
                           if (name === "category_id") {
                             const prev = getValues("category_id");
@@ -1255,7 +1257,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         isDisabled={
                           categoryFieldDisabled ||
                           isNewTabQuoteEdit ||
-                          isPendingQuoteEdit
+                          isCatalogFieldsReadOnly
                         }
                       />
                     </Col>
@@ -1302,11 +1304,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                                 : "Search service name"
                         }
                         menuPortal
-                        isClearable={!isNewTabQuoteEdit}
+                        isClearable={!isNewTabQuoteEdit && !isCatalogFieldsReadOnly}
                         isDisabled={
                           serviceFieldDisabled ||
                           isNewTabQuoteEdit ||
-                          isPendingQuoteEdit
+                          isCatalogFieldsReadOnly
                         }
                       />
                     </Col>
@@ -1341,8 +1343,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           : "Search partner name"
                       }
                       menuPortal
-                      isClearable
-                      isDisabled={lockedFields || isPendingQuoteEdit}
+                      isClearable={!isCatalogFieldsReadOnly}
+                      isDisabled={lockedFields || isCatalogFieldsReadOnly}
                     />
                   </Col>
                   <Col xs={12} md={6}>
@@ -1356,7 +1358,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       error={errors.category_id}
                       requiredMessage="Please select a category"
                       defaultValue={form.category_id}
-                      isClearable={!isNewTabQuoteEdit}
+                      isClearable={!isNewTabQuoteEdit && !isCatalogFieldsReadOnly}
                       setValue={(name, value) => {
                         if (name === "category_id") {
                           const prev = getValues("category_id");
@@ -1388,7 +1390,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       isDisabled={
                         categoryFieldDisabled ||
                         isNewTabQuoteEdit ||
-                        isPendingQuoteEdit
+                        isCatalogFieldsReadOnly
                       }
                     />
                   </Col>
@@ -1435,11 +1437,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               : "Search service name"
                       }
                       menuPortal
-                      isClearable={!isNewTabQuoteEdit}
+                      isClearable={!isNewTabQuoteEdit && !isCatalogFieldsReadOnly}
                       isDisabled={
                         serviceFieldDisabled ||
                         isNewTabQuoteEdit ||
-                        isPendingQuoteEdit
+                        isCatalogFieldsReadOnly
                       }
                     />
                   </Col>
