@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Row, Col, Button, Modal } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import circleEdit from "../../assets/icons/circle_edit.svg";
-import loginLogo from "../../assets/icons/login_logo.svg";
+import helperLogo from "../../assets/images/helper-logo.png";
 import EditProfile from "./EditProfile";
 import { UserModel } from "../../lib/models/UserModel";
 import { getCreatedById } from "../../lib/global/localStorageHelper";
@@ -128,7 +128,7 @@ const Profile = () => {
                   src={
                     userDetails?.profile_url
                       ? resolveExistingImageSrc(userDetails.profile_url)
-                      : loginLogo
+                      : helperLogo
                   }
                   alt="Profile"
                   style={{
