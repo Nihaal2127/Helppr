@@ -12,7 +12,8 @@ import CustomImageUploader, {
 } from "../../components/CustomImageUploader";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import {
-  createOrUpdateDocument,
+  uploadDocumentImages,
+  documentUploadFailureMessage,
   normalizeReplaceStoragePaths,
 } from "../../services/documentUploadService";
 import { showErrorAlert } from "../../lib/global/alertHelper";
@@ -61,68 +62,47 @@ const Profile = () => {
   };
 
   const onUploadSave = async () => {
-    if (
-      userDetails?.profile_url &&
-      fileInputs.length > 0 &&
-      replaceUrls.length > 0
-    ) {
-      uploadProfile(true);
-    } else if (
-      userDetails?.profile_url &&
-      fileInputs.length === 0 &&
-      replaceUrls.length === 0
-    ) {
-      //delete profile
-      showLog("Remove Profile");
-    } else {
-      // add profile
-      if (fileInputs.length > 0) {
-        uploadProfile(false);
+    if (fileInputs.length === 0) {
+      if (userDetails?.profile_url && replaceUrls.length === 0) {
+        //delete profile
+        showLog("Remove Profile");
       }
-    }
-  };
-
-  const uploadProfile = async (isEditable: boolean) => {
-    const formData = new FormData();
-    formData.append("type", "4");
-    fileInputs.forEach((file) => formData.append("files", file));
-    const replacePaths = isEditable
-      ? normalizeReplaceStoragePaths(
-          replaceUrls.length > 0
-            ? replaceUrls
-            : userDetails?.profile_url
-              ? [userDetails.profile_url]
-              : []
-        )
-      : [];
-    const useReplaceUpload = replacePaths.length > 0;
-    if (useReplaceUpload) {
-      formData.append("update_file_urls", JSON.stringify(replacePaths));
+      return;
     }
 
-    let { response, fileList } = await createOrUpdateDocument(
-      formData,
-      useReplaceUpload,
-      { replaceFallbackPaths: replacePaths }
+    const imageUpload = await uploadDocumentImages({
+      uploadType: "4",
+      files: fileInputs,
+      isEditMode: Boolean(userDetails?.profile_url),
+      replaceUrls,
+      existingStoragePaths: userDetails?.profile_url
+        ? [userDetails.profile_url]
+        : [],
+    });
+
+    if (!imageUpload.ok) {
+      showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
+      return;
+    }
+
+    const profile_url = imageUpload.paths[0];
+    if (!profile_url) {
+      showErrorAlert(documentUploadFailureMessage(false));
+      return;
+    }
+
+    if (!userDetails?._id) {
+      showErrorAlert("Unable to update. ID is missing.");
+      return;
+    }
+
+    const responseUpdate = await createOrUpdateUser(
+      { profile_url },
+      true,
+      userDetails._id
     );
-
-    if (response) {
-      const payload = {
-        profile_url: fileList[0],
-      };
-      if (!userDetails?._id) {
-        showErrorAlert("Unable to update. ID is missing.");
-        return;
-      }
-
-      let responseUpdate = await createOrUpdateUser(
-        payload,
-        true,
-        userDetails?._id
-      );
-      if (responseUpdate) {
-        onUploadCloseModal();
-      }
+    if (responseUpdate) {
+      onUploadCloseModal();
     }
   };
 

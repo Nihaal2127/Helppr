@@ -346,7 +346,8 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         uploadType: "2",
         files: fileInputs,
         isEditMode: isEditable,
-        
+        replaceUrls,
+        existingStoragePaths: serviceImagePath ? [serviceImagePath] : [],
       });
       if (!imageUpload.ok) {
         showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));

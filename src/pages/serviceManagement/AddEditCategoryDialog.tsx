@@ -448,7 +448,8 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         uploadType: "2",
         files: fileInputs,
         isEditMode: isEditable,
-       
+        replaceUrls,
+        existingStoragePaths: category?.image_url ? [category.image_url] : [],
       });
       if (!imageUpload.ok) {
         showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
