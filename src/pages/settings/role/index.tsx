@@ -150,6 +150,56 @@ function staffRhfFromForm(form: typeof emptyStaffForm) {
   };
 }
 
+function readSessionAccessibleMenuKeys(): string[] {
+  const raw = getLocalStorage(AppConstant.userAccessibleMenuKeys);
+  if (!raw || !String(raw).trim()) return [];
+  try {
+    const parsed = JSON.parse(String(raw));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((x) => String(x ?? "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** Franchise employees inherit the franchise admin's screen access (not manual pickers). */
+function franchiseAdminMenuKeysForEmployeePayload(
+  menuKeys: string[]
+): string[] {
+  return screenPermissionsForPayload(menuKeys, employeeScreenPermissionKeys);
+}
+
+async function resolveFranchiseEmployeeScreenPermissions(opts: {
+  isFranchiseAdminSession: boolean;
+  franchiseId?: string;
+}): Promise<string[]> {
+  if (opts.isFranchiseAdminSession) {
+    return franchiseAdminMenuKeysForEmployeePayload(
+      readSessionAccessibleMenuKeys()
+    );
+  }
+  const fid = String(opts.franchiseId ?? "").trim();
+  if (fid) {
+    const apiData = await fetchSettingsSectionPageByType(
+      WEB_MANAGEMENT_USER_TYPE.FRANCHISE_ADMIN,
+      1,
+      50,
+      { franchiseId: fid, status: "active" }
+    );
+    const admin = apiData?.roles.find(
+      (r) =>
+        r.roleType === "franchise_admin" &&
+        String(r.franchise_id ?? "").trim() === fid
+    );
+    if (admin?.screenPermissions?.length) {
+      return franchiseAdminMenuKeysForEmployeePayload(admin.screenPermissions);
+    }
+  }
+  return franchiseAdminMenuKeysForEmployeePayload(
+    readSessionAccessibleMenuKeys()
+  );
+}
+
 /** Profile image for franchise/staff role view: backend path or absolute URL; mock `uploads/…` uses placeholder. */
 function franchiseRoleProfileImageSrc(profileUrl?: string): string {
   const u = (profileUrl ?? "").trim();
@@ -1679,18 +1729,6 @@ const RoleManagement = () => {
                   </div>
                 </Form.Group>
               </div>
-              {form.roleType === "employee" && (
-                <div className="col-md-12">
-                  <ScreenPermissionChecklist
-                    idPrefix="role_screen_perm"
-                    items={employeeScreenPermissionMenuItems}
-                    selectedKeys={form.screenPermissions}
-                    onChange={(screenPermissions) =>
-                      setForm((prev) => ({ ...prev, screenPermissions }))
-                    }
-                  />
-                </div>
-              )}
             </div>
           )}
         </Modal.Body>
@@ -1731,6 +1769,25 @@ const RoleManagement = () => {
                     return;
                   }
                 }
+                const resolvedFranchiseId =
+                  (form.assignedFranchise &&
+                    franchiseMetaByName.get(form.assignedFranchise)?.value) ||
+                  editing?.franchise_id ||
+                  undefined;
+                let employeeScreenPermissions: string[] | undefined;
+                if (form.roleType === "employee") {
+                  employeeScreenPermissions =
+                    await resolveFranchiseEmployeeScreenPermissions({
+                      isFranchiseAdminSession,
+                      franchiseId: resolvedFranchiseId,
+                    });
+                  if (employeeScreenPermissions.length === 0) {
+                    showErrorAlert(
+                      "Unable to resolve screen permissions from franchise admin."
+                    );
+                    return;
+                  }
+                }
                 const rolePayload = {
                   roleId:
                     editing?.roleId ||
@@ -1743,11 +1800,7 @@ const RoleManagement = () => {
                   profile_url: form.profile_url.trim() || undefined,
                   roleType: form.roleType,
                   assignedFranchise: form.assignedFranchise || undefined,
-                  franchise_id:
-                    (form.assignedFranchise &&
-                      franchiseMetaByName.get(form.assignedFranchise)?.value) ||
-                    editing?.franchise_id ||
-                    undefined,
+                  franchise_id: resolvedFranchiseId,
                   state_id:
                     (form.assignedFranchise &&
                       franchiseMetaByName.get(form.assignedFranchise)
@@ -1763,10 +1816,7 @@ const RoleManagement = () => {
                   status: form.status,
                   screenPermissions:
                     form.roleType === "employee"
-                      ? screenPermissionsForPayload(
-                          form.screenPermissions,
-                          employeeScreenPermissionKeys
-                        )
+                      ? employeeScreenPermissions!
                       : form.screenPermissions,
                 };
                 if (editing?.id) {
