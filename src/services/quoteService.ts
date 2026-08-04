@@ -2420,15 +2420,25 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
     user_email: str(r.user_email ?? userRef?.email) || undefined,
     user_city: str(r.user_city ?? userRef?.city_name ?? city) || undefined,
     profile_url: (() => {
-      const s = str(r.profile_url ?? userRef?.profile_url);
+      const s = str(
+        r.profile_url ?? userRef?.profile_url ?? userRef?.image_url
+      );
       return s || null;
     })(),
     partner_profile_url: (() => {
-      const s = str(r.partner_profile_url ?? partnerRef?.profile_url);
+      const s = str(
+        r.partner_profile_url ??
+          partnerRef?.profile_url ??
+          partnerRef?.image_url
+      );
       return s || null;
     })(),
     employee_profile_url: (() => {
-      const s = str(r.employee_profile_url ?? employeeRef?.profile_url);
+      const s = str(
+        r.employee_profile_url ??
+          employeeRef?.profile_url ??
+          employeeRef?.image_url
+      );
       return s || null;
     })(),
     category_id: refId(r.category_id) || refId(categoryRef) || undefined,

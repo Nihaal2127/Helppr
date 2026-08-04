@@ -714,6 +714,12 @@ function nestedObj(v: unknown): Record<string, unknown> | undefined {
   return v as Record<string, unknown>;
 }
 
+function pickProfileUrl(rec?: Record<string, unknown>): string | undefined {
+  if (!rec) return undefined;
+  const s = str(rec.profile_url) || str(rec.image_url);
+  return s || undefined;
+}
+
 function refId(v: unknown): string {
   if (typeof v === "string" || typeof v === "number") return str(v);
   const o = nestedObj(v);
@@ -779,21 +785,31 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
   const createdByRef = nestedObj(r.created_by_id);
   const franchiseRef = nestedObj(r.franchise_info);
 
-  const userInfo =
-    nestedObj(r.user_info) ??
-    (userRef
-      ? {
-          ...userRef,
-          name: userRef.name ?? userRef.user_name,
-        }
-      : undefined);
+  const userInfo = (() => {
+    const fromInfo = nestedObj(r.user_info);
+    if (fromInfo) {
+      return {
+        ...fromInfo,
+        name: str(fromInfo.name) || str(fromInfo.user_name) || str(userRef?.name),
+        profile_url:
+          pickProfileUrl(fromInfo) ?? pickProfileUrl(userRef) ?? fromInfo.profile_url,
+      };
+    }
+    if (userRef) {
+      return {
+        ...userRef,
+        name: str(userRef.name) || str(userRef.user_name),
+        profile_url: pickProfileUrl(userRef) ?? userRef.profile_url,
+      };
+    }
+    return undefined;
+  })();
 
   const orderStatusRaw = r.order_status ?? r.status_code ?? r.status;
   const order_status = normalizeOrderStatusFromApi(orderStatusRaw);
   const user_name =
     str(r.user_name) ||
     str(userInfo?.name) ||
-    str(userInfo?.user_name) ||
     "";
 
   const paymentStatusSlug = str(r.payment_status).toLowerCase();
@@ -831,6 +847,7 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       ? ({ ...createdByRef } as unknown as OrderModel["created_by_info"])
       : undefined);
 
+  const employeeRef = nestedObj(r.employee_id);
   const employee_info = ((): OrderModel["employee_info"] => {
     if (r.employee_info === null) return null;
     const fromInfo = nestedObj(r.employee_info);
@@ -838,6 +855,17 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       return {
         ...fromInfo,
         name: str(fromInfo.name ?? fromInfo.user_name),
+        profile_url:
+          pickProfileUrl(fromInfo) ??
+          pickProfileUrl(employeeRef) ??
+          fromInfo.profile_url,
+      } as unknown as UserModel;
+    }
+    if (employeeRef) {
+      return {
+        ...employeeRef,
+        name: str(employeeRef.name ?? employeeRef.user_name),
+        profile_url: pickProfileUrl(employeeRef) ?? employeeRef.profile_url,
       } as unknown as UserModel;
     }
     return undefined;
@@ -928,9 +956,25 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       ? (r.additional_charges as Record<string, unknown>[])
       : null,
     address_info: nestedObj(r.address_info) ?? null,
-    partner_info:
-      (nestedObj(r.partner_info) as OrderModel["partner_info"] | undefined) ??
-      (r.partner_info as OrderModel["partner_info"]),
+    partner_info: (() => {
+      const fromInfo = nestedObj(r.partner_info);
+      if (fromInfo) {
+        return {
+          ...fromInfo,
+          profile_url:
+            pickProfileUrl(fromInfo) ??
+            pickProfileUrl(partnerRef) ??
+            fromInfo.profile_url,
+        } as OrderModel["partner_info"];
+      }
+      if (partnerRef) {
+        return {
+          ...partnerRef,
+          profile_url: pickProfileUrl(partnerRef) ?? partnerRef.profile_url,
+        } as OrderModel["partner_info"];
+      }
+      return r.partner_info as OrderModel["partner_info"];
+    })(),
     ...((): Partial<OrderModel> => {
       const offerRec = nestedObj(r.order_offer);
       if (!offerRec) return {};
