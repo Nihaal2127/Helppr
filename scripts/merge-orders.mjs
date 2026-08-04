@@ -83,7 +83,6 @@ import { CityModel } from "../models/CityModel";
 import { ServiceModel } from "../models/ServiceModel";
 import { UserModel } from "../models/UserModel";
 import type { OfferModel } from "../models/SettingsModel";
-import { getOffers } from "../../services/settingsService";
 import {
   customerPaymentStatusLabelFromSlug,
   normalizeCustomerPaymentStatusSlug,

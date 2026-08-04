@@ -40,7 +40,7 @@ export type QuoteUserOption = OptionType & { user_name: string };
 
 /**
  * Maps a service label to schedule UI: one day, date range, or one day with time window.
- * Heuristic over mock labels; with live API, options use real service names from dropdown.
+ * Heuristic over service labels; options use real service names from dropdown.
  */
 export function getQuoteServiceScheduleMode(
   serviceLabel: string

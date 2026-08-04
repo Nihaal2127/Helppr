@@ -29,7 +29,6 @@ const buckets = [
   "models",
   "constant",
   "remote",
-  "mockData",
   "types",
   "hooks",
   "layout",

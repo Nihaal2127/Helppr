@@ -27,13 +27,12 @@ import {
   StaffSettingsModel,
 } from "../../../lib/models/SettingsModel";
 import {
-  ensureSettingsSeedData,
   createRoleUserWithApi,
   createStaffUserWithApi,
   updateRoleUserWithApi,
   updateStaffUserWithApi,
   fetchSettingsSectionPageByType,
-  voidRole,
+  voidRoleUserWithApi,
 } from "../../../services/settingsService";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import ScreenPermissionChecklist from "../../../components/ScreenPermissionChecklist";
@@ -157,7 +156,7 @@ function staffRhfFromForm(form: typeof emptyStaffForm) {
   };
 }
 
-/** Profile image for franchise/staff role view: backend path or absolute URL; mock `uploads/…` uses placeholder. */
+/** Profile image for franchise/staff role view: backend path or absolute URL; `uploads/…` uses placeholder. */
 function franchiseRoleProfileImageSrc(profileUrl?: string): string {
   const u = (profileUrl ?? "").trim();
   if (!u) return profilePlaceholder;
@@ -561,10 +560,6 @@ const RoleManagement = () => {
     openAddFranchiseAdminModal();
   }, [routerLocation.state, routerLocation.pathname, navigate, openAddFranchiseAdminModal]);
 
-  useEffect(() => {
-    ensureSettingsSeedData();
-  }, []);
-
   /** Full franchise list (`GET_FRANCHISE_DROP_DOWN` / full_list) — header filter + Employee Assigned Franchise. */
   useEffect(() => {
     let cancelled = false;
@@ -946,9 +941,9 @@ const RoleManagement = () => {
                 "Are you sure you want to void this role?",
                 "Void",
                 "Cancel",
-                () => {
-                  voidRole(row.original.id);
-                  setReloadToken((v) => v + 1);
+                async () => {
+                  const ok = await voidRoleUserWithApi(row.original.id);
+                  if (ok) setReloadToken((v) => v + 1);
                 }
               );
             }}

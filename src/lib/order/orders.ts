@@ -37,6 +37,10 @@ import {
 } from "./orderScheduleMetrics";
 import { workTimeToTimeStorage } from "./orderTimeUtils";
 import {
+  deriveQuoteScheduleDurationFromStored,
+  getQuoteScheduleDurationUnit,
+} from "../../services/quoteService";
+import {
   normalizePaymentMethod,
   paymentMethodFromExpenseModeId,
   paymentRowEffectiveAmount,
@@ -2826,6 +2830,44 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
     order.sub_total;
   const priceNum = Number(priceRaw);
 
+  const requested_date =
+    normalizeOrderApiDateYmd(order.from_date) ||
+    (primary?.service_date ? ymdChunk(primary.service_date) : "") ||
+    normalizeOrderApiDateYmd(order.order_date);
+  const requested_date_to =
+    normalizeOrderApiDateYmd(order.to_date) ||
+    normalizeOrderApiDateYmd(order.from_date) ||
+    "";
+  const requested_time_from = workTimeToTimeStorage(
+    primary?.service_from_time ?? ""
+  );
+  const requested_time_to = workTimeToTimeStorage(
+    primary?.service_to_time ?? ""
+  );
+  const storedDuration = String(primary?.schedule_duration ?? "").trim();
+  let schedule_duration = storedDuration;
+  if (
+    !schedule_duration &&
+    requested_date &&
+    requested_time_from &&
+    requested_time_to
+  ) {
+    const paymentType = String(
+      primary?.service_info?.payment_type ??
+        primary?.service_info?.min_deposit_type ??
+        ""
+    ).trim();
+    schedule_duration = String(
+      deriveQuoteScheduleDurationFromStored({
+        unit: getQuoteScheduleDurationUnit(paymentType),
+        fromDate: requested_date,
+        toDate: requested_date_to || requested_date,
+        startTimeStorage: requested_time_from,
+        endTimeStorage: requested_time_to,
+      })
+    );
+  }
+
   return {
     franchise_id: franchiseRaw,
     user_id: order.user_id,
@@ -2834,17 +2876,12 @@ export function seedEditOrderFormFromRow(order: OrderModel): EditOrderFormValues
     requested_partner: partnerId,
     employee_id: String(order.created_by_id ?? "").trim(),
     category_id: categoryId,
-    requested_date:
-      normalizeOrderApiDateYmd(order.from_date) ||
-      (primary?.service_date ? ymdChunk(primary.service_date) : "") ||
-      normalizeOrderApiDateYmd(order.order_date),
-    requested_date_to:
-      normalizeOrderApiDateYmd(order.to_date) ||
-      normalizeOrderApiDateYmd(order.from_date) ||
-      "",
+    requested_date,
+    schedule_duration,
+    requested_date_to,
     requested_time: "",
-    requested_time_from: workTimeToTimeStorage(primary?.service_from_time ?? ""),
-    requested_time_to: workTimeToTimeStorage(primary?.service_to_time ?? ""),
+    requested_time_from,
+    requested_time_to,
     service_price:
       Number.isFinite(priceNum) && priceNum >= 0 ? String(priceNum) : "",
     user_description: String(order.customer_description ?? "").trim(),
