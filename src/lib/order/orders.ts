@@ -118,6 +118,8 @@ export interface OrderItemModel {
   service_date: string;
   service_from_time: string;
   service_to_time: string;
+  /** Hours, days, or months for schedule UI (not sent to API). */
+  schedule_duration?: string;
   sub_total: number | 0;
   tax: number | 0;
   user_paltform_fee: number | 0;
