@@ -2893,6 +2893,21 @@ $franchise-status-switch-knob: url("data:image/svg+xml,%3csvg xmlns='http://www.
   text-underline-offset: 3px;
 }
 
+.box-rw-clr5 {
+  color: var(--txt-color);
+  text-decoration: underline;
+  cursor: pointer;
+  text-underline-offset: 3px;
+  opacity: 0.75;
+}
+
+.box-rw-clr6 {
+  color: var(--btn-danger);
+  text-decoration: underline;
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
 .custom-utilty-box {
   display: flex;
   justify-content: space-between;

@@ -1085,6 +1085,8 @@ export type PostManagementStats = {
   Published: number;
   Hidden: number;
   Removed: number;
+  Pending: number;
+  Rejected: number;
 };
 
 const EMPTY_POST_STATS: PostManagementStats = {
@@ -1092,6 +1094,8 @@ const EMPTY_POST_STATS: PostManagementStats = {
   Published: 0,
   Hidden: 0,
   Removed: 0,
+  Pending: 0,
+  Rejected: 0,
 };
 
 /** Human label for post `status`. */
@@ -1307,8 +1311,7 @@ async function fetchPartnerPostListPage(
 
 /**
  * Maps `GET /partner-post/getCounts` or `POST /getCount` `{ type: "partner-post-management" }`
- * into post summary cards (Published / Hidden / Removed). Report buckets (`pending`, `reviewed`,
- * `dismissed`) are ignored here — they belong to the reports queue, not the post list.
+ * into post summary cards (Published / Hidden / Removed / Pending / Rejected).
  */
 export function mapPostManagementStatsFromCountRecord(
   record: Record<string, unknown> | null | undefined
@@ -1330,11 +1333,15 @@ export function mapPostManagementStatsFromCountRecord(
   const published = pick("published");
   const hidden = pick("hidden");
   const removed = pick("removed");
+  const pending = pick("pending", "pending_posts");
+  const rejected = pick("rejected", "reject", "rejected_posts");
   const explicitTotal = pick("total", "total_posts", "total_partner_posts");
   if (
     published === null &&
     hidden === null &&
     removed === null &&
+    pending === null &&
+    rejected === null &&
     explicitTotal === null
   ) {
     return null;
@@ -1342,11 +1349,15 @@ export function mapPostManagementStatsFromCountRecord(
   const pub = published ?? 0;
   const hid = hidden ?? 0;
   const rem = removed ?? 0;
+  const pen = pending ?? 0;
+  const rej = rejected ?? 0;
   return {
-    Total: explicitTotal ?? pub + hid + rem,
+    Total: explicitTotal ?? pub + hid + rem + pen + rej,
     Published: pub,
     Hidden: hid,
     Removed: rem,
+    Pending: pen,
+    Rejected: rej,
   };
 }
 
