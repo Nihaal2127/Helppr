@@ -110,6 +110,52 @@ function toIdArray(raw: unknown): string[] {
   return raw.map((x) => String(x ?? "").trim()).filter(Boolean);
 }
 
+/** Accepts a single ObjectId string or an array (multi-city franchises). */
+function toCityIdList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    const out: string[] = [];
+    for (const x of raw) {
+      if (x && typeof x === "object") {
+        const id = String(
+          (x as Record<string, unknown>)._id ??
+            (x as Record<string, unknown>).id ??
+            ""
+        ).trim();
+        if (id) out.push(id);
+        continue;
+      }
+      const id = String(x ?? "").trim();
+      if (id) out.push(id);
+    }
+    return Array.from(new Set(out));
+  }
+  if (raw && typeof raw === "object") {
+    const id = String(
+      (raw as Record<string, unknown>)._id ??
+        (raw as Record<string, unknown>).id ??
+        ""
+    ).trim();
+    return id ? [id] : [];
+  }
+  const s = String(raw ?? "").trim();
+  return s ? [s] : [];
+}
+
+function toCityNameList(raw: unknown): string[] | undefined {
+  if (Array.isArray(raw)) {
+    const names = raw.map((x) => String(x ?? "").trim()).filter(Boolean);
+    return names.length ? names : undefined;
+  }
+  const s = String(raw ?? "").trim();
+  return s ? [s] : undefined;
+}
+
+/** Dropdown filters still use a single city id — prefer the first when multi-city. */
+function firstCityId(raw: unknown): string | undefined {
+  const ids = toCityIdList(raw);
+  return ids[0];
+}
+
 function normalizeBooleanLike(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   if (value === 1 || value === "1") return true;
@@ -275,8 +321,13 @@ function mapFranchiseRow(
       ? serviceLinks.activeById
       : undefined;
 
+  const cityIdsMapped = toCityIdList(raw?.city_id);
+  const cityNamesMapped = toCityNameList(raw?.city_name);
+
   return {
     ...raw,
+    city_id: cityIdsMapped,
+    ...(cityNamesMapped ? { city_name: cityNamesMapped } : {}),
     email: mappedEmail || undefined,
     phone_number: mappedPhone || undefined,
     ...(categoryIdsMerged.length ? { category_ids: categoryIdsMerged } : {}),
@@ -371,7 +422,7 @@ async function fetchFranchiseDropDownUncached(
             state_id: franchise.state_id
               ? String(franchise.state_id)
               : undefined,
-            city_id: franchise.city_id ? String(franchise.city_id) : undefined,
+            city_id: firstCityId(franchise.city_id),
           };
         })
         .filter((o) => Boolean(o.value));
@@ -411,7 +462,7 @@ async function fetchFranchiseDropDownUncached(
           value,
           label,
           state_id: franchise.state_id ? String(franchise.state_id) : undefined,
-          city_id: franchise.city_id ? String(franchise.city_id) : undefined,
+          city_id: firstCityId(franchise.city_id),
         };
       })
       .filter((o) => Boolean(o.value));
@@ -466,7 +517,7 @@ async function fetchFranchiseDropDownUncached(
       value,
       label: String(franchise?.name ?? "").trim() || value,
       state_id: franchise?.state_id ? String(franchise.state_id) : undefined,
-      city_id: franchise?.city_id ? String(franchise.city_id) : undefined,
+      city_id: firstCityId(franchise?.city_id),
     });
   });
   return Array.from(unique.values());

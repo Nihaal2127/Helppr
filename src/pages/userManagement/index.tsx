@@ -523,7 +523,18 @@ const UserManagement = () => {
         accessor: "paid_amount",
         Cell: priceCell("paid_amount"),
       },
-      { Header: "Rating", accessor: "rating" },
+      {
+        Header: "Rating",
+        id: "average_rating",
+        accessor: "average_rating",
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const raw = row.original.average_rating;
+          if (raw === null || raw === undefined) return "—";
+          const n = Number(raw);
+          if (!Number.isFinite(n)) return "—";
+          return Number.isInteger(n) ? String(n) : n.toFixed(1);
+        },
+      },
       {
         Header: "Status",
         accessor: "is_active",

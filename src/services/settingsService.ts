@@ -612,7 +612,34 @@ export const voidRoleUserWithApi = async (id: string): Promise<boolean> => {
  * Link a franchise admin user to a franchise using the same fields as Settings → Role
  * (`franchise_id`, `state_id`, `city_id` on `PUT /user/update`). Saving a franchise with
  * `admin_id` alone often does not update the user record, so logins miss franchise scope.
+ *
+ * Multi-city franchises store `city_id` as an array; `/user/update` still expects a single
+ * ObjectId — never `String(array)` (that becomes `"id1,id2"` and returns 400 Invalid city id).
  */
+function firstFranchiseCityIdForUser(raw: unknown): string {
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item && typeof item === "object") {
+        const id = String(
+          (item as Record<string, unknown>)._id ??
+            (item as Record<string, unknown>).id ??
+            ""
+        ).trim();
+        if (id) return id;
+        continue;
+      }
+      const id = String(item ?? "").trim();
+      if (id) return id;
+    }
+    return "";
+  }
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  // Defensive: recover if an array was previously stringified with commas.
+  if (s.includes(",")) return s.split(",")[0].trim();
+  return s;
+}
+
 export const assignFranchiseToAdminUser = async (params: {
   adminUserId: string;
   franchiseId: string;
@@ -629,11 +656,11 @@ export const assignFranchiseToAdminUser = async (params: {
    * Load the saved franchise so we send canonical `state_id` / `city_id` with `franchise_id`.
    */
   let resolvedStateId = String(params.stateId ?? "").trim();
-  let resolvedCityId = String(params.cityId ?? "").trim();
+  let resolvedCityId = firstFranchiseCityIdForUser(params.cityId);
   const franchiseRecord = await fetchFranchiseById(franchiseId);
   if (franchiseRecord) {
     const fs = String(franchiseRecord.state_id ?? "").trim();
-    const fc = String(franchiseRecord.city_id ?? "").trim();
+    const fc = firstFranchiseCityIdForUser(franchiseRecord.city_id);
     if (fs) resolvedStateId = fs;
     if (fc) resolvedCityId = fc;
   }
@@ -655,7 +682,8 @@ export const assignFranchiseToAdminUser = async (params: {
 
   const mapped = mapApiUserToRoleSettingsModel(record, roleType);
   const stateId = resolvedStateId || mapped.state_id || "";
-  const cityId = resolvedCityId || mapped.city_id || "";
+  const cityId =
+    resolvedCityId || firstFranchiseCityIdForUser(mapped.city_id) || "";
 
   const payload: Omit<RoleSettingsModel, "id" | "createdDate"> = {
     roleId: mapped.roleId,

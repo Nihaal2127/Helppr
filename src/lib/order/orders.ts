@@ -133,6 +133,8 @@ export interface OrderItemModel {
   admin_earning: number | 0;
   service_info?: ServiceModel;
   rating?: number | 0;
+  review_text?: string | null;
+  reviewed_at?: string | null;
   cancellation_reasone?: string | null;
   service_status?: number | 0;
   is_paid?: boolean | false;
@@ -250,6 +252,10 @@ export interface OrderModel {
   } | null;
   franchise_name?: string | null;
   partner_info?: UserModel | null;
+  /** Partner-uploaded completion photos (`GET /order/get/:id`). */
+  work_proof_image_urls?: string[] | null;
+  work_completion_description?: string | null;
+  work_completed_at?: string | null;
 }
 
 export interface OrderStatusInfoModel {
@@ -956,6 +962,14 @@ export function mapServerOrderRecord(r: Record<string, unknown>): OrderModel {
       ? (r.additional_charges as Record<string, unknown>[])
       : null,
     address_info: nestedObj(r.address_info) ?? null,
+    work_proof_image_urls: Array.isArray(r.work_proof_image_urls)
+      ? (r.work_proof_image_urls as unknown[])
+          .map((u) => String(u ?? "").trim())
+          .filter(Boolean)
+      : null,
+    work_completion_description:
+      str(r.work_completion_description) || null,
+    work_completed_at: str(r.work_completed_at) || null,
     partner_info: (() => {
       const fromInfo = nestedObj(r.partner_info);
       if (fromInfo) {

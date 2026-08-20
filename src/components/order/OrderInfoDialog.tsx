@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Modal, Row, Col, Table } from "react-bootstrap";
+import { Modal, Row, Col, Table, Carousel } from "react-bootstrap";
 import { OrderModel } from "../../lib/order/orders";
 import {
   DetailsRow,
@@ -49,6 +49,8 @@ import {
 } from "../../lib/quote/quoteHelpers";
 import { OrderInfoDialogHeaderActions } from "./OrderInfoDialogHeaderActions";
 import OrderAmountSummaryPanel from "./OrderAmountSummaryPanel";
+import { resolveExistingImageSrc } from "../CustomImageUploader";
+import profilePlaceholder from "../../assets/icons/profile.svg";
 
 type OrderInfoDialogProps = {
   orderId: string;
@@ -62,6 +64,42 @@ const viewPaymentSectionShell: React.CSSProperties = {
   border: "1px solid var(--txtfld-border, rgba(0, 0, 0, 0.08))",
   backgroundColor: "var(--bg-color)",
 };
+
+function OrderReviewStars({ rating }: { rating: number }) {
+  const clamped = Math.max(0, Math.min(5, Math.round(rating)));
+  return (
+    <span
+      className="order-completed-review__stars"
+      aria-label={`${clamped} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <i
+          key={n}
+          className={`bi ${n <= clamped ? "bi-star-fill" : "bi-star"}`}
+          aria-hidden
+        />
+      ))}
+    </span>
+  );
+}
+
+function OrderReviewText({ text }: { text: string }) {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return (
+      <p className="order-completed-review__text order-completed-review__text--muted mb-0">
+        No written review
+      </p>
+    );
+  }
+
+  return (
+    <div className="order-completed-review__scroll">
+      <p className="order-completed-review__text mb-0">{trimmed}</p>
+    </div>
+  );
+}
 
 const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
   show: (orderId: string, onRefreshData: () => void) => void;
@@ -219,6 +257,32 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
     isCompletedOrderLimitedPaymentEdit(orderDetails);
   const canEditOrderAll = Boolean(orderDetails?._id) && canEditOrderHeader;
   const employeeInfo = orderDetails?.employee_info ?? null;
+  const isCompletedOrder = Number(orderDetails?.order_status) === 3;
+
+  const workProofImages = useMemo(() => {
+    const raw = orderDetails?.work_proof_image_urls ?? [];
+    return raw
+      .map((url) => resolveExistingImageSrc(String(url ?? "").trim()))
+      .filter(Boolean);
+  }, [orderDetails?.work_proof_image_urls]);
+
+  const orderReview = useMemo(() => {
+    const rating = Number(primary?.rating ?? 0);
+    const reviewText = String(primary?.review_text ?? "").trim();
+    const reviewedAt = String(primary?.reviewed_at ?? "").trim();
+    return {
+      rating: Number.isFinite(rating) ? rating : 0,
+      reviewText,
+      reviewedAt,
+      hasContent: rating > 0 || Boolean(reviewText),
+    };
+  }, [primary?.rating, primary?.review_text, primary?.reviewed_at]);
+
+  const reviewUserProfileSrc = useMemo(() => {
+    const url = String(orderDetails?.user_info?.profile_url ?? "").trim();
+    if (!url) return profilePlaceholder;
+    return resolveExistingImageSrc(url) || profilePlaceholder;
+  }, [orderDetails?.user_info?.profile_url]);
 
   const openEditAll = () => {
     if (!orderDetails?._id) return;
@@ -599,6 +663,96 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                   )}
             </div>
           </section>
+
+          {isCompletedOrder ? (
+            <section className="border rounded p-3 mb-3 order-completed-work-review">
+              <Row className="g-3 align-items-start">
+                <Col xs={12} md={6} className="min-w-0">
+                  <h6 className={`${QUOTE_SECTION_TITLE_CLASS} mb-3`}>
+                    Work images
+                  </h6>
+                  {workProofImages.length > 0 ? (
+                    workProofImages.length === 1 ? (
+                      <div className="order-completed-work-review__image-frame">
+                        <img
+                          src={workProofImages[0]}
+                          alt="Work proof"
+                          className="order-completed-work-review__image"
+                        />
+                      </div>
+                    ) : (
+                      <Carousel
+                        interval={null}
+                        indicators
+                        controls
+                        className="order-completed-work-review__carousel partner-accounts-carousel"
+                      >
+                        {workProofImages.map((src, index) => (
+                          <Carousel.Item key={`${src}-${index}`}>
+                            <div className="order-completed-work-review__image-frame">
+                              <img
+                                src={src}
+                                alt={`Work proof ${index + 1}`}
+                                className="order-completed-work-review__image"
+                              />
+                            </div>
+                          </Carousel.Item>
+                        ))}
+                      </Carousel>
+                    )
+                  ) : (
+                    <div className="order-completed-work-review__empty">
+                      No work images uploaded
+                    </div>
+                  )}
+                  {String(
+                    orderDetails?.work_completion_description ?? ""
+                  ).trim() ? (
+                    <p className="order-completed-work-review__completion-note mt-3 mb-0">
+                      {String(
+                        orderDetails?.work_completion_description ?? ""
+                      ).trim()}
+                    </p>
+                  ) : null}
+                </Col>
+
+                <Col xs={12} md={6} className="min-w-0">
+                  <h6 className={`${QUOTE_SECTION_TITLE_CLASS} mb-3`}>
+                    Review
+                  </h6>
+                  {orderReview.hasContent ? (
+                    <div className="order-completed-review">
+                      <div className="order-completed-review__header">
+                        <img
+                          src={reviewUserProfileSrc}
+                          alt=""
+                          className="order-completed-review__avatar"
+                        />
+                        <div className="order-completed-review__meta min-w-0">
+                          <div className="order-completed-review__name text-truncate">
+                            {orderDetails?.user_info?.name ??
+                              orderDetails?.user_name ??
+                              "—"}
+                          </div>
+                          <OrderReviewStars rating={orderReview.rating} />
+                          {orderReview.reviewedAt ? (
+                            <div className="order-completed-review__date">
+                              {formatDate(orderReview.reviewedAt)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <OrderReviewText text={orderReview.reviewText} />
+                    </div>
+                  ) : (
+                    <div className="order-completed-work-review__empty">
+                      No review yet
+                    </div>
+                  )}
+                </Col>
+              </Row>
+            </section>
+          ) : null}
         </Modal.Body>
     </Modal>
   );

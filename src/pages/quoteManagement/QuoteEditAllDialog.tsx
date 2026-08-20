@@ -43,6 +43,8 @@ import {
   buildFranchisePincodeSetFromRelatedCatalog,
   collectFranchiseAreaIds,
   computeQuotePriceBreakdown,
+  quoteHasApiPriceBreakdown,
+  quotePriceBreakdownFromRow,
   QUOTE_MODAL_LAYOUT,
   QUOTE_SECTION_TITLE_CLASS,
   SCHEDULE_TIME_PICKER_INTERVAL_MINUTES,
@@ -627,10 +629,35 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.requested_time_to,
   ]);
 
-  const editPriceBreakdown = useMemo(
-    () => computeQuotePriceBreakdown(form.service_price, feeOptionForPreview),
-    [form.service_price, feeOptionForPreview]
-  );
+  const editPriceBreakdown = useMemo(() => {
+    if (quoteRow && quoteHasApiPriceBreakdown(quoteRow)) {
+      const apiBase = Number(
+        quoteRow.total_service_charge ?? quoteRow.service_price
+      );
+      const formPrice = Number.parseFloat(
+        String(form.service_price ?? "").trim()
+      );
+      if (
+        Number.isFinite(apiBase) &&
+        Number.isFinite(formPrice) &&
+        Math.abs(apiBase - formPrice) < 0.001
+      ) {
+        return quotePriceBreakdownFromRow(quoteRow);
+      }
+      // Service price edited: keep commission/tax % from the quote record.
+      return computeQuotePriceBreakdown(form.service_price, {
+        value: String(quoteRow.service_id ?? ""),
+        label: String(quoteRow.service_name ?? ""),
+        tax: quoteRow.tax_percent,
+        commission: quoteRow.commission_percent,
+        minimum_deposit: quoteRow.minimum_deposit_percent,
+      });
+    }
+    return computeQuotePriceBreakdown(
+      form.service_price,
+      feeOptionForPreview
+    );
+  }, [form.service_price, feeOptionForPreview, quoteRow]);
 
   const schedulePricePreview = useMemo(() => {
     if (!isScheduleComplete || !partnerSelected) return null;
@@ -753,6 +780,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   useEffect(() => {
     if (skipAutoPriceRef.current) return;
     if (!isScheduleComplete || !partnerSelected) return;
+    // Keep GET /quote amounts (total_service_charge, etc.) — do not overwrite from catalog.
+    if (quoteRow && quoteHasApiPriceBreakdown(quoteRow)) return;
     const sid = serviceId;
     if (!sid) return;
     const row = getPartnerActiveServiceProvidingRow(
@@ -787,6 +816,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     form.requested_time_to,
     selectedPartnerCatalogRecord,
     feeOptionForPreview?.payment_type,
+    quoteRow,
     setValue,
   ]);
 

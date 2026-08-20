@@ -1065,7 +1065,23 @@ const QuoteManagement = () => {
         Header: "Quote ID",
         accessor: "quote_id",
         sort: true,
-        Cell: ({ row }: { row: any }) => row.original.quote_id ?? "-",
+        Cell: ({ row }: { row: any }) => {
+          const quote = row.original as QuoteRow;
+          const id = String(quote.quote_id ?? "").trim() || "-";
+          if (id === "-") return id;
+          return (
+            <span
+              style={{
+                textDecoration: "underline",
+                textDecorationThickness: "1px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleQuoteView(quote)}
+            >
+              {id}
+            </span>
+          );
+        },
       },
     ];
 
@@ -1360,7 +1376,7 @@ const QuoteManagement = () => {
 
       <CustomUtilityBox
         key={utilitySearchKey}
-        title="Quotes"
+        title=""
         searchHint={"Search service name, partner name, user name"}
         toolsInlineRow
         toolsInlineClassName="custom-utilty-tools-inline--quotes-wide-search"

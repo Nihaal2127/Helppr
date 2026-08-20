@@ -68,6 +68,24 @@ export const isSupportedImageFile = (file: File): boolean => {
   return hasSupportedExtension && hasSupportedMimeType && isWithinSupportedSize;
 };
 
+/** Verification & Documents — any file type, same 512 KB cap as images. */
+export const getSupportedDocumentMaxSizeBytes = (): number =>
+  SUPPORTED_IMAGE_MAX_SIZE_BYTES;
+
+export const isSupportedDocumentFile = (file: File): boolean => {
+  if (!file || file.size <= 0) return false;
+  return file.size <= getSupportedDocumentMaxSizeBytes();
+};
+
+export const isLikelyImageFile = (file: File): boolean => {
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(
+    extension
+  );
+};
+
 export const textUnderlineCell =
   (field: string, onClick: (row: any) => void) =>
   ({ row }: { row: any }) =>

@@ -136,19 +136,9 @@ const PARTNER_ROLE = 2;
 const FRANCHISE_EMPLOYEE_ROLE = 3;
 const USER_ROLE = 4;
 
-const LETTERS_AND_SPACES_ONLY = /^[A-Za-z\s]+$/;
-
 function sanitizeLettersAndSpaces(value: string): string {
   return value.replace(/[^A-Za-z\s]/g, "");
 }
-
-const ADD_PARTNER_LETTERS_ONLY_FIELD_RULE = {
-  ...REQUIRED_FIELD_RULE,
-  pattern: {
-    value: LETTERS_AND_SPACES_ONLY,
-    message: "Only letters are allowed",
-  },
-};
 
 /** Local guard — keeps catalog UI safe without an extra module export (avoids dev HMR load issues). */
 function ensurePartnerCatalogBlocks(
@@ -2747,14 +2737,12 @@ function AddEditUserDialogView({
                           controlId="partner_bank_legal_name"
                           placeholder="Enter bank name"
                           register={register}
-                          error={errors.partner_bank_legal_name}
-                          validation={ADD_PARTNER_LETTERS_ONLY_FIELD_RULE}
                           value={watch("partner_bank_legal_name") ?? ""}
                           onChange={(value) =>
                             setValue(
                               "partner_bank_legal_name",
                               sanitizeLettersAndSpaces(value),
-                              { shouldValidate: true, shouldDirty: true }
+                              { shouldDirty: true }
                             )
                           }
                           hideValidationFeedback
@@ -2765,14 +2753,12 @@ function AddEditUserDialogView({
                           controlId="partner_bank_branch"
                           placeholder="Enter branch name"
                           register={register}
-                          error={errors.partner_bank_branch}
-                          validation={ADD_PARTNER_LETTERS_ONLY_FIELD_RULE}
                           value={watch("partner_bank_branch") ?? ""}
                           onChange={(value) =>
                             setValue(
                               "partner_bank_branch",
                               sanitizeLettersAndSpaces(value),
-                              { shouldValidate: true, shouldDirty: true }
+                              { shouldDirty: true }
                             )
                           }
                           hideValidationFeedback
@@ -2783,8 +2769,6 @@ function AddEditUserDialogView({
                           controlId="partner_bank_holder"
                           placeholder="Enter account holder name"
                           register={register}
-                          error={errors.partner_bank_holder}
-                          validation={REQUIRED_FIELD_RULE}
                           hideValidationFeedback
                           labelSize={3}
                         />
@@ -2793,8 +2777,6 @@ function AddEditUserDialogView({
                           controlId="partner_bank_account_number"
                           placeholder="Enter account number"
                           register={register}
-                          error={errors.partner_bank_account_number}
-                          validation={REQUIRED_FIELD_RULE}
                           hideValidationFeedback
                           labelSize={3}
                         />
@@ -2803,8 +2785,6 @@ function AddEditUserDialogView({
                           controlId="partner_bank_ifsc"
                           placeholder="Enter IFSC code"
                           register={register}
-                          error={errors.partner_bank_ifsc}
-                          validation={REQUIRED_FIELD_RULE}
                           hideValidationFeedback
                           labelSize={3}
                         />

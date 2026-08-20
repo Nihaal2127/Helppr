@@ -895,7 +895,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 </Col>
               ) : null}
 
-              <Col md={isRequestCategory ? 12 : 6}>
+              <Col xs={12} md={6} className="min-w-0">
                 <label className="form-label fw-medium mb-2 d-block">
                   <FieldLabelText label="Category image" required />
                 </label>
@@ -916,10 +916,10 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
                 />
               </Col>
               {!isRequestCategory ? (
-                <Col md={6}>
-                   <label className="form-label fw-medium mb-2 d-block">
-                  <FieldLabelText label="Services" required />
-                </label>
+                <Col xs={12} md={6} className="min-w-0">
+                  <label className="form-label fw-medium mb-2 d-block">
+                    <FieldLabelText label="Services" required />
+                  </label>
                   <CustomMultiSelect
                     label=""
                     controlId="Service"
