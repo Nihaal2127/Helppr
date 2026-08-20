@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormRegister } from "react-hook-form";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -23,7 +23,7 @@ type PostManagementProps = {
 
 type PostListFilter = "all" | PostModel["status"];
 
-const POST_STATUS_FILTER_OPTIONS: { value: PostListFilter; label: string }[] = [
+const POST_STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All" },
   { value: "published", label: "Published" },
   { value: "hidden", label: "Hidden" },
@@ -47,9 +47,7 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
     setValue: setHeaderValue,
     franchiseId: headerFranchiseId,
   } = useFranchiseHeaderForm();
-  const { register: filterRegister, setValue: setFilterValue } = useForm<{
-    post_status_filter: PostListFilter;
-  }>({
+  const { register: filterRegister, setValue: setFilterValue } = useForm<any>({
     defaultValues: { post_status_filter: "all" },
   });
   const [selectedStatus, setSelectedStatus] = useState<PostListFilter>("all");
@@ -240,18 +238,12 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
               label="Status"
               controlId="post_status_filter"
               options={POST_STATUS_FILTER_OPTIONS}
-              register={filterRegister}
+              register={filterRegister as UseFormRegister<any>}
               fieldName="post_status_filter"
               asCol={false}
               noBottomMargin
               defaultValue={selectedStatus}
-              setValue={
-                setFilterValue as (
-                  name: string,
-                  value: unknown,
-                  options?: { shouldValidate?: boolean }
-                ) => void
-              }
+              setValue={setFilterValue}
               onChange={(e) => {
                 const next = e.target.value as PostListFilter;
                 setSelectedStatus(next);
