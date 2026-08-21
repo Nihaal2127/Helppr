@@ -41,28 +41,29 @@ export const fetchCityDropDown = async (
   );
 
   if (response.success) {
-    return cityDropDownRecords(response.data)
-      .map((row) => {
-        const city = row as {
-          _id?: string;
-          name?: string;
-          state_id?: string;
-          state_name?: string;
-        };
-        const value = String(city._id ?? "").trim();
-        const label = String(city.name ?? "").trim();
-        if (!value || !label) return null;
-        return {
-          value,
-          label,
-          state_id: city.state_id ? String(city.state_id).trim() : undefined,
-          state_name: city.state_name
-            ? String(city.state_name).trim()
-            : undefined,
-        };
-      })
-      .filter((o): o is CityDropDownOption => o !== null)
-      .sort((a, b) => a.label.localeCompare(b.label));
+    const options: CityDropDownOption[] = [];
+    for (const row of cityDropDownRecords(response.data)) {
+      const city = row as {
+        _id?: string;
+        name?: string;
+        state_id?: string;
+        state_name?: string;
+      };
+      const value = String(city._id ?? "").trim();
+      const label = String(city.name ?? "").trim();
+      if (!value || !label) continue;
+      options.push({
+        value,
+        label,
+        ...(city.state_id
+          ? { state_id: String(city.state_id).trim() }
+          : {}),
+        ...(city.state_name
+          ? { state_name: String(city.state_name).trim() }
+          : {}),
+      });
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label));
   } else {
     showLog(response.message || "Failed to fetch city");
     return [];
