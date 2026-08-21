@@ -2413,18 +2413,21 @@ body:has(.modal.show ~ .modal.show) {
     color: var(--primary-color);
   }
 
-  /* Edit order — locked partner / category / service / user selects (full label, same row rhythm as User). */
+  /* Locked selects + disabled / read-only native fields — shared disable color */
   .order-edit-locked-select {
     .react-select__control--is-disabled {
-      background-color: var(--bg-color, #fff);
-      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12));
-      cursor: default;
+      background-color: var(--bs-secondary-bg, #e9ecef) !important;
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+      cursor: not-allowed;
       min-height: 35px !important;
       height: auto !important;
+      box-shadow: none !important;
+      opacity: 1;
     }
 
-    .react-select--is-disabled .react-select__single-value {
-      color: var(--content-txt-color, #333);
+    .react-select--is-disabled .react-select__single-value,
+    .react-select--is-disabled .react-select__placeholder {
+      color: var(--bs-secondary-color, #6c757d) !important;
       position: static !important;
       transform: none !important;
       max-width: 100% !important;
@@ -2449,30 +2452,54 @@ body:has(.modal.show ~ .modal.show) {
     margin-top: 0.25rem !important;
   }
 
-  /* Edit order — neutral borders on disabled / read-only fields (no primary red). */
-  #order-edit-all-form.order-edit-all-form {
+  /* Edit order / Edit quote — disabled & read-only field colors */
+  #order-edit-all-form.order-edit-all-form,
+  #quote-edit-all-form.quote-edit-all-form {
     .form-control:disabled,
     .form-control[readonly],
     .form-select:disabled,
     .form-control.custom-form-input--read-only,
     .form-control.custom-form-input--read-only:focus,
     textarea.form-control:disabled,
+    textarea.form-control[readonly],
     .custom-form-input .form-control[readonly],
     .custom-form-input .form-control:disabled {
+      background-color: var(--bs-secondary-bg, #e9ecef) !important;
+      color: var(--bs-secondary-color, #6c757d) !important;
       border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
       box-shadow: none !important;
+      opacity: 1 !important;
+      cursor: not-allowed;
+    }
+
+    .input-group:has(.form-control:disabled) > .input-group-text,
+    .input-group:has(.form-control[readonly]) > .input-group-text {
+      background-color: var(--bs-secondary-bg, #e9ecef) !important;
+      color: var(--bs-secondary-color, #6c757d) !important;
+      border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
+      opacity: 1 !important;
     }
 
     .react-select__control--is-disabled {
+      background-color: var(--bs-secondary-bg, #e9ecef) !important;
       border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
       box-shadow: none !important;
+      opacity: 1 !important;
+      cursor: not-allowed;
+    }
+
+    .react-select--is-disabled .react-select__single-value,
+    .react-select--is-disabled .react-select__placeholder {
+      color: var(--bs-secondary-color, #6c757d) !important;
     }
 
     .order-payment-table tbody .form-control:disabled,
     .order-payment-table tbody .form-control[readonly],
     .order-payment-table tbody .react-select__control--is-disabled {
+      background-color: var(--bs-secondary-bg, #e9ecef) !important;
       border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
       box-shadow: none !important;
+      opacity: 1 !important;
     }
 
     .order-edit-schedule--readonly {
@@ -2480,8 +2507,11 @@ body:has(.modal.show ~ .modal.show) {
       .full-width-date-picker,
       .form-control:focus,
       .full-width-date-picker:focus {
+        background-color: var(--bs-secondary-bg, #e9ecef) !important;
         border-color: var(--txtfld-border, rgba(0, 0, 0, 0.12)) !important;
         box-shadow: none !important;
+        color: var(--bs-secondary-color, #6c757d) !important;
+        cursor: not-allowed;
       }
     }
   }

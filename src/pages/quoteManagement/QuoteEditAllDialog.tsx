@@ -55,7 +55,7 @@ import {
 import type { EditQuoteFormValues, QuoteAddressRowUi } from "../../lib/quote/quoteHelpers";
 import QuotePriceBreakdownPanel from "../../components/quote/QuotePriceBreakdownPanel";
 import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOptionsLoader";
-import { partnerCatalogControlStyle } from "../../components/partnerCatalogBlockUi";
+import { partnerCatalogControlStyle, partnerCatalogDisabledControlStyle } from "../../components/partnerCatalogBlockUi";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
 import {
   applyMissingRequiredFieldErrors,
@@ -905,7 +905,16 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    const price = Number.parseFloat(String(data.service_price).trim());
+    const priceSource =
+      prev === "accepted"
+        ? String(
+            quoteRow?.total_service_charge ??
+              quoteRow?.service_price ??
+              data.service_price ??
+              ""
+          ).trim()
+        : String(data.service_price).trim();
+    const price = Number.parseFloat(priceSource);
 
     if (String(data.user_id ?? "").trim() && !addressUi.ready) {
       showErrorAlert(
@@ -1117,6 +1126,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const isCatalogFieldsReadOnly = isPendingQuoteEdit || isAcceptedQuoteEdit;
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
+  const servicePriceLocked = lockedFields || isAcceptedQuoteEdit;
+  const quoteStatusLocked = lockedFields || isTerminalQuoteStatus;
   const categoryFieldDisabled =
     lockedFields || (!isNewTabQuoteEdit && !partnerSelected);
   const serviceFieldDisabled =
@@ -1145,6 +1156,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
         ) : (
           <form
             id="quote-edit-all-form"
+            className="quote-edit-all-form"
             noValidate
             onSubmit={handleSubmit(onSubmit)}
           >
@@ -1567,7 +1579,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                             className={`custom-form-input${
                               errors.schedule_duration ? " is-invalid" : ""
                             }`}
-                            style={partnerCatalogControlStyle}
+                            style={
+                              lockedFields
+                                ? partnerCatalogDisabledControlStyle
+                                : partnerCatalogControlStyle
+                            }
                             placeholder={`Enter ${editScheduleDurationLabel.toLowerCase()}`}
                             {...register("schedule_duration", {
                               required: `${editScheduleDurationLabel} is required`,
@@ -1665,7 +1681,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           <InputGroup.Text
                             className="custom-form-input text-muted"
                             style={{
-                              ...partnerCatalogControlStyle,
+                              ...(servicePriceLocked
+                                ? partnerCatalogDisabledControlStyle
+                                : partnerCatalogControlStyle),
                               borderTopRightRadius: 0,
                               borderBottomRightRadius: 0,
                               fontWeight: 600,
@@ -1676,12 +1694,17 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                           <Form.Control
                             type="text"
                             inputMode="decimal"
-                            disabled={lockedFields}
+                            disabled={servicePriceLocked}
+                            readOnly={servicePriceLocked}
                             className={`custom-form-input border-start-0${
-                              errors.service_price ? " is-invalid" : ""
-                            }`}
+                              servicePriceLocked
+                                ? " custom-form-input--read-only"
+                                : ""
+                            }${errors.service_price ? " is-invalid" : ""}`}
                             style={{
-                              ...partnerCatalogControlStyle,
+                              ...(servicePriceLocked
+                                ? partnerCatalogDisabledControlStyle
+                                : partnerCatalogControlStyle),
                               borderLeft: 0,
                               borderTopLeftRadius: 0,
                               borderBottomLeftRadius: 0,
@@ -1710,13 +1733,20 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         <Form.Select
                           id="edit-quote-status"
                           className="form-select custom-form-input"
-                          style={{
-                            borderRadius: "8px",
-                            borderColor: "var(--primary-color)",
-                            height: "35px",
-                            fontSize: "14px",
-                          }}
-                          disabled={lockedFields || isTerminalQuoteStatus}
+                          style={
+                            quoteStatusLocked
+                              ? {
+                                  ...partnerCatalogDisabledControlStyle,
+                                  height: "35px",
+                                }
+                              : {
+                                  borderRadius: "8px",
+                                  borderColor: "var(--primary-color)",
+                                  height: "35px",
+                                  fontSize: "14px",
+                                }
+                          }
+                          disabled={quoteStatusLocked}
                           {...register("quote_status")}
                         >
                           {STATUS_OPTIONS.map((o) => (
@@ -1746,7 +1776,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         errors.user_description ? " is-invalid" : ""
                       }`}
                       style={{
-                        ...partnerCatalogControlStyle,
+                        ...(lockedFields
+                          ? partnerCatalogDisabledControlStyle
+                          : partnerCatalogControlStyle),
                         minHeight: "96px",
                         resize: "vertical",
                       }}
@@ -1777,7 +1809,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         errors.admin_description ? " is-invalid" : ""
                       }`}
                       style={{
-                        ...partnerCatalogControlStyle,
+                        ...(lockedFields
+                          ? partnerCatalogDisabledControlStyle
+                          : partnerCatalogControlStyle),
                         minHeight: "96px",
                         resize: "vertical",
                       }}

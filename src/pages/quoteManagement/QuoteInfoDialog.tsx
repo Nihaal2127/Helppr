@@ -100,6 +100,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const statusTextClass =
     STATUS_TEXT_CLASS[statusKey] ?? "text-body-secondary";
   const isSuccess = statusKey === "success";
+  const isFailed = statusKey === "failed";
   const isAccepted = statusKey === "accepted";
 
   const partnerNameForDisplay = isAccepted
@@ -157,7 +158,7 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
     serviceFees?.label,
   ]);
 
-  const canEditQuote = !isSuccess && Boolean(quoteMongoId);
+  const canEditQuote = !isSuccess && !isFailed && Boolean(quoteMongoId);
 
   const priceBreakdown = useMemo(() => {
     const fromApi = quotePriceBreakdownFromRow(displayQuote);
