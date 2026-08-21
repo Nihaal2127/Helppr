@@ -508,6 +508,9 @@ export const fetchUser = async (
       if (type === APP_USER_TYPE.PARTNER) return "name";
       return id;
     }
+    if (type === APP_USER_TYPE.CUSTOMER && id === "total_service") {
+      return "total_service";
+    }
     if (type === APP_USER_TYPE.PARTNER && id === "no_of_services") {
       return "no_of_services";
     }

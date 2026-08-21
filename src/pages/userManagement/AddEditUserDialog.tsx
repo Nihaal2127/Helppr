@@ -47,6 +47,11 @@ import {
 } from "../../services/partnerManagementService";
 import type { SubscriptionPlanOption } from "../../services/partnerManagementService";
 import { partnerSubscriptionFormValuesFromUser } from "../../lib/partner/partnerSubscriptionView";
+import {
+  partnerFranchiseFieldsFromUser,
+  partnerFranchiseIdFromUser,
+} from "../../lib/partner/partnerFranchiseDisplay";
+import { resolveFranchiseForArea } from "../../lib/partner/resolveFranchiseForArea";
 import PartnerSubscriptionFormSection, {
   partnerSubscriptionFormBind,
 } from "../../components/partner/PartnerSubscriptionFormSection";
@@ -386,6 +391,10 @@ function AddEditUserDialogView({
     FranchiseDropDownOption[]
   >([]);
   const prevAddPartnerFranchiseRef = useRef<string | null>(null);
+  const [partnerEditFranchiseId, setPartnerEditFranchiseId] = useState("");
+  const [partnerEditFranchiseName, setPartnerEditFranchiseName] = useState("");
+  const [partnerEditFranchiseResolving, setPartnerEditFranchiseResolving] =
+    useState(false);
 
   const currentUserRole = String(
     getLocalStorage(AppConstant.userRole) ?? ""
@@ -457,10 +466,11 @@ function AddEditUserDialogView({
         return;
       }
       try {
-        let cityOptions = await fetchCityDropDownForForm(
-          sid,
-          locationFranchiseId || undefined
-        );
+        // Update Partner: show every city from city/getDropDown for the state.
+        // Franchise-scoped filtering is for Add Partner / portal create flows.
+        const franchiseScope =
+          isPartnerEdit ? undefined : locationFranchiseId || undefined;
+        let cityOptions = await fetchCityDropDownForForm(sid, franchiseScope);
         if (isEditable) {
           const preserveCityId = String(user?.city_id ?? "").trim();
           if (
@@ -493,7 +503,7 @@ function AddEditUserDialogView({
         setCity([]);
       }
     },
-    [locationFranchiseId, getValues, setValue, isEditable, user]
+    [locationFranchiseId, getValues, setValue, isEditable, isPartnerEdit, user]
   );
 
   const onStateChangeClearLocationChain = useCallback(
@@ -804,8 +814,11 @@ function AddEditUserDialogView({
         return;
       }
 
-      const franchiseScopeId =
-        isAddPartner || isPartnerEdit
+      // Update Partner: load all areas for the city (no franchise filter).
+      // Add Partner still scopes areas to the selected franchise when set.
+      const franchiseScopeId = isPartnerEdit
+        ? ""
+        : isAddPartner
           ? String(catalogFranchiseApiId || locationFranchiseId || "").trim()
           : "";
 
@@ -824,11 +837,32 @@ function AddEditUserDialogView({
         pinMap.set(row.value, row.pincodes);
       }
 
+      if (isPartnerEdit) {
+        const preserveAreaId = normalizeIdLike((user as any)?.area_id);
+        if (
+          preserveAreaId &&
+          !areaOptions.some((a) => a.value === preserveAreaId)
+        ) {
+          const preserveLabel = String(
+            (user as { area_name?: string })?.area_name ?? preserveAreaId
+          ).trim();
+          areaOptions.push({
+            value: preserveAreaId,
+            label: preserveLabel || preserveAreaId,
+          });
+          if (!pinMap.has(preserveAreaId)) {
+            const pin = normalizePincodeValue(user?.pincode);
+            pinMap.set(preserveAreaId, pin ? [pin] : []);
+          }
+        }
+      }
+
       setAreas(areaOptions);
       setAreaPincodes(pinMap);
       const currentArea = String(watch("area_id") ?? "").trim();
       if (currentArea && !areaOptions.some((a) => a.value === currentArea)) {
         setValue("area_id", "", { shouldValidate: false });
+        setValue("pincode", "", { shouldValidate: false });
       }
     };
 
@@ -845,6 +879,7 @@ function AddEditUserDialogView({
     isPartnerEdit,
     catalogFranchiseApiId,
     locationFranchiseId,
+    user,
   ]);
 
   useEffect(() => {
@@ -862,6 +897,73 @@ function AddEditUserDialogView({
       setValue("pincode", "", { shouldValidate: false });
     }
   }, [watchedAreaId, areaPincodes, setValue, watch]);
+
+  // Update Partner: resolve franchise from selected area (areas belong to franchises).
+  useEffect(() => {
+    if (!isPartnerEdit) {
+      setPartnerEditFranchiseId("");
+      setPartnerEditFranchiseName("");
+      setPartnerEditFranchiseResolving(false);
+      return;
+    }
+
+    const areaId = String(watchedAreaId ?? "").trim();
+    const cityId = String(watchedCityId ?? "").trim();
+
+    if (!areaId) {
+      setPartnerEditFranchiseId("");
+      setPartnerEditFranchiseName("");
+      setPartnerEditFranchiseResolving(false);
+      return;
+    }
+
+    // Seed from current user while resolving (same area / initial open).
+    const existingId = partnerFranchiseIdFromUser(user);
+    const existingName = partnerFranchiseFieldsFromUser(user).franchiseName;
+    if (existingId) {
+      setPartnerEditFranchiseId(existingId);
+      if (existingName && existingName !== "—") {
+        setPartnerEditFranchiseName(existingName);
+      }
+    }
+
+    const areaName = String(
+      areas.find((a) => a.value === areaId)?.label ?? ""
+    ).trim();
+
+    let cancelled = false;
+    setPartnerEditFranchiseResolving(true);
+
+    void (async () => {
+      try {
+        const resolved = await resolveFranchiseForArea(areaId, {
+          cityId,
+          areaName,
+        });
+        if (cancelled) return;
+        if (resolved?.franchiseId) {
+          setPartnerEditFranchiseId(resolved.franchiseId);
+          setPartnerEditFranchiseName(
+            resolved.franchiseName || resolved.franchiseId
+          );
+        } else {
+          setPartnerEditFranchiseId("");
+          setPartnerEditFranchiseName("");
+        }
+      } catch {
+        if (!cancelled) {
+          setPartnerEditFranchiseId("");
+          setPartnerEditFranchiseName("");
+        }
+      } finally {
+        if (!cancelled) setPartnerEditFranchiseResolving(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPartnerEdit, watchedAreaId, watchedCityId, user, areas]);
 
   useEffect(() => {
     if (!isPartnerEdit || !user) return;
@@ -1243,7 +1345,22 @@ function AddEditUserDialogView({
           return;
         }
         partnerCatalogFlat = catalogFlat;
-      } 
+      }
+      if (isPartnerEdit) {
+        const areaId = String((data as any).area_id ?? "").trim();
+        if (areaId && partnerEditFranchiseResolving) {
+          showErrorAlert(
+            "Please wait while franchise is resolved for the selected area."
+          );
+          return;
+        }
+        if (areaId && !String(partnerEditFranchiseId ?? "").trim()) {
+          showErrorAlert(
+            "Selected area is not linked to any franchise."
+          );
+          return;
+        }
+      }
     }
 
     if (isAddPartner) {
@@ -1328,12 +1445,14 @@ function AddEditUserDialogView({
     const createFranchiseId =
       isAddPartner && effectiveAddPartnerFranchiseId
         ? effectiveAddPartnerFranchiseId
-        : isFranchisePortalUser &&
-            !isEditable &&
-            (role === USER_ROLE || role === PARTNER_ROLE) &&
-            sessionFranchiseId
-          ? sessionFranchiseId
-          : "";
+        : isPartnerEdit && String(partnerEditFranchiseId ?? "").trim()
+          ? String(partnerEditFranchiseId).trim()
+          : isFranchisePortalUser &&
+              !isEditable &&
+              (role === USER_ROLE || role === PARTNER_ROLE) &&
+              sessionFranchiseId
+            ? sessionFranchiseId
+            : "";
 
     const payload: Record<string, unknown> = {
       type: role,
@@ -2222,6 +2341,7 @@ function AddEditUserDialogView({
                       }
                     />
                     <CustomTextFieldSelect
+                      key={`partner-edit-city-${String(watch("state_id") ?? "")}-${cities.length}`}
                       label="City"
                       controlId="City"
                       options={cities ?? []}
@@ -2229,13 +2349,15 @@ function AddEditUserDialogView({
                       fieldName="city_id"
                       error={errors.city_id}
                       requiredMessage="Please select city"
-                      defaultValue={
-                        isEditable ? (user?.city_id ? user?.city_id : "") : ""
-                      }
+                      defaultValue={String(watch("city_id") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select city"
+                      isDisabled={!String(watch("state_id") ?? "").trim()}
                       onChange={() => onCityChangeClearAreaPin()}
                     />
                     <CustomTextFieldSelect
+                      key={`partner-edit-area-${String(watch("city_id") ?? "")}-${areas.length}`}
                       label="Area"
                       controlId="Area"
                       options={[
@@ -2246,12 +2368,17 @@ function AddEditUserDialogView({
                       fieldName="area_id"
                       error={(errors as any).area_id}
                       requiredMessage="Please select area"
-                      defaultValue={
-                        isEditable ? normalizeIdLike((user as any)?.area_id) : ""
-                      }
+                      defaultValue={String(watch("area_id") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select area"
+                      isDisabled={!String(watch("city_id") ?? "").trim()}
+                      onChange={() => {
+                        setValue("pincode", "", { shouldValidate: false });
+                      }}
                     />
                     <CustomTextFieldSelect
+                      key={`partner-edit-pin-${String(watch("area_id") ?? "")}-${pincodeOptions.length}`}
                       label="Pincode"
                       controlId="Pincode"
                       options={[
@@ -2262,10 +2389,30 @@ function AddEditUserDialogView({
                       fieldName="pincode"
                       error={errors.pincode}
                       requiredMessage="Please select pincode"
-                      defaultValue={
-                        isEditable ? normalizePincodeValue(user?.pincode) : ""
-                      }
+                      defaultValue={String(watch("pincode") ?? "")}
                       setValue={setValue as (name: string, value: any) => void}
+                      menuPortal
+                      placeholder="Select pincode"
+                      isDisabled={!String(watch("area_id") ?? "").trim()}
+                    />
+                    <CustomTextField
+                      label="Franchise Name"
+                      controlId="partner_edit_franchise_name"
+                      placeholder={
+                        partnerEditFranchiseResolving
+                          ? "Resolving franchise…"
+                          : "Resolved from selected area"
+                      }
+                      register={register}
+                      isEditable={false}
+                      value={
+                        partnerEditFranchiseResolving
+                          ? "Resolving franchise…"
+                          : partnerEditFranchiseName ||
+                            (String(watch("area_id") ?? "").trim()
+                              ? "No franchise linked to this area"
+                              : "")
+                      }
                     />
                     <CustomTextField
                       label="Address"

@@ -30,7 +30,7 @@ import {
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForUserGetAll } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
-import { showUserDetailsDialog } from "../../components/user";
+import { showUserDetailsDialog, ServiceDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog, PartnerRatingsDialog } from "../../components/partner";
 import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
@@ -262,6 +262,17 @@ const UserManagement = () => {
     [refreshData]
   );
 
+  const openUserTotalServices = useCallback(
+    (userId: string) => {
+      const id = String(userId ?? "").trim();
+      if (!id) return;
+      ServiceDetailsDialog.show(id, false, null, () => {
+        void refreshData("box-user");
+      });
+    },
+    [refreshData]
+  );
+
   const openPartnerVerification = useCallback(
     (userId: string) => {
       PartnerVerificationReviewModal.show(userId, () => {
@@ -394,7 +405,37 @@ const UserManagement = () => {
         Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
           String(row.original?.email ?? "").trim() || "—",
       },
-      { Header: "Service Taken", accessor: "total_service" },
+      {
+        Header: "Phone",
+        accessor: "phone_number",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.phone_number ?? "").trim() || "—",
+      },
+      {
+        Header: "Service Taken",
+        accessor: "total_service",
+        sort: true,
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const count =
+            row.original?.total_service ?? row.original?.no_of_services ?? 0;
+          const id = String(row.original?._id ?? "").trim();
+          return (
+            <button
+              type="button"
+              className="btn btn-link p-0 m-0 align-baseline text-decoration-underline"
+              style={{
+                fontSize: "inherit",
+                color: "#000",
+                lineHeight: "inherit",
+              }}
+              onClick={() => openUserTotalServices(id)}
+              disabled={!id}
+            >
+              {count}
+            </button>
+          );
+        },
+      },
       // { Header: "Service Paid", accessor: "service_paid" },
       // { Header: "Service Unpaid", accessor: "service_unpaid" },
       {
@@ -454,7 +495,7 @@ const UserManagement = () => {
         ),
       },
     ],
-    [currentPage, pageSize, handleUserDelete, userShow, userChangePassword]
+    [currentPage, pageSize, handleUserDelete, userShow, userChangePassword, openUserTotalServices]
   );
 
   const partnerColumns = React.useMemo(
@@ -476,6 +517,12 @@ const UserManagement = () => {
         accessor: "email",
         Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
           String(row.original?.email ?? "").trim() || "—",
+      },
+      {
+        Header: "Phone",
+        accessor: "phone_number",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.phone_number ?? "").trim() || "—",
       },
       { Header: "No. of services", accessor: "no_of_services" },
       {
