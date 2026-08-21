@@ -28,7 +28,6 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
-import { franchiseIdForUserGetAll } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
 import { showUserDetailsDialog, ServiceDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog, PartnerRatingsDialog } from "../../components/partner";
@@ -61,12 +60,10 @@ const UserManagement = () => {
     string | undefined
   >(undefined);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const { register, setValue, franchiseId: headerFranchiseId } =
-    useFranchiseHeaderForm();
+  const { register, setValue } = useFranchiseHeaderForm();
   const { countModel: userCountModel, refresh: refreshUserManagementCounts } =
     useFranchiseScopedGetCount({
       type: "user-management",
-      franchiseId: headerFranchiseId,
     });
 
   useEffect(() => {
@@ -101,20 +98,18 @@ const UserManagement = () => {
     setUtilitySearchKey((k) => k + 1);
   }, [location.state]);
 
-  /** Summary boxes: `POST /getCount` `{ type: "user-management", franchise_id? }` — refetches when header franchise changes. */
+  /** Summary boxes: `POST /getCount` `{ type: "user-management" }` (no `franchise_id`). */
 
   const fetchData = useCallback(
     async (listPage?: number) => {
       const page =
         typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
 
-    const franchiseScope =
-      franchiseIdForUserGetAll(headerFranchiseId) || undefined;
-
+    // Do not send `franchise_id` on `GET /user/getAll` (partners/users/verification).
+    // Franchise portal is scoped by auth token; header franchise is for counts only.
     const filters = {
       keyword: searchKeyword || undefined,
       status: statusFilter,
-      ...(franchiseScope ? { franchise_id: franchiseScope } : {}),
     };
 
     if (selectedBox === "box-verification") {
@@ -214,7 +209,6 @@ const UserManagement = () => {
     sortBy,
     statusFilter,
     partnerIsVerifiedFilter,
-    headerFranchiseId,
   ]
 );
 

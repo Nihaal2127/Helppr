@@ -15,7 +15,10 @@ import { buildFullUserUpdatePayload } from "../lib/user/buildFullUserUpdatePaylo
 import { mapAccessibleScreenSlugsToMenuKeys } from "../lib/layout/accessibleScreenSlugs";
 import { mainMenuItems } from "../lib/layout/menuItems";
 import { UserRole } from "../lib/global/AppConstant";
-import { franchiseIdForUserGetAll } from "../lib/franchise/headerFranchisePreference";
+import {
+  franchiseIdForApiQuery,
+  franchiseIdForUserGetAll,
+} from "../lib/franchise/headerFranchisePreference";
 
 /**
  * Canonical `UserModel.type` enum used end-to-end (DB / `POST /user/create` / login `record.type` /
@@ -525,7 +528,7 @@ export const fetchUser = async (
       ? filters.is_blocked
       : undefined;
 
-  const franchiseIdQuery = franchiseIdForUserGetAll(filters.franchise_id);
+  const franchiseIdQuery = franchiseIdForApiQuery(filters.franchise_id);
 
   const searchText = (filters.search ?? filters.keyword)?.trim();
   const params = new URLSearchParams({
@@ -550,7 +553,6 @@ export const fetchUser = async (
       statusRaw !== "blocked" && { is_active: filters.status.toLowerCase() }),
     ...(blockedFilter && { is_blocked: blockedFilter }),
     ...(filters.sort && { sort: filters.sort }),
-    ...(franchiseIdQuery ? { franchise_id: franchiseIdQuery } : {}),
     ...(filters.wallet_status &&
       filters.wallet_status !== "all" && {
         wallet_status: filters.wallet_status,
@@ -561,6 +563,10 @@ export const fetchUser = async (
     ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
     ...(mappedSortField && { sort_field: mappedSortField }),
   });
+  // Super admin/staff only when caller passes franchise_id; franchise portal relies on token.
+  if (franchiseIdQuery) {
+    params.set("franchise_id", franchiseIdQuery);
+  }
 
   const response = await apiRequest(
     `${
