@@ -709,6 +709,45 @@ export type OrderListFilters = {
   franchise_id?: string | null;
 };
 
+export type OrderListSort = ServerTableSortBy;
+
+/** Table accessors that support `GET /order/getAll` server sort. */
+const ORDER_SORTABLE_ACCESSORS = new Set([
+  "unique_id",
+  "user_name",
+  "partner_display",
+  "partner_name",
+  "order_date",
+]);
+
+/** Table column accessor → `GET /order/getAll` `sort_by`. */
+const ORDER_LIST_SORT_TO_API: Record<string, string> = {
+  unique_id: "unique_id",
+  user_name: "user_name",
+  partner_display: "partner_name",
+  partner_name: "partner_name",
+  order_date: "order_date",
+};
+
+export function normalizeOrderListSort(sort: OrderListSort): OrderListSort {
+  if (!sort.length) return [];
+  const first = sort[0];
+  if (!first?.id || !ORDER_SORTABLE_ACCESSORS.has(first.id)) return [];
+  return [{ id: first.id, desc: Boolean(first.desc) }];
+}
+
+export function orderListSortToApi(
+  sort: OrderListSort
+): { sort_by: string; sort_order: "asc" | "desc" } | null {
+  const safe = normalizeOrderListSort(sort);
+  if (!safe.length) return null;
+  const { id, desc } = safe[0];
+  return {
+    sort_by: ORDER_LIST_SORT_TO_API[id] ?? "created_at",
+    sort_order: desc ? "desc" : "asc",
+  };
+}
+
 function str(v: unknown): string {
   if (v == null) return "";
   const s = String(v).trim();
@@ -1120,7 +1159,7 @@ export const fetchOrder = async (
   totalPages: number;
   totalCount: number;
 }> => {
-  const primarySort = sortBy[0];
+  const apiSort = orderListSortToApi(sortBy);
   const kw = filters.keyword?.trim();
   const statusSlug =
     filters.status && filters.status !== "All"
@@ -1136,12 +1175,13 @@ export const fetchOrder = async (
     ...(filters.sort && { sort: filters.sort }),
     ...(filters.from_date && { from_date: filters.from_date }),
     ...(filters.to_date && { to_date: filters.to_date }),
-    ...(primarySort?.id && { sort_by: primarySort.id }),
-    ...(primarySort && { sort_order: primarySort.desc ? "desc" : "asc" }),
+    ...(apiSort
+      ? { sort_by: apiSort.sort_by, sort_order: apiSort.sort_order }
+      : {}),
     ...(fid ? { franchise_id: fid } : {}),
   });
 
-  if (!primarySort?.id) {
+  if (!apiSort) {
     params.set("sort_by", "created_at");
     params.set("sort_order", "desc");
   }

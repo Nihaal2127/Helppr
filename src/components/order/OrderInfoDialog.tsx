@@ -666,62 +666,74 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
 
           {isCompletedOrder ? (
             <section className="border rounded p-3 mb-3 order-completed-work-review">
-              <Row className="g-3 align-items-start">
-                <Col xs={12} md={6} className="min-w-0">
+              <Row className="g-3 align-items-stretch">
+                <Col
+                  xs={12}
+                  md={6}
+                  className="min-w-0 d-flex flex-column order-completed-work-review__col"
+                >
                   <h6 className={`${QUOTE_SECTION_TITLE_CLASS} mb-3`}>
                     Work images
                   </h6>
-                  {workProofImages.length > 0 ? (
-                    workProofImages.length === 1 ? (
-                      <div className="order-completed-work-review__image-frame">
-                        <img
-                          src={workProofImages[0]}
-                          alt="Work proof"
-                          className="order-completed-work-review__image"
-                        />
-                      </div>
+                  <div className="order-completed-work-review__panel">
+                    {workProofImages.length > 0 ? (
+                      workProofImages.length === 1 ? (
+                        <div className="order-completed-work-review__image-frame">
+                          <img
+                            src={workProofImages[0]}
+                            alt="Work proof"
+                            className="order-completed-work-review__image"
+                          />
+                        </div>
+                      ) : (
+                        <Carousel
+                          interval={null}
+                          indicators
+                          controls
+                          className="order-completed-work-review__carousel"
+                        >
+                          {workProofImages.map((src, index) => (
+                            <Carousel.Item key={`${src}-${index}`}>
+                              <div className="order-completed-work-review__image-frame">
+                                <img
+                                  src={src}
+                                  alt={`Work proof ${index + 1}`}
+                                  className="order-completed-work-review__image"
+                                />
+                              </div>
+                            </Carousel.Item>
+                          ))}
+                        </Carousel>
+                      )
                     ) : (
-                      <Carousel
-                        interval={null}
-                        indicators
-                        controls
-                        className="order-completed-work-review__carousel partner-accounts-carousel"
-                      >
-                        {workProofImages.map((src, index) => (
-                          <Carousel.Item key={`${src}-${index}`}>
-                            <div className="order-completed-work-review__image-frame">
-                              <img
-                                src={src}
-                                alt={`Work proof ${index + 1}`}
-                                className="order-completed-work-review__image"
-                              />
-                            </div>
-                          </Carousel.Item>
-                        ))}
-                      </Carousel>
-                    )
-                  ) : (
-                    <div className="order-completed-work-review__empty">
-                      No work images uploaded
-                    </div>
-                  )}
-                  {String(
-                    orderDetails?.work_completion_description ?? ""
-                  ).trim() ? (
-                    <p className="order-completed-work-review__completion-note mt-3 mb-0">
-                      {String(
-                        orderDetails?.work_completion_description ?? ""
-                      ).trim()}
-                    </p>
-                  ) : null}
+                      <div className="order-completed-work-review__empty order-completed-work-review__empty--images">
+                        No work images uploaded
+                      </div>
+                    )}
+                    {String(
+                      orderDetails?.work_completion_description ?? ""
+                    ).trim() ? (
+                      <div className="order-completed-work-review__completion-scroll mt-2">
+                        <p className="order-completed-work-review__completion-note mb-0">
+                          {String(
+                            orderDetails?.work_completion_description ?? ""
+                          ).trim()}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 </Col>
 
-                <Col xs={12} md={6} className="min-w-0">
+                <Col
+                  xs={12}
+                  md={6}
+                  className="min-w-0 d-flex flex-column order-completed-work-review__col"
+                >
                   <h6 className={`${QUOTE_SECTION_TITLE_CLASS} mb-3`}>
                     Review
                   </h6>
                   {orderReview.hasContent ? (
-                    <div className="order-completed-review">
+                    <div className="order-completed-review order-completed-review--fill">
                       <div className="order-completed-review__header">
                         <img
                           src={reviewUserProfileSrc}
@@ -745,7 +757,7 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                       <OrderReviewText text={orderReview.reviewText} />
                     </div>
                   ) : (
-                    <div className="order-completed-work-review__empty">
+                    <div className="order-completed-work-review__empty order-completed-work-review__empty--fill">
                       No review yet
                     </div>
                   )}

@@ -65,6 +65,8 @@ export type QuoteRow = {
   service_from_time?: string;
   service_to_time?: string;
   order_id?: string;
+  /** Order Mongo `_id` for opening Order Information (Success quotes). */
+  order_mongo_id?: string;
   services?: string;
   order_status?: string;
   payment_method?: string;

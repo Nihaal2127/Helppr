@@ -33,6 +33,7 @@ export type PortfolioRow = {
   likes_count: string;
   comments_count: string;
   saves_count: string;
+  shares_count: string;
   ratings: string;
   location: string;
   is_active: boolean;
@@ -861,6 +862,12 @@ function mapPartnersBrowseToPortfolioRow(
     saves_count: formatPortfolioCount(
       statsSource.saves_count ?? statsSource.savesCount ?? statsSource.saves
     ),
+    shares_count: formatPortfolioCount(
+      statsSource.shares_count ??
+        statsSource.sharesCount ??
+        statsSource.share_count ??
+        statsSource.shares
+    ),
     ratings: formatPortfolioCount(
       raw.average_rating ?? raw.ratings ?? raw.rating ?? raw.rating_count
     ),
@@ -1276,6 +1283,7 @@ async function fetchPartnerPostListPage(
   filters: {
     status?: string;
     franchiseId?: string;
+    partnerId?: string;
   }
 ): Promise<{ root: Record<string, unknown>; records: PostModel[] }> {
   const params = new URLSearchParams({
@@ -1291,6 +1299,10 @@ async function fetchPartnerPostListPage(
     /^[a-f\d]{24}$/i.test(franchiseId)
   ) {
     params.set("franchise_id", franchiseId);
+  }
+  const partnerId = (filters.partnerId ?? "").trim();
+  if (partnerId && /^[a-f\d]{24}$/i.test(partnerId)) {
+    params.set("partner_id", partnerId);
   }
 
   const res = await apiRequest(
@@ -1482,6 +1494,44 @@ export async function fetchPostList(
 
 /** @deprecated Use `fetchPostList` for the table and `fetchPostManagementSummary` for summary cards. */
 export const fetchPosts = fetchPostList;
+
+/**
+ * Resolve a single partner post for notification deep-links.
+ * Uses `GET /partner-post/getAll` (no dedicated get-by-id in admin API).
+ */
+export async function fetchPartnerPostById(
+  postId: string,
+  options?: { partnerId?: string; franchiseId?: string }
+): Promise<PostModel | null> {
+  const id = String(postId ?? "").trim();
+  if (!id) return null;
+
+  const partnerId = String(options?.partnerId ?? "").trim();
+  const franchiseId = String(options?.franchiseId ?? "").trim();
+  const baseFilters = {
+    ...(partnerId ? { partnerId } : {}),
+    ...(franchiseId ? { franchiseId } : {}),
+  };
+
+  const findInPages = async (status?: string): Promise<PostModel | null> => {
+    for (let page = 1; page <= 5; page += 1) {
+      const { root, records } = await fetchPartnerPostListPage(page, 100, {
+        ...baseFilters,
+        ...(status ? { status } : {}),
+      });
+      const hit = records.find(
+        (row) =>
+          String(row._id ?? "").trim() === id || String(row.id ?? "").trim() === id
+      );
+      if (hit) return hit;
+      const totalPages = resolvePartnerPostTotalPages(root, 100, records.length);
+      if (page >= totalPages || records.length === 0) break;
+    }
+    return null;
+  };
+
+  return (await findInPages("pending")) || (await findInPages()) || null;
+}
 
 export async function moderatePartnerPost(
   postId: string,

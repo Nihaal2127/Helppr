@@ -1732,6 +1732,7 @@ export function quoteListStatusParam(tab: QuoteTabKey): string {
 
 const QUOTE_SORTABLE_ACCESSORS = new Set([
   "quote_id",
+  "order_id",
   "requested_services",
   "services",
   "requested_partner",
@@ -1740,16 +1741,17 @@ const QUOTE_SORTABLE_ACCESSORS = new Set([
   "service_price",
   "requested_date",
   "scheduled_date",
-  "status",
+  "from_date",
 ]);
 
 /** Table column accessor → `GET /quote/getAll` `sort_by` (Postman). */
 const QUOTE_LIST_SORT_TO_API: Record<string, string> = {
   quote_id: "quote_sequence_id",
+  order_id: "order_id",
   service_price: "service_price",
   requested_date: "from_date",
   scheduled_date: "from_date",
-  status: "status",
+  from_date: "from_date",
   requested_services: "created_at",
   services: "created_at",
   requested_partner: "created_at",
@@ -2037,6 +2039,18 @@ function resolveQuoteOrderDisplayId(
     }
   }
 
+  return undefined;
+}
+
+/** Order document `_id` for Success-tab Order Information dialog. */
+function resolveQuoteOrderMongoId(
+  r: Record<string, unknown>
+): string | undefined {
+  const fromRef =
+    refId(r.order_id) || refId(r.order) || refId(r.order_info);
+  if (fromRef) return fromRef;
+  const raw = str(r.order_id ?? r.orderId);
+  if (raw && isMongoObjectId(raw)) return raw;
   return undefined;
 }
 
@@ -2413,6 +2427,7 @@ export function mapServerQuoteRecord(r: Record<string, unknown>): QuoteRow {
       r.scheduled_time_to ?? r.service_to_time ?? r.scheduled_end_time
     ),
     order_id: resolveQuoteOrderDisplayId(r),
+    order_mongo_id: resolveQuoteOrderMongoId(r),
     cancellation_reason:
       str(r.cancellation_reason ?? r.cancellationReason) || undefined,
     rejection_reason:

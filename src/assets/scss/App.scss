@@ -6024,10 +6024,28 @@ button.normal-chat-bubble-file {
   box-sizing: border-box;
 }
 
+.order-completed-work-review__col {
+  min-height: 0;
+}
+
+.order-completed-work-review__panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fafafa;
+  padding: 0.75rem;
+  box-sizing: border-box;
+}
+
 .order-completed-work-review__image-frame {
   width: 100%;
-  max-width: 100%;
-  aspect-ratio: 4 / 3;
+  max-width: 220px;
+  margin-inline: auto;
+  aspect-ratio: 1 / 1;
   border-radius: 10px;
   overflow: hidden;
   background: #f3f4f6;
@@ -6043,7 +6061,13 @@ button.normal-chat-bubble-file {
 }
 
 .order-completed-work-review__carousel {
-  max-width: 100%;
+  /* Square image (~220px) + side gutters so controls sit outside the photo */
+  max-width: 280px;
+  margin-inline: auto;
+  width: 100%;
+  padding-inline: 1.75rem;
+  position: relative;
+  box-sizing: border-box;
 
   .carousel-inner {
     border-radius: 10px;
@@ -6052,17 +6076,58 @@ button.normal-chat-bubble-file {
 
   .carousel-control-prev,
   .carousel-control-next {
-    width: 12%;
+    width: 1.75rem;
+    opacity: 1;
+    top: 0;
+    bottom: auto;
+    height: 220px;
+    max-height: 100%;
+    align-items: center;
+  }
+
+  .carousel-control-prev {
+    left: 0;
+    justify-content: flex-start;
+  }
+
+  .carousel-control-next {
+    right: 0;
+    justify-content: flex-end;
   }
 
   .carousel-control-prev-icon,
   .carousel-control-next-icon {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+    width: 1.15rem;
+    height: 1.15rem;
+    filter: none;
+    background-color: transparent;
+  }
+
+  /* Prefer Bootstrap Icons chevrons when present; fall back to darker control icons */
+  .carousel-control-prev-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23b02a37'%3e%3cpath d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z'/%3e%3c/svg%3e");
+  }
+
+  .carousel-control-next-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23b02a37'%3e%3cpath d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+  }
+
+  .carousel-indicators {
+    margin-bottom: 0.35rem;
+  }
+
+  .carousel-indicators button {
+    background-color: var(--primary-color, #b02a37);
+    opacity: 0.35;
+  }
+
+  .carousel-indicators button.active {
+    opacity: 1;
   }
 }
 
 .order-completed-work-review__empty {
-  min-height: 140px;
+  min-height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6074,6 +6139,44 @@ button.normal-chat-bubble-file {
   padding: 1rem;
   text-align: center;
   box-sizing: border-box;
+}
+
+.order-completed-work-review__empty--images {
+  flex: 1 1 auto;
+  min-height: 120px;
+  border-style: dashed;
+  background: transparent;
+}
+
+.order-completed-work-review__empty--fill {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.order-completed-work-review__completion-scroll {
+  /* ~3 lines at 0.9rem / 1.45 line-height */
+  max-height: calc(0.9rem * 1.45 * 3);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  width: 100%;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+  }
 }
 
 .order-completed-work-review__completion-note {
@@ -6096,6 +6199,12 @@ button.normal-chat-bubble-file {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+.order-completed-review--fill {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
 }
 
 .order-completed-review__header {
@@ -6187,3 +6296,146 @@ button.normal-chat-bubble-file {
   color: #6c757d;
   font-style: italic;
 }
+/* Partner ratings list modal (Partners table ? Rating) */
+.partner-ratings-dialog {
+  .modal-body {
+    max-height: min(72vh, 640px);
+  }
+}
+
+.partner-ratings-dialog__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fafafa;
+}
+
+.partner-ratings-dialog__summary-avg {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--content-txt-color, #212529);
+  line-height: 1;
+}
+
+.partner-ratings-dialog__order-link {
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--primary-color, #b02a37) !important;
+  text-decoration: underline !important;
+  text-decoration-thickness: 1px !important;
+
+  &:hover,
+  &:focus {
+    color: var(--primary-color, #b02a37) !important;
+  }
+}
+
+.partner-ratings-dialog__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.partner-ratings-dialog__left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.partner-ratings-dialog__kv {
+  flex: 0 1 auto;
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  column-gap: 0.45rem;
+  row-gap: 0.2rem;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 55%;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.partner-ratings-dialog__kv-row {
+  display: contents;
+}
+
+.partner-ratings-dialog__kv-label {
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.partner-ratings-dialog__kv-colon {
+  color: #6c757d;
+}
+
+.partner-ratings-dialog__kv-value {
+  color: var(--content-txt-color, #212529);
+  min-width: 0;
+}
+
+/* Partner Information — reviews (3-column grid) */
+.partner-details-reviews-section {
+  .partner-details-section-header {
+    margin-bottom: 0.75rem;
+  }
+}
+
+.partner-details-reviews-view-all {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary-color, #b02a37) !important;
+  text-decoration: underline !important;
+}
+
+.partner-details-reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+
+  @media (max-width: 991.98px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.partner-review-card--grid {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+
+  .order-completed-review__header {
+    flex-shrink: 0;
+  }
+
+  .order-completed-review__avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .order-completed-review__name {
+    font-size: 0.95rem;
+  }
+
+  .partner-ratings-dialog__kv {
+    max-width: 100%;
+    width: 100%;
+    font-size: 0.8rem;
+  }
+
+  .partner-review-card__kv-wrap {
+    min-width: 0;
+  }
+
+  .order-completed-review__scroll {
+    margin-top: 0.35rem;
+    flex: 0 0 auto;
+  }
+}
+

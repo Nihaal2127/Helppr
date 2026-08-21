@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 import CustomHeader from "../../../components/CustomHeader";
 import CustomSummaryBox from "../../../components/CustomSummaryBox";
 import CustomUtilityBox from "../../../components/CustomUtilityBox";
@@ -16,6 +17,7 @@ import {
 import type { PostManagementStats } from "../../../services/partnerManagementService";
 import { useFranchiseHeaderForm } from "../../../lib/global/hooks/useFranchiseScopedGetCount";
 import { franchiseIdForApiQuery } from "../../../lib/franchise/headerFranchisePreference";
+import { openPostFromNotification } from "../../../lib/notifications/notificationNavigation";
 
 type PostManagementProps = {
   onBack?: () => void;
@@ -42,6 +44,8 @@ const EMPTY_STATS: PostManagementStats = {
 };
 
 const PostManagement = ({ onBack }: PostManagementProps) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const notificationDeepLinkHandledRef = useRef("");
   const {
     register: headerRegister,
     setValue: setHeaderValue,
@@ -108,6 +112,29 @@ const PostManagement = ({ onBack }: PostManagementProps) => {
   const refreshPosts = useCallback(() => {
     void Promise.all([refreshSummary(), fetchList()]);
   }, [refreshSummary, fetchList]);
+
+  useEffect(() => {
+    const openId = String(searchParams.get("openId") ?? "").trim();
+    if (!openId) return;
+
+    const partnerId = String(searchParams.get("partnerId") ?? "").trim();
+    const linkKey = `${openId}|${partnerId}`;
+    if (notificationDeepLinkHandledRef.current === linkKey) return;
+    notificationDeepLinkHandledRef.current = linkKey;
+
+    openPostFromNotification(
+      openId,
+      () => {
+        refreshPosts();
+      },
+      partnerId ? { partnerId } : undefined
+    );
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("openId");
+    next.delete("partnerId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, refreshPosts]);
 
   const handleFilterChange = (next: { name?: string; sort?: string }) => {
     setCurrentPage(1);

@@ -18,6 +18,8 @@ import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicke
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
+import { showUserDetailsDialog } from "../../components/user";
+import { showOrderInfoDialog } from "../../components/order";
 import { useForm, UseFormRegister } from "react-hook-form";
 import type { AddQuoteFormValues, QuoteRow, QuoteTabKey } from "../../lib/types/quoteTypes";
 import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
@@ -1039,6 +1041,43 @@ const QuoteManagement = () => {
     [refreshCountsThenFetchQuotes]
   );
 
+  const handleQuoteUserShow = useCallback(
+    (userId: string) => {
+      const id = String(userId ?? "").trim();
+      if (!id) return;
+      showUserDetailsDialog(id, () => {
+        void refreshCountsThenFetchQuotes();
+      });
+    },
+    [refreshCountsThenFetchQuotes]
+  );
+
+  const handleQuotePartnerShow = useCallback(
+    (partnerId: string) => {
+      const id = String(partnerId ?? "").trim();
+      if (!id) return;
+      void import("../../components/partner/PartnerDetailsDialog").then(
+        ({ default: PartnerDetailsDialog }) => {
+          PartnerDetailsDialog.show(id, () => {
+            void refreshCountsThenFetchQuotes();
+          });
+        }
+      );
+    },
+    [refreshCountsThenFetchQuotes]
+  );
+
+  const handleQuoteOrderShow = useCallback(
+    (orderMongoId: string) => {
+      const id = String(orderMongoId ?? "").trim();
+      if (!id) return;
+      showOrderInfoDialog(id, () => {
+        void refreshCountsThenFetchQuotes();
+      });
+    },
+    [refreshCountsThenFetchQuotes]
+  );
+
   const quoteColumns = useMemo(() => {
     const actionColumn = {
       Header: "Action",
@@ -1089,7 +1128,25 @@ const QuoteManagement = () => {
       cols.push({
         Header: "Order ID",
         accessor: "order_id",
-        Cell: ({ row }: { row: any }) => row.original.order_id ?? "-",
+        sort: true,
+        Cell: ({ row }: { row: any }) => {
+          const quote = row.original as QuoteRow;
+          const label = String(quote.order_id ?? "").trim() || "-";
+          const orderMongoId = String(quote.order_mongo_id ?? "").trim();
+          if (!orderMongoId || label === "-") return label;
+          return (
+            <span
+              style={{
+                textDecoration: "underline",
+                textDecorationThickness: "1px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleQuoteOrderShow(orderMongoId)}
+            >
+              {label}
+            </span>
+          );
+        },
       });
     }
 
@@ -1111,15 +1168,56 @@ const QuoteManagement = () => {
         accessor:
           selectedTab === "success" ? "partner_name" : "requested_partner",
         sort: true,
-        Cell: ({ row }: { row: any }) =>
-          selectedTab === "success"
-            ? row.original.partner_name ?? "-"
-            : row.original.requested_partner,
+        Cell: ({ row }: { row: any }) => {
+          const quote = row.original as QuoteRow;
+          const label =
+            selectedTab === "success"
+              ? String(quote.partner_name ?? "").trim() || "-"
+              : String(quote.requested_partner ?? "").trim() || "-";
+          const partnerId = String(
+            quote.partner_id ?? quote.partner_user_id ?? ""
+          ).trim();
+          if (!partnerId || label === "-") return label;
+          return (
+            <span
+              style={{
+                textDecoration: "underline",
+                textDecorationThickness: "1px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleQuotePartnerShow(partnerId)}
+            >
+              {label}
+            </span>
+          );
+        },
       });
     }
 
     cols.push(
-      { Header: "User Name", accessor: "user_name", sort: true },
+      {
+        Header: "User Name",
+        accessor: "user_name",
+        sort: true,
+        Cell: ({ row }: { row: any }) => {
+          const quote = row.original as QuoteRow;
+          const label = String(quote.user_name ?? "").trim() || "-";
+          const userId = String(quote.user_id ?? "").trim();
+          if (!userId || label === "-") return label;
+          return (
+            <span
+              style={{
+                textDecoration: "underline",
+                textDecorationThickness: "1px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleQuoteUserShow(userId)}
+            >
+              {label}
+            </span>
+          );
+        },
+      },
       {
         Header: "Total price",
         accessor: "total_price",
@@ -1144,7 +1242,6 @@ const QuoteManagement = () => {
       {
         Header: "Status",
         accessor: "status",
-        sort: true,
         Cell: ({ row }: { row: any }) => {
           const status = String(row.original.status ?? "-");
           const statusKey = status.toLowerCase();
@@ -1159,7 +1256,16 @@ const QuoteManagement = () => {
     );
 
     return cols;
-  }, [currentPage, pageSize, selectedTab, handleQuoteView, handleVoidQuote]);
+  }, [
+    currentPage,
+    pageSize,
+    selectedTab,
+    handleQuoteView,
+    handleVoidQuote,
+    handleQuoteUserShow,
+    handleQuotePartnerShow,
+    handleQuoteOrderShow,
+  ]);
 
   useEffect(() => {
     if (!showAddQuote) return;

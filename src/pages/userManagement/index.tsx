@@ -31,7 +31,7 @@ import {
 import { franchiseIdForUserGetAll } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
 import { showUserDetailsDialog } from "../../components/user";
-import { PartnerDetailsDialog } from "../../components/partner";
+import { PartnerDetailsDialog, PartnerRatingsDialog } from "../../components/partner";
 import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
@@ -529,10 +529,32 @@ const UserManagement = () => {
         accessor: "average_rating",
         Cell: ({ row }: { row: { original: UserModel } }) => {
           const raw = row.original.average_rating;
-          if (raw === null || raw === undefined) return "—";
-          const n = Number(raw);
-          if (!Number.isFinite(n)) return "—";
-          return Number.isInteger(n) ? String(n) : n.toFixed(1);
+          let label = "—";
+          if (raw !== null && raw !== undefined) {
+            const n = Number(raw);
+            if (Number.isFinite(n)) {
+              label = Number.isInteger(n) ? String(n) : n.toFixed(1);
+            }
+          }
+          const partnerId = String(row.original._id ?? "").trim();
+          if (!partnerId) return label;
+          return (
+            <span
+              style={{
+                textDecoration: "underline",
+                textDecorationThickness: "1px",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                PartnerRatingsDialog.show(
+                  partnerId,
+                  String(row.original.name ?? "").trim() || undefined
+                )
+              }
+            >
+              {label}
+            </span>
+          );
         },
       },
       {
