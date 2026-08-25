@@ -37,7 +37,7 @@ import {
 import CustomMultiSelect from "../../components/CustomMultiSelect";
 import { fetchServicesForCategoryDialog } from "../../services/servicesService";
 import { openDialog } from "../../lib/global/DialogManager";
-import AddEditServiceDialog from "./AddEditServiceDialog";
+import { showAddEditServiceDialog } from "./AddEditServiceDialog";
 
 type AddEditCategoryDialogProps = {
   isEditable: boolean;
@@ -271,7 +271,7 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
         .map((s) => s.value)
     );
 
-    AddEditServiceDialog.show(
+    showAddEditServiceDialog(
       false,
       null,
       async () => {

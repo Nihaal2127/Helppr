@@ -25,7 +25,7 @@ import {
   toStorageRelativePath,
   uploadDocumentImages,
 } from "../../services/documentUploadService";
-import { PartnerDetailsDialog } from "../../components/partner";
+import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import { openDialog } from "../../lib/global/DialogManager";
 import { AppConstant } from "../../lib/global/AppConstant";
 import {
@@ -368,6 +368,27 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       return;
     }
 
+    const nextPaymentType = extractMinDepositTypeKey(
+      String(
+        (data as { min_deposit_type?: string }).min_deposit_type ??
+          getValues("min_deposit_type" as never) ??
+          ""
+      )
+    );
+    const originalPaymentType = extractMinDepositTypeKey(
+      mapPaymentTypeToMinDepositType(service)
+    );
+    const rawPartners = (service as ServiceModel | null)?.partners;
+    const partnerCountFromApi = Array.isArray(rawPartners)
+      ? rawPartners.length
+      : Number(
+          (service as { partner_count?: number } | null)?.partner_count ?? 0
+        ) || 0;
+    const partnerCount = Math.max(partnerCountFromApi, servicePartners.length);
+    const paymentTypeChanged =
+      isEditable && originalPaymentType !== nextPaymentType;
+
+    const persistService = async () => {
     let image_url = "";
 
     if (fileInputs.length > 0) {
@@ -508,6 +529,19 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       onClose();
       onRefreshData();
     }
+    };
+
+    if (paymentTypeChanged && partnerCount > 0) {
+      openConfirmDialog(
+        "Payment type cannot be changed because partners are already using this service. Changing it would affect their prices.",
+        "",
+        "Cancel",
+        () => {}
+      );
+      return;
+    }
+
+    await persistService();
   };
 
   return (
@@ -797,7 +831,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                                       cursor: "pointer",
                                     }}
                                     onClick={() => {
-                                      PartnerDetailsDialog.show(p.id, () => {});
+                                      void import(
+                                        "../../components/partner/PartnerDetailsDialog"
+                                      ).then((mod) => {
+                                        mod.default.show(p.id, () => {});
+                                      });
                                     }}
                                   >
                                     {p.name}
@@ -1174,14 +1212,14 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   );
 };
 
-AddEditServiceDialog.show = (
+function showAddEditServiceDialog(
   isEditable: boolean,
   service: ServiceModel | null,
   onRefreshData: () => void,
   isViewMode: boolean = false,
   lockCategory?: { id?: string; label?: string },
   hideStatusInView: boolean = false
-) => {
+) {
   openDialog("service-details-modal", (close) => (
     <AddEditServiceDialog
       isEditable={isEditable}
@@ -1193,6 +1231,9 @@ AddEditServiceDialog.show = (
       onRefreshData={onRefreshData}
     />
   ));
-};
+}
+
+AddEditServiceDialog.show = showAddEditServiceDialog;
 
 export default AddEditServiceDialog;
+export { showAddEditServiceDialog };
