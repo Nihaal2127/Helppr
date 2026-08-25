@@ -25,6 +25,7 @@ interface CustomTextFieldSelectProps {
   includeEmptyOption?: boolean;
   emptyOptionLabel?: string;
   isDisabled?: boolean;
+  onMenuOpen?: () => void;
 }
 
 const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
@@ -48,6 +49,7 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
   includeEmptyOption,
   emptyOptionLabel,
   isDisabled = false,
+  onMenuOpen,
 }) => {
   const rowMarginClass = noRowBottomMargin
     ? ""
@@ -91,6 +93,7 @@ const CustomTextFieldSelect: React.FC<CustomTextFieldSelectProps> = ({
           includeEmptyOption={includeEmptyOption}
           emptyOptionLabel={emptyOptionLabel}
           isDisabled={isDisabled}
+          onMenuOpen={onMenuOpen}
         />
       </Col>
     </Row>

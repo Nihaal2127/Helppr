@@ -512,7 +512,10 @@ const ServiceManagement = () => {
           );
         }
       } else if (isService) {
-        const { response, service } = await fetchServiceById(openId);
+        const { response, service } = await fetchServiceById(
+          openId,
+          catalogFranchiseId
+        );
         if (response && service) {
           AddEditServiceDialog.show(
             true,
@@ -529,6 +532,7 @@ const ServiceManagement = () => {
     setSearchParams,
     openRequestedCategory,
     openRequestedService,
+    catalogFranchiseId,
   ]);
 
   const categoryColumns = React.useMemo(
@@ -665,7 +669,10 @@ const ServiceManagement = () => {
                 showErrorAlert("Unable to open service: missing identifier.");
                 return;
               }
-              const { response, service } = await fetchServiceById(sid);
+              const { response, service } = await fetchServiceById(
+                sid,
+                catalogFranchiseId
+              );
               const record =
                 response && service
                   ? mergeServiceDetailForDialog(row.original, service)
@@ -690,6 +697,7 @@ const ServiceManagement = () => {
       franchiseCatalogScope,
       catalogListStatusField,
       setCatalogServiceActive,
+      catalogFranchiseId,
     ]
   );
 
@@ -781,7 +789,10 @@ const ServiceManagement = () => {
                 showErrorAlert("Unable to open service: missing identifier.");
                 return;
               }
-              const { response, service } = await fetchServiceById(sid);
+              const { response, service } = await fetchServiceById(
+                sid,
+                catalogFranchiseId
+              );
               const record =
                 response && service
                   ? mergeServiceDetailForDialog(row.original, service)
@@ -797,7 +808,7 @@ const ServiceManagement = () => {
         ),
       },
     ],
-    [openRequestedService, currentPage, pageSize]
+    [openRequestedService, currentPage, pageSize, catalogFranchiseId]
   );
 
   return (

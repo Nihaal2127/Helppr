@@ -27,7 +27,7 @@ export interface UserModel {
   is_blocked?: boolean;
   is_business: boolean;
   type: number;
-  registration_type: string | null;
+  registration_type: number | string | null;
   device_token: string | null;
   platform_type: number;
   business_info_id: string | null;

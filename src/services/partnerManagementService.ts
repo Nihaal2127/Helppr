@@ -243,47 +243,54 @@ export type SubscriptionPlanOption = {
   value: string;
   label: string;
   price: number | null;
+  duration: number | null;
+  duration_type: string;
 };
 
+function mapSubscriptionPlanToOption(
+  plan: SubscriptionPlanModel
+): SubscriptionPlanOption | null {
+  const name = String(plan.plan_name ?? "")
+    .trim()
+    .toLowerCase();
+  if (!name) return null;
+  const id = String(plan._id ?? "").trim();
+  const priceNum = Number(String(plan.price ?? "").replace(/,/g, ""));
+  const durationNum = Number(String(plan.duration ?? "").replace(/,/g, ""));
+  return {
+    value: id || name,
+    label: capitalizeString(name),
+    price: Number.isFinite(priceNum) ? priceNum : null,
+    duration: Number.isFinite(durationNum) ? durationNum : null,
+    duration_type: String(plan.duration_type ?? "months").trim() || "months",
+  };
+}
+
+/** `GET /subscription-plan/getAll` — all catalog rows for partner plan pickers. */
 export async function fetchSubscriptionPlanOptions(): Promise<
   SubscriptionPlanOption[]
 > {
-  const res = await apiRequest(
-    ApiPaths.SUBSCRIPTION_PLAN_GET_DROP_DOWN(),
-    "GET"
-  );
-  if (!res.success) return [];
+  const pageSize = 50;
+  let page = 1;
+  const records: SubscriptionPlanModel[] = [];
 
-  const root = pickSubscriptionPlanListRoot(
-    (res.data ?? {}) as Record<string, unknown>
-  );
-  const rawList = (root.records ??
-    root.list ??
-    res.data?.records ??
-    []) as Record<string, unknown>[];
-  if (!Array.isArray(rawList)) return [];
+  for (;;) {
+    const res = await fetchSubscriptionPlans(page, pageSize, {});
+    if (!res.response) break;
+    records.push(...(res.records ?? []));
+    if (!res.totalPages || page >= res.totalPages) break;
+    page += 1;
+    if (page > 50) break;
+  }
 
   const out: SubscriptionPlanOption[] = [];
-  for (const r of rawList) {
-    const name = String(r.plan_name ?? "")
-      .trim()
-      .toLowerCase();
-    if (!name) continue;
-    if (r.is_active === false) continue;
-    const id =
-      r._id != null && String(r._id).trim() !== "" ? String(r._id) : "";
-    const priceRaw = r.price;
-    const priceNum =
-      typeof priceRaw === "number"
-        ? priceRaw
-        : priceRaw != null && String(priceRaw).trim() !== ""
-        ? Number(priceRaw)
-        : NaN;
-    out.push({
-      value: id || name,
-      label: capitalizeString(name),
-      price: Number.isFinite(priceNum) ? priceNum : null,
-    });
+  const seen = new Set<string>();
+  for (const plan of records) {
+    const opt = mapSubscriptionPlanToOption(plan);
+    if (!opt) continue;
+    if (seen.has(opt.value)) continue;
+    seen.add(opt.value);
+    out.push(opt);
   }
   return out;
 }

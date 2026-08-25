@@ -512,7 +512,6 @@ const SubscriptionPlans = ({ onBack }: SubscriptionPlansProps) => {
       {
         Header: "Plan Name",
         accessor: "plan_name",
-        sort: true,
         Cell: ({ row }: { row: any }) =>
           capitalizeString(row.original.plan_name),
       },

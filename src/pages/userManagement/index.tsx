@@ -28,14 +28,30 @@ import {
   useFranchiseHeaderForm,
   useFranchiseScopedGetCount,
 } from "../../lib/global/hooks/useFranchiseScopedGetCount";
+import { franchiseIdForApiQuery } from "../../lib/franchise/headerFranchisePreference";
 import { UserModel } from "../../lib/models/UserModel";
 import { showUserDetailsDialog, ServiceDetailsDialog } from "../../components/user";
 import { PartnerDetailsDialog, PartnerRatingsDialog } from "../../components/partner";
+import PartnerProvidedServicesDialog from "../../components/partner/PartnerProvidedServicesDialog";
 import PartnerVerificationReviewModal from "./PartnerVerificationReviewModal";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import { openConfirmDialog } from "../../components/CustomConfirmDialog";
 import type { ServerTableSortBy } from "../../lib/global/serverTableSort";
 import ChangePartnerPasswordDialog from "./ChangePartnerPasswordDialog";
+
+const REGISTRATION_TYPE_LABEL: Record<number, string> = {
+  1: "Phone number",
+  2: "Google",
+  3: "Apple",
+  4: "Admin",
+  5: "Email"
+};
+
+function registrationTypeLabel(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return REGISTRATION_TYPE_LABEL[n] ?? "—";
+}
 
 const UserManagement = () => {
   const location = useLocation();
@@ -60,10 +76,12 @@ const UserManagement = () => {
     string | undefined
   >(undefined);
   const [sortBy, setSortBy] = useState<ServerTableSortBy>([]);
-  const { register, setValue } = useFranchiseHeaderForm();
+  const { register, setValue, franchiseId: headerFranchiseId } =
+    useFranchiseHeaderForm();
   const { countModel: userCountModel, refresh: refreshUserManagementCounts } =
     useFranchiseScopedGetCount({
       type: "user-management",
+      franchiseId: headerFranchiseId,
     });
 
   useEffect(() => {
@@ -98,18 +116,18 @@ const UserManagement = () => {
     setUtilitySearchKey((k) => k + 1);
   }, [location.state]);
 
-  /** Summary boxes: `POST /getCount` `{ type: "user-management" }` (no `franchise_id`). */
+  /** Summary boxes and lists: scope by header franchise for super admin/staff. */
 
   const fetchData = useCallback(
     async (listPage?: number) => {
       const page =
         typeof listPage === "number" && listPage >= 1 ? listPage : currentPage;
 
-    // Do not send `franchise_id` on `GET /user/getAll` (partners/users/verification).
-    // Franchise portal is scoped by auth token; header franchise is for counts only.
+    const franchiseId = franchiseIdForApiQuery(headerFranchiseId) || undefined;
     const filters = {
       keyword: searchKeyword || undefined,
       status: statusFilter,
+      ...(franchiseId ? { franchise_id: franchiseId } : {}),
     };
 
     if (selectedBox === "box-verification") {
@@ -209,12 +227,17 @@ const UserManagement = () => {
     sortBy,
     statusFilter,
     partnerIsVerifiedFilter,
+    headerFranchiseId,
   ]
 );
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [headerFranchiseId]);
 
   const refreshData = useCallback(
     async (_selected: string) => {
@@ -254,6 +277,15 @@ const UserManagement = () => {
       });
     },
     [refreshData]
+  );
+
+  const openPartnerProvidedServices = useCallback(
+    (partnerId: string, partnerName?: string) => {
+      const id = String(partnerId ?? "").trim();
+      if (!id) return;
+      PartnerProvidedServicesDialog.show(id, partnerName);
+    },
+    []
   );
 
   const openUserTotalServices = useCallback(
@@ -406,12 +438,21 @@ const UserManagement = () => {
           String(row.original?.phone_number ?? "").trim() || "—",
       },
       {
+        Header: "Registration",
+        accessor: "registration_type",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          registrationTypeLabel(row.original?.registration_type),
+      },
+      {
         Header: "Service Taken",
+        id: "total_service",
         accessor: "total_service",
         sort: true,
         Cell: ({ row }: { row: { original: UserModel } }) => {
           const count =
-            row.original?.total_service ?? row.original?.no_of_services ?? 0;
+            Number(
+              row.original?.total_service ?? row.original?.no_of_services ?? 0
+            ) || 0;
           const id = String(row.original?._id ?? "").trim();
           return (
             <button
@@ -518,7 +559,44 @@ const UserManagement = () => {
         Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
           String(row.original?.phone_number ?? "").trim() || "—",
       },
-      { Header: "No. of services", accessor: "no_of_services" },
+      {
+        Header: "Registration",
+        accessor: "registration_type",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          registrationTypeLabel(row.original?.registration_type),
+      },
+      {
+        Header: "Available Services",
+        id: "no_of_services",
+        accessor: "no_of_services",
+        sort: true,
+        Cell: ({ row }: { row: { original: UserModel } }) => {
+          const count = Number(row.original?.no_of_services ?? 0) || 0;
+          const id = String(row.original?._id ?? "").trim();
+          return (
+            <button
+              type="button"
+              className="btn btn-link p-0 m-0 align-baseline text-decoration-underline"
+              style={{
+                fontSize: "inherit",
+                color: "#000",
+                lineHeight: "inherit",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                openPartnerProvidedServices(
+                  id,
+                  String(row.original?.name ?? "").trim() || undefined
+                );
+              }}
+              disabled={!id}
+            >
+              {count}
+            </button>
+          );
+        },
+      },
       {
         Header: "Plan",
         id: "subscription_plan",
@@ -622,6 +700,7 @@ const UserManagement = () => {
       handleUserDelete,
       partnerShow,
       partnerChangePassword,
+      openPartnerProvidedServices,
     ]
   );
 
@@ -638,12 +717,20 @@ const UserManagement = () => {
       {
         Header: "Email",
         accessor: "email",
-        Cell: ({ row }) => row.original.email || "-----",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.email ?? "").trim() || "—",
       },
       {
         Header: "Phone",
         accessor: "phone_number",
-        Cell: ({ row }) => row.original.phone_number || "-----",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          String(row.original?.phone_number ?? "").trim() || "—",
+      },
+      {
+        Header: "Registration",
+        accessor: "registration_type",
+        Cell: ({ row }: { row: { original: Record<string, unknown> } }) =>
+          registrationTypeLabel(row.original?.registration_type),
       },
       {
         Header: "Plan",

@@ -50,6 +50,20 @@ export function resolveExistingImageSrc(url?: string): string {
   if (resolved.startsWith("data:") || resolved.startsWith("blob:")) {
     return resolved;
   }
+  // Google (and other) avatar hosts reject extra query params / our Referer.
+  // Cache-bust only our storage/CDN keys.
+  if (/^https?:\/\//i.test(resolved)) {
+    try {
+      const host = new URL(resolved).hostname.toLowerCase();
+      const isGoogleAvatar =
+        host.includes("googleusercontent.com") ||
+        host.includes("ggpht.com") ||
+        host.includes("google.com");
+      if (isGoogleAvatar) return resolved;
+    } catch {
+      return resolved;
+    }
+  }
   return `${resolved}${resolved.includes("?") ? "&" : "?"}t=${Date.now()}`;
 }
 
