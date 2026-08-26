@@ -191,9 +191,13 @@ const UserManagement = () => {
       }
     } else {
       const type = selectedBox === "box-user" ? 4 : 2;
+      const partnerStatus = String(statusFilter ?? "").trim().toLowerCase();
+      // Partner Inactive: is_active=false only — do not force is_verified=approved.
       const partnerFilters =
         selectedBox === "box-partner"
-          ? { ...filters, is_verified: PARTNER_VERIFICATION.APPROVED }
+          ? partnerStatus === "false"
+            ? { ...filters }
+            : { ...filters, is_verified: PARTNER_VERIFICATION.APPROVED }
           : filters;
       const { response, users, totalPages } = await fetchUser(
         false,

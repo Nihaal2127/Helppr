@@ -46,13 +46,9 @@ const CUSTOMER_PAYMENT_FILTER_OPTIONS: OptionType[] = [
 
 function userToOption(u: UserModel): OptionType | null {
   const id = String(u._id ?? "").trim();
-  if (!id) return null;
-  const label =
-    (u.name && String(u.name).trim()) ||
-    u.user_id ||
-    u.phone_number ||
-    id;
-  return { value: id, label: String(label) };
+  const name = String(u.name ?? "").trim();
+  if (!id || !name) return null;
+  return { value: id, label: name };
 }
 
 function partnerCategoryIds(partner: UserModel): string[] {
