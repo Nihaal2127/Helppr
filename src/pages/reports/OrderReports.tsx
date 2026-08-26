@@ -321,7 +321,11 @@ const OrderReportsPage = ({ franchiseId = "all" }: OrderReportsPageProps) => {
       const userDrop = await fetchUserDropDown(CUSTOMER_USER_TYPE, undefined, {
         franchise_id: franchiseId,
       });
-      setAllUserRows(userDrop.users.filter((u) => u?._id));
+      setAllUserRows(
+        userDrop.users.filter(
+          (u) => u?._id && String(u.name ?? "").trim()
+        )
+      );
     } catch {
       optionsLoadedRef.current.users = false;
       usersFranchiseKeyRef.current = "";

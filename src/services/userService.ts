@@ -445,8 +445,11 @@ export const fetchUserDropDown = async (
   );
 
   if (response.success) {
+    const records = extractUserDropDownRecords(response.data).filter((u) =>
+      Boolean(String(u?.name ?? "").trim())
+    );
     return {
-      users: extractUserDropDownRecords(response.data),
+      users: records,
     };
   } else {
     showLog(response.message || "Failed to fetch user");
