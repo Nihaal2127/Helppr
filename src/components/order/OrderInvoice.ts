@@ -170,7 +170,7 @@ export function orderInvoiceHtml(invoiceData: OrderModel): string {
                 )
                 .join("")}
               <tr>
-                <td colSpan="3">
+                <td colSpan="3" style="text-align: left;">
                   <strong>${AppConstant.companyName}</strong><br />
                   <strong>Helpline Number:</strong> ${AppConstant.helplineNumber}<br />
                   <strong>Support Email:</strong> ${AppConstant.supportEmail}<br />
