@@ -1194,16 +1194,43 @@ const QuoteManagement = () => {
       });
     }
 
-    cols.push(
-      {
-        Header: "User Name",
-        accessor: "user_name",
+    cols.push({
+      Header: "User Name",
+      accessor: "user_name",
+      sort: true,
+      Cell: ({ row }: { row: any }) => {
+        const quote = row.original as QuoteRow;
+        const label = String(quote.user_name ?? "").trim() || "-";
+        const userId = String(quote.user_id ?? "").trim();
+        if (!userId || label === "-") return label;
+        return (
+          <span
+            style={{
+              textDecoration: "underline",
+              textDecorationThickness: "1px",
+              cursor: "pointer",
+            }}
+            onClick={() => handleQuoteUserShow(userId)}
+          >
+            {label}
+          </span>
+        );
+      },
+    });
+
+    if (selectedTab === "new") {
+      cols.push({
+        Header: "Partner",
+        accessor: "partner_name",
         sort: true,
         Cell: ({ row }: { row: any }) => {
           const quote = row.original as QuoteRow;
-          const label = String(quote.user_name ?? "").trim() || "-";
-          const userId = String(quote.user_id ?? "").trim();
-          if (!userId || label === "-") return label;
+          const name = String(quote.partner_name ?? "").trim();
+          if (!name) return "";
+          const partnerId = String(
+            quote.partner_id ?? quote.partner_user_id ?? ""
+          ).trim();
+          if (!partnerId) return name;
           return (
             <span
               style={{
@@ -1211,13 +1238,16 @@ const QuoteManagement = () => {
                 textDecorationThickness: "1px",
                 cursor: "pointer",
               }}
-              onClick={() => handleQuoteUserShow(userId)}
+              onClick={() => handleQuotePartnerShow(partnerId)}
             >
-              {label}
+              {name}
             </span>
           );
         },
-      },
+      });
+    }
+
+    cols.push(
       {
         Header: "Total price",
         accessor: "total_price",

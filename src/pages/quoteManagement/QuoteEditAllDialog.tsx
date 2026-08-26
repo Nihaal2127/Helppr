@@ -114,11 +114,18 @@ function collectMissingQuoteEditRequiredFields(
     addressUiReady: boolean;
     addressRowsCount: number;
     selectedAddressId: string;
+    /** When false, partner is optional (New-tab Update). */
+    requirePartner?: boolean;
+    /** When false, service price is optional (New-tab Update; required on Send Quote). */
+    requireServicePrice?: boolean;
   }
 ): MissingRequiredField[] {
   const missing: MissingRequiredField[] = [];
 
-  if (!String(data.requested_partner ?? "").trim()) {
+  if (
+    opts.requirePartner !== false &&
+    !String(data.requested_partner ?? "").trim()
+  ) {
     missing.push({ field: "requested_partner", label: "Partner" });
   }
   if (!String(data.category_id ?? "").trim()) {
@@ -154,10 +161,12 @@ function collectMissingQuoteEditRequiredFields(
     ) {
       missing.push({ label: "Schedule end (auto)" });
     }
-    const priceRaw = String(data.service_price ?? "").trim();
-    const price = Number.parseFloat(priceRaw);
-    if (!priceRaw || Number.isNaN(price) || price < 0) {
-      missing.push({ field: "service_price", label: "Service price" });
+    if (opts.requireServicePrice !== false) {
+      const priceRaw = String(data.service_price ?? "").trim();
+      const price = Number.parseFloat(priceRaw);
+      if (!priceRaw || Number.isNaN(price) || price < 0) {
+        missing.push({ field: "service_price", label: "Service price" });
+      }
     }
   }
 
@@ -780,8 +789,15 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   useEffect(() => {
     if (skipAutoPriceRef.current) return;
     if (!isScheduleComplete || !partnerSelected) return;
-    // Keep GET /quote amounts (total_service_charge, etc.) — do not overwrite from catalog.
-    if (quoteRow && quoteHasApiPriceBreakdown(quoteRow)) return;
+    // Keep GET /quote amounts on non-New edits. New-tab: fill from partner schedule
+    // (preview already shows this total) even when the quote has a zero/placeholder total_price.
+    if (
+      !isNewTabQuoteEdit &&
+      quoteRow &&
+      quoteHasApiPriceBreakdown(quoteRow)
+    ) {
+      return;
+    }
     const sid = serviceId;
     if (!sid) return;
     const row = getPartnerActiveServiceProvidingRow(
@@ -803,10 +819,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     const n = row
       ? computeAutoQuotePriceFromPartner(row, metrics, catalogPaymentType)
       : 0;
-    setValue("service_price", String(n), { shouldValidate: false });
+    setValue("service_price", String(n), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
   }, [
     isScheduleComplete,
     partnerSelected,
+    isNewTabQuoteEdit,
     serviceId,
     activeScheduleMode,
     form.requested_date,
@@ -880,7 +900,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
     const nextStatus = normalizeQuoteApiStatus(data.quote_status);
     const prev = initialStatusKeyRef.current;
-    const isConvertToOrder = nextStatus === "success" && prev !== "success";
+    const isConvertToOrder =
+      !isNewTabQuoteEdit &&
+      nextStatus === "success" &&
+      prev !== "success";
 
     if (isConvertToOrder) {
       if (prev !== "accepted") {
@@ -934,6 +957,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
         addressUiReady: addressUi.ready,
         addressRowsCount: addressUi.rows.length,
         selectedAddressId,
+        requirePartner: !isNewTabQuoteEdit,
+        requireServicePrice: !isNewTabQuoteEdit,
       }
     );
     if (missingRequired.length > 0) {
@@ -968,24 +993,43 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    const patch: Record<string, unknown> = {
-      category_id: String(data.category_id ?? "").trim(),
-      service_id: String(data.requested_services ?? "").trim(),
-      partner_id: String(data.requested_partner ?? "").trim() || undefined,
-      employee_id: String(data.employee_id ?? "").trim() || undefined,
-      address_id: selectedAddressId.trim(),
-      service_price: price,
-      from_date: metrics.from_date,
-      to_date: metrics.to_date,
-      work_start_time: metrics.work_start_time,
-      work_end_time: metrics.work_end_time,
-      work_hours_per_day: metrics.work_hours_per_day,
-      total_work_hours: metrics.total_work_hours,
-      quote_description:
-        String(data.user_description ?? "").trim() || undefined,
-      admin_description:
-        String(data.admin_description ?? "").trim() || undefined,
-    };
+    // New-tab Update: schedule / address / notes only.
+    // Partner, service_price, and status are sent via Send Quote.
+    const patch: Record<string, unknown> = isNewTabQuoteEdit
+      ? {
+          category_id: String(data.category_id ?? "").trim(),
+          service_id: String(data.requested_services ?? "").trim(),
+          employee_id: String(data.employee_id ?? "").trim() || undefined,
+          address_id: selectedAddressId.trim(),
+          from_date: metrics.from_date,
+          to_date: metrics.to_date,
+          work_start_time: metrics.work_start_time,
+          work_end_time: metrics.work_end_time,
+          work_hours_per_day: metrics.work_hours_per_day,
+          total_work_hours: metrics.total_work_hours,
+          quote_description:
+            String(data.user_description ?? "").trim() || undefined,
+          admin_description:
+            String(data.admin_description ?? "").trim() || undefined,
+        }
+      : {
+          category_id: String(data.category_id ?? "").trim(),
+          service_id: String(data.requested_services ?? "").trim(),
+          partner_id: String(data.requested_partner ?? "").trim() || undefined,
+          employee_id: String(data.employee_id ?? "").trim() || undefined,
+          address_id: selectedAddressId.trim(),
+          service_price: price,
+          from_date: metrics.from_date,
+          to_date: metrics.to_date,
+          work_start_time: metrics.work_start_time,
+          work_end_time: metrics.work_end_time,
+          work_hours_per_day: metrics.work_hours_per_day,
+          total_work_hours: metrics.total_work_hours,
+          quote_description:
+            String(data.user_description ?? "").trim() || undefined,
+          admin_description:
+            String(data.admin_description ?? "").trim() || undefined,
+        };
 
     let ok = await updateQuote(id, patch);
     if (!ok) {
@@ -993,7 +1037,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    if (nextStatus && nextStatus !== prev) {
+    // New-tab Update: fields only — status changes go through Send Quote.
+    if (!isNewTabQuoteEdit && nextStatus && nextStatus !== prev) {
       ok = await applyQuoteHeaderPatch(id, { status: nextStatus });
       if (!ok) {
         const statusMsg =
@@ -1010,10 +1055,47 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
     }
 
     const statusChangedToAccepted =
-      nextStatus === "accepted" && nextStatus !== prev;
+      !isNewTabQuoteEdit &&
+      nextStatus === "accepted" &&
+      nextStatus !== prev;
     showSuccessAlert(
       statusChangedToAccepted ? "Quote accepted." : "Quote updated."
     );
+    onSaved?.();
+    onClose();
+  };
+
+  const handleSendQuote = async () => {
+    const id = String(quoteMongoId ?? "").trim();
+    if (!id) {
+      showErrorAlert("Missing quote id.");
+      return;
+    }
+    const partnerId = String(getValues("requested_partner") ?? "").trim();
+    if (!partnerId) {
+      showErrorAlert("Please select a partner.");
+      return;
+    }
+
+    const priceRaw = String(getValues("service_price") ?? "").trim();
+    const price = Number.parseFloat(priceRaw);
+    if (!priceRaw || Number.isNaN(price) || price < 0) {
+      showErrorAlert("Please enter a valid service price.");
+      return;
+    }
+
+    // Send Quote: partner + service price + move to pending (single PUT).
+    const ok = await updateQuote(id, {
+      partner_id: partnerId,
+      service_price: price,
+      status: "pending",
+    });
+    if (!ok) {
+      showErrorAlert("Could not send quote.");
+      return;
+    }
+
+    showSuccessAlert("Quote sent.");
     onSaved?.();
     onClose();
   };
@@ -1283,7 +1365,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                         register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                         fieldName="requested_partner"
                         error={errors.requested_partner}
-                        requiredMessage="Please select a partner"
+                        requiredMessage={
+                          isNewTabQuoteEdit
+                            ? undefined
+                            : "Please select a partner"
+                        }
+                        showRequiredMark={isNewTabQuoteEdit}
                         defaultValue={form.requested_partner}
                         setValue={(name, value) => {
                           if (name === "requested_partner") {
@@ -1418,7 +1505,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                       register={register as unknown as UseFormRegister<AddQuoteFormValues>}
                       fieldName="requested_partner"
                       error={errors.requested_partner}
-                      requiredMessage="Please select a partner"
+                      requiredMessage={
+                        isNewTabQuoteEdit
+                          ? undefined
+                          : "Please select a partner"
+                      }
+                      showRequiredMark={isNewTabQuoteEdit}
                       defaultValue={form.requested_partner}
                       setValue={(name, value) => {
                         if (name === "requested_partner") {
@@ -1675,7 +1767,10 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                     <Col xs={12} md={6}>
                       <Form.Group controlId="service_price" className="mb-0">
                         <Form.Label className="fw-medium mb-1">
-                          <FieldLabelText label="Service Price" required />
+                          <FieldLabelText
+                            label="Service Price"
+                            required={!isNewTabQuoteEdit}
+                          />
                         </Form.Label>
                         <InputGroup>
                           <InputGroup.Text
@@ -1710,9 +1805,12 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               borderBottomLeftRadius: 0,
                             }}
                             placeholder="e.g. 1200"
-                            {...register("service_price", {
-                              required: "Service price is required",
-                            })}
+                            {...register(
+                              "service_price",
+                              isNewTabQuoteEdit
+                                ? undefined
+                                : { required: "Service price is required" }
+                            )}
                           />
                         </InputGroup>
                         {errors.service_price?.message ? (
@@ -1853,6 +1951,18 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
           >
             Update
           </Button>
+          {isNewTabQuoteEdit ? (
+            <Button
+              type="button"
+              className="custom-btn-primary"
+              disabled={lockedFields}
+              onClick={() => {
+                void handleSendQuote();
+              }}
+            >
+              Send Quote
+            </Button>
+          ) : null}
         </Modal.Footer>
       ) : null}
     </Modal>

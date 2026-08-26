@@ -18,6 +18,7 @@ import {
 import type { QuoteViewData } from "../../lib/quote/quoteHelpers";
 import type { ServiceDropDownOption } from "../../services/servicesService";
 import {
+  applyQuoteHeaderPatch,
   convertQuoteToOrder,
   fetchQuoteDetailById,
 } from "../../services/quoteService";
@@ -102,10 +103,18 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
   const isSuccess = statusKey === "success";
   const isFailed = statusKey === "failed";
   const isAccepted = statusKey === "accepted";
+  const isNew = statusKey === "new";
 
   const partnerNameForDisplay = isAccepted
     ? displayQuote.partner_name
     : displayQuote.requested_partner;
+
+  const hasPartnerSelected = Boolean(
+    String(displayQuote.partner_id ?? "").trim() ||
+      String(displayQuote.partner_user_id ?? "").trim() ||
+      (String(partnerNameForDisplay ?? "").trim() &&
+        String(partnerNameForDisplay ?? "").trim() !== "-")
+  );
 
   const scheduleDisplay = useMemo(
     () =>
@@ -196,6 +205,26 @@ const QuoteInfoDialog: React.FC<QuoteInfoDialogProps> & {
       });
     });
   };
+
+  const handleSendQuote = useCallback(() => {
+    if (!quoteMongoId) return;
+    if (!hasPartnerSelected) {
+      showErrorAlert("Please select a partner.");
+      return;
+    }
+    void (async () => {
+      const ok = await applyQuoteHeaderPatch(quoteMongoId, {
+        status: "pending",
+      });
+      if (!ok) {
+        showErrorAlert("Could not send quote.");
+        return;
+      }
+      showSuccessAlert("Quote sent.");
+      onRefreshData?.();
+      onClose();
+    })();
+  }, [quoteMongoId, hasPartnerSelected, onRefreshData, onClose]);
 
   return (
     <Modal
