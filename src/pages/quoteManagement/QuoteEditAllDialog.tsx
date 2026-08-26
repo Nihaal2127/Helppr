@@ -1960,7 +1960,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                 void handleSendQuote();
               }}
             >
-              Send Quote
+              Update & Send
             </Button>
           ) : null}
         </Modal.Footer>
