@@ -364,8 +364,35 @@ export function PersonalAccountDetailsGrid({
               value={formatDate(lastRaw)}
             />
           </Col>
+          <Col xs={12} md={6}>
+            <DetailsRow
+              title="Status"
+              value={
+                <span
+                  className={isActive ? "custom-active" : "custom-inactive"}
+                >
+                  {isActive ? "Active" : "Inactive"}
+                </span>
+              }
+            />
+          </Col>
         </Row>
-      ) : null}
+      ) : (
+        <Row className="g-0">
+          <Col xs={12} md={6}>
+            <DetailsRow
+              title="Status"
+              value={
+                <span
+                  className={isActive ? "custom-active" : "custom-inactive"}
+                >
+                  {isActive ? "Active" : "Inactive"}
+                </span>
+              }
+            />
+          </Col>
+        </Row>
+      )}
     </div>
   );
 }

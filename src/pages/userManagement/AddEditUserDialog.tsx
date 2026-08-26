@@ -1565,11 +1565,15 @@ function AddEditUserDialogView({
     const isBlockedPayload = usePartnerVerificationStatus
       ? Boolean((user as any)?.is_blocked)
       : isUserUpdate
-      ? Boolean((user as any)?.is_blocked)
+      ? !isActivePayload
       : typeof (data as any).is_blocked === "string"
         ? String((data as any).is_blocked) === "true"
         : Boolean((data as any).is_blocked);
-    const resolvedIsActivePayload = isBlockedPayload ? false : isActivePayload;
+    const resolvedIsActivePayload = isUserUpdate
+      ? isActivePayload
+      : isBlockedPayload
+        ? false
+        : isActivePayload;
 
     const sessionFranchiseId = sessionFranchiseIdForScopedApis();
     const createFranchiseId =
@@ -2594,123 +2598,132 @@ function AddEditUserDialogView({
                 ) : null}
                 {isEditable ? (
                   <>
-                    {role !== USER_ROLE ? (
-                      usePartnerVerificationStatus ? (
-                        partnerVerificationApproved ? (
-                          <Row className="align-items-start">
+                    {role === USER_ROLE ? (
+                      <CustomTextFieldRadio
+                        label="Status"
+                        name="is_active"
+                        options={getStatusOptions()}
+                        defaultValue={String(
+                          watch("is_active") ?? user?.is_active ?? true
+                        )}
+                        isEditable={true}
+                        setValue={setValue}
+                      />
+                    ) : usePartnerVerificationStatus ? (
+                      partnerVerificationApproved ? (
+                        <Row className="align-items-start">
+                          <Col sm={4} className="d-flex align-items-start">
+                            <label className="custom-profile-lable mb-0">
+                              Verification status
+                            </label>
+                          </Col>
+                          <Col>
+                            <span className="custom-active">
+                              {partnerVerificationLabel(user?.is_verified)}
+                            </span>
+                          </Col>
+                        </Row>
+                      ) : (
+                        <>
+                          <Row className="align-items-start g-2 mb-0">
                             <Col sm={4} className="d-flex align-items-start">
                               <label className="custom-profile-lable mb-0">
                                 Verification status
                               </label>
                             </Col>
                             <Col>
-                              <span className="custom-active">
-                                {partnerVerificationLabel(user?.is_verified)}
-                              </span>
-                            </Col>
-                          </Row>
-                        ) : (
-                          <>
-                            <Row className="align-items-start g-2 mb-0">
-                              <Col sm={4} className="d-flex align-items-start">
-                                <label className="custom-profile-lable mb-0">
-                                  Verification status
-                                </label>
-                              </Col>
-                              <Col>
-                                <div className="d-flex flex-wrap gap-3 align-items-center">
-                                  <Form.Check
-                                    type="radio"
-                                    id={`add-edit-partner-approve-${user?._id ?? "new"}`}
-                                    name="partner-verification-decision"
-                                    className="custom-radio-check"
-                                    label={
-                                      <span className="custom-radio-text">
-                                        Approve
-                                      </span>
-                                    }
-                                    checked={
-                                      partnerVerificationDecision === "approve"
-                                    }
-                                    onChange={() =>
-                                      setPartnerVerificationDecision("approve")
-                                    }
-                                  />
-                                  <Form.Check
-                                    type="radio"
-                                    id={`add-edit-partner-reject-${user?._id ?? "new"}`}
-                                    name="partner-verification-decision"
-                                    className="custom-radio-check"
-                                    label={
-                                      <span className="custom-radio-text">
-                                        Reject
-                                      </span>
-                                    }
-                                    checked={
-                                      partnerVerificationDecision === "reject"
-                                    }
-                                    onChange={() =>
-                                      setPartnerVerificationDecision("reject")
-                                    }
-                                  />
-                                  <Form.Check
-                                    type="radio"
-                                    id={`add-edit-partner-pending-${user?._id ?? "new"}`}
-                                    name="partner-verification-decision"
-                                    className="custom-radio-check"
-                                    label={
-                                      <span className="custom-radio-text">
-                                        Pending
-                                      </span>
-                                    }
-                                    checked={
-                                      partnerVerificationDecision === "pending"
-                                    }
-                                    onChange={() =>
-                                      setPartnerVerificationDecision("pending")
-                                    }
-                                  />
-                                </div>
-                              </Col>
-                            </Row>
-                            {partnerVerificationDecision === "reject" ? (
-                              <Form.Group className="mt-3 mb-0">
-                                <Form.Label className="custom-profile-lable mb-1">
-                                  Rejection reason
-                                </Form.Label>
-                                <Form.Control
-                                  as="textarea"
-                                  rows={4}
-                                  placeholder="Enter rejection reason"
-                                  value={partnerVerificationRejectReason}
-                                  onChange={(e) =>
-                                    setPartnerVerificationRejectReason(
-                                      e.target.value
-                                    )
+                              <div className="d-flex flex-wrap gap-3 align-items-center">
+                                <Form.Check
+                                  type="radio"
+                                  id={`add-edit-partner-approve-${user?._id ?? "new"}`}
+                                  name="partner-verification-decision"
+                                  className="custom-radio-check"
+                                  label={
+                                    <span className="custom-radio-text">
+                                      Approve
+                                    </span>
+                                  }
+                                  checked={
+                                    partnerVerificationDecision === "approve"
+                                  }
+                                  onChange={() =>
+                                    setPartnerVerificationDecision("approve")
                                   }
                                 />
-                              </Form.Group>
-                            ) : null}
-                          </>
-                        )
-                      ) : (
-                        <CustomTextFieldRadio
-                          label="Status"
-                          name="is_blocked"
-                          options={[
-                            { value: "false", label: "Active" },
-                            { value: "true", label: "Inactive" },
-                          ]}
-                          defaultValue={String(
-                            watch("is_blocked") ??
-                              (user as any)?.is_blocked ??
-                              false
-                          )}
-                          isEditable={true}
-                          setValue={setValue}
-                        />
+                                <Form.Check
+                                  type="radio"
+                                  id={`add-edit-partner-reject-${user?._id ?? "new"}`}
+                                  name="partner-verification-decision"
+                                  className="custom-radio-check"
+                                  label={
+                                    <span className="custom-radio-text">
+                                      Reject
+                                    </span>
+                                  }
+                                  checked={
+                                    partnerVerificationDecision === "reject"
+                                  }
+                                  onChange={() =>
+                                    setPartnerVerificationDecision("reject")
+                                  }
+                                />
+                                <Form.Check
+                                  type="radio"
+                                  id={`add-edit-partner-pending-${user?._id ?? "new"}`}
+                                  name="partner-verification-decision"
+                                  className="custom-radio-check"
+                                  label={
+                                    <span className="custom-radio-text">
+                                      Pending
+                                    </span>
+                                  }
+                                  checked={
+                                    partnerVerificationDecision === "pending"
+                                  }
+                                  onChange={() =>
+                                    setPartnerVerificationDecision("pending")
+                                  }
+                                />
+                              </div>
+                            </Col>
+                          </Row>
+                          {partnerVerificationDecision === "reject" ? (
+                            <Form.Group className="mt-3 mb-0">
+                              <Form.Label className="custom-profile-lable mb-1">
+                                Rejection reason
+                              </Form.Label>
+                              <Form.Control
+                                as="textarea"
+                                rows={4}
+                                placeholder="Enter rejection reason"
+                                value={partnerVerificationRejectReason}
+                                onChange={(e) =>
+                                  setPartnerVerificationRejectReason(
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </Form.Group>
+                          ) : null}
+                        </>
                       )
-                    ) : null}
+                    ) : (
+                      <CustomTextFieldRadio
+                        label="Status"
+                        name="is_blocked"
+                        options={[
+                          { value: "false", label: "Active" },
+                          { value: "true", label: "Inactive" },
+                        ]}
+                        defaultValue={String(
+                          watch("is_blocked") ??
+                            (user as any)?.is_blocked ??
+                            false
+                        )}
+                        isEditable={true}
+                        setValue={setValue}
+                      />
+                    )}
                   </>
                 ) : null}
                 <div className="mt-2">

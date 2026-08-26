@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Modal, Row } from "react-bootstrap";
+import { Modal, Row, Button } from "react-bootstrap";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import {
@@ -386,6 +386,7 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
                 phone={userDetails?.phone_number}
                 registeredDate={userDetails?.created_at}
                 lastServiceDate={userDetails?.last_service_date}
+                isActive={userDetails?.is_active}
               />
             </div>
             <img
@@ -528,6 +529,15 @@ const UserDetailsDialog: React.FC<UserDetailsDialogProps> & {
             </section>
           </Row>
         </Modal.Body>
+        <Modal.Footer className="border-top-0 px-4 pb-4 pt-0 justify-content-end">
+          <Button
+            type="button"
+            className="custom-btn-primary"
+            onClick={() => {}}
+          >
+            Delete Account
+          </Button>
+        </Modal.Footer>
       </Modal>
       {userDetails ? (
         <UserViewAddressModal

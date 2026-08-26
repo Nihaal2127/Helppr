@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Modal, Col, Row, Carousel, Spinner } from "react-bootstrap";
+import { Modal, Col, Row, Carousel, Spinner, Button } from "react-bootstrap";
 import CustomCloseButton from "../CustomCloseButton";
 import { UserModel } from "../../lib/models/UserModel";
 import { fetchUserById } from "../../services/userService";
@@ -778,6 +778,15 @@ function PartnerDetailsDialogView({
           </section>
           </div>
         </Modal.Body>
+        <Modal.Footer className="border-top-0 px-4 pb-4 pt-0 justify-content-end">
+          <Button
+            type="button"
+            className="custom-btn-primary"
+            onClick={() => {}}
+          >
+            Delete Account
+          </Button>
+        </Modal.Footer>
       </Modal>
       <PartnerVerificationStatusModal
         show={verificationStatusModalOpen}
