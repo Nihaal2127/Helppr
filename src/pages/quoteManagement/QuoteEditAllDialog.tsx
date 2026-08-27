@@ -1208,7 +1208,9 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const isCatalogFieldsReadOnly = isPendingQuoteEdit || isAcceptedQuoteEdit;
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
-  const servicePriceLocked = lockedFields || isAcceptedQuoteEdit;
+  // New-tab: price is set via Send Quote / auto-calc — not manually editable.
+  const servicePriceLocked =
+    lockedFields || isAcceptedQuoteEdit || isNewTabQuoteEdit;
   const quoteStatusLocked = lockedFields || isTerminalQuoteStatus;
   const categoryFieldDisabled =
     lockedFields || (!isNewTabQuoteEdit && !partnerSelected);

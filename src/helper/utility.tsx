@@ -104,6 +104,11 @@ export const textUnderlineCell =
 
 export const statusCell = (field: string) => {
   return ({ row }: { row: { original: Record<string, any> } }): JSX.Element => {
+    const deletedAt = row.original?.deleted_at;
+    if (deletedAt != null && String(deletedAt).trim() !== "") {
+      return <span className="custom-inactive">Inactive(deleted)</span>;
+    }
+
     const value = row.original?.[field];
 
     return (

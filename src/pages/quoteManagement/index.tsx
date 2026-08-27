@@ -1194,30 +1194,6 @@ const QuoteManagement = () => {
       });
     }
 
-    cols.push({
-      Header: "User Name",
-      accessor: "user_name",
-      sort: true,
-      Cell: ({ row }: { row: any }) => {
-        const quote = row.original as QuoteRow;
-        const label = String(quote.user_name ?? "").trim() || "-";
-        const userId = String(quote.user_id ?? "").trim();
-        if (!userId || label === "-") return label;
-        return (
-          <span
-            style={{
-              textDecoration: "underline",
-              textDecorationThickness: "1px",
-              cursor: "pointer",
-            }}
-            onClick={() => handleQuoteUserShow(userId)}
-          >
-            {label}
-          </span>
-        );
-      },
-    });
-
     if (selectedTab === "new") {
       cols.push({
         Header: "Partner",
@@ -1246,6 +1222,30 @@ const QuoteManagement = () => {
         },
       });
     }
+
+    cols.push({
+      Header: "User Name",
+      accessor: "user_name",
+      sort: true,
+      Cell: ({ row }: { row: any }) => {
+        const quote = row.original as QuoteRow;
+        const label = String(quote.user_name ?? "").trim() || "-";
+        const userId = String(quote.user_id ?? "").trim();
+        if (!userId || label === "-") return label;
+        return (
+          <span
+            style={{
+              textDecoration: "underline",
+              textDecorationThickness: "1px",
+              cursor: "pointer",
+            }}
+            onClick={() => handleQuoteUserShow(userId)}
+          >
+            {label}
+          </span>
+        );
+      },
+    });
 
     cols.push(
       {
