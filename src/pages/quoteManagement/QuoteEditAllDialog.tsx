@@ -236,6 +236,8 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const catalogSeqRef = useRef(0);
   const initialStatusKeyRef = useRef("");
   const skipAutoPriceRef = useRef(true);
+  /** When true, do not overwrite a manually edited service price. */
+  const userEditedServicePriceRef = useRef(false);
   const skipScheduleRevalidateRef = useRef(true);
   const [apiServiceFees, setApiServiceFees] = useState<
     ServiceDropDownOption | undefined
@@ -388,6 +390,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   useEffect(() => {
     if (!quoteRow || catalogBusy || !franchisePinsLoadDone) return;
     skipAutoPriceRef.current = true;
+    userEditedServicePriceRef.current = false;
     skipScheduleRevalidateRef.current = true;
     reset(seedEditQuoteFormFromRow(quoteRow));
     const t = window.setTimeout(() => {
@@ -398,6 +401,7 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   }, [quoteRow, catalogBusy, franchisePinsLoadDone, reset]);
 
   const clearScheduleAndPriceFields = useCallback(() => {
+    userEditedServicePriceRef.current = false;
     setValue("requested_date", "", { shouldValidate: false });
     setValue("schedule_duration", "", { shouldValidate: false });
     setValue("requested_date_to", "", { shouldValidate: false });
@@ -788,14 +792,11 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
 
   useEffect(() => {
     if (skipAutoPriceRef.current) return;
+    if (userEditedServicePriceRef.current) return;
     if (!isScheduleComplete || !partnerSelected) return;
-    // Keep GET /quote amounts on non-New edits. New-tab: fill from partner schedule
-    // (preview already shows this total) even when the quote has a zero/placeholder total_price.
-    if (
-      !isNewTabQuoteEdit &&
-      quoteRow &&
-      quoteHasApiPriceBreakdown(quoteRow)
-    ) {
+    // Prefer GET /quote amounts (including New) whenever the API returned a
+    // total — do not overwrite with partner catalog auto-calc (e.g. 1000 vs 1001).
+    if (quoteRow && quoteHasApiPriceBreakdown(quoteRow)) {
       return;
     }
     const sid = serviceId;
@@ -993,14 +994,23 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
       return;
     }
 
-    // New-tab Update: schedule / address / notes only.
-    // Partner, service_price, and status are sent via Send Quote.
+    const priceRaw = String(data.service_price ?? "").trim();
+    if (priceRaw && (Number.isNaN(price) || price < 0)) {
+      showErrorAlert("Please enter a valid service price.");
+      return;
+    }
+
+    // New-tab Update: schedule / address / notes / service_price.
+    // Partner and status still go through Update & Send.
     const patch: Record<string, unknown> = isNewTabQuoteEdit
       ? {
           category_id: String(data.category_id ?? "").trim(),
           service_id: String(data.requested_services ?? "").trim(),
           employee_id: String(data.employee_id ?? "").trim() || undefined,
           address_id: selectedAddressId.trim(),
+          ...(priceRaw && Number.isFinite(price) && price >= 0
+            ? { service_price: price }
+            : {}),
           from_date: metrics.from_date,
           to_date: metrics.to_date,
           work_start_time: metrics.work_start_time,
@@ -1208,9 +1218,14 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
   const isCatalogFieldsReadOnly = isPendingQuoteEdit || isAcceptedQuoteEdit;
   const isTerminalQuoteStatus =
     quoteStatusKey === "success" || quoteStatusKey === "failed";
-  // New-tab: price is set via Send Quote / auto-calc — not manually editable.
-  const servicePriceLocked =
-    lockedFields || isAcceptedQuoteEdit || isNewTabQuoteEdit;
+  // Accepted quotes keep the locked price; New / Pending remain editable.
+  const servicePriceLocked = lockedFields || isAcceptedQuoteEdit;
+  const servicePriceRegister = register(
+    "service_price",
+    isNewTabQuoteEdit
+      ? undefined
+      : { required: "Service price is required" }
+  );
   const quoteStatusLocked = lockedFields || isTerminalQuoteStatus;
   const categoryFieldDisabled =
     lockedFields || (!isNewTabQuoteEdit && !partnerSelected);
@@ -1807,12 +1822,13 @@ const QuoteEditAllDialog: React.FC<QuoteEditAllDialogProps> & {
                               borderBottomLeftRadius: 0,
                             }}
                             placeholder="e.g. 1200"
-                            {...register(
-                              "service_price",
-                              isNewTabQuoteEdit
-                                ? undefined
-                                : { required: "Service price is required" }
-                            )}
+                            {...servicePriceRegister}
+                            onChange={(e) => {
+                              if (!servicePriceLocked) {
+                                userEditedServicePriceRef.current = true;
+                              }
+                              return servicePriceRegister.onChange(e);
+                            }}
                           />
                         </InputGroup>
                         {errors.service_price?.message ? (
