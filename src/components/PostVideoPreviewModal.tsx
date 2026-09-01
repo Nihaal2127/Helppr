@@ -1,35 +1,23 @@
 import React, { useEffect, useRef } from "react";
 import { Modal } from "react-bootstrap";
+import HlsImport from "hls.js";
 import CustomCloseButton from "./CustomCloseButton";
 import { resolvePartnerPostVideoPlaybackUrl } from "../services/partnerManagementService";
 
-type HlsInstance = {
+type HlsPlayer = {
   loadSource: (url: string) => void;
   attachMedia: (media: HTMLMediaElement) => void;
   destroy: () => void;
 };
 
-type HlsConstructor = {
+type HlsStatic = {
   isSupported: () => boolean;
-  new (): HlsInstance;
+  new (): HlsPlayer;
 };
 
-/** CRA/webpack-safe resolver — default export is often undefined for hls.js. */
-function getHlsConstructor(): HlsConstructor | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-    const mod = require("hls.js") as
-      | HlsConstructor
-      | { default?: HlsConstructor };
-    const Hls = (mod as { default?: HlsConstructor }).default ?? mod;
-    if (Hls && typeof Hls.isSupported === "function") {
-      return Hls as HlsConstructor;
-    }
-  } catch {
-    /* hls.js unavailable */
-  }
-  return null;
-}
+/** CRA may expose hls.js as default or as the module namespace. */
+const Hls = (HlsImport as unknown as { default?: HlsStatic }).default ??
+  (HlsImport as unknown as HlsStatic);
 
 type PostVideoPreviewModalProps = {
   show: boolean;
@@ -45,7 +33,7 @@ const PostVideoPreviewModal: React.FC<PostVideoPreviewModalProps> = ({
   title = "Video preview",
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<HlsInstance | null>(null);
+  const hlsRef = useRef<HlsPlayer | null>(null);
 
   const playbackUrl = resolvePartnerPostVideoPlaybackUrl(videoUrl);
   const isBlobOrData = /^(blob:|data:)/i.test(playbackUrl);
@@ -57,9 +45,8 @@ const PostVideoPreviewModal: React.FC<PostVideoPreviewModalProps> = ({
     if (!video || !playbackUrl) return;
 
     const isHls = !isBlobOrData && /\.m3u8(\?|$)/i.test(playbackUrl);
-    const Hls = getHlsConstructor();
 
-    if (isHls && Hls?.isSupported()) {
+    if (isHls && typeof Hls.isSupported === "function" && Hls.isSupported()) {
       const hls = new Hls();
       hlsRef.current = hls;
       hls.loadSource(playbackUrl);
