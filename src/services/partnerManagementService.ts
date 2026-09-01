@@ -1,7 +1,9 @@
 import { apiRequest } from "../lib/global/remote/apiHelper";
 import { showErrorAlert } from "../lib/global/alertHelper";
 import { ApiPaths } from "../lib/global/remote/apiPaths";
+import { AppConstant } from "../lib/global/AppConstant";
 import type {
+  PartnerPostVideoMeta,
   PartnerSubscriptionModel,
   PostModel,
 } from "../lib/types/partnerManagementTypes";
@@ -13,7 +15,6 @@ import {
   sessionMayUseFranchiseIdApiFilter,
 } from "../lib/franchise/headerFranchisePreference";
 import { getCount } from "./getCountService";
-import { resolveMediaAssetSrc } from "./documentUploadService";
 
 export type PortfolioRow = {
   _id: string;
@@ -1166,6 +1167,114 @@ function pickPartnerPostListRoot(
   return d;
 }
 
+function partnerPostVideoBaseUrl(): string {
+  return normalizeBunnyStreamMediaUrl(
+    String(AppConstant.VIDEO_BASE_URL ?? "").replace(/\/?$/, "/")
+  );
+}
+
+/**
+ * API may return `https://vz-{id}/{video}/playlist.m3u8` (no `.b-cdn.net`).
+ * Browsers need `https://vz-{id}.b-cdn.net/...` for Bunny Stream.
+ */
+function normalizeBunnyStreamMediaUrl(url: string): string {
+  const trimmed = String(url ?? "").trim();
+  if (!trimmed || /^(blob:|data:)/i.test(trimmed)) return trimmed;
+
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    if (/^vz-[a-f0-9-]+$/i.test(host)) {
+      parsed.hostname = `${host}.b-cdn.net`;
+      return parsed.toString();
+    }
+  } catch {
+    const broken = trimmed.match(/^https?:\/\/(vz-[a-f0-9-]+)\/(.+)$/i);
+    if (broken) {
+      return `https://${broken[1]}.b-cdn.net/${broken[2]}`;
+    }
+  }
+
+  return trimmed;
+}
+
+/** HLS playback URL from API `hls_url` or Bunny `video_id`. */
+export function resolvePartnerPostVideoPlaybackUrl(
+  urlOrBunnyId?: string | null
+): string {
+  const raw = String(urlOrBunnyId ?? "").trim();
+  if (!raw) return "";
+  if (/^(blob:|data:)/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) {
+    return normalizeBunnyStreamMediaUrl(raw);
+  }
+  const id = raw.replace(/^\//, "").replace(/\/playlist\.m3u8$/i, "");
+  return normalizeBunnyStreamMediaUrl(
+    `${partnerPostVideoBaseUrl()}${id}/playlist.m3u8`
+  );
+}
+
+/** Thumbnail URL from API `thumbnail_url`, HLS URL, or Bunny `video_id`. */
+export function resolvePartnerPostVideoThumbnailUrl(
+  urlOrBunnyId?: string | null
+): string {
+  const raw = String(urlOrBunnyId ?? "").trim();
+  if (!raw) return "";
+  if (/^(blob:|data:)/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) {
+    const normalized = normalizeBunnyStreamMediaUrl(raw);
+    if (/playlist\.m3u8(\?.*)?$/i.test(normalized)) {
+      return normalized.replace(/playlist\.m3u8(\?.*)?$/i, "thumbnail.jpg");
+    }
+    return normalized;
+  }
+  const id = raw.replace(/^\//, "").replace(/\/thumbnail\.jpg$/i, "");
+  return normalizeBunnyStreamMediaUrl(
+    `${partnerPostVideoBaseUrl()}${id}/thumbnail.jpg`
+  );
+}
+
+/** Prefer explicit thumbnail; otherwise derive from playback/HLS URL. */
+export function resolvePartnerPostVideoThumbnailFromSource(
+  playbackOrThumbUrl?: string | null,
+  explicitThumb?: string | null
+): string {
+  const thumb = String(explicitThumb ?? "").trim();
+  if (thumb) return resolvePartnerPostVideoThumbnailUrl(thumb);
+  return resolvePartnerPostVideoThumbnailUrl(playbackOrThumbUrl);
+}
+
+export function isPartnerPostStreamCdnUrl(url?: string | null): boolean {
+  const u = String(url ?? "").trim().toLowerCase();
+  if (!u) return false;
+  return (
+    u.includes(".b-cdn.net") ||
+    /\/thumbnail\.jpg(\?|$)/i.test(u) ||
+    /\/playlist\.m3u8(\?|$)/i.test(u)
+  );
+}
+
+function parsePartnerPostVideoMeta(raw: unknown): PartnerPostVideoMeta | null {
+  if (!raw || typeof raw !== "object") return null;
+  const v = raw as Record<string, unknown>;
+  const bunnyId = String(v.bunny_video_id ?? v.bunnyVideoId ?? "").trim();
+  const hlsRaw = String(v.hls_url ?? v.hlsUrl ?? "").trim();
+  const thumbRaw = String(v.thumbnail_url ?? v.thumbnailUrl ?? "").trim();
+  const hls_url =
+    hlsRaw || (bunnyId ? resolvePartnerPostVideoPlaybackUrl(bunnyId) : "");
+  const thumbnail_url =
+    thumbRaw || (bunnyId ? resolvePartnerPostVideoThumbnailUrl(bunnyId) : "");
+  if (!hls_url && !thumbnail_url && !bunnyId) return null;
+  const duration = Number(v.duration_seconds ?? v.durationSeconds);
+  return {
+    hls_url: hls_url || undefined,
+    thumbnail_url: thumbnail_url || undefined,
+    bunny_video_id: bunnyId || undefined,
+    duration_seconds: Number.isFinite(duration) ? duration : undefined,
+    status: String(v.status ?? "").trim() || undefined,
+  };
+}
+
 function countMediaFromPost(raw: Record<string, unknown>): {
   images: string[];
   videos: string[];
@@ -1173,38 +1282,65 @@ function countMediaFromPost(raw: Record<string, unknown>): {
   const imageUrls: string[] = [];
   const videoUrls: string[] = [];
   const pushUrl = (url: unknown, bucket: string[]) => {
-    const resolved = resolveMediaAssetSrc(String(url ?? ""));
-    if (resolved) bucket.push(resolved);
+    // Keep the API path/URL as-is — resolve + CDN fallbacks happen at render time.
+    const value = String(url ?? "").trim();
+    if (value) bucket.push(value);
   };
 
-  const images = raw.images;
-  if (Array.isArray(images)) {
-    for (const item of images) {
-      if (typeof item === "string") pushUrl(item, imageUrls);
+  const pickMediaUrl = (item: Record<string, unknown>): string =>
+    String(
+      item.url ??
+        item.image_url ??
+        item.video_url ??
+        item.file_url ??
+        item.media_url ??
+        item.path ??
+        item.key ??
+        item.src ??
+        ""
+    ).trim();
+
+  const ingestList = (list: unknown, bucket: string[]) => {
+    if (!Array.isArray(list)) return;
+    for (const item of list) {
+      if (typeof item === "string") pushUrl(item, bucket);
       else if (item && typeof item === "object") {
-        const o = item as Record<string, unknown>;
-        pushUrl(o.url ?? o.image_url ?? o.path, imageUrls);
+        pushUrl(pickMediaUrl(item as Record<string, unknown>), bucket);
       }
     }
-  }
-  const imageUrlsField = raw.image_urls ?? raw.imageUrls;
-  if (Array.isArray(imageUrlsField)) {
-    for (const u of imageUrlsField) pushUrl(u, imageUrls);
+  };
+
+  ingestList(raw.images, imageUrls);
+  ingestList(raw.image_urls ?? raw.imageUrls, imageUrls);
+  ingestList(raw.videos, videoUrls);
+  ingestList(raw.video_urls ?? raw.videoUrls, videoUrls);
+
+  // Mixed media arrays (mobile apps often send `media` / `files`).
+  const mixed = raw.media ?? raw.files ?? raw.attachments;
+  if (Array.isArray(mixed)) {
+    for (const item of mixed) {
+      if (typeof item === "string") {
+        const lower = item.toLowerCase();
+        if (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(lower)) pushUrl(item, videoUrls);
+        else pushUrl(item, imageUrls);
+        continue;
+      }
+      if (!item || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const type = String(o.type ?? o.media_type ?? o.file_type ?? "").toLowerCase();
+      const url = pickMediaUrl(o);
+      if (!url) continue;
+      if (type.includes("video") || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url)) {
+        pushUrl(url, videoUrls);
+      } else {
+        pushUrl(url, imageUrls);
+      }
+    }
   }
 
-  const videos = raw.videos;
-  if (Array.isArray(videos)) {
-    for (const item of videos) {
-      if (typeof item === "string") pushUrl(item, videoUrls);
-      else if (item && typeof item === "object") {
-        const o = item as Record<string, unknown>;
-        pushUrl(o.url ?? o.video_url ?? o.path, videoUrls);
-      }
-    }
-  }
-  const videoUrlsField = raw.video_urls ?? raw.videoUrls;
-  if (Array.isArray(videoUrlsField)) {
-    for (const u of videoUrlsField) pushUrl(u, videoUrls);
+  const videoMeta = parsePartnerPostVideoMeta(raw.video);
+  if (videoMeta?.hls_url) {
+    pushUrl(videoMeta.hls_url, videoUrls);
   }
 
   return { images: imageUrls, videos: videoUrls };
@@ -1238,8 +1374,14 @@ function mapPartnerPostApiRecord(raw: Record<string, unknown>): PostModel {
   ).trim();
 
   const { images, videos } = countMediaFromPost(raw);
+  const videoMeta = parsePartnerPostVideoMeta(raw.video);
+  const mediaTypeRaw = String(raw.media_type ?? raw.mediaType ?? "")
+    .trim()
+    .toLowerCase();
   const mediaType: PostModel["media_type"] =
-    videos.length > 0 && images.length === 0 ? "video" : "image";
+    mediaTypeRaw === "video" || (videos.length > 0 && images.length === 0)
+      ? "video"
+      : "image";
 
   const uploaded = String(
     raw.created_at ??
@@ -1259,6 +1401,7 @@ function mapPartnerPostApiRecord(raw: Record<string, unknown>): PostModel {
     no_of_videos: videos.length,
     images,
     videos,
+    video: videoMeta,
     location: String(raw.location ?? "").trim(),
     uploaded_date: uploaded,
     status: normalizePartnerPostStatus(String(raw.status ?? "")),

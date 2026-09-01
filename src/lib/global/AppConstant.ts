@@ -10,6 +10,10 @@ export const AppConstant = {
   IMAGE_BASE_URL:
     process.env.REACT_APP_IMAGE_BASE_URL?.trim() ||
     "https://d20g1bd5nfpo8h.cloudfront.net/",
+  /** Bunny Stream CDN — partner post HLS + thumbnails (`/{videoId}/playlist.m3u8`). */
+  VIDEO_BASE_URL:
+    process.env.REACT_APP_VIDEO_BASE_URL?.trim() ||
+    "https://vz-9b1107ae-722.b-cdn.net/",
   // BASE_URL: "http://localhost:5001/api",
   // BASE_URL: "https://raamisegei.execute-api.us-east-1.amazonaws.com/dev/api",
   // IMAGE_BASE_URL: "https://d2d4noj5f8gqer.cloudfront.net/",

@@ -3,17 +3,22 @@ import { Modal, Row, Col, Form, Button } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../../components/CustomCloseButton";
 import CustomFormSelect from "../../../components/CustomFormSelect";
-import { resolveExistingImageSrc } from "../../../components/CustomImageUploader";
 import { CustomFormInput } from "../../../components/CustomFormInput";
 import { openDialog } from "../../../lib/global/DialogManager";
 import { showErrorAlert } from "../../../lib/global/alertHelper";
 import { DetailsRow, WideLabelValueBlock } from "../../../helper/utility";
+import { useMediaAssetSrc } from "../../../hooks/useMediaAssetSrc";
 import {
   moderatePartnerPost,
   postStatusDisplayLabel,
   postStatusTextClass,
+  resolvePartnerPostVideoPlaybackUrl,
+  resolvePartnerPostVideoThumbnailFromSource,
+  isPartnerPostStreamCdnUrl,
 } from "../../../services/partnerManagementService";
 import type { PostModel } from "../../../lib/types/partnerManagementTypes";
+import PostVideoPreviewModal from "../../../components/PostVideoPreviewModal";
+import PostImagePreviewModal from "../../../components/PostImagePreviewModal";
 
 type AddEditPostManagementDialogProps = {
   isEditable: boolean;
@@ -27,34 +32,147 @@ type MediaItem = {
   type: "image" | "video";
   url: string;
   title: string;
+  thumbnailUrl?: string;
 };
 
-const VIEW_DEMO_MEDIA: MediaItem[] = [
-  {
-    id: 1,
-    type: "image",
-    url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=900&q=80",
-    title: "Wedding Image 1",
-  },
-  {
-    id: 2,
-    type: "image",
-    url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=900&q=80",
-    title: "Wedding Image 2",
-  },
-  {
-    id: 3,
-    type: "video",
-    url: "https://www.w3schools.com/html/mov_bbb.mp4",
-    title: "Teaser Video 1",
-  },
-  {
-    id: 4,
-    type: "video",
-    url: "https://www.w3schools.com/html/movie.mp4",
-    title: "Teaser Video 2",
-  },
-];
+function PostMediaImage({
+  url,
+  title,
+  onPreview,
+}: {
+  url: string;
+  title: string;
+  onPreview: () => void;
+}) {
+  const { src, loadFailed, onError } = useMediaAssetSrc(url);
+
+  if (loadFailed || !src) {
+    return (
+      <button
+        type="button"
+        className="border-0 p-0 w-100 d-flex align-items-center justify-content-center text-muted small"
+        style={{
+          height: "160px",
+          backgroundColor: "rgba(0,0,0,0.04)",
+          cursor: "pointer",
+        }}
+        onClick={onPreview}
+        aria-label={`Preview ${title}`}
+      >
+        <i className="bi bi-image me-2" aria-hidden />
+        {title}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="border-0 p-0 w-100"
+      style={{ cursor: "pointer", height: "160px" }}
+      onClick={onPreview}
+      aria-label={`Preview ${title}`}
+    >
+      <img
+        key={`${url}-${src}`}
+        src={src}
+        alt={title}
+        className="d-block w-100"
+        style={{ height: "160px", objectFit: "cover", pointerEvents: "none" }}
+        onError={onError}
+      />
+    </button>
+  );
+}
+
+function PostMediaVideoTile({
+  url,
+  title,
+  thumbnailUrl,
+  onPreview,
+}: {
+  url: string;
+  title: string;
+  thumbnailUrl?: string;
+  onPreview: () => void;
+}) {
+  const isBlobPreview = url.startsWith("blob:");
+  const resolvedThumb = resolvePartnerPostVideoThumbnailFromSource(
+    url,
+    thumbnailUrl
+  );
+  const useStreamThumbDirect =
+    !isBlobPreview &&
+    Boolean(resolvedThumb) &&
+    isPartnerPostStreamCdnUrl(resolvedThumb);
+  const { src: fallbackSrc, loadFailed, onError } = useMediaAssetSrc(
+    useStreamThumbDirect ? null : resolvedThumb
+  );
+  const thumbSrc = useStreamThumbDirect ? resolvedThumb : fallbackSrc;
+  const thumbFailed = !thumbSrc || loadFailed;
+
+  if (isBlobPreview) {
+    return (
+      <button
+        type="button"
+        className="border-0 p-0 w-100 bg-black"
+        style={{ cursor: "pointer", height: "160px" }}
+        onClick={onPreview}
+        aria-label={`Preview ${title}`}
+      >
+        <video
+          src={url}
+          className="d-block w-100"
+          style={{ height: "160px", objectFit: "cover", pointerEvents: "none" }}
+          muted
+          playsInline
+        />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="border-0 p-0 w-100 position-relative"
+      style={{
+        cursor: "pointer",
+        height: "160px",
+        backgroundColor: "rgba(0,0,0,0.04)",
+      }}
+      onClick={onPreview}
+      aria-label={`Preview ${title}`}
+    >
+      {thumbSrc && !thumbFailed ? (
+        <img
+          src={thumbSrc}
+          alt={title}
+          className="d-block w-100"
+          style={{ height: "160px", objectFit: "cover" }}
+          onError={useStreamThumbDirect ? undefined : onError}
+        />
+      ) : (
+        <div
+          className="d-flex align-items-center justify-content-center text-muted small w-100"
+          style={{ height: "160px" }}
+        >
+          <i className="bi bi-camera-video" aria-hidden />
+        </div>
+      )}
+      <span
+        className="position-absolute top-50 start-50 translate-middle d-flex align-items-center justify-content-center rounded-circle text-white"
+        style={{
+          width: "48px",
+          height: "48px",
+          backgroundColor: "rgba(0,0,0,0.55)",
+          pointerEvents: "none",
+        }}
+      >
+        <i className="bi bi-play-fill fs-4" aria-hidden />
+      </span>
+    </button>
+  );
+}
 
 type PostAddFormValues = {
   post_partner_name: string;
@@ -110,6 +228,13 @@ const AddEditPostManagementDialog: React.FC<
 
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+  const [videoPreview, setVideoPreview] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
+  const [imagePreviewIndex, setImagePreviewIndex] = useState<number | null>(
+    null
+  );
   const nextMediaIdRef = useRef(1);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
@@ -137,22 +262,34 @@ const AddEditPostManagementDialog: React.FC<
       const imageItems: MediaItem[] = (post.images ?? []).map((url, idx) => ({
         id: idx + 1,
         type: "image" as const,
-        url: resolveExistingImageSrc(url),
+        url: String(url ?? "").trim(),
         title: `Image ${idx + 1}`,
       }));
-      const videoItems: MediaItem[] = (post.videos ?? []).map((url, idx) => ({
-        id: imageItems.length + idx + 1,
-        type: "video" as const,
-        url: resolveExistingImageSrc(url),
-        title: `Video ${idx + 1}`,
-      }));
+      const postVideoMeta = post.video;
+      const defaultThumb =
+        postVideoMeta?.thumbnail_url ||
+        resolvePartnerPostVideoThumbnailFromSource(
+          postVideoMeta?.hls_url,
+          postVideoMeta?.bunny_video_id
+        );
+      const videoItems: MediaItem[] = (post.videos ?? []).map((url, idx) => {
+        const playbackUrl = resolvePartnerPostVideoPlaybackUrl(url);
+        return {
+          id: imageItems.length + idx + 1,
+          type: "video" as const,
+          url: playbackUrl,
+          thumbnailUrl: defaultThumb || undefined,
+          title: `Video ${idx + 1}`,
+        };
+      });
       const fromApi = [...imageItems, ...videoItems].filter((item) =>
-        Boolean(item.url?.trim())
+        Boolean(item.url)
       );
-      setMediaItems(fromApi.length > 0 ? fromApi : VIEW_DEMO_MEDIA);
+      // Prefer real API media; never fall back to demo Unsplash assets when empty.
+      setMediaItems(fromApi);
       setSelectedMediaIds([]);
-      nextMediaIdRef.current =
-        (fromApi.length > 0 ? fromApi.length : VIEW_DEMO_MEDIA.length) + 1;
+      setActiveMediaTab(post.media_type === "video" ? "video" : "image");
+      nextMediaIdRef.current = fromApi.length + 1;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when dialog mode/post identity changes
   }, [
@@ -162,6 +299,8 @@ const AddEditPostManagementDialog: React.FC<
     post?.id,
     post?.images,
     post?.videos,
+    post?.video,
+    post?.media_type,
     reset,
   ]);
 
@@ -223,6 +362,23 @@ const AddEditPostManagementDialog: React.FC<
     (item) => item.type === activeMediaTab
   );
 
+  const imageGalleryItems = useMemo(
+    () =>
+      mediaItems
+        .filter((item) => item.type === "image")
+        .map((item) => ({
+          id: item.id,
+          url: item.url,
+          title: item.title,
+        })),
+    [mediaItems]
+  );
+
+  const openImagePreview = (mediaId: number): void => {
+    const index = imageGalleryItems.findIndex((item) => item.id === mediaId);
+    setImagePreviewIndex(index >= 0 ? index : 0);
+  };
+
   const mediaToolbar = (
     <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div className="d-flex gap-2">
@@ -271,23 +427,20 @@ const AddEditPostManagementDialog: React.FC<
                 /> */}
               </div>
               {media.type === "image" ? (
-                <img
-                  src={media.url}
-                  alt={media.title}
-                  className="d-block w-100"
-                  style={{
-                    height: "160px",
-                    objectFit: "cover",
-                  }}
+                <PostMediaImage
+                  url={media.url}
+                  title={media.title}
+                  onPreview={() => openImagePreview(media.id)}
                 />
               ) : (
-                <video
-                  controls
-                  className="d-block w-100"
-                  style={{ height: "160px", objectFit: "cover" }}
-                >
-                  <source src={media.url} type="video/mp4" />
-                </video>
+                <PostMediaVideoTile
+                  url={media.url}
+                  title={media.title}
+                  thumbnailUrl={media.thumbnailUrl}
+                  onPreview={() =>
+                    setVideoPreview({ url: media.url, title: media.title })
+                  }
+                />
               )}
               <div
                 className="px-2 py-2 small fw-medium"
@@ -655,6 +808,21 @@ const AddEditPostManagementDialog: React.FC<
           </Button>
         </Modal.Footer>
       </Modal>
+
+      <PostVideoPreviewModal
+        show={Boolean(videoPreview)}
+        onHide={() => setVideoPreview(null)}
+        videoUrl={videoPreview?.url ?? ""}
+        title={videoPreview?.title}
+      />
+
+      <PostImagePreviewModal
+        show={imagePreviewIndex !== null}
+        images={imageGalleryItems.map(({ url, title }) => ({ url, title }))}
+        currentIndex={imagePreviewIndex ?? 0}
+        onClose={() => setImagePreviewIndex(null)}
+        onIndexChange={setImagePreviewIndex}
+      />
 
       <Modal
         show={showDeleteDialog}
