@@ -235,6 +235,7 @@ export function PersonalAccountDetailsGrid({
   isActive,
   address,
   franchiseName,
+  serviceCities,
   accountStatusMode = "active",
   partnerVerificationStatus,
 }: {
@@ -257,6 +258,8 @@ export function PersonalAccountDetailsGrid({
   address?: string | null;
   franchiseName?: string | null;
   franchiseEmail?: string | null;
+  /** Partner service cities display (comma-separated names). */
+  serviceCities?: string | null;
   /** Partner verification dialog: Status shows pending / rejected / approved. */
   accountStatusMode?: "active" | "verification";
   partnerVerificationStatus?: boolean | string | null;
@@ -328,7 +331,11 @@ export function PersonalAccountDetailsGrid({
               title="Franchise Name"
               value={franchiseName ?? "—"}
             />
-           
+            <DetailsRow
+              compact
+              title="Service Cities"
+              value={String(serviceCities ?? "").trim() || "—"}
+            />
           </Col>
         </Row>
       </div>

@@ -150,6 +150,25 @@ export interface UserModel {
   franchise_name?: string | null;
   franchise_email?: string | null;
 
+  /**
+   * Cities available on the partner's franchise (`GET /user/get/:id`).
+   * Options for the Service Cities multi-select.
+   */
+  franchise_cities?:
+    | { _id?: string; id?: string; name?: string }[]
+    | string[]
+    | null;
+  /**
+   * Cities where the partner provides service.
+   * GET returns `{_id,name}[]`; PUT expects city id strings.
+   */
+  service_cities?:
+    | { _id?: string; id?: string; name?: string }[]
+    | string[]
+    | null;
+  service_city_ids?: string[] | null;
+  service_city_names?: string[] | null;
+
   /** Additional saved addresses when the API returns them (e.g. after add from user view). */
   extra_addresses?:
     | {

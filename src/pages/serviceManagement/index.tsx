@@ -8,6 +8,7 @@ import { capitalizeString, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import { showAddEditServiceDialog } from "./AddEditServiceDialog";
+import AddEditSubCategoryDialog from "./AddEditSubCategoryDialog";
 import { CategoryModel } from "../../lib/models/CategoryModel";
 import { ServiceModel } from "../../lib/models/ServiceModel";
 import {
@@ -167,6 +168,14 @@ const ServiceManagement = () => {
     : "is_active";
   const [selectedBox, setSelectedBox] = useState<string>("box-category");
   const [categoryData, setCategoryData] = useState<Record<string, number>>({});
+  const [subCategoryData, setSubCategoryData] = useState<Record<string, number>>(
+    {
+      Total: 0,
+      Active: 0,
+      Inactive: 0,
+      requested_subcategory: 0,
+    }
+  );
   const [serviceData, setServiceData] = useState<Record<string, number>>({});
   const [categoryList, setCategoryList] = useState<CategoryModel[]>([]);
   const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
@@ -201,6 +210,15 @@ const ServiceManagement = () => {
       Inactive: countModel.inactive_category ?? 0,
       requested_category:
         countModel.requested_category ?? countModel.total_requestedcategory ?? 0,
+    });
+    setSubCategoryData({
+      Total: countModel.total_subcategory ?? 0,
+      Active: countModel.active_subcategory ?? 0,
+      Inactive: countModel.inactive_subcategory ?? 0,
+      requested_subcategory:
+        countModel.requested_subcategory ??
+        countModel.total_requestedsubcategory ??
+        0,
     });
     setServiceData({
       Total: countModel.total_service ?? 0,
@@ -821,21 +839,31 @@ const ServiceManagement = () => {
         />
 
         <div className="box-container">
-          {["box-category", "box-service"].map((id) => (
+          {["box-category", "box-subcategory", "box-service"].map((id) => (
             <CustomSummaryBox
               key={id}
               divId={id}
               title={capitalizeString(id.replace("box-", "").replace("-", " "))}
-              data={id === "box-category" ? categoryData : serviceData}
+              data={
+                id === "box-category"
+                  ? categoryData
+                  : id === "box-subcategory"
+                  ? subCategoryData
+                  : serviceData
+              }
               onSelect={(divId) => {
                 setSelectedBox(divId);
                 setShowRequestedCategory(false);
                 setShowRequestedService(false);
-                handleFilterChange({}, divId);
+                if (divId !== "box-subcategory") {
+                  handleFilterChange({}, divId);
+                }
               }}
               isSelected={selectedBox === id}
               onFilterChange={(filter) => {
-                handleFilterChange(filter);
+                if (id !== "box-subcategory") {
+                  handleFilterChange(filter);
+                }
               }}
               onItemClick={(key) => {
                 if (id === "box-category" && key === "requested_category") {
@@ -850,13 +878,19 @@ const ServiceManagement = () => {
                 id.replace("box-", "Add ").replace("-", " ")
               )}
               onAddClick={() => {
-                id === "box-category"
-                  ? AddEditCategoryDialog.show(false, null, () =>
-                      void refreshTableAfterMutation(selectedBox)
-                    )
-                  : showAddEditServiceDialog(false, null, () =>
-                      void refreshTableAfterMutation(selectedBox)
-                    );
+                if (id === "box-category") {
+                  AddEditCategoryDialog.show(false, null, () =>
+                    void refreshTableAfterMutation(selectedBox)
+                  );
+                  return;
+                }
+                if (id === "box-subcategory") {
+                  AddEditSubCategoryDialog.show(null, false);
+                  return;
+                }
+                showAddEditServiceDialog(false, null, () =>
+                  void refreshTableAfterMutation(selectedBox)
+                );
               }}
             />
           ))}
@@ -870,6 +904,8 @@ const ServiceManagement = () => {
               ? "Requested Services"
               : selectedBox === "box-category"
               ? "Categories"
+              : selectedBox === "box-subcategory"
+              ? "Sub Categories"
               : "Services"
           }
           searchHint={`${
@@ -879,10 +915,14 @@ const ServiceManagement = () => {
               ? "Search Service name"
               : selectedBox === "box-category"
               ? "Search Category name"
+              : selectedBox === "box-subcategory"
+              ? "Search Sub Category name"
               : "Search Service name, Category"
           }`}
           onSearch={(value) => {
-            handleFilterChange({ keyword: value });
+            if (selectedBox !== "box-subcategory") {
+              handleFilterChange({ keyword: value });
+            }
           }}
           syncKeyword={activeFilters.keyword ?? ""}
         />
@@ -895,6 +935,12 @@ const ServiceManagement = () => {
               ? requestedServiceColumns
               : selectedBox === "box-category"
               ? categoryColumns
+              : selectedBox === "box-subcategory"
+              ? [
+                  { Header: "SR No", accessor: "serial_no" },
+                  { Header: "Sub Category Name", accessor: "name" },
+                  { Header: "Category", accessor: "category_name" },
+                ]
               : serviceColumns
           }
           data={
@@ -904,6 +950,8 @@ const ServiceManagement = () => {
               ? requestedServiceList
               : selectedBox === "box-category"
               ? categoryList
+              : selectedBox === "box-subcategory"
+              ? []
               : serviceList
           }
           pageSize={pageSize}

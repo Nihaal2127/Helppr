@@ -59,6 +59,29 @@ type PartnerDetailsDialogProps = {
 
 type CatalogOption = { value: string; label: string };
 
+function formatPartnerServiceCities(
+  user?: UserModel | null
+): string {
+  const raw =
+    (user as { service_cities?: unknown } | undefined)?.service_cities ??
+    (user as { service_city_names?: unknown } | undefined)?.service_city_names;
+  if (!Array.isArray(raw) || raw.length === 0) return "";
+  const names = raw
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        return String(
+          (item as { name?: string }).name ??
+            (item as { label?: string }).label ??
+            ""
+        ).trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
+  return names.join(", ");
+}
+
 type CatalogServiceLite = {
   _id: string;
   name: string;
@@ -343,7 +366,7 @@ function PartnerDetailsDialogView({
                     : ""
                 }
                 franchiseName={partnerFranchiseFields.franchiseName}
-                // franchiseEmail={partnerFranchiseFields.franchiseEmail}
+                serviceCities={formatPartnerServiceCities(userDetails)}
               />
             </div>
             <img

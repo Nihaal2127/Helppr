@@ -47,8 +47,14 @@ import { getCount } from "../../services/getCountService";
 import FranchiseEmployeeDialog from "./FranchiseEmployeeDialog";
 import RequestedCategoryDialog from "./RequestedCategoryDialog";
 import RequestedServiceDialog from "./RequestedServiceDialog";
+import RequestedSubCategoryDialog from "./RequestedSubCategoryDialog";
 
-type BoxId = "box-employees" | "box-areas" | "box-services" | "box-categories";
+type BoxId =
+  | "box-employees"
+  | "box-areas"
+  | "box-services"
+  | "box-categories"
+  | "box-subcategories";
 
 type ServicesViewMode = "catalog" | "requested";
 
@@ -992,6 +998,8 @@ const MyFranchise = () => {
         return categoriesViewMode === "requested"
           ? "Requested Categories"
           : "Categories";
+      case "box-subcategories":
+        return "Sub Categories";
       default:
         return "";
     }
@@ -1011,6 +1019,8 @@ const MyFranchise = () => {
         return categoriesViewMode === "catalog"
           ? "Search category name"
           : "Search category name";
+      case "box-subcategories":
+        return "Search sub category name";
       default:
         return "Search";
     }
@@ -1443,6 +1453,13 @@ const MyFranchise = () => {
         return categoriesViewMode === "requested"
           ? requestedCategoryColumns
           : categoryColumns;
+      case "box-subcategories":
+        return [
+          { Header: "SR No", accessor: "serial_no" },
+          { Header: "Sub Category Name", accessor: "name" },
+          { Header: "Category", accessor: "category_name" },
+          { Header: "Status", accessor: "status" },
+        ];
       default:
         return [];
     }
@@ -1485,6 +1502,23 @@ const MyFranchise = () => {
         addLabel: "Add Request",
         onAdd: () => {
           RequestedCategoryDialog.showAdd(() => {
+            void reloadFranchiseData();
+          });
+        },
+      },
+      {
+        id: "box-subcategories",
+        title: "Sub Categories",
+        data: {
+          Total: 0,
+          Active: 0,
+          Inactive: 0,
+          requested_subcategory: 0,
+        },
+        isAddShow: true,
+        addLabel: "Add Request",
+        onAdd: () => {
+          RequestedSubCategoryDialog.showAdd(categorySelectOptions, () => {
             void reloadFranchiseData();
           });
         },

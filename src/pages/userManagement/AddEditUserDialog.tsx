@@ -33,6 +33,7 @@ import CustomTextField from "../../components/CustomTextField";
 import CustomTextFieldIndiaMobile from "../../components/CustomTextFieldIndiaMobile";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldRadio from "../../components/CustomTextFieldRadio";
+import CustomMultiSelect from "../../components/CustomMultiSelect";
 import {
   genderForApiPayload,
   normalizeGenderValue,
@@ -222,7 +223,29 @@ type AddPartnerFormFields = {
   add_partner_franchise_id?: string;
 };
 
-type AddEditUserFormValues = Partial<UserModel> & AddPartnerFormFields;
+/**
+ * Do not spread full `UserModel` into RHF values: nested `partner_services.services`
+ * (recursive) and index-signature `services` make `FieldPath` circular.
+ */
+type UserModelFormOmit =
+  | "services"
+  | "partner_services"
+  | "partner_subscriptions"
+  | "documents"
+  | "bank_account"
+  | "bank_accounts"
+  | "extra_addresses"
+  | "franchise_cities"
+  | "service_cities"
+  | "service_city_ids"
+  | "service_city_names"
+  | "franchise_id";
+
+type AddEditUserFormValues = Partial<Omit<UserModel, UserModelFormOmit>> &
+  AddPartnerFormFields & {
+    /** Form stores franchise as an id string only. */
+    franchise_id?: string | null;
+  };
 
 type AddEditUserDialogProps = {
   role: number;
@@ -295,6 +318,104 @@ const normalizePincodeValue = (value: unknown): string => {
   }
   return "";
 };
+
+type CitySelectOption = { value: string; label: string };
+
+/** Normalize `franchise_cities` / `service_cities` API arrays into select options. */
+function citySelectOptionsFromRefs(raw: unknown): CitySelectOption[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CitySelectOption[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (item && typeof item === "object") {
+      const obj = item as Record<string, unknown>;
+      const id = String(obj._id ?? obj.id ?? obj.value ?? "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        value: id,
+        label: String(obj.name ?? obj.label ?? id).trim() || id,
+      });
+      continue;
+    }
+    const id = String(item ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ value: id, label: id });
+  }
+  return out;
+}
+
+/** Build options from franchise `city_id` + `city_name` (string or array). */
+function citySelectOptionsFromFranchiseFields(
+  cityId: unknown,
+  cityName: unknown
+): CitySelectOption[] {
+  const ids: string[] = [];
+  if (Array.isArray(cityId)) {
+    for (const x of cityId) {
+      if (x && typeof x === "object") {
+        const id = String(
+          (x as Record<string, unknown>)._id ??
+            (x as Record<string, unknown>).id ??
+            ""
+        ).trim();
+        if (id) ids.push(id);
+      } else {
+        const id = String(x ?? "").trim();
+        if (id) ids.push(id);
+      }
+    }
+  } else if (cityId && typeof cityId === "object") {
+    const id = String(
+      (cityId as Record<string, unknown>)._id ??
+        (cityId as Record<string, unknown>).id ??
+        ""
+    ).trim();
+    if (id) ids.push(id);
+  } else {
+    const s = String(cityId ?? "").trim();
+    if (s.includes(",")) {
+      ids.push(
+        ...s
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean)
+      );
+    } else if (s) {
+      ids.push(s);
+    }
+  }
+
+  const names: string[] = [];
+  if (Array.isArray(cityName)) {
+    for (const x of cityName) {
+      names.push(String(x ?? "").trim());
+    }
+  } else {
+    const s = String(cityName ?? "").trim();
+    if (s.includes(",")) {
+      names.push(
+        ...s
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean)
+      );
+    } else if (s) {
+      names.push(s);
+    }
+  }
+
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  return uniqueIds.map((id, index) => ({
+    value: id,
+    label: names[index] || id,
+  }));
+}
+
+function cityIdsFromRefs(raw: unknown): string[] {
+  return citySelectOptionsFromRefs(raw).map((o) => o.value);
+}
 
 function AddEditUserDialogView({
   role,
@@ -438,6 +559,12 @@ function AddEditUserDialogView({
   const [partnerEditFranchiseName, setPartnerEditFranchiseName] = useState("");
   const [partnerEditFranchiseResolving, setPartnerEditFranchiseResolving] =
     useState(false);
+  /** Franchise cities → options for Service Cities multi-select (Add/Update Partner). */
+  const [franchiseCityOptions, setFranchiseCityOptions] = useState<
+    CitySelectOption[]
+  >([]);
+  const [serviceCityIds, setServiceCityIds] = useState<string[]>([]);
+  const serviceCitiesHydratedForUserRef = useRef<string>("");
 
   const currentUserRole = String(
     getLocalStorage(AppConstant.userRole) ?? ""
@@ -1175,6 +1302,102 @@ function AddEditUserDialogView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate partner selections when user record identity changes
   }, [isPartnerEdit, user?._id]);
 
+  /** Add Partner: load franchise cities as Service Cities options when franchise is chosen. */
+  useEffect(() => {
+    if (!isAddPartner) return;
+    const fid = effectiveAddPartnerFranchiseId;
+    if (!fid) {
+      setFranchiseCityOptions([]);
+      setServiceCityIds([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const fromDropdown = franchiseDropdownOptions.find(
+        (o) => String(o.value) === fid
+      );
+      let options = citySelectOptionsFromFranchiseFields(
+        fromDropdown?.city_id,
+        fromDropdown?.city_name
+      );
+      if (options.length <= 1) {
+        const franchise = await fetchFranchiseById(fid);
+        if (franchise) {
+          const fromFranchise = citySelectOptionsFromFranchiseFields(
+            franchise.city_id,
+            franchise.city_name
+          );
+          if (fromFranchise.length > 0) options = fromFranchise;
+        }
+      }
+      if (cancelled) return;
+      setFranchiseCityOptions(options);
+      setServiceCityIds((prev) =>
+        prev.filter((id) => options.some((o) => o.value === id))
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isAddPartner,
+    effectiveAddPartnerFranchiseId,
+    franchiseDropdownOptions,
+  ]);
+
+  /** Update Partner: options from `franchise_cities`, selection from `service_cities`. */
+  useEffect(() => {
+    if (!isPartnerEdit || !user) {
+      if (!isAddPartner) {
+        setFranchiseCityOptions([]);
+        setServiceCityIds([]);
+        serviceCitiesHydratedForUserRef.current = "";
+      }
+      return;
+    }
+    const userKey = String(user._id ?? "");
+    const fromFranchiseCities = citySelectOptionsFromRefs(user.franchise_cities);
+    if (fromFranchiseCities.length > 0) {
+      setFranchiseCityOptions(fromFranchiseCities);
+    } else {
+      const fid =
+        String(partnerEditFranchiseId ?? "").trim() ||
+        partnerFranchiseIdFromUser(user);
+      if (fid) {
+        void (async () => {
+          const franchise = await fetchFranchiseById(fid);
+          if (!franchise) return;
+          const options = citySelectOptionsFromFranchiseFields(
+            franchise.city_id,
+            franchise.city_name
+          );
+          if (options.length > 0) setFranchiseCityOptions(options);
+        })();
+      }
+    }
+    if (serviceCitiesHydratedForUserRef.current !== userKey) {
+      serviceCitiesHydratedForUserRef.current = userKey;
+      const selected =
+        cityIdsFromRefs(user.service_cities).length > 0
+          ? cityIdsFromRefs(user.service_cities)
+          : cityIdsFromRefs(user.service_city_ids);
+      setServiceCityIds(selected);
+    }
+  }, [isPartnerEdit, isAddPartner, user, partnerEditFranchiseId]);
+
+  const selectedServiceCityOptions = useMemo(
+    () =>
+      franchiseCityOptions.filter((o) => serviceCityIds.includes(o.value)),
+    [franchiseCityOptions, serviceCityIds]
+  );
+
+  const handleServiceCitySelection = useCallback(
+    (selectedOptions: CitySelectOption[]) => {
+      setServiceCityIds(selectedOptions.map((o) => o.value));
+    },
+    []
+  );
+
   const categorySelectOptionsForBlock = useCallback(
     (blockId: string): OptionType[] => {
       const rest = (categoryOptions ?? []).filter(
@@ -1688,6 +1911,7 @@ function AddEditUserDialogView({
         is_verified: PARTNER_VERIFICATION.PENDING,
       }),
       ...((isAddPartner || isPartnerEdit) && {
+        service_cities: serviceCityIds,
         subscription_plan_id: subscriptionPlanId,
         subscription_plan: String(data.subscription_plan ?? "").trim(),
         subscription_start_date: subscriptionStartDate,
@@ -2239,6 +2463,29 @@ function AddEditUserDialogView({
                       />
                     </Col>
                   </Row>
+                  <Row className="g-3 add-partner-form-row">
+                    <Col xs={12} md={6}>
+                      <Row className="align-items-start">
+                        <Col sm={3} className="d-flex align-items-start">
+                          <label className="custom-profile-lable">
+                            <FieldLabelText label="Service Cities" />
+                          </label>
+                        </Col>
+                        <Col>
+                          <CustomMultiSelect
+                            label=""
+                            controlId="Service Cities"
+                            options={franchiseCityOptions}
+                            value={selectedServiceCityOptions}
+                            onChange={handleServiceCitySelection}
+                            asCol={false}
+                            menuPortal
+                            selectedChipsMaxHeight="96px"
+                          />
+                        </Col>
+                      </Row>
+                    </Col>
+                  </Row>
                   <Row className="g-3 add-partner-form-row add-partner-address-photo-row align-items-stretch">
                     <Col xs={12} md={6} className="add-partner-address-col">
                       <CustomTextField
@@ -2577,6 +2824,25 @@ function AddEditUserDialogView({
                               : "")
                       }
                     />
+                    <Row className="align-items-start">
+                      <Col sm={4} className="d-flex align-items-start">
+                        <label className="custom-profile-lable">
+                          <FieldLabelText label="Service Cities" />
+                        </label>
+                      </Col>
+                      <Col>
+                        <CustomMultiSelect
+                          label=""
+                          controlId="Service Cities"
+                          options={franchiseCityOptions}
+                          value={selectedServiceCityOptions}
+                          onChange={handleServiceCitySelection}
+                          asCol={false}
+                          menuPortal
+                          selectedChipsMaxHeight="96px"
+                        />
+                      </Col>
+                    </Row>
                     <CustomTextField
                       label="Address"
                       controlId="address"
