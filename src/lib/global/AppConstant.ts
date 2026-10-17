@@ -1,37 +1,22 @@
 import { CURRENCY } from "./paymentAndCurrency";
 
-const CHAT_SERVICE_URL = "https://chat.helppr.in";
-const CHAT_AVATAR_IMAGE_BASE_URL = "https://d2snwgkdggvp65.cloudfront.net/";
-const WORK_PROOF_IMAGE_BASE_URL = "https://d2snwgkdggvp65.cloudfront.net/";
-
-/**
- * Chat base URL for REST + Socket.IO.
- * Hard-coded HTTPS — CRA bakes REACT_APP_* at build time; ignoring env avoids
- * stale `http://` values from server CI/.env in production bundles.
- */
-export function getChatServiceUrl(): string {
-  const fromEnv = process.env.REACT_APP_CHAT_SERVICE_URL?.trim();
-  if (fromEnv && /^https:\/\//i.test(fromEnv)) {
-    return fromEnv.replace(/\/$/, "");
-  }
-  return CHAT_SERVICE_URL;
-}
-
 export const AppConstant = {
   BASE_URL:
-    "https://app.helppr.in/api", //Help Pr Live
+    "https://dtvx6yflf1.execute-api.ap-south-1.amazonaws.com/staging/api", //Help Pr Live
   /** Chat Service VPS — REST + Socket.IO (see CHAT_MODULE_FRONTEND.md). */
-  get CHAT_SERVICE_URL(): string {
-    return getChatServiceUrl();
-  },
-   CHAT_AVATAR_IMAGE_BASE_URL,
-   WORK_PROOF_IMAGE_BASE_URL,
-  IMAGE_BASE_URL: "", //Help Pr Live
+  CHAT_SERVICE_URL:
+    process.env.REACT_APP_CHAT_SERVICE_URL?.trim() || "https://staging-chat.helppr.in",
+  CHAT_AVATAR_IMAGE_BASE_URL: "https://d20g1bd5nfpo8h.cloudfront.net/",
+  IMAGE_BASE_URL:
+    process.env.REACT_APP_IMAGE_BASE_URL?.trim() ||
+    "https://d20g1bd5nfpo8h.cloudfront.net/",
+  /** Bunny Stream CDN — partner post HLS + thumbnails (`/{videoId}/playlist.m3u8`). */
+  VIDEO_BASE_URL:
+    process.env.REACT_APP_VIDEO_BASE_URL?.trim() ||
+    "https://vz-9b1107ae-722.b-cdn.net/",
   // BASE_URL: "http://localhost:5001/api",
   // BASE_URL: "https://raamisegei.execute-api.us-east-1.amazonaws.com/dev/api",
   // IMAGE_BASE_URL: "https://d2d4noj5f8gqer.cloudfront.net/",
-
-  
   authToken: "authToken",
   deviceToken: "deviceToken",
 
@@ -52,9 +37,9 @@ export const AppConstant = {
   currencyCode: CURRENCY.code,
   percentageSymbol: "%",
   companyName: "Helper",
-  helplineNumber: "+916301981170 ",
+  helplineNumber: "+916301981170",
   supportEmail: "Info@helppr.in",
-  companyLocation: "  2nd FLoor, 24-7-207/15/1, beside EPF Office, Revenue Colony, National Institute of Technology Campus, Kazipet, Hanamkonda, Telangana 506004",
+  companyLocation: "2nd FLoor, 24-7-207/15/1, beside EPF Office, Revenue Colony, National Institute of Technology Campus, Kazipet, Hanamkonda, Telangana 506004",
 
 };
 
@@ -65,4 +50,3 @@ export const UserRole = {
   EMPLOYEE: "employee",
   STAFF: "staff",
 } as const;
-

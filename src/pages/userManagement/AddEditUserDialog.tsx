@@ -119,29 +119,76 @@ function sanitizeLettersAndSpaces(value: string): string {
   return value.replace(/[^A-Za-z\s]/g, "");
 }
 
+type PartnerSubCategoryRow = {
+  id: string;
+  subcategoryId: string;
+  is_active: boolean;
+};
+
+type PartnerCategoryBlockExt = PartnerCategoryBlock & {
+  subCategoryRows: PartnerSubCategoryRow[];
+};
+
+function emptyPartnerSubCategoryRow(): PartnerSubCategoryRow {
+  return {
+    id: newPartnerCatalogRowId(),
+    subcategoryId: "",
+    is_active: true,
+  };
+}
+
+function emptyPartnerCatalogBlockExt(
+  initialCategoryId: string
+): PartnerCategoryBlockExt {
+  return {
+    ...emptyPartnerCatalogBlock(initialCategoryId),
+    subCategoryRows: [emptyPartnerSubCategoryRow()],
+  };
+}
+
 /** Local guard — keeps catalog UI safe without an extra module export (avoids dev HMR load issues). */
 function ensurePartnerCatalogBlocks(
   blocks: PartnerCategoryBlock[] | null | undefined
-): PartnerCategoryBlock[] {
+): PartnerCategoryBlockExt[] {
   if (!Array.isArray(blocks) || blocks.length === 0) {
-    return [emptyPartnerCatalogBlock("")];
+    return [emptyPartnerCatalogBlockExt("")];
   }
-  return blocks.map((b) => ({
-    id: String(b?.id ?? "").trim() || newPartnerCatalogRowId(),
-    categoryId: String(b?.categoryId ?? ""),
-    is_active: b?.is_active !== false,
-    serviceRows: (
-      Array.isArray(b?.serviceRows) && b.serviceRows.length > 0
-        ? b.serviceRows
-        : [emptyPartnerServiceRow()]
-    ).map((r) => ({
-      ...r,
-      is_active: r?.is_active !== false,
-    })),
-  }));
+  return blocks.map((b) => {
+    const ext = b as PartnerCategoryBlockExt;
+    const subRows = Array.isArray(ext?.subCategoryRows)
+      ? ext.subCategoryRows
+      : [];
+    return {
+      id: String(b?.id ?? "").trim() || newPartnerCatalogRowId(),
+      categoryId: String(b?.categoryId ?? ""),
+      is_active: b?.is_active !== false,
+      subCategoryRows: (
+        subRows.length > 0 ? subRows : [emptyPartnerSubCategoryRow()]
+      ).map((r) => ({
+        id: String(r?.id ?? "").trim() || newPartnerCatalogRowId(),
+        subcategoryId: String(r?.subcategoryId ?? ""),
+        is_active: r?.is_active !== false,
+      })),
+      serviceRows: (
+        Array.isArray(b?.serviceRows) && b.serviceRows.length > 0
+          ? b.serviceRows
+          : [emptyPartnerServiceRow()]
+      ).map((r) => ({
+        ...r,
+        is_active: r?.is_active !== false,
+      })),
+    };
+  });
 }
 
 type OptionType = { value: string; label: string };
+
+const ADD_PARTNER_SUB_CATEGORY_OPTIONS: OptionType[] = [
+  { value: "", label: "Select sub category" },
+  { value: "example-subcat-1", label: "Facial Care" },
+  { value: "example-subcat-2", label: "Hair Styling" },
+  { value: "example-subcat-3", label: "Pipe Repair" },
+];
 
 function ensureSelectOption(
   options: OptionType[],
@@ -501,8 +548,8 @@ function AddEditUserDialogView({
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [partnerCatalogBlocks, setPartnerCatalogBlocks] = useState<
-    PartnerCategoryBlock[]
-  >(() => [emptyPartnerCatalogBlock("")]);
+    PartnerCategoryBlockExt[]
+  >(() => [emptyPartnerCatalogBlockExt("")]);
 
   const safePartnerCatalogBlocks = useMemo(
     () => ensurePartnerCatalogBlocks(partnerCatalogBlocks),
@@ -970,7 +1017,7 @@ function AddEditUserDialogView({
       if (isAddPartner) {
         setCategoryIds([]);
         setServiceIds([]);
-        setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+        setPartnerCatalogBlocks([emptyPartnerCatalogBlockExt("")]);
         setServicesByCategoryId({});
       }
       return;
@@ -979,7 +1026,7 @@ function AddEditUserDialogView({
     if (isAddPartner) {
       setCategoryIds([]);
       setServiceIds([]);
-      setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+      setPartnerCatalogBlocks([emptyPartnerCatalogBlockExt("")]);
       setServicesByCategoryId({});
       return;
     }
@@ -1063,7 +1110,7 @@ function AddEditUserDialogView({
     const fid = effectiveAddPartnerFranchiseId;
     if (prevAddPartnerFranchiseRef.current === fid) return;
     prevAddPartnerFranchiseRef.current = fid;
-    setPartnerCatalogBlocks([emptyPartnerCatalogBlock("")]);
+    setPartnerCatalogBlocks([emptyPartnerCatalogBlockExt("")]);
     setServicesByCategoryId({});
     setCategoryIds([]);
     setServiceIds([]);
@@ -1417,6 +1464,25 @@ function AddEditUserDialogView({
     [categoryOptions, safePartnerCatalogBlocks]
   );
 
+  const subCategorySelectOptionsForRow = useCallback(
+    (blockId: string, rowId: string): OptionType[] => {
+      const block = safePartnerCatalogBlocks.find((b) => b.id === blockId);
+      const taken = new Set(
+        (block?.subCategoryRows ?? [])
+          .filter(
+            (r) =>
+              r.id !== rowId && String(r.subcategoryId ?? "").trim() !== ""
+          )
+          .map((r) => String(r.subcategoryId))
+      );
+      const rest = ADD_PARTNER_SUB_CATEGORY_OPTIONS.filter(
+        (o) => o.value && !taken.has(String(o.value))
+      );
+      return [{ value: "", label: "Select sub category" }, ...rest];
+    },
+    [safePartnerCatalogBlocks]
+  );
+
   const catalogServicesForBlocks = useMemo((): PartnerCatalogServiceLite[] => {
     if (!isAddPartner) {
       return allServices.map((s) => ({
@@ -1502,13 +1568,28 @@ function AddEditUserDialogView({
         String(row.price ?? "").trim()
     );
 
+  const partnerSubCategoryRowComplete = (row: PartnerSubCategoryRow) =>
+    Boolean(String(row.subcategoryId ?? "").trim());
+
   const canAddPartnerCategoryBlock = useMemo(() => {
     if (!isAddPartner) return true;
     return safePartnerCatalogBlocks.every((b) => {
       if (!String(b.categoryId ?? "").trim()) return false;
+      if (!(b.subCategoryRows ?? []).every(partnerSubCategoryRowComplete)) {
+        return false;
+      }
       return (b.serviceRows ?? []).every(partnerServiceRowComplete);
     });
   }, [isAddPartner, safePartnerCatalogBlocks]);
+
+  const canAddPartnerSubCategoryRow = useCallback(
+    (block: PartnerCategoryBlockExt, row: PartnerSubCategoryRow) =>
+      Boolean(
+        String(block.categoryId ?? "").trim() &&
+          partnerSubCategoryRowComplete(row)
+      ),
+    []
+  );
 
   const canAddPartnerServiceRow = useCallback(
     (block: PartnerCategoryBlock, row: PartnerServiceRow) =>
@@ -1522,7 +1603,7 @@ function AddEditUserDialogView({
   const addCategoryBlock = useCallback(() => {
     setPartnerCatalogBlocks((prev) => [
       ...ensurePartnerCatalogBlocks(prev),
-      emptyPartnerCatalogBlock(""),
+      emptyPartnerCatalogBlockExt(""),
     ]);
   }, []);
 
@@ -1542,6 +1623,10 @@ function AddEditUserDialogView({
           ? {
               ...b,
               is_active,
+              subCategoryRows: (b.subCategoryRows ?? []).map((r) => ({
+                ...r,
+                is_active: is_active ? r.is_active !== false : false,
+              })),
               serviceRows: (b.serviceRows ?? []).map((r) => ({
                 ...r,
                 is_active: is_active ? r.is_active !== false : false,
@@ -1560,6 +1645,7 @@ function AddEditUserDialogView({
             ? {
                 ...b,
                 categoryId,
+                subCategoryRows: [emptyPartnerSubCategoryRow()],
                 serviceRows: (b.serviceRows ?? []).map((r) => ({
                   ...r,
                   serviceId: "",
@@ -1572,6 +1658,60 @@ function AddEditUserDialogView({
     },
     []
   );
+
+  const addSubCategoryRow = useCallback((blockId: string) => {
+    setPartnerCatalogBlocks((prev) =>
+      ensurePartnerCatalogBlocks(prev).map((b) =>
+        b.id === blockId
+          ? {
+              ...b,
+              subCategoryRows: [
+                ...(b.subCategoryRows ?? []),
+                emptyPartnerSubCategoryRow(),
+              ],
+            }
+          : b
+      )
+    );
+  }, []);
+
+  const updateSubCategoryRow = useCallback(
+    (
+      blockId: string,
+      rowId: string,
+      patch: Partial<Omit<PartnerSubCategoryRow, "id">>
+    ) => {
+      setPartnerCatalogBlocks((prev) =>
+        ensurePartnerCatalogBlocks(prev).map((b) =>
+          b.id !== blockId
+            ? b
+            : {
+                ...b,
+                subCategoryRows: (b.subCategoryRows ?? []).map((r) =>
+                  r.id === rowId ? { ...r, ...patch } : r
+                ),
+              }
+        )
+      );
+    },
+    []
+  );
+
+  const removeSubCategoryRow = useCallback((blockId: string, rowId: string) => {
+    setPartnerCatalogBlocks((prev) =>
+      ensurePartnerCatalogBlocks(prev).map((b) => {
+        if (b.id !== blockId) return b;
+        const rows = b.subCategoryRows ?? [];
+        if (rows.length <= 1) {
+          return b;
+        }
+        return {
+          ...b,
+          subCategoryRows: rows.filter((r) => r.id !== rowId),
+        };
+      })
+    );
+  }, []);
 
   const addServiceRow = useCallback((blockId: string) => {
     setPartnerCatalogBlocks((prev) =>
@@ -3017,7 +3157,9 @@ function AddEditUserDialogView({
                   className="custom-other-details mt-4"
                   style={{ padding: "10px" }}
                 >
-                  <h3 className="mb-2">Categories and services</h3>
+                  <h3 className="mb-2">
+                    Categories and sub categories and services
+                  </h3>
                   {addPartnerCatalogLocked ? (
                     <p className="text-muted small mb-3">
                       {isSuperAdminOrStaff
@@ -3099,6 +3241,101 @@ function AddEditUserDialogView({
                           </div>
                         </div>
                       </div>
+
+                      {(block.subCategoryRows ?? []).map((subRow) => {
+                        const categoryActive = block.is_active !== false;
+                        const subActive =
+                          categoryActive && subRow.is_active !== false;
+                        return (
+                          <div
+                            key={subRow.id}
+                            className="add-partner-catalog-grid add-partner-catalog-grid--category mb-3"
+                          >
+                            <div className="add-partner-catalog-field add-partner-catalog-field--category">
+                              <PartnerSingleSelect
+                                instanceId={`${block.id}-${subRow.id}-subcategory`}
+                                label="Sub Category"
+                                requiredMark
+                                options={subCategorySelectOptionsForRow(
+                                  block.id,
+                                  subRow.id
+                                )}
+                                value={subRow.subcategoryId}
+                                placeholder={
+                                  String(block.categoryId ?? "").trim()
+                                    ? "Select sub category"
+                                    : "Select category first"
+                                }
+                                isDisabled={
+                                  addPartnerCatalogLocked ||
+                                  !String(block.categoryId ?? "").trim()
+                                }
+                                onChange={(sid: string) =>
+                                  updateSubCategoryRow(block.id, subRow.id, {
+                                    subcategoryId: sid,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="add-partner-catalog-field add-partner-catalog-field--status">
+                              <PartnerCatalogStatusToggle
+                                inline
+                                instanceId={`${block.id}-${subRow.id}-subcategory-status`}
+                                value={subActive}
+                                disabled={
+                                  addPartnerCatalogLocked || !categoryActive
+                                }
+                                onChange={(active) => {
+                                  if (!categoryActive) return;
+                                  updateSubCategoryRow(block.id, subRow.id, {
+                                    is_active: active,
+                                  });
+                                }}
+                              />
+                            </div>
+                            <div className="add-partner-catalog-field add-partner-catalog-field--actions">
+                              <div className="add-partner-catalog-actions">
+                                <button
+                                  type="button"
+                                  title="Add another sub category"
+                                  aria-label="Add another sub category"
+                                  style={partnerCatalogOutlineAddBtn}
+                                  disabled={
+                                    !canAddPartnerSubCategoryRow(block, subRow)
+                                  }
+                                  onClick={() => addSubCategoryRow(block.id)}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                  onMouseLeave={(e) => hoverIconBtn(e, false)}
+                                >
+                                  <i className="bi bi-plus fs-6" aria-hidden />
+                                </button>
+                                {(block.subCategoryRows ?? []).length > 1 ? (
+                                  <button
+                                    type="button"
+                                    title="Remove this sub category"
+                                    aria-label="Remove this sub category"
+                                    style={partnerCatalogOutlineDeleteBtn}
+                                    onClick={() =>
+                                      removeSubCategoryRow(block.id, subRow.id)
+                                    }
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onMouseEnter={(e) => hoverIconBtn(e, true)}
+                                    onMouseLeave={(e) =>
+                                      hoverIconBtn(e, false)
+                                    }
+                                  >
+                                    <i
+                                      className="bi bi-trash fs-6"
+                                      aria-hidden
+                                    />
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
 
                       {(block.serviceRows ?? []).map((row) => {
                         const categoryActive = block.is_active !== false;

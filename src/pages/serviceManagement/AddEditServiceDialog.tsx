@@ -122,6 +122,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
     ServiceModel & {
       approval_status?: "pending" | "approved" | "rejected";
       rejection_reason?: string;
+      subcategory_id?: string;
     }
   >({
     defaultValues: {
@@ -133,6 +134,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       min_deposit_value: mapMinimumDepositValue(service) as any,
       is_active: service?.is_active ?? true,
       category_id: normalizeServiceCategoryRef(service?.category_id),
+      subcategory_id: String(
+        (service as any)?.subcategory_id ??
+          (service as any)?.sub_category_id ??
+          ""
+      ).trim(),
       approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any,
@@ -150,6 +156,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
       category_id:
         normalizeServiceCategoryRef(service?.category_id) ||
         String(lockCategory?.id ?? "").trim(),
+      subcategory_id: String(
+        (service as any)?.subcategory_id ??
+          (service as any)?.sub_category_id ??
+          ""
+      ).trim(),
       approval_status: mapApprovalStatusFromService(service),
       rejection_reason: (service as any)?.rejection_reason ?? "",
     } as any);
@@ -158,6 +169,11 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const [categories, setCategory] = useState<
     { value: string; label: string }[]
   >([]);
+  const [subCategories] = useState<{ value: string; label: string }[]>([
+    { value: "example-subcat-1", label: "Facial Care" },
+    { value: "example-subcat-2", label: "Hair Styling" },
+    { value: "example-subcat-3", label: "Pipe Repair" },
+  ]);
   const [fileInputs, setFileInputs] = useState<File[]>([]);
   const [replaceUrls, setReplaceUrl] = useState<string[]>([]);
   const [brokenPartnerAvatarIds, setBrokenPartnerAvatarIds] = useState<
@@ -308,6 +324,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
   const approvalStatusDefaultForEdit =
     mapApprovalStatusFromService(service);
   const categoryIdWatch = watch("category_id");
+  const subcategoryIdWatch = watch("subcategory_id");
 
   const serviceImagePath = useMemo(() => {
     if (!service) return "";
@@ -502,6 +519,12 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               : "",
         }),
       category_id: resolvedCategoryId,
+      subcategory_id: String((data as any).subcategory_id ?? "").trim(),
+      subcategory_name:
+        subCategories.find(
+          (s) => s.value === String((data as any).subcategory_id ?? "").trim()
+        )?.label ??
+        String((service as any)?.subcategory_name ?? "").trim(),
       ...(image_url !== "" && { image_url }),
     };
 
@@ -587,6 +610,19 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
             <Row className="g-3 align-items-start">
               <Col xs={12} md={6}>
                 <FullDetailsRow title="Service Name" value={service.name ?? "-"} />
+              </Col>
+              <Col xs={12} md={6}>
+                <FullDetailsRow
+                  title="Sub Category"
+                  value={
+                    String(
+                      (service as any).subcategory_name ??
+                        (service as any).sub_category_name ??
+                        (service as any).subcategory ??
+                        ""
+                    ).trim() || "-"
+                  }
+                />
               </Col>
               <Col xs={12} md={6}>
                 <FullDetailsRow
@@ -915,6 +951,27 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   error={errors.name}
                   asCol={false}
                   validation={{ required: "Service name is required" }}
+                />
+              </Col>
+
+              <Col md={6}>
+                <CustomFormSelect
+                  label="Sub Category"
+                  controlId="subcategory"
+                  options={subCategories}
+                  register={register as unknown as UseFormRegister<any>}
+                  fieldName="subcategory_id"
+                  error={(errors as any).subcategory_id}
+                  asCol={false}
+                  placeholder="Select"
+                  defaultValue={String(subcategoryIdWatch ?? "").trim()}
+                  setValue={(name: string, value: any) => {
+                    setValue(name as any, value, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    });
+                  }}
                 />
               </Col>
 
