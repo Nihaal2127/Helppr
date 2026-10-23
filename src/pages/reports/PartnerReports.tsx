@@ -56,13 +56,17 @@ async function fetchReportSubCategoryOptions(
       !Array.isArray(payload.data)
         ? (payload.data as Record<string, unknown>)
         : null;
-    const rawRecords = Array.isArray(payload?.records)
-      ? payload.records
-      : Array.isArray(nested?.records)
-        ? nested.records
-        : Array.isArray(payload?.subcategories)
-          ? payload.subcategories
-          : [];
+        const payloadRecords = payload?.records;
+        const payloadSubcategories = payload?.subcategories;
+        const nestedRecords = nested?.records;
+        
+        const rawRecords = Array.isArray(payloadRecords)
+          ? payloadRecords
+          : Array.isArray(nestedRecords)
+            ? nestedRecords
+            : Array.isArray(payloadSubcategories)
+              ? payloadSubcategories
+              : [];
     for (const item of rawRecords) {
       const row =
         item && typeof item === "object"

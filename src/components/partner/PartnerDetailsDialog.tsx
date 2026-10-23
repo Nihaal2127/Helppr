@@ -376,25 +376,41 @@ function PartnerDetailsDialogView({
     const partnerLevel = partnerLevelSubCategoryLabels(userDetails);
     for (const group of viewCategoryServiceGroups) {
       const labels: string[] = [];
-      const partnerServices = Array.isArray(userDetails?.partner_services)
-        ? userDetails.partner_services
-        : [];
-      for (const ps of partnerServices) {
-        const row = ps as Record<string, unknown>;
-        const categoryRef = row.category_id;
-        const cid =
-          categoryRef && typeof categoryRef === "object"
-            ? String((categoryRef as { _id?: string })._id ?? "").trim()
-            : String(categoryRef ?? "").trim();
-        if (cid && cid !== group.categoryId) continue;
-        pushSubCategoryFromRecord(row, labels);
-        if (!Array.isArray(row.services)) continue;
-        for (const svc of row.services) {
-          if (svc && typeof svc === "object") {
-            pushSubCategoryFromRecord(svc as Record<string, unknown>, labels);
-          }
-        }
-      }
+      // const partnerServices = Array.isArray(userDetails?.partner_services)
+      //   ? userDetails.partner_services
+      //   : [];
+       
+const partnerServices = userDetails?.partner_services ?? [];
+
+for (const ps of partnerServices) {
+  const row = ps as Record<string, any>;
+  const categoryRef = row.category_id;
+
+  const cid =
+    categoryRef && typeof categoryRef === "object"
+      ? String(categoryRef._id ?? "").trim()
+      : String(categoryRef ?? "").trim();
+
+  if (cid && cid !== group.categoryId) continue;
+
+  if (!Array.isArray(row.subcategories)) continue;
+
+  for (const subItem of row.subcategories) {
+    if (!subItem || typeof subItem !== "object") continue;
+
+    const subcategoryRef = subItem.subcategory_id;
+
+    const subcategoryName =
+      subcategoryRef && typeof subcategoryRef === "object"
+        ? String(subcategoryRef.name ?? "").trim()
+        : String(subcategoryRef ?? "").trim();
+
+    if (subcategoryName) {
+      labels.push(subcategoryName);
+    }
+  }
+}
+
       for (const row of group.rows) {
         const sid = String(row.serviceId ?? "").trim();
         if (!sid) continue;

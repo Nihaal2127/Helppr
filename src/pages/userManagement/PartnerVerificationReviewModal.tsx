@@ -327,9 +327,11 @@ function PartnerVerificationReviewModalView({
     const partnerLevel = partnerLevelSubCategoryLabels(userDetails);
     for (const group of viewCategoryServiceGroups) {
       const labels: string[] = [];
-      const partnerServices = Array.isArray(userDetails?.partner_services)
-        ? userDetails.partner_services
-        : [];
+      const partnerServicesValue = userDetails?.partner_services;
+
+const partnerServices = Array.isArray(partnerServicesValue)
+  ? partnerServicesValue
+  : [];
       for (const ps of partnerServices) {
         const row = ps as Record<string, unknown>;
         const categoryRef = row.category_id;

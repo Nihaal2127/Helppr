@@ -92,13 +92,18 @@ function mapSubCategoryOptionsFromQuoteGetAll(data: unknown): OptionType[] {
     !Array.isArray(payload.data)
       ? (payload.data as Record<string, unknown>)
       : null;
-  const rawRecords = Array.isArray(payload?.records)
-    ? payload.records
-    : Array.isArray(nested?.records)
-      ? nested.records
-      : Array.isArray(data)
-        ? data
-        : [];
+      const payloadRecords = payload?.records;
+const nestedRecords = nested?.records;
+const payloadSubcategories = payload?.subcategories;
+const dataRecords = Array.isArray(data) ? data : null;
+
+const rawRecords = Array.isArray(payloadRecords)
+  ? payloadRecords
+  : Array.isArray(nestedRecords)
+    ? nestedRecords
+    : Array.isArray(payloadSubcategories)
+      ? payloadSubcategories
+      : dataRecords ?? [];
   const seen = new Set<string>();
   const options: OptionType[] = [];
   for (const item of rawRecords) {
