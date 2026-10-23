@@ -52,6 +52,29 @@ import OrderAmountSummaryPanel from "./OrderAmountSummaryPanel";
 import { resolveExistingImageSrc } from "../../services/documentUploadService";
 import profilePlaceholder from "../../assets/icons/profile.svg";
 
+const ORDER_SUB_CATEGORY_LABELS: Record<string, string> = {
+  "example-subcat-1": "Facial Care",
+  "example-subcat-2": "Hair Styling",
+  "example-subcat-3": "Pipe Repair",
+};
+
+function orderSubCategoryLabel(order?: OrderModel | null): string {
+  const rec = order as (OrderModel & Record<string, unknown>) | null | undefined;
+  if (!rec) return "-";
+  const name = String(
+    rec.subcategory_name ?? rec.sub_category_name ?? ""
+  ).trim();
+  if (name) return name;
+  const ref = rec.subcategory_id ?? rec.sub_category_id;
+  if (ref && typeof ref === "object") {
+    const nested = String((ref as { name?: string }).name ?? "").trim();
+    if (nested) return nested;
+  }
+  const id = String(ref ?? "").trim();
+  if (!id) return "-";
+  return ORDER_SUB_CATEGORY_LABELS[id] ?? id;
+}
+
 type OrderInfoDialogProps = {
   orderId: string;
   onClose: () => void;
@@ -352,6 +375,10 @@ const OrderInfoDialog: React.FC<OrderInfoDialogProps> & {
                 <DetailsRow
                   title="Partner Payment Status"
                   value={getPartnerPaymentStatusLabel(orderDetails)}
+                />
+                <DetailsRow
+                  title="Sub Category"
+                  value={orderSubCategoryLabel(orderDetails)}
                 />
                 <DetailsRow
                   title="User Payment Status"

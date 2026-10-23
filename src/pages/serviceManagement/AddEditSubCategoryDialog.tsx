@@ -1,4 +1,4 @@
-import React, {  useMemo,useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, UseFormRegister } from "react-hook-form";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import CustomMultiSelect from "../../components/CustomMultiSelect";
@@ -11,34 +11,163 @@ import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
-import { FullDetailsRow } from "../../helper/utility";
-import { showSuccessAlert } from "../../lib/global/alertHelper";
+import { formatDate, FullDetailsRow } from "../../helper/utility";
 import { openDialog } from "../../lib/global/DialogManager";
+import { apiRequest } from "../../lib/global/remote/apiHelper";
+import { fetchCategoryDropDown } from "../../services/categoryService";
+import { fetchServiceDropDown } from "../../services/servicesService";
 
-const STATIC_CATEGORY_OPTIONS = [
-  { value: "Food", label: "Food" },
-  { value: "doordelivery", label: "doordelivery" },
-  { value: "buildingworkes", label: "buildingworkes" },
-  { value: "clothing", label: "clothing" },
-  { value: "leather factory", label: "leather factory" },
-  { value: "Health care", label: "Health care" },
-];
 const SELECT_ALL_OPTION = "select-all";
+const CREATE_SUBCATEGORY_PATH = "/subcategory/create";
 
-const STATIC_SERVICE_OPTIONS = [
-  { value: "s1", label: "Home Cleaning" },
-  { value: "s2", label: "Pipe Repair" },
-  { value: "s3", label: "Wiring" },
-  { value: "s4", label: "Wall Painting" },
-];
+
+const SUBCATEGORY_VIEW_LABELS: Record<string, string> = {
+  name: "Sub Category Name",
+  category_name: "Category",
+  category_id: "Category",
+  desc: "Description",
+  description: "Description",
+  is_active: "Status",
+  franchise_active: "Franchise Status",
+  approval_status: "Approval Status",
+  is_request: "Request",
+  rejection_reason: "Rejection Reason",
+  requested_by: "Requested By",
+  created_at: "Created",
+  createdAt: "Created",
+  updated_at: "Updated",
+  updatedAt: "Updated",
+  services: "Services",
+  service_ids: "Services",
+};
+
+const SUBCATEGORY_VIEW_SKIP = new Set([
+  "_id",
+  "id",
+  "__v",
+  "deleted_at",
+  "image",
+  "image_url",
+  "category",
+  "franchise_active",
+]);
+
+function subcategoryFieldLabel(key: string): string {
+  return (
+    SUBCATEGORY_VIEW_LABELS[key] ??
+    key
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
+
+function subcategoryFieldText(key: string, value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "boolean") {
+    if (key === "is_active" || key === "franchise_active") {
+      return value ? "Active" : "Inactive";
+    }
+    if (key === "is_request") return value ? "Yes" : "No";
+    return value ? "Yes" : "No";
+  }
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return null;
+    if (/(_at|At)$/.test(key)) {
+      const formatted = formatDate(text);
+      return formatted === "-" ? text : formatted;
+    }
+    return text;
+  }
+  if (Array.isArray(value)) {
+    const names = value
+      .map((item) => {
+        if (typeof item === "string" || typeof item === "number") {
+          return String(item).trim();
+        }
+        if (item && typeof item === "object") {
+          const record = item as Record<string, unknown>;
+          return String(record.name ?? record.label ?? record._id ?? "").trim();
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return names.length > 0 ? names.join(", ") : null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const name = String(record.name ?? record.label ?? "").trim();
+    return name || null;
+  }
+  return null;
+}
+
+function subcategoryViewRows(
+  detail: SubCategoryDetails
+): { key: string; label: string; value: string }[] {
+  const source = detail as unknown as Record<string, unknown>;
+  const rows: { key: string; label: string; value: string }[] = [];
+  const seenLabels = new Set<string>();
+  const keys = [
+    "name",
+    "category_name",
+    "is_active",
+    "approval_status",
+    "is_request",
+    "description",
+    "desc",
+    "services",
+    "service_ids",
+    "rejection_reason",
+    "requested_by",
+    "created_at",
+    "createdAt",
+    "updated_at",
+    "updatedAt",
+    ...Object.keys(source),
+  ];
+  for (const key of keys) {
+    if (SUBCATEGORY_VIEW_SKIP.has(key) || seenLabels.has(key)) continue;
+    if (key === "desc" && source.description) continue;
+    if (key === "description" && !source.description && source.desc) continue;
+    if (key === "service_ids" && Array.isArray(source.services) && source.services.length) {
+      continue;
+    }
+    if (key === "createdAt" && source.created_at) continue;
+    if (key === "updatedAt" && source.updated_at) continue;
+    if (key === "category_id" && source.category_name) continue;
+    const value = subcategoryFieldText(key, source[key]);
+    if (!value) continue;
+    const label = subcategoryFieldLabel(key);
+    if (seenLabels.has(label)) continue;
+    seenLabels.add(label);
+    seenLabels.add(key);
+    rows.push({ key, label, value });
+  }
+  return rows;
+}
 
 export type SubCategoryDetails = {
   _id: string;
   name: string;
   category_name: string;
+  category_id?: string;
   is_active: boolean;
   desc?: string;
   image_url?: string;
+  service_ids?: string[];
+};
+
+/** Fields sent as multipart form-data to `POST /subcategory/create`. */
+export type SubCategorySavePayload = {
+  name: string;
+  description: string;
+  category_id: string;
+  category_name: string;
+  service_ids: string[];
+  image: File | null;
 };
 
 type SubCategoryFormValues = {
@@ -53,7 +182,11 @@ type Props = {
   onClose: () => void;
   /** Category name typed on Add Category, shown in the Category field. */
   presetCategoryName?: string;
-  onSaved?: (saved: { name: string; category_name: string }) => void;
+  /** Existing category id — used for POST /subcategory/create (no category/create). */
+  presetCategoryId?: string;
+  onSaved?: (
+    saved: SubCategorySavePayload
+  ) => void | boolean | Promise<void | boolean>;
 };
 
 const AddEditSubCategoryDialog: React.FC<Props> & {
@@ -62,7 +195,10 @@ const AddEditSubCategoryDialog: React.FC<Props> & {
     isViewMode?: boolean,
     options?: {
       presetCategoryName?: string;
-      onSaved?: (saved: { name: string; category_name: string }) => void;
+      presetCategoryId?: string;
+      onSaved?: (
+        saved: SubCategorySavePayload
+      ) => void | boolean | Promise<void | boolean>;
     }
   ) => void;
 } = ({
@@ -70,23 +206,35 @@ const AddEditSubCategoryDialog: React.FC<Props> & {
   isViewMode = false,
   onClose,
   presetCategoryName = "",
+  presetCategoryId = "",
   onSaved,
 }) => {
   const [localViewMode, setLocalViewMode] = useState(isViewMode);
   const isEditable = Boolean(subCategory);
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
+  const [serviceIds, setServiceIds] = useState<string[]>(
+    subCategory?.service_ids ?? []
+  );
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [serviceChoices, setServiceChoices] = useState<
+    { value: string; label: string }[]
+  >([]);
+  /** Set after POST /subcategory/create from + Add Service so main Add does not create twice. */
+  const createdViaAddServiceRef = useRef(false);
 
 const serviceOptions = useMemo(
   () => [
     { value: SELECT_ALL_OPTION, label: "Select All" },
-    ...STATIC_SERVICE_OPTIONS,
+    ...serviceChoices,
   ],
-  []
+  [serviceChoices]
 );
 
 const selectedServiceOptions = useMemo(
-  () => STATIC_SERVICE_OPTIONS.filter((s) => serviceIds.includes(s.value)),
-  [serviceIds]
+  () => serviceChoices.filter((s) => serviceIds.includes(s.value)),
+  [serviceChoices, serviceIds]
 );
 
 const handleServiceSelection = (
@@ -97,89 +245,259 @@ const handleServiceSelection = (
   );
   if (isSelectAll) {
     const allSelected =
-      serviceIds.length === STATIC_SERVICE_OPTIONS.length;
-    setServiceIds(
-      allSelected ? [] : STATIC_SERVICE_OPTIONS.map((s) => s.value)
-    );
+      serviceChoices.length > 0 && serviceIds.length === serviceChoices.length;
+    setServiceIds(allSelected ? [] : serviceChoices.map((s) => s.value));
     return;
   }
   setServiceIds(selectedOptions.map((o) => o.value));
 };
 
-const addServiceMenuFooter = (
-  <button
-    type="button"
-    className="w-100 text-start border-0 bg-transparent py-2 px-3"
-    style={{
-      color: "var(--primary-color)",
-      fontWeight: 600,
-      fontSize: 14,
-    }}
-    onMouseDown={(e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    }}
-    onClick={() => showAddEditServiceDialog(false, null, () => {})}
-  >
-    + Add Service
-  </button>
-);
-
   const presetCategory = String(presetCategoryName ?? "").trim();
-  const matchedPresetCategory = STATIC_CATEGORY_OPTIONS.find(
-    (option) => option.value.trim().toLowerCase() === presetCategory.toLowerCase()
-  );
-  const initialCategoryName =
-    subCategory?.category_name ||
-    matchedPresetCategory?.value ||
-    presetCategory ||
-    "";
-  const categoryOptions = useMemo(() => {
-    if (
-      !initialCategoryName ||
-      STATIC_CATEGORY_OPTIONS.some(
-        (option) =>
-          option.value.trim().toLowerCase() ===
-          initialCategoryName.trim().toLowerCase()
-      )
-    ) {
-      return STATIC_CATEGORY_OPTIONS;
-    }
-    return [
-      ...STATIC_CATEGORY_OPTIONS,
-      { value: initialCategoryName, label: initialCategoryName },
-    ];
-  }, [initialCategoryName]);
+  const presetCategoryIdValue = String(presetCategoryId ?? "").trim();
+  const initialCategoryName = subCategory?.category_name || presetCategory || "";
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<SubCategoryFormValues>({
     mode: "onSubmit",
     defaultValues: {
       name: subCategory?.name ?? "",
-      category_id: initialCategoryName,
+      category_id:
+        subCategory?.category_id ?? presetCategoryIdValue ?? "",
       desc: subCategory?.desc ?? "",
     },
   });
 
-  const onSubmitEvent = (data: SubCategoryFormValues) => {
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const categories = await fetchCategoryDropDown();
+      if (cancelled) return;
+      setCategoryOptions(categories.filter((option) => option.value));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedCategoryId = String(watch("category_id") ?? "").trim();
+
+  useEffect(() => {
+    if (categoryOptions.length === 0) return;
+    const current = String(getValues("category_id") ?? "").trim();
+    if (categoryOptions.some((option) => option.value === current)) return;
+    if (presetCategoryIdValue) {
+      const byId = categoryOptions.find(
+        (option) => option.value === presetCategoryIdValue
+      );
+      if (byId) {
+        setValue("category_id", byId.value, { shouldValidate: false });
+        return;
+      }
+    }
+    const wanted = String(
+      subCategory?.category_id ||
+        subCategory?.category_name ||
+        presetCategoryIdValue ||
+        presetCategory ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+    if (!wanted) return;
+    const match = categoryOptions.find(
+      (option) =>
+        option.value.trim().toLowerCase() === wanted ||
+        option.label.trim().toLowerCase() === wanted
+    );
+    if (match) {
+      setValue("category_id", match.value, { shouldValidate: false });
+    }
+  }, [
+    categoryOptions,
+    getValues,
+    presetCategory,
+    presetCategoryIdValue,
+    setValue,
+    subCategory,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const services = await fetchServiceDropDown();
+      if (cancelled) return;
+      setServiceChoices(
+        services
+          .filter((service) => service.value)
+          .map((service) => ({
+            value: service.value,
+            label: service.label || service.value,
+          }))
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lockedCategoryLabel =
+    categoryOptions.find((option) => option.value === selectedCategoryId)
+      ?.label || initialCategoryName;
+
+  const openAddServiceFromSubCategory = async () => {
+    const name = String(getValues("name") ?? "").trim();
+    const description = String(getValues("desc") ?? "").trim();
+    const categoryId = String(getValues("category_id") ?? "").trim();
+    const matchedCategory = categoryOptions.find(
+      (option) => option.value === categoryId
+    );
+    if (!name) {
+      showErrorAlert("Sub Category name is required");
+      return;
+    }
+    if (!matchedCategory) {
+      showErrorAlert("Please select category first");
+      return;
+    }
+    if (!description) {
+      showErrorAlert("Description is required");
+      return;
+    }
+    if (!isEditable && !imageFile && !createdViaAddServiceRef.current) {
+      showErrorAlert("Please select image");
+      return;
+    }
+
+    // + Add Service → POST /subcategory/create first, then open Add Service
+    if (!isEditable && !createdViaAddServiceRef.current) {
+      const body = new FormData();
+      body.append("name", name);
+      body.append("description", description);
+      body.append("category_id", matchedCategory.value);
+      body.append("service_ids", JSON.stringify(serviceIds ?? []));
+      if (imageFile) {
+        body.append("image", imageFile);
+      }
+      const response = await apiRequest(
+        CREATE_SUBCATEGORY_PATH,
+        "POST",
+        body,
+        true
+      );
+      if (!response.success) return;
+      createdViaAddServiceRef.current = true;
+      void onSaved?.({
+        name,
+        description,
+        category_id: matchedCategory.value,
+        category_name: matchedCategory.label,
+        service_ids: serviceIds,
+        image: imageFile,
+      });
+    }
+
+    const categoryLabel =
+      matchedCategory.label || lockedCategoryLabel || "Selected Category";
+    const previousIds = new Set(serviceChoices.map((s) => s.value));
+    showAddEditServiceDialog(
+      false,
+      null,
+      async () => {
+        const services = await fetchServiceDropDown();
+        const nextChoices = services
+          .filter((service) => service.value)
+          .map((service) => ({
+            value: service.value,
+            label: service.label || service.value,
+          }));
+        setServiceChoices(nextChoices);
+        const newlyAdded = nextChoices
+          .filter((s) => !previousIds.has(s.value))
+          .map((s) => s.value);
+        if (newlyAdded.length > 0) {
+          setServiceIds((prev) =>
+            Array.from(new Set([...prev, ...newlyAdded]))
+          );
+        }
+      },
+      false,
+      { id: matchedCategory.value, label: categoryLabel }
+    );
+  };
+
+  const addServiceMenuFooter = (
+    <button
+      type="button"
+      className="w-100 text-start border-0 bg-transparent py-2 px-3"
+      style={{
+        color: "var(--primary-color)",
+        fontWeight: 600,
+        fontSize: 14,
+      }}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={() => void openAddServiceFromSubCategory()}
+    >
+      + Add Service
+    </button>
+  );
+
+  const onSubmitEvent = async (data: SubCategoryFormValues) => {
     if (serviceIds.length === 0) {
       showErrorAlert("Please select at least one service");
       return;
     }
-    onSaved?.({
-      name: String(data.name ?? "").trim(),
-      category_name: presetCategory
-        ? initialCategoryName
-        : String(data.category_id ?? "").trim(),
-    });
-    showSuccessAlert(
-      isEditable ? "Sub Category updated" : "Sub Category added"
+    if (!isEditable && !imageFile && !createdViaAddServiceRef.current) {
+      showErrorAlert("Please select image");
+      return;
+    }
+    const categoryId = String(data.category_id ?? "").trim();
+    const matchedCategory = categoryOptions.find(
+      (option) => option.value === categoryId
     );
+    if (!matchedCategory) {
+      showErrorAlert("Please select category");
+      return;
+    }
+    const saved: SubCategorySavePayload = {
+      name: String(data.name ?? "").trim(),
+      description: String(data.desc ?? "").trim(),
+      category_id: matchedCategory.value,
+      category_name: matchedCategory.label,
+      service_ids: serviceIds,
+      image: imageFile,
+    };
+
+    // Add: POST /subcategory/create only (skip if already created via + Add Service)
+    if (!isEditable && !createdViaAddServiceRef.current) {
+      const body = new FormData();
+      body.append("name", saved.name);
+      body.append("description", saved.description);
+      body.append("category_id", saved.category_id);
+      body.append("service_ids", JSON.stringify(saved.service_ids ?? []));
+      if (saved.image) {
+        body.append("image", saved.image);
+      }
+      const response = await apiRequest(
+        CREATE_SUBCATEGORY_PATH,
+        "POST",
+        body,
+        true
+      );
+      if (!response.success) return;
+      createdViaAddServiceRef.current = true;
+    }
+
+    const result = await onSaved?.(saved);
+    if (result === false) return;
     onClose();
   };
 
@@ -220,54 +538,27 @@ const addServiceMenuFooter = (
             </div>
 
             <Row className="g-3 align-items-start">
-              <Col xs={12} md={6}>
-                <FullDetailsRow
-                  title="Sub Category Name"
-                  value={subCategory.name || "-"}
-                />
-              </Col>
-              <Col xs={12} md={6}>
-                <FullDetailsRow
-                  title="Status"
-                  value={
-                    <span
-                      style={{
-                        color: subCategory.is_active ? "#198754" : "#dc3545",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {subCategory.is_active ? "Active" : "Inactive"}
-                    </span>
-                  }
-                />
-              </Col>
-            </Row>
-
-            <Row className="g-3 align-items-start mt-1">
-              <Col xs={12} md={6}>
-                <FullDetailsRow
-                  title="Category"
-                  value={subCategory.category_name || "-"}
-                />
-              </Col>
-            </Row>
-
-            <Row className="g-3 mt-1">
-              <Col xs={12}>
-                <h3>Description</h3>
-                <div
-                  className="mb-0 w-100"
-                  style={{
-                    color: "var(--content-txt-color)",
-                    fontSize: "0.95rem",
-                    lineHeight: 1.45,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {subCategory.desc?.trim() ? subCategory.desc.trim() : "-"}
-                </div>
-              </Col>
+              {subcategoryViewRows(subCategory).map((field) => (
+                <Col xs={12} md={field.key === "desc" || field.key === "description" || field.key === "services" ? 12 : 6} key={field.key}>
+                  <FullDetailsRow
+                    title={field.label}
+                    value={
+                      field.key === "is_active" ? (
+                        <span
+                          style={{
+                            color: subCategory.is_active ? "#198754" : "#dc3545",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {field.value}
+                        </span>
+                      ) : (
+                        field.value
+                      )
+                    }
+                  />
+                </Col>
+              ))}
             </Row>
 
             <Row className="g-3 mt-3 align-items-start">
@@ -323,7 +614,7 @@ const addServiceMenuFooter = (
                     label="Category"
                     controlId="locked-category"
                     placeholder=""
-                    value={initialCategoryName}
+                    value={lockedCategoryLabel}
                     register={register}
                     error={undefined as any}
                     asCol={false}
@@ -377,7 +668,7 @@ const addServiceMenuFooter = (
                   existingImages={
                     subCategory?.image_url ? [subCategory.image_url] : []
                   }
-                  onFileChange={() => {}}
+                  onFileChange={(files) => setImageFile(files[0] ?? null)}
                 />
 
               </Col>
@@ -415,20 +706,29 @@ const addServiceMenuFooter = (
   );
 };
 
-AddEditSubCategoryDialog.show = (
-  subCategory = null,
+export function showAddEditSubCategoryDialog(
+  subCategory: SubCategoryDetails | null = null,
   isViewMode = false,
-  options
-) => {
+  options?: {
+    presetCategoryName?: string;
+    presetCategoryId?: string;
+    onSaved?: (
+      saved: SubCategorySavePayload
+    ) => void | boolean | Promise<void | boolean>;
+  }
+): void {
   openDialog("sub-category-details-modal", (close) => (
     <AddEditSubCategoryDialog
       subCategory={subCategory}
       isViewMode={isViewMode}
       presetCategoryName={options?.presetCategoryName}
+      presetCategoryId={options?.presetCategoryId}
       onSaved={options?.onSaved}
       onClose={close}
     />
   ));
-};
+}
+
+AddEditSubCategoryDialog.show = showAddEditSubCategoryDialog;
 
 export default AddEditSubCategoryDialog;

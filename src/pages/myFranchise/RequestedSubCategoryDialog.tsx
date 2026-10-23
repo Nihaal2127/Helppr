@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomCloseButton from "../../components/CustomCloseButton";
@@ -12,9 +12,9 @@ import { showErrorAlert, showSuccessAlert } from "../../lib/global/alertHelper";
 import { AppConstant } from "../../lib/global/AppConstant";
 import { getLocalStorage } from "../../lib/global/localStorageHelper";
 import { apiRequest } from "../../lib/global/remote/apiHelper";
-import { ApiPaths } from "../../lib/global/remote/apiPaths";
-import { fetchCategoryDropDown } from "../../services/categoryService";
 import { resolveExistingImageSrc } from "../../services/documentUploadService";
+
+const CREATE_SUBCATEGORY_REQUEST_PATH = "/subcategory/create-request";
 
 export type SubCategoryViewDetail = {
   name: string;
@@ -160,27 +160,8 @@ const RequestedSubCategoryDialog: React.FC<RequestedSubCategoryDialogProps> & {
   showView: (detail: SubCategoryViewDetail) => void;
 } = ({ onClose, onRefreshData, categoryOptions }) => {
   const [fileInputs, setFileInputs] = useState<File[]>([]);
-  const [effectiveCategoryOptions, setEffectiveCategoryOptions] =
-    useState<CategoryOption[]>(categoryOptions);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const fromApi = await fetchCategoryDropDown();
-        if (!cancelled && Array.isArray(fromApi) && fromApi.length > 0) {
-          setEffectiveCategoryOptions(fromApi);
-          return;
-        }
-      } catch {
-        /* fall back to franchise categories */
-      }
-      if (!cancelled) setEffectiveCategoryOptions(categoryOptions);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [categoryOptions]);
+  /** Category options come from franchise `GET /franchise-category/getAll` via My Franchise. */
+  const effectiveCategoryOptions = categoryOptions;
 
   const {
     register,
@@ -239,16 +220,16 @@ const RequestedSubCategoryDialog: React.FC<RequestedSubCategoryDialogProps> & {
       getLocalStorage(AppConstant.partnerId) ?? ""
     ).trim();
     const response = await apiRequest(
-      ApiPaths.CREATE_CATEGORY_REQUEST,
+      CREATE_SUBCATEGORY_REQUEST_PATH,
       "POST",
       {
         name,
         category_id,
-        service_ids: [],
+        service_ids: [] as string[],
         desc: description,
         image_url,
-        city_ids: [],
-        state_ids: [],
+        city_ids: [] as string[],
+        state_ids: [] as string[],
         ...(franchiseId ? { franchise_id: franchiseId } : {}),
         is_request: true,
       },
@@ -293,7 +274,7 @@ const RequestedSubCategoryDialog: React.FC<RequestedSubCategoryDialogProps> & {
             <Col xs={12} md={6}>
               <CustomFormInput
                 label="Sub category name"
-                controlId="sub-category-name"
+                controlId="name"
                 placeholder="Enter sub category name"
                 register={register}
                 error={errors.name}
@@ -345,7 +326,7 @@ const RequestedSubCategoryDialog: React.FC<RequestedSubCategoryDialogProps> & {
             <Col xs={12} md={6}>
               <CustomFormInput
                 label="Description"
-                controlId="sub-category-desc"
+                controlId="desc"
                 placeholder="Describe the sub category and how it will be used"
                 register={register}
                 error={errors.desc}

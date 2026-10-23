@@ -80,6 +80,56 @@ import QuoteAddressOptionsLoader from "../../components/quote/QuoteAddressOption
 import {
   openQuoteFromNotification,
 } from "../../lib/notifications/notificationNavigation";
+import { apiRequest } from "../../lib/global/remote/apiHelper";
+
+/** Unique subcategory options from `GET /quote/getAll` records. */
+function mapSubCategoryOptionsFromQuoteGetAll(data: unknown): OptionType[] {
+  const payload =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const nested =
+    payload?.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : null;
+  const rawRecords = Array.isArray(payload?.records)
+    ? payload.records
+    : Array.isArray(nested?.records)
+      ? nested.records
+      : Array.isArray(data)
+        ? data
+        : [];
+  const seen = new Set<string>();
+  const options: OptionType[] = [];
+  for (const item of rawRecords) {
+    const row =
+      item && typeof item === "object"
+        ? (item as Record<string, unknown>)
+        : {};
+    const nestedSub =
+      row.subcategory_id &&
+      typeof row.subcategory_id === "object" &&
+      !Array.isArray(row.subcategory_id)
+        ? (row.subcategory_id as Record<string, unknown>)
+        : null;
+    const value = String(
+      nestedSub?._id ??
+        nestedSub?.id ??
+        (typeof row.subcategory_id === "string" ||
+        typeof row.subcategory_id === "number"
+          ? row.subcategory_id
+          : "") ??
+        ""
+    ).trim();
+    if (!value || value === "[object Object]" || seen.has(value)) continue;
+    const label = String(
+      row.subcategory_name ?? nestedSub?.name ?? nestedSub?.label ?? value
+    ).trim();
+    seen.add(value);
+    options.push({ value, label: label || value });
+  }
+  return options;
+}
 
 /** Time-only value for `CustomTimePicker` / stored fields (same pattern as quote schedule edit). */
 const toTimeStorageFromDate = (date: Date | null): string =>
@@ -205,6 +255,7 @@ const QuoteManagement = () => {
     register: addQuoteRegister,
     handleSubmit: handleAddQuoteSubmit,
     setValue: setAddQuoteValue,
+    getValues: getAddQuoteValues,
     watch: watchAddQuote,
     reset: resetAddQuote,
     formState: { errors: addQuoteErrors, isSubmitted: addQuoteFormSubmitted },
@@ -217,6 +268,7 @@ const QuoteManagement = () => {
       requested_partner: "",
       employee_id: "",
       category_id: "",
+      subcategory_id: "",
       requested_date: "",
       schedule_duration: "",
       requested_date_to: "",
@@ -258,6 +310,9 @@ const QuoteManagement = () => {
   const [quoteCategoryOptions, setQuoteCategoryOptions] = useState<
     OptionType[]
   >([]);
+  const [quoteSubCategoryOptions, setQuoteSubCategoryOptions] = useState<
+    OptionType[]
+  >([]);
   const addQuoteServiceId = String(addQuote.requested_services ?? "").trim();
   const hasAddQuoteServiceSelected = Boolean(addQuoteServiceId);
   const currentUserRole = getLocalStorage(AppConstant.userRole);
@@ -285,6 +340,7 @@ const QuoteManagement = () => {
     setAddQuoteValue("user_id", "", { shouldValidate: false });
     setAddQuoteValue("user_name", "", { shouldValidate: false });
     setAddQuoteValue("category_id", "", { shouldValidate: false });
+    setAddQuoteValue("subcategory_id", "", { shouldValidate: false });
     setAddQuoteValue("requested_services", "", { shouldValidate: false });
     setAddQuoteValue("requested_partner", "", { shouldValidate: false });
     setAddQuoteValue("employee_id", "", { shouldValidate: false });
@@ -297,6 +353,7 @@ const QuoteManagement = () => {
     setAddQuoteValue("service_price", "", { shouldValidate: false });
     setAddQuoteValue("user_description", "", { shouldValidate: false });
     setAddQuoteValue("admin_description", "", { shouldValidate: false });
+    setQuoteSubCategoryOptions([]);
     setCreateQuoteAddressId("");
     setAddQuoteAddressUi(emptyAddQuoteAddressUi());
   }, [setAddQuoteValue]);
@@ -455,6 +512,60 @@ const QuoteManagement = () => {
     addQuote.requested_services,
     quoteCatalogServicesForPartner,
     selectedPartnerCatalogRecord,
+  ]);
+
+  /**
+   * Add Quote Sub Category dropdown —
+   * `GET /quote/getAll?page=1&limit=10` (+ optional category_id / subcategory_id / franchise_id).
+   */
+  useEffect(() => {
+    const categoryId = String(addQuote.category_id ?? "").trim();
+    let cancelled = false;
+    if (!categoryId || !showAddQuote) {
+      setQuoteSubCategoryOptions([]);
+      return;
+    }
+    void (async () => {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "10",
+        category_id: categoryId,
+      });
+      const franchiseId = String(
+        isSuperAdminOrStaff
+          ? addQuote.franchise_id ?? ""
+          : sessionFranchiseIdForQuoteCatalog
+      ).trim();
+      if (franchiseId) params.set("franchise_id", franchiseId);
+      const response = await apiRequest(
+        `/quote/getAll?${params.toString()}`,
+        "GET"
+      );
+      if (cancelled) return;
+      if (!response.success) {
+        setQuoteSubCategoryOptions([]);
+        return;
+      }
+      const options = mapSubCategoryOptionsFromQuoteGetAll(response.data);
+      setQuoteSubCategoryOptions(options);
+      const selectedSub = String(
+        getAddQuoteValues("subcategory_id") ?? ""
+      ).trim();
+      if (selectedSub && !options.some((option) => option.value === selectedSub)) {
+        setAddQuoteValue("subcategory_id", "", { shouldValidate: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    addQuote.category_id,
+    addQuote.franchise_id,
+    showAddQuote,
+    isSuperAdminOrStaff,
+    sessionFranchiseIdForQuoteCatalog,
+    getAddQuoteValues,
+    setAddQuoteValue,
   ]);
 
   const selectedAddQuoteServiceOption = useMemo(() => {
@@ -829,6 +940,7 @@ const QuoteManagement = () => {
     );
     if (ok) return;
     setAddQuoteValue("category_id", "", { shouldValidate: false });
+    setAddQuoteValue("subcategory_id", "", { shouldValidate: false });
     setAddQuoteValue("requested_services", "", { shouldValidate: false });
     setAddQuoteValue("requested_date", "", { shouldValidate: false });
     setAddQuoteValue("schedule_duration", "", { shouldValidate: false });
@@ -1368,6 +1480,7 @@ const QuoteManagement = () => {
       requested_partner: "",
       employee_id: "",
       category_id: "",
+      subcategory_id: "",
       requested_date: "",
       schedule_duration: "",
       requested_date_to: "",
@@ -1441,6 +1554,11 @@ const QuoteManagement = () => {
       return;
     }
 
+    if (!String(data.subcategory_id ?? "").trim()) {
+      showErrorAlert("Please select a sub category.");
+      return;
+    }
+
     if (!String(data.requested_services ?? "").trim()) {
       showErrorAlert("Please select a service.");
       return;
@@ -1496,7 +1614,8 @@ const QuoteManagement = () => {
       }
     }
 
-    // POST .../quote/create — only service_price is sent as price; tax / commission / min. deposit are UI-only.
+    // POST /quote/create — real API body includes subcategory_id.
+    const subcategoryId = String(data.subcategory_id ?? "").trim();
     const body = buildCreateQuotePayload({
       user_id: data.user_id,
       category_id: data.category_id,
@@ -1522,7 +1641,10 @@ const QuoteManagement = () => {
       return;
     }
 
-    const ok = await createQuote(body);
+    const ok = await createQuote({
+      ...body,
+      subcategory_id: subcategoryId,
+    });
     if (ok) {
       setShowAddQuote(false);
       setCreateQuoteAddressId("");
@@ -2012,6 +2134,9 @@ const QuoteManagement = () => {
                               setAddQuoteValue("category_id", "", {
                                 shouldValidate: false,
                               });
+                              setAddQuoteValue("subcategory_id", "", {
+                                shouldValidate: false,
+                              });
                               setAddQuoteValue("requested_services", "", {
                                 shouldValidate: false,
                               });
@@ -2073,6 +2198,9 @@ const QuoteManagement = () => {
                               { shouldValidate: addQuoteFormSubmitted }
                             );
                             if (name === "category_id") {
+                              setAddQuoteValue("subcategory_id", "", {
+                                shouldValidate: false,
+                              });
                               setAddQuoteValue("requested_services", "", {
                                 shouldValidate: false,
                               });
@@ -2116,6 +2244,42 @@ const QuoteManagement = () => {
                           }
                         />
                       </Col>
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          key={`add-quote-sub-${addQuote.category_id || "none"}`}
+                          label="Sub Category"
+                          controlId="add-quote-subcategory"
+                          asCol={false}
+                          options={quoteSubCategoryOptions}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="subcategory_id"
+                          error={addQuoteErrors.subcategory_id}
+                          defaultValue={addQuote.subcategory_id}
+                          setValue={
+                            setAddQuoteValue as (name: string, value: any) => void
+                          }
+                          placeholder={
+                            !addQuotePartnerSelected
+                              ? "Select partner first"
+                              : !addQuote.category_id
+                                ? "Select category first"
+                                : quoteSubCategoryOptions.length
+                                  ? "Select sub category"
+                                  : "No sub categories"
+                          }
+                          menuPortal
+                          isClearable
+                          isDisabled={
+                            addQuoteFieldsLocked ||
+                            !addQuotePartnerSelected ||
+                            !String(addQuote.category_id ?? "").trim()
+                          }
+                        />
+                      </Col>
+                    </Row>
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           key={`add-quote-svc-${addQuote.category_id || "none"}`}
@@ -2214,6 +2378,9 @@ const QuoteManagement = () => {
                               setAddQuoteValue("category_id", "", {
                                 shouldValidate: false,
                               });
+                              setAddQuoteValue("subcategory_id", "", {
+                                shouldValidate: false,
+                              });
                               setAddQuoteValue("requested_services", "", {
                                 shouldValidate: false,
                               });
@@ -2252,6 +2419,8 @@ const QuoteManagement = () => {
                           isDisabled={addQuoteFieldsLocked}
                         />
                       </Col>
+                    </Row>
+                    <Row className="gy-3 gx-md-4 align-items-start">
                       <Col xs={12} md={6}>
                         <CustomTextFieldSelect
                           label="Category"
@@ -2273,6 +2442,9 @@ const QuoteManagement = () => {
                               { shouldValidate: addQuoteFormSubmitted }
                             );
                             if (name === "category_id") {
+                              setAddQuoteValue("subcategory_id", "", {
+                                shouldValidate: false,
+                              });
                               setAddQuoteValue("requested_services", "", {
                                 shouldValidate: false,
                               });
@@ -2313,6 +2485,40 @@ const QuoteManagement = () => {
                           menuPortal
                           isDisabled={
                             addQuoteFieldsLocked || !addQuotePartnerSelected
+                          }
+                        />
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <CustomTextFieldSelect
+                          key={`add-quote-sub-${addQuote.category_id || "none"}-franchise`}
+                          label="Sub Category"
+                          controlId="add-quote-subcategory-franchise"
+                          asCol={false}
+                          options={quoteSubCategoryOptions}
+                          register={
+                            addQuoteRegister as unknown as UseFormRegister<any>
+                          }
+                          fieldName="subcategory_id"
+                          error={addQuoteErrors.subcategory_id}
+                          defaultValue={addQuote.subcategory_id}
+                          setValue={
+                            setAddQuoteValue as (name: string, value: any) => void
+                          }
+                          placeholder={
+                            !addQuotePartnerSelected
+                              ? "Select partner first"
+                              : !addQuote.category_id
+                                ? "Select category first"
+                                : quoteSubCategoryOptions.length
+                                  ? "Select sub category"
+                                  : "No sub categories"
+                          }
+                          menuPortal
+                          isClearable
+                          isDisabled={
+                            addQuoteFieldsLocked ||
+                            !addQuotePartnerSelected ||
+                            !String(addQuote.category_id ?? "").trim()
                           }
                         />
                       </Col>

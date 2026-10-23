@@ -8,7 +8,9 @@ import { capitalizeString, formatDate } from "../../helper/utility";
 import CustomTable from "../../components/CustomTable";
 import AddEditCategoryDialog from "./AddEditCategoryDialog";
 import { showAddEditServiceDialog } from "./AddEditServiceDialog";
-import AddEditSubCategoryDialog from "./AddEditSubCategoryDialog";
+import {
+  showAddEditSubCategoryDialog,
+} from "./AddEditSubCategoryDialog";
 import type { SubCategoryDetails } from "./AddEditSubCategoryDialog";
 import { CategoryModel } from "../../lib/models/CategoryModel";
 import { ServiceModel } from "../../lib/models/ServiceModel";
@@ -36,6 +38,11 @@ import {
   showErrorAlert,
   showSuccessAlert,
 } from "../../lib/global/alertHelper";
+import { apiRequest } from "../../lib/global/remote/apiHelper";
+import {
+  documentUploadFailureMessage,
+  uploadDocumentImages,
+} from "../../services/documentUploadService";
 import {
   setCategoryActive as apiSetCategoryActive,
   setServiceActive as apiSetServiceActive,
@@ -44,6 +51,148 @@ import {
 const CATEGORY_ROW_ID_KEYS = ["_id", "category_id", "id"] as const;
 const SERVICE_ROW_ID_KEYS = ["_id", "service_id", "id"] as const;
 const SUBCATEGORY_ROW_ID_KEYS = ["_id", "id"] as const;
+const updateSubCategoryPath = (id: string) => `/subcategory/update/${id}`;
+
+function textField(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).trim();
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return textField(record.name ?? record.label ?? record.title ?? "");
+  }
+  return "";
+}
+
+function idField(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).trim();
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return idField(record._id ?? record.id ?? "");
+  }
+  return "";
+}
+
+function mediaField(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return mediaField(
+      record.url ?? record.path ?? record.image_url ?? record.src ?? ""
+    );
+  }
+  return "";
+}
+
+function mapSubCategoryRecord(raw: unknown): SubCategoryRow {
+  const row =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const category =
+    row.category && typeof row.category === "object"
+      ? (row.category as Record<string, unknown>)
+      : null;
+  const isActive =
+    row.is_active !== undefined
+      ? coerceCatalogRowActive(row.is_active)
+      : row.franchise_active !== undefined
+      ? coerceCatalogRowActive(row.franchise_active)
+      : true;
+  const serviceIdsFromField = Array.isArray(row.service_ids)
+    ? row.service_ids.map((item) => idField(item)).filter(Boolean)
+    : [];
+  const serviceIdsFromServices = Array.isArray(row.services)
+    ? row.services.map((item) => idField(item)).filter(Boolean)
+    : [];
+  const serviceIds =
+    serviceIdsFromField.length > 0 ? serviceIdsFromField : serviceIdsFromServices;
+  return {
+    ...(row as object),
+    _id: String(row._id ?? row.id ?? row.subcategory_id ?? "").trim(),
+    name: textField(row.name),
+    category_name:
+      textField(row.category_name) ||
+      textField(row.categoryName) ||
+      textField(category?.name) ||
+      textField(row.category_id),
+    category_id: idField(row.category_id) || idField(category?._id),
+    is_active: isActive,
+    franchise_active:
+      row.franchise_active !== undefined
+        ? coerceCatalogRowActive(row.franchise_active)
+        : isActive,
+    desc: textField(row.description ?? row.desc),
+    image_url: mediaField(row.image_url ?? row.image),
+    service_ids: serviceIds,
+  } as SubCategoryRow;
+}
+
+function extractSubCategoryPage(
+  data: unknown,
+  limit: number
+): { records: SubCategoryRow[]; totalPages: number; totalItems: number } {
+  const root =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const nested =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : null;
+  const source = Array.isArray(root.records) || Array.isArray(root.subcategories)
+    ? root
+    : nested &&
+      (Array.isArray(nested.records) || Array.isArray(nested.subcategories))
+    ? nested
+    : root;
+  const rawRecords = Array.isArray(source.records)
+    ? source.records
+    : Array.isArray(source.subcategories)
+    ? source.subcategories
+    : Array.isArray(data)
+    ? data
+    : [];
+  const totalRecords = Number(
+    source.totalRecords ??
+      source.total ??
+      source.totalItems ??
+      source.count ??
+      rawRecords.length
+  );
+  const reportedPages = Number(source.totalPages ?? root.totalPages ?? 0);
+  const pageSize = limit > 0 ? limit : 10;
+  const totalPages =
+    Number.isFinite(reportedPages) && reportedPages > 0
+      ? reportedPages
+      : totalRecords > 0
+      ? Math.ceil(totalRecords / pageSize)
+      : 0;
+  return {
+    records: rawRecords.map(mapSubCategoryRecord),
+    totalPages,
+    totalItems: Number.isFinite(totalRecords) ? totalRecords : rawRecords.length,
+  };
+}
+
+function unwrapSubCategoryGet(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== "object") return null;
+  const root = data as Record<string, unknown>;
+  const nested =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : null;
+  const candidate =
+    root.record ??
+    root.subcategory ??
+    nested?.record ??
+    nested?.subcategory ??
+    (root._id || root.id ? root : undefined) ??
+    (nested && (nested._id || nested.id) ? nested : undefined);
+  return candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : null;
+}
 
 type SubCategoryRow = SubCategoryDetails & {
   franchise_active?: boolean;
@@ -184,34 +333,13 @@ const ServiceManagement = () => {
   );
   const [serviceData, setServiceData] = useState<Record<string, number>>({});
   const [categoryList, setCategoryList] = useState<CategoryModel[]>([]);
-  const [subCategoryList, setSubCategoryList] = useState<SubCategoryRow[]>([
-    {
-      _id: "example-subcat-1",
-      name: "Facial Care",
-      category_name: "Beauty Care",
-      is_active: true,
-      franchise_active: true,
-    },
-    {
-      _id: "example-subcat-2",
-      name: "Hair Styling",
-      category_name: "Beauty Care",
-      is_active: true,
-      franchise_active: true,
-    },
-    {
-      _id: "example-subcat-3",
-      name: "Pipe Repair",
-      category_name: "Plumbing",
-      is_active: false,
-      franchise_active: false,
-    },
-  ]);
+  const [subCategoryList, setSubCategoryList] = useState<SubCategoryRow[]>([]);
   const [serviceList, setServiceList] = useState<ServiceModel[]>([]);
 
   /* ADDED: requested table states */
   const [showRequestedCategory, setShowRequestedCategory] = useState(false);
   const [showRequestedService, setShowRequestedService] = useState(false);
+  const [showRequestedSubCategory, setShowRequestedSubCategory] = useState(false);
   const [requestedCategoryList, setRequestedCategoryList] = useState<
     CategoryModel[]
   >([]);
@@ -247,6 +375,27 @@ const ServiceManagement = () => {
       requested_service:
         countModel.requested_service ?? countModel.total_requestedservice ?? 0,
     });
+    const countRecord = countModel as unknown as Record<string, unknown>;
+    setSubCategoryData((prev) => ({
+      Total:
+        "total_subcategory" in countRecord
+          ? Number(countRecord.total_subcategory ?? 0)
+          : prev.Total,
+      Active:
+        "active_subcategory" in countRecord
+          ? Number(countRecord.active_subcategory ?? 0)
+          : prev.Active,
+      Inactive:
+        "inactive_subcategory" in countRecord
+          ? Number(countRecord.inactive_subcategory ?? 0)
+          : prev.Inactive,
+      requested_subcategory:
+        "requested_subcategory" in countRecord
+          ? Number(countRecord.requested_subcategory ?? 0)
+          : "total_requestedsubcategory" in countRecord
+          ? Number(countRecord.total_requestedsubcategory ?? 0)
+          : prev.requested_subcategory,
+    }));
   }, [countModel]);
 
   const fetchData = useCallback(
@@ -311,9 +460,41 @@ const ServiceManagement = () => {
             setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-subcategory") {
+          const params = new URLSearchParams({
+            page: String(currentPage),
+            limit: String(pageSize),
+          });
+          const keyword = String(filters.keyword ?? "").trim();
+          if (keyword && !showRequestedSubCategory) {
+            params.set("keyword", keyword);
+          }
+          if (!showRequestedSubCategory && filters.status === "true") {
+            params.set("is_active", "true");
+            params.set("status", "active");
+          } else if (!showRequestedSubCategory && filters.status === "false") {
+            params.set("is_active", "false");
+            params.set("status", "inactive");
+          }
+          const response = await apiRequest(
+            `/subcategory/getAll?${params.toString()}`,
+            "GET"
+          );
           if (generation !== fetchGenerationRef.current) return;
-          // Local catalogue — filtering/paging handled in render from `subCategoryList`.
-          setTotalPages(0);
+          if (!response.success) return;
+          const page = extractSubCategoryPage(response.data, pageSize);
+          setSubCategoryList(page.records);
+          setTotalPages(page.totalPages);
+          if (!showRequestedSubCategory) {
+            setSubCategoryData((prev) => {
+              if (filters.status === "true") {
+                return { ...prev, Active: page.totalItems };
+              }
+              if (filters.status === "false") {
+                return { ...prev, Inactive: page.totalItems };
+              }
+              return { ...prev, Total: page.totalItems };
+            });
+          }
         }
       } finally {
         if (generation === fetchGenerationRef.current) {
@@ -326,26 +507,11 @@ const ServiceManagement = () => {
       pageSize,
       showRequestedCategory,
       showRequestedService,
+      showRequestedSubCategory,
       sortBy,
       catalogFranchiseId,
     ]
   );
-
-  /** Keep subcategory summary counts in sync with the local list. */
-  useEffect(() => {
-    const activeCount = subCategoryList.filter((row) =>
-      catalogActiveValue(
-        row as unknown as Record<string, unknown>,
-        catalogListStatusField
-      )
-    ).length;
-    setSubCategoryData({
-      Total: subCategoryList.length,
-      Active: activeCount,
-      Inactive: Math.max(0, subCategoryList.length - activeCount),
-      requested_subcategory: 0,
-    });
-  }, [subCategoryList, catalogListStatusField]);
 
   const filteredSubCategoryList = React.useMemo(() => {
     let rows = [...subCategoryList];
@@ -359,22 +525,6 @@ const ServiceManagement = () => {
           .includes(keyword)
       );
     }
-    if (activeFilters.status === "true") {
-      rows = rows.filter((r) =>
-        catalogActiveValue(
-          r as unknown as Record<string, unknown>,
-          catalogListStatusField
-        )
-      );
-    } else if (activeFilters.status === "false") {
-      rows = rows.filter(
-        (r) =>
-          !catalogActiveValue(
-            r as unknown as Record<string, unknown>,
-            catalogListStatusField
-          )
-      );
-    }
     const primary = sortBy[0];
     if (primary?.id === "name") {
       rows.sort((a, b) => {
@@ -386,31 +536,8 @@ const ServiceManagement = () => {
   }, [
     subCategoryList,
     activeFilters.keyword,
-    activeFilters.status,
     sortBy,
-    catalogListStatusField,
   ]);
-
-  const pagedSubCategoryList = React.useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredSubCategoryList.slice(start, start + pageSize);
-  }, [filteredSubCategoryList, currentPage, pageSize]);
-
-  const subCategoryTotalPages = React.useMemo(() => {
-    if (filteredSubCategoryList.length === 0) return 0;
-    return Math.ceil(filteredSubCategoryList.length / pageSize);
-  }, [filteredSubCategoryList.length, pageSize]);
-
-  useEffect(() => {
-    if (selectedBox !== "box-subcategory") return;
-    setTotalPages(subCategoryTotalPages);
-    if (
-      subCategoryTotalPages > 0 &&
-      currentPage > subCategoryTotalPages
-    ) {
-      setCurrentPage(subCategoryTotalPages);
-    }
-  }, [selectedBox, subCategoryTotalPages, currentPage]);
 
   const refreshData = useCallback(
     async (selected: string) => {
@@ -517,36 +644,76 @@ const ServiceManagement = () => {
 
   const openSubCategoryDialog = useCallback(
     (row: SubCategoryRow | null, isViewMode: boolean) => {
-      AddEditSubCategoryDialog.show(row, isViewMode, {
-        onSaved: (saved) => {
-          if (row?._id) {
-            setSubCategoryList((list) =>
-              list.map((item) =>
-                item._id === row._id
-                  ? {
-                      ...item,
-                      name: saved.name,
-                      category_name: saved.category_name,
-                    }
-                  : item
-              )
-            );
-            return;
-          }
-          setSubCategoryList((list) => [
-            ...list,
-            {
-              _id: `subcat-${Date.now()}`,
+      showAddEditSubCategoryDialog(row, isViewMode, {
+        onSaved: async (saved) => {
+          const subcategoryId = String(row?._id ?? "").trim();
+          if (subcategoryId) {
+            let image_url = "";
+            if (saved.image) {
+              const imageUpload = await uploadDocumentImages({
+                uploadType: "2",
+                files: [saved.image],
+                isEditMode: true,
+                existingStoragePaths: row?.image_url ? [row.image_url] : [],
+              });
+              if (!imageUpload.ok) {
+                showErrorAlert(
+                  documentUploadFailureMessage(imageUpload.usedReplace)
+                );
+                return false;
+              }
+              image_url = imageUpload.paths[0] ?? "";
+            }
+            const payload = {
               name: saved.name,
-              category_name: saved.category_name,
-              is_active: true,
-              franchise_active: true,
-            },
-          ]);
+              desc: saved.description,
+              is_active: row?.is_active !== false,
+              service_ids: saved.service_ids,
+              franchise_id: String(
+                (row as { franchise_id?: string } | null)?.franchise_id ?? ""
+              ),
+              category_id: saved.category_id,
+              ...(image_url ? { image_url } : {}),
+            };
+            const response = await apiRequest(
+              updateSubCategoryPath(subcategoryId),
+              "PUT",
+              payload
+            );
+            if (!response.success) return false;
+            await refreshData("box-subcategory");
+            return true;
+          }
+
+          // Create already done in AddEditSubCategoryDialog via POST /subcategory/create
+          await refreshData("box-subcategory");
+          return true;
         },
       });
     },
-    []
+    [refreshData]
+  );
+
+  const openSubCategoryView = useCallback(
+    async (row: SubCategoryRow) => {
+      const sid = recordIdFromRow(
+        { original: row as unknown as Record<string, unknown> },
+        SUBCATEGORY_ROW_ID_KEYS
+      );
+      if (!sid) {
+        showErrorAlert("Unable to open sub category: missing identifier.");
+        return;
+      }
+      const response = await apiRequest(`/subcategory/get/${sid}`, "GET");
+      const record = response.success
+        ? unwrapSubCategoryGet(response.data)
+        : null;
+      openSubCategoryDialog(
+        record ? mapSubCategoryRecord(record) : row,
+        true
+      );
+    },
+    [openSubCategoryDialog]
   );
 
   const setCatalogCategoryActive = useCallback(
@@ -613,10 +780,10 @@ const ServiceManagement = () => {
     currentPage,
     showRequestedCategory,
     showRequestedService,
+    showRequestedSubCategory,
     refreshData,
     catalogFranchiseId,
   ]);
-
 
   const handleFilterChange = async (
     filters: {
@@ -639,10 +806,21 @@ const ServiceManagement = () => {
   const openRequestedCategory = useCallback(() => {
     setSelectedBox("box-category");
     setShowRequestedCategory(true);
+    setShowRequestedCategory(false);
     setShowRequestedService(false);
     setCurrentPage(1);
     setSortBy([]);
   }, []);
+  const openRequestedSubCategory = useCallback(() => {
+  setSelectedBox("box-subcategory");
+  setShowRequestedSubCategory(true);
+  setShowRequestedCategory(false);
+  setShowRequestedService(false);
+  setActiveFilters({});
+  setCurrentPage(1);
+  setSortBy([]);
+}, []);
+
 
   /* ADDED: open requested service table */
   const openRequestedService = useCallback(() => {
@@ -849,14 +1027,7 @@ const ServiceManagement = () => {
           <CustomActionColumn
             row={row}
             onView={() => {
-              const sid = recordIdFromRow(row, SUBCATEGORY_ROW_ID_KEYS);
-              if (!sid) {
-                showErrorAlert(
-                  "Unable to open sub category: missing identifier."
-                );
-                return;
-              }
-              openSubCategoryDialog(row.original as SubCategoryRow, true);
+              void openSubCategoryView(row.original as SubCategoryRow);
             }}
           />
         ),
@@ -868,7 +1039,7 @@ const ServiceManagement = () => {
       franchiseCatalogScope,
       catalogListStatusField,
       setSubCategoryActive,
-      openSubCategoryDialog,
+      openSubCategoryView,
     ]
   );
 
@@ -1027,6 +1198,43 @@ const ServiceManagement = () => {
     [openRequestedCategory, currentPage, pageSize]
   );
 
+  const requestedSubCategoryColumns = React.useMemo(
+    () => [
+      {
+        Header: "SR No",
+        accessor: "serial_no",
+        Cell: ({ row }: { row: any }) =>
+          (currentPage - 1) * pageSize + row.index + 1,
+      },
+      { Header: "Sub Category Name", accessor: "name" },
+      { Header: "Category", accessor: "category_name" },
+      {
+        Header: "Date",
+        accessor: "createdAt",
+        Cell: ({ row }: { row: any }) =>
+          formatDate(row.original.createdAt || row.original.created_at),
+      },
+      {
+        Header: "Status",
+        accessor: "status",
+        Cell: requestStatusCell(),
+      },
+      {
+        Header: "Action",
+        accessor: "action",
+        Cell: ({ row }: { row: any }) => (
+          <CustomActionColumn
+            row={row}
+            onView={() => {
+              void openSubCategoryView(row.original as SubCategoryRow);
+            }}
+          />
+        ),
+      },
+    ],
+    [currentPage, pageSize, openSubCategoryView]
+  );
+
   /* ADDED: requested service columns */
   const requestedServiceColumns = React.useMemo(
     () => [
@@ -1109,16 +1317,27 @@ const ServiceManagement = () => {
               onSelect={(divId) => {
                 setSelectedBox(divId);
                 setShowRequestedCategory(false);
+                setShowRequestedSubCategory(false);
                 setShowRequestedService(false);
                 handleFilterChange({}, divId);
               }}
               isSelected={selectedBox === id}
               onFilterChange={(filter) => {
+                if (id === "box-subcategory") {
+                  setShowRequestedSubCategory(false);
+                }
                 handleFilterChange(filter);
               }}
               onItemClick={(key) => {
                 if (id === "box-category" && key === "requested_category") {
                   openRequestedCategory();
+                }
+                if (id === "box-subcategory" && key === "Total") {
+                  setShowRequestedSubCategory(false);
+                  handleFilterChange({}, "box-subcategory");
+                }
+                if (id === "box-subcategory" && key === "requested_subcategory") {
+                  openRequestedSubCategory();
                 }
                 if (id === "box-service" && key === "requested_service") {
                   openRequestedService();
@@ -1149,7 +1368,9 @@ const ServiceManagement = () => {
 
         <CustomUtilityBox
           title={
-            showRequestedCategory
+            showRequestedSubCategory
+              ? "Requested Subcategories"
+              : showRequestedCategory
               ? "Requested Categories"
               : showRequestedService
               ? "Requested Services"
@@ -1159,8 +1380,10 @@ const ServiceManagement = () => {
               ? "Sub Categories"
               : "Services"
           }
-          searchHint={`${
-            showRequestedCategory
+          searchHint={
+            showRequestedSubCategory
+              ? "Search Sub Category name"
+              : showRequestedCategory
               ? "Search Category name"
               : showRequestedService
               ? "Search Service name"
@@ -1169,7 +1392,7 @@ const ServiceManagement = () => {
               : selectedBox === "box-subcategory"
               ? "Search Sub Category name"
               : "Search Service name, Category"
-          }`}
+          }
           onSearch={(value) => {
             handleFilterChange({ keyword: value });
           }}
@@ -1178,15 +1401,18 @@ const ServiceManagement = () => {
 
         <CustomTable
           columns={
-            showRequestedCategory
-              ? requestedCategoryColumns
-              : showRequestedService
-              ? requestedServiceColumns
-              : selectedBox === "box-category"
-              ? categoryColumns
-              : selectedBox === "box-subcategory"
-              ? subCategoryColumns
-              : serviceColumns
+                    showRequestedSubCategory
+          ? requestedSubCategoryColumns
+          : showRequestedCategory
+          ? requestedCategoryColumns
+          : showRequestedService
+          ? requestedServiceColumns
+          : selectedBox === "box-category"
+          ? categoryColumns
+          : selectedBox === "box-subcategory"
+          ? subCategoryColumns
+          : serviceColumns
+           
           }
           data={
             showRequestedCategory
@@ -1196,7 +1422,7 @@ const ServiceManagement = () => {
               : selectedBox === "box-category"
               ? categoryList
               : selectedBox === "box-subcategory"
-              ? pagedSubCategoryList
+              ? filteredSubCategoryList
               : serviceList
           }
           pageSize={pageSize}

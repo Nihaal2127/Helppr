@@ -79,6 +79,105 @@ function resolveNamedLabels(
   return ids.map((id) => idToLabel.get(id) ?? id);
 }
 
+const FRANCHISE_SUB_CATEGORY_LABELS = new Map<string, string>([
+  ["sc-general", "General"],
+  ["sc-premium", "Premium"],
+  ["sc-standard", "Standard"],
+  ["sc-express", "Express"],
+  ["example-subcat-1", "Facial Care"],
+  ["example-subcat-2", "Hair Styling"],
+  ["example-subcat-3", "Pipe Repair"],
+]);
+
+function subCategoryLabel(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    const text = String(value).trim();
+    if (!text || text === "select-all") return "";
+    if (FRANCHISE_SUB_CATEGORY_LABELS.has(text)) {
+      return FRANCHISE_SUB_CATEGORY_LABELS.get(text) ?? "";
+    }
+    if (/^[a-f\d]{24}$/i.test(text)) return "";
+    return text;
+  }
+  if (typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    const name = String(
+      rec.name ??
+        rec.label ??
+        rec.subcategory_name ??
+        rec.sub_category_name ??
+        ""
+    ).trim();
+    if (name && name !== "select-all") return subCategoryLabel(name);
+    const id = String(
+      rec._id ?? rec.id ?? rec.subcategory_id ?? rec.sub_category_id ?? ""
+    ).trim();
+    return subCategoryLabel(id);
+  }
+  return "";
+}
+
+function franchiseSubCategoryLabels(row: Record<string, unknown>): string[] {
+  const buckets = [
+    row.subcategory_names,
+    row.sub_category_names,
+    row.subcategory_ids,
+    row.sub_category_ids,
+    row.subcategories,
+    row.sub_categories,
+  ];
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const bucket of buckets) {
+    const list = Array.isArray(bucket) ? bucket : normalizeLabelList(bucket);
+    for (const item of list) {
+      const label = subCategoryLabel(item);
+      const key = label.toLowerCase();
+      if (!label || seen.has(key)) continue;
+      seen.add(key);
+      labels.push(label);
+    }
+  }
+  return labels;
+}
+
+function SubCategoriesCell({ row }: { row: any }) {
+  const items = franchiseSubCategoryLabels(row.original ?? {});
+  if (items.length === 0) return <>-</>;
+  if (items.length === 1) {
+    return (
+      <span
+        className="d-inline-block text-truncate"
+        style={{ maxWidth: 180 }}
+        title={items[0]}
+      >
+        {items[0]}
+      </span>
+    );
+  }
+  const more = items.length - 1;
+  return (
+    <PinCodeHoverPortal items={items} listStyle="ul">
+      <span className="pin-code-hover-trigger d-flex align-items-center flex-nowrap gap-1 w-100 min-w-0">
+        <span
+          className="text-truncate min-w-0"
+          style={{ flex: "1 1 0%" }}
+          title={items[0]}
+        >
+          {items[0]}
+        </span>
+        <span
+          className="flex-shrink-0"
+          style={{ color: "red", fontWeight: 600 }}
+        >
+          +{more}
+        </span>
+      </span>
+    </PinCodeHoverPortal>
+  );
+}
+
 /** Categories: ellipsis + red +n; hover shows bullet list */
 function categoriesTableCell(idToLabel: Map<string, string>) {
   return function CategoriesCell({ row }: { row: any }) {
@@ -656,6 +755,11 @@ const FranchiseManagement = () => {
         accessor: "category_names",
 
         Cell: categoriesTableCell(categoryById),
+      },
+      {
+        Header: "Sub Category",
+        accessor: "subcategory_names",
+        Cell: SubCategoriesCell,
       },
       {
         Header: "Services",
