@@ -110,6 +110,7 @@ export type QuoteListFilters = {
   keyword?: string;
   from_date?: string | null;
   to_date?: string | null;
+  service_id?: string;
   /** When set, appended to `GET /quote/getAll` (franchise-scoped list). */
   franchise_id?: string | null;
 };
@@ -2734,6 +2735,11 @@ export async function fetchQuotes(
     ...(fid ? { franchise_id: fid } : {}),
   });
 
+  const serviceId = String(filters.service_id ?? "").trim();
+
+if (serviceId) {
+  params.set("service_id", serviceId);
+}
   const apiSort = quoteListSortToApi(sort);
   if (apiSort) {
     params.set("sort_by", apiSort.sort_by);

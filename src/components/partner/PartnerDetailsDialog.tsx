@@ -518,20 +518,13 @@ for (const ps of partnerServices) {
                 }
                 franchiseName={partnerFranchiseFields.franchiseName}
                 serviceCities={formatPartnerServiceCities(userDetails)}
-                
+                directOrder={
+                  ((v: unknown) =>
+                    v === true || v === "true" || v === 1 || v === "1")(
+                    userDetails?.direct_order
+                  )
+                }
               />
-              
-              <div className="mt-2">
-                <DetailsRow
-                  title="Direct Order"
-                  value={
-                    (userDetails as (UserModel & { direct_order?: boolean }) | undefined)
-                      ?.direct_order
-                      ? "ON"
-                      : "OFF"
-                  }
-                />
-              </div>
 
             </div>
             <img

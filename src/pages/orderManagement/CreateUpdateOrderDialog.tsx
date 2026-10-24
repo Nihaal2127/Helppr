@@ -141,76 +141,69 @@ import { datePickerTimeToScheduleStorage } from "../../lib/order/orderTimeUtils"
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 /** Subcategory options from franchise related-catalog partner rows (no separate getDropDown). */
+
+/** Build subcategory options from the selected partner's related-catalog record. */
 function subCategoryOptionsFromPartnerCatalog(
   partner: Record<string, unknown> | null | undefined,
   categoryId: string
 ): OptionType[] {
   const cid = String(categoryId ?? "").trim();
   if (!partner || !cid) return [];
-  const providing =
-    partner.active_services_providing ??
-    partner.activeServicesProviding ??
-    partner.services_providing ??
-    partner.servicesProviding;
+
+  // IMPORTANT: Read the subcategory array, not active_services_providing.
+  const providing = partner.active_subcategories_providing;
   const rows = Array.isArray(providing) ? providing : [];
+
   const seen = new Set<string>();
   const options: OptionType[] = [];
-  const idFrom = (v: unknown): string => {
-    if (v == null) return "";
-    if (typeof v === "string" || typeof v === "number") return String(v).trim();
-    if (typeof v === "object" && !Array.isArray(v)) {
-      const o = v as Record<string, unknown>;
-      return String(o._id ?? o.id ?? "").trim();
-    }
-    return "";
-  };
-  const nameFrom = (v: unknown): string => {
-    if (v == null || typeof v !== "object" || Array.isArray(v)) return "";
-    const o = v as Record<string, unknown>;
-    return String(o.name ?? o.label ?? o.subcategory_name ?? "").trim();
-  };
+
   for (const item of rows) {
     if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
-    const inner =
-      row.service && typeof row.service === "object" && !Array.isArray(row.service)
-        ? (row.service as Record<string, unknown>)
-        : null;
-    const rowCat =
-      idFrom(row.category_id) ||
-      idFrom(row.category) ||
-      idFrom(inner?.category_id) ||
-      idFrom(inner?.category);
-    if (rowCat && rowCat !== cid) continue;
-    const nestedSub =
-      row.subcategory_id &&
-      typeof row.subcategory_id === "object" &&
-      !Array.isArray(row.subcategory_id)
-        ? (row.subcategory_id as Record<string, unknown>)
-        : inner?.subcategory_id &&
-            typeof inner.subcategory_id === "object" &&
-            !Array.isArray(inner.subcategory_id)
-          ? (inner.subcategory_id as Record<string, unknown>)
-          : null;
-    const value =
-      idFrom(nestedSub) ||
-      idFrom(row.subcategory_id) ||
-      idFrom(row.sub_category_id) ||
-      idFrom(inner?.subcategory_id) ||
-      idFrom(inner?.sub_category_id);
-    if (!value || seen.has(value)) continue;
-    const label =
-      nameFrom(nestedSub) ||
-      String(
+
+    const row = item as Record<string, any>;
+    const subcategory = row.subcategory;
+
+    const rowCategoryId = String(
+      row.category_id ??
+        subcategory?.category_id ??
+        ""
+    ).trim();
+
+    // Only show subcategories belonging to the selected category.
+    if (rowCategoryId !== cid) continue;
+
+    // Exclude explicitly inactive records.
+    if (
+      row.is_active === false ||
+      row.effective_active === false ||
+      row.partner_enabled === false ||
+      row.global_active === false ||
+      row.franchise_enabled === false ||
+      subcategory?.is_active === false
+    ) {
+      continue;
+    }
+
+    const value = String(
+      subcategory?._id ??
+        subcategory?.id ??
+        row.subcategory_id ??
+        ""
+    ).trim();
+
+    const label = String(
+      subcategory?.name ??
+        subcategory?.label ??
         row.subcategory_name ??
-          row.sub_category_name ??
-          inner?.subcategory_name ??
-          inner?.sub_category_name ??
-          value
-      ).trim();
+        ""
+    ).trim();
+
+    if (!value || !label || seen.has(value)) continue;
+
     seen.add(value);
-    options.push({ value, label: label || value });
+    options.push({ value, label });
   }
+
   return options.sort((a, b) => a.label.localeCompare(b.label));
 }
 

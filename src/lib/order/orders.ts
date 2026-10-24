@@ -716,6 +716,7 @@ export type OrderListFilters = {
   franchise_id?: string | null;
   /** Optional `GET /order/getAll` filter. */
   subcategory_id?: string | null;
+  service_id?: string | null;
 };
 
 export type OrderListSort = ServerTableSortBy;
@@ -1177,6 +1178,7 @@ export const fetchOrder = async (
   const fid = resolveFranchiseIdForQuery(filters.franchise_id);
 
   const subcategoryId = String(filters.subcategory_id ?? "").trim();
+  const serviceId = String(filters.service_id ?? "").trim();
   const params = new URLSearchParams({
     page: String(page),
     limit: String(pageSize),
@@ -1190,6 +1192,7 @@ export const fetchOrder = async (
       : {}),
     ...(fid ? { franchise_id: fid } : {}),
     ...(subcategoryId ? { subcategory_id: subcategoryId } : {}),
+    ...(serviceId ? { service_id: serviceId } : {}),
   });
 
   if (!apiSort) {

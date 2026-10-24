@@ -612,6 +612,11 @@ function cityIdsFromRefs(raw: unknown): string[] {
   return citySelectOptionsFromRefs(raw).map((o) => o.value);
 }
 
+/** `direct_order` from `POST /user/create`, `GET /user/getAll`, and `PUT /user/update`. */
+function isPartnerDirectOrderOn(value: unknown): boolean {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 function AddEditUserDialogView({
   role,
   isEditable,
@@ -769,7 +774,7 @@ function AddEditUserDialogView({
   >([]);
   const [serviceCityIds, setServiceCityIds] = useState<string[]>([]);
   const [directOrder, setDirectOrder] = useState<boolean>(
-    Boolean((user as any)?.direct_order ?? false)
+    isPartnerDirectOrderOn((user as any)?.direct_order)
   );
 
   const serviceCitiesHydratedForUserRef = useRef<string>("");
@@ -2231,7 +2236,7 @@ function AddEditUserDialogView({
       is_active: resolvedIsActivePayload,
       is_blocked: isBlockedPayload,
       ...(role === PARTNER_ROLE && {
-        direct_order: directOrder,
+        direct_order: directOrder === true,
       }),
       pincode: isUserUpdate
         ? sanitizeIndianPincodeInput(
@@ -2452,6 +2457,10 @@ function AddEditUserDialogView({
   }, [isEditable, user, isAddPartner, isPartnerEdit, reset]);
 
   useEffect(() => {
+    setDirectOrder(isPartnerDirectOrderOn((user as any)?.direct_order));
+  }, [user, isAddPartner, isPartnerEdit]);
+
+  useEffect(() => {
     if (!usePartnerVerificationStatus || !user) return;
     const norm = normalizePartnerVerification(user.is_verified);
     if (norm === PARTNER_VERIFICATION.REJECTED) {
@@ -2530,6 +2539,21 @@ function AddEditUserDialogView({
           </Modal.Title>
           <CustomCloseButton onClose={onClose} inline={isAddPartner} />
         </Modal.Header>
+        <style>{`
+          .direct-order-switch .form-check-input {
+            width: 2.55em;
+            height: 1.35em;
+            cursor: pointer;
+          }
+          .direct-order-switch .form-check-input:checked {
+            background-color: #198754 !important;
+            border-color: #146c43 !important;
+          }
+          .direct-order-switch .form-check-input:focus {
+            box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.28);
+            border-color: #198754;
+          }
+        `}</style>
         <Modal.Body className="px-4 pb-4 pt-0">
           <form
             noValidate
@@ -2834,54 +2858,44 @@ function AddEditUserDialogView({
                     </Col>
                     
                   </Row>
-                  <Row className="g-3 add-partner-form-row">
+                  <Row className="g-3 add-partner-form-row align-items-center">
                     <Col xs={12} md={6}>
-
-                                
-                    <Row className="g-3 add-partner-form-row align-items-center">
-                      {/* Service Cities - left side */}
-                      <Col xs={12} md={6}>
-                        <Row className="align-items-center">
-                          <Col sm={4}>
-                            <label className="custom-profile-lable mb-0">
-                              <FieldLabelText
-                                label="Service Cities"
-                                required={false}
-                              />
-                            </label>
-                          </Col>
-
-                          <Col sm={8}>
-                            <CustomMultiSelect
-                              label=""
-                              controlId="Cities"
-                              asCol={false}
-                              menuPortal
-                              options={cities ?? []}
-                              value={(cities ?? []).filter((c) =>
-                                serviceCityIds.includes(String(c.value))
-                              )}
-                              onChange={(opts) =>
-                                setServiceCityIds(
-                                  opts.map((o) => String(o.value))
-                                )
-                              }
-                            />
-                          </Col>
-                        </Row>
-                      </Col>
-
-                      {/* Direct Order - right side */}
-                      <Col xs={12} md={6}>
-                        <div
-                          className="d-flex align-items-center"
-                          style={{
-                            paddingLeft: "320px",
-                            gap: "20px",
-                          }}
-                        >
-                          <span className="fw-medium">Direct order</span>
-
+                      <Row className="align-items-center">
+                        <Col sm={3} className="d-flex align-items-center">
+                          <label className="custom-profile-lable mb-0">
+                            <FieldLabelText label="Service Cities" />
+                          </label>
+                        </Col>
+                        <Col>
+                          <CustomMultiSelect
+                            label=""
+                            controlId="Cities"
+                            asCol={false}
+                            menuPortal
+                            options={cities ?? []}
+                            value={(cities ?? []).filter((c) =>
+                              serviceCityIds.includes(String(c.value))
+                            )}
+                            onChange={(opts) =>
+                              setServiceCityIds(
+                                opts.map((o) => String(o.value))
+                              )
+                            }
+                          />
+                        </Col>
+                      </Row>
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Row className="align-items-center">
+                        <Col sm={3} className="d-flex align-items-center">
+                          <label
+                            htmlFor="direct-order-toggle"
+                            className="custom-profile-lable mb-0"
+                          >
+                            Direct order
+                          </label>
+                        </Col>
+                        <Col className="d-flex align-items-center">
                           <Form.Check
                             type="switch"
                             id="direct-order-toggle"
@@ -2889,10 +2903,8 @@ function AddEditUserDialogView({
                             checked={directOrder}
                             onChange={(e) => setDirectOrder(e.target.checked)}
                           />
-                        </div>
-                      </Col>
-                    </Row>
-     
+                        </Col>
+                      </Row>
                     </Col>
                   </Row>
                   <Row className="g-3 add-partner-form-row add-partner-address-photo-row align-items-stretch">
@@ -3233,45 +3245,6 @@ function AddEditUserDialogView({
                               : "")
                       }
                     />
-                    <Row className="align-items-start">
-                      <Col sm={4} className="d-flex align-items-start">
-                        <label className="custom-profile-lable">
-                          <FieldLabelText label="Service Cities" />
-                        </label>
-                      </Col>
-                      <Col>
-                        <CustomMultiSelect
-                          label=""
-                          controlId="Service Cities"
-                          options={franchiseCityOptions}
-                          value={selectedServiceCityOptions}
-                          onChange={handleServiceCitySelection}
-                          asCol={false}
-                          menuPortal
-                          selectedChipsMaxHeight="96px"
-                        />
-                      </Col>
-
-                    </Row>
-                    
-<Row className="align-items-center mt-3">
-  <Col sm={4} className="d-flex align-items-center">
-    <label className="custom-profile-lable mb-0">
-      Direct Order
-    </label>
-  </Col>
-
-  <Col>
-    <Form.Check
-      type="switch"
-      id="direct-order-edit-toggle"
-      className="mb-0 direct-order-switch"
-      checked={directOrder}
-      onChange={(e) => setDirectOrder(e.target.checked)}
-    />
-  </Col>
-</Row>
-
                     <CustomTextField
                       label="Address"
                       controlId="address"
@@ -3419,6 +3392,29 @@ function AddEditUserDialogView({
                         setValue={setValue}
                       />
                     )}
+                    {isPartnerEdit ? (
+                      <Row className="align-items-center mt-2">
+                        <Col sm={4} className="d-flex align-items-center">
+                          <label
+                            htmlFor="direct-order-edit-toggle"
+                            className="custom-profile-lable mb-0"
+                          >
+                            Direct order
+                          </label>
+                        </Col>
+                        <Col className="d-flex align-items-center">
+                          <Form.Check
+                            type="switch"
+                            id="direct-order-edit-toggle"
+                            className="mb-0 direct-order-switch"
+                            checked={directOrder}
+                            onChange={(e) =>
+                              setDirectOrder(e.target.checked)
+                            }
+                          />
+                        </Col>
+                      </Row>
+                    ) : null}
                   </>
                 ) : null}
                 <div className="mt-2">

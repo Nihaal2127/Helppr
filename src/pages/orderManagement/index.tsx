@@ -35,6 +35,7 @@ import OrderRowActions from "./OrderRowActions";
 import { useForm, UseFormRegister } from "react-hook-form";
 import CustomSummaryBox from "../../components/CustomSummaryBox";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import CustomFormSelect from "../../components/CustomFormSelect";
 import { getCount } from "../../services/getCountService";
 import type { GetCountExtra } from "../../services/getCountService";
 import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
@@ -54,14 +55,16 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
 const OrderManagement = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const notificationDeepLinkHandledRef = useRef<string | null>(null);
+
   const { register, setValue, franchiseId: headerFranchiseId } =
     useFranchiseHeaderForm();
   const { register: dateFilterRegister, setValue: setDateFilterValue } =
     useForm<{
       from_date: string;
       to_date: string;
+      service_id: string;
     }>({
-      defaultValues: { from_date: "", to_date: "" },
+      defaultValues: { from_date: "", to_date: "", service_id: "" },
     });
 
   const [selectedStatus, setSelectedStatus] = useState<OrderTabKey>(2);
@@ -71,6 +74,9 @@ const OrderManagement = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceOptions, setServiceOptions] = useState< { label: string; value: string }[]>([]);
+  const [isServiceLoading, setIsServiceLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchClearVersion, setSearchClearVersion] = useState(0);
@@ -116,6 +122,30 @@ const OrderManagement = () => {
       fetchRef.current = false;
     },
     [currentPage, pageSize, listFilters, sortBy]
+  );
+
+  const fetchOrdersByService = useCallback(
+    async (serviceId: string) => {
+      if (!serviceId) return;
+  
+      const { response, orders, totalPages: tp } = await fetchOrder(
+        1,
+        pageSize,
+        {
+          status: String(selectedStatus),
+          service_id: serviceId,
+          ...listFilters,
+        },
+        sortBy
+      );
+  
+      if (response) {
+        setOrderList(orders);
+        setTotalPages(tp);
+        setCurrentPage(1);
+      }
+    },
+    [pageSize, selectedStatus, listFilters, sortBy]
   );
 
   const refreshData = useCallback(async () => {
@@ -460,17 +490,23 @@ const OrderManagement = () => {
           })}
         </div>
 
+        <style>{`
+          .custom-utilty-tools-inline.custom-utilty-tools-inline--orders-wide-search.order-mgmt-search-compact > .d-flex.flex-column {
+            max-width: 22rem;
+            flex: 0 1 20rem;
+          }
+        `}</style>
         <CustomUtilityBox
           key={utilitySearchKey}
           title="Orders"
           searchHint={"Search Order ID, User Name, Partner Name"}
           toolsInlineRow
-          toolsInlineClassName="custom-utilty-tools-inline--orders-wide-search"
+          toolsInlineClassName="custom-utilty-tools-inline--orders-wide-search order-mgmt-search-compact"
           hideMoreIcon
           hideUtilityActions
           controlSlot={
             <>
-              <div style={{ minWidth: "220px" }}>
+              <div style={{ minWidth: "160px", maxWidth: "180px", flex: "0 0 160px" }}>
                 <Form.Label className="mb-1 fw-medium">From Date</Form.Label>
                 <CustomDatePicker
                   label=""
@@ -493,7 +529,7 @@ const OrderManagement = () => {
                   filterDate={() => true}
                 />
               </div>
-              <div style={{ minWidth: "220px" }}>
+              <div style={{ minWidth: "160px", maxWidth: "180px", flex: "0 0 160px" }}>
                 <Form.Label className="mb-1 fw-medium">To Date</Form.Label>
                 <CustomDatePicker
                   label=""
@@ -514,6 +550,39 @@ const OrderManagement = () => {
                   groupClassName="mb-0 w-100"
                   placeholderText="To Date"
                   filterDate={() => true}
+                />
+              </div>
+              <div style={{ minWidth: "180px", maxWidth: "220px", flex: "0 1 200px" }}>
+                <CustomFormSelect
+                  label="Service"
+                  controlId="order_service_filter"
+                  options={[
+                    { value: "", label: "All Services" },
+                    ...serviceOptions,
+                  ]}
+                  register={
+                    dateFilterRegister as unknown as UseFormRegister<any>
+                  }
+                  fieldName="service_id"
+                  defaultValue={selectedServiceId}
+                  setValue={
+                    setDateFilterValue as (name: string, value: any) => void
+                  }
+                  onChange={(e) => {
+                    const serviceId = e.target.value;
+                    setSelectedServiceId(serviceId);
+                    setCurrentPage(1);
+                    if (serviceId) {
+                      fetchOrdersByService(serviceId);
+                    } else {
+                      void refreshData();
+                    }
+                  }}
+                  asCol={false}
+                  noBottomMargin
+                  menuPortal
+                  clearResetsTo=""
+                  placeholder="All Services"
                 />
               </div>
             </>

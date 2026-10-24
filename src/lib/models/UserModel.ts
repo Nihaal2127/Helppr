@@ -150,6 +150,9 @@ export interface UserModel {
   franchise_name?: string | null;
   franchise_email?: string | null;
 
+  /** Partner Direct order (`GET /user/get/:id`, `POST /user/create`, `PUT /user/update`). */
+  direct_order?: boolean | string | null;
+
   /**
    * Cities available on the partner's franchise (`GET /user/get/:id`).
    * Options for the Service Cities multi-select.

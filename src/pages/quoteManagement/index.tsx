@@ -14,6 +14,7 @@ import CustomTable from "../../components/CustomTable";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import CustomActionColumn from "../../components/CustomActionColumn";
 import CustomDatePicker from "../../components/CustomDatePicker";
+import CustomFormSelect from "../../components/CustomFormSelect";
 import CustomTextFieldDatePicket from "../../components/CustomTextFieldDatePicket";
 import CustomTextFieldSelect from "../../components/CustomTextFieldSelect";
 import CustomTextFieldTimePicket from "../../components/CustomTextFieldTimePicket";
@@ -241,6 +242,9 @@ const QuoteManagement = () => {
   const [searchClearVersion, setSearchClearVersion] = useState(0);
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+const [serviceFilterOptions, setServiceFilterOptions] = useState<OptionType[]>([]);
+const [isServiceFilterLoading, setIsServiceFilterLoading] = useState(false);
   const [utilitySearchKey, setUtilitySearchKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -249,8 +253,9 @@ const QuoteManagement = () => {
     useForm<{
       from_date: string;
       to_date: string;
+      service_id: string;
     }>({
-      defaultValues: { from_date: "", to_date: "" },
+      defaultValues: { from_date: "", to_date: "", service_id: "" },
     });
   const { register, setValue, watch } = useForm<any>({
     defaultValues: franchiseHeaderFormDefaults(),
@@ -796,12 +801,129 @@ const QuoteManagement = () => {
       keyword: searchKeyword,
       from_date: fromDate,
       to_date: toDate,
+      service_id: selectedServiceId || undefined,
       franchise_id:
         franchiseIdForApiQuery(headerFranchiseScope) || undefined,
     }),
-    [searchKeyword, fromDate, toDate, headerFranchiseScope]
+    [
+      searchKeyword,
+      fromDate,
+      toDate,
+      selectedServiceId,
+      headerFranchiseScope,
+    ]
   );
-
+  useEffect(() => {
+    let cancelled = false;
+  
+    const loadServiceFilterOptions = async () => {
+      setIsServiceFilterLoading(true);
+  
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "100",
+        });
+  
+        const franchiseId = String(
+          franchiseIdForApiQuery(headerFranchiseScope) || ""
+        ).trim();
+  
+        if (franchiseId) {
+          params.set("franchise_id", franchiseId);
+        }
+  
+        const response = await apiRequest(
+          `/quote/getAll?${params.toString()}`,
+          "GET"
+        );
+  
+        if (cancelled) return;
+  
+        if (!response.success) {
+          setServiceFilterOptions([]);
+          return;
+        }
+  
+        // Reuse the quote records to build unique service options.
+        const payload = response.data as any;
+        const nested =
+          payload?.data && typeof payload.data === "object"
+            ? payload.data
+            : null;
+  
+        const records = Array.isArray(payload?.records)
+          ? payload.records
+          : Array.isArray(nested?.records)
+            ? nested.records
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : Array.isArray(payload)
+                ? payload
+                : [];
+  
+        const unique = new Map<string, OptionType>();
+  
+        for (const record of records) {
+          const rawService =
+            record?.service_id ??
+            record?.requested_services ??
+            record?.services;
+  
+          const serviceObject =
+            rawService && typeof rawService === "object"
+              ? rawService
+              : null;
+  
+          const value = String(
+            serviceObject?._id ??
+              serviceObject?.id ??
+              (typeof rawService === "string" ||
+              typeof rawService === "number"
+                ? rawService
+                : "")
+          ).trim();
+  
+          const label = String(
+            serviceObject?.name ??
+              serviceObject?.service_name ??
+              record?.service_name ??
+              record?.requested_services_name ??
+              ""
+          ).trim();
+  
+          if (value && value !== "[object Object]") {
+            unique.set(value, {
+              value,
+              label: label || value,
+            });
+          }
+        }
+  
+        setServiceFilterOptions(
+          Array.from(unique.values()).sort((a, b) =>
+            a.label.localeCompare(b.label)
+          )
+        );
+      } catch (error) {
+        console.error("Failed to load quote service filters:", error);
+  
+        if (!cancelled) {
+          setServiceFilterOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsServiceFilterLoading(false);
+        }
+      }
+    };
+  
+    void loadServiceFilterOptions();
+  
+    return () => {
+      cancelled = true;
+    };
+  }, [headerFranchiseScope]);
   /** Refetch the paginated list for the active tab (not tab totals — those use `refreshQuoteSummaryFromGetCount`). */
   const fetchData = useCallback(async () => {
     const seq = (quoteListFetchSeqRef.current += 1);
@@ -1699,16 +1821,22 @@ const QuoteManagement = () => {
         ))}
       </div>
 
+      <style>{`
+        .custom-utilty-tools-inline.custom-utilty-tools-inline--quotes-wide-search.quote-mgmt-search-compact > .d-flex.flex-column {
+          max-width: 22rem;
+          flex: 0 1 20rem;
+        }
+      `}</style>
       <CustomUtilityBox
         key={utilitySearchKey}
         title=""
         searchHint={"Search service name, partner name, user name"}
         toolsInlineRow
-        toolsInlineClassName="custom-utilty-tools-inline--quotes-wide-search"
+        toolsInlineClassName="custom-utilty-tools-inline--quotes-wide-search quote-mgmt-search-compact"
         hideMoreIcon
         controlSlot={
           <>
-            <div style={{ minWidth: "220px" }}>
+            <div style={{ minWidth: "160px", maxWidth: "180px", flex: "0 0 160px" }}>
               <Form.Label className="mb-1 fw-medium">From date</Form.Label>
               <CustomDatePicker
                 label=""
@@ -1738,7 +1866,7 @@ const QuoteManagement = () => {
                 filterDate={() => true}
               />
             </div>
-            <div style={{ minWidth: "220px" }}>
+            <div style={{ minWidth: "160px", maxWidth: "180px", flex: "0 0 160px" }}>
               <Form.Label className="mb-1 fw-medium">To date</Form.Label>
               <CustomDatePicker
                 label=""
@@ -1766,8 +1894,37 @@ const QuoteManagement = () => {
                 }}
               />
             </div>
+            <div style={{ minWidth: "180px", maxWidth: "220px", flex: "0 1 200px" }}>
+              <CustomFormSelect
+                label="Service"
+                controlId="quote_service_filter"
+                options={[
+                  { value: "", label: "All Services" },
+                  ...serviceFilterOptions,
+                ]}
+                register={
+                  quoteFilterRegister as unknown as UseFormRegister<any>
+                }
+                fieldName="service_id"
+                defaultValue={selectedServiceId}
+                setValue={
+                  setQuoteFilterValue as (name: string, value: any) => void
+                }
+                onChange={(e) => {
+                  setSelectedServiceId(e.target.value);
+                  setCurrentPage(1);
+                }}
+                isDisabled={isServiceFilterLoading}
+                asCol={false}
+                noBottomMargin
+                menuPortal
+                clearResetsTo=""
+                placeholder="All Services"
+              />
+            </div>
           </>
         }
+        
         afterSearchSlot={
           <Button
             variant="outline-secondary"

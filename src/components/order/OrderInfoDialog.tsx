@@ -58,6 +58,14 @@ const ORDER_SUB_CATEGORY_LABELS: Record<string, string> = {
   "example-subcat-3": "Pipe Repair",
 };
 
+function nestedSubCategoryName(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  const rec = value as Record<string, unknown>;
+  return String(
+    rec.name ?? rec.label ?? rec.subcategory_name ?? rec.sub_category_name ?? ""
+  ).trim();
+}
+
 function orderSubCategoryLabel(order?: OrderModel | null): string {
   const rec = order as (OrderModel & Record<string, unknown>) | null | undefined;
   if (!rec) return "-";
@@ -65,12 +73,21 @@ function orderSubCategoryLabel(order?: OrderModel | null): string {
     rec.subcategory_name ?? rec.sub_category_name ?? ""
   ).trim();
   if (name) return name;
+  // GET /order/get/:id returns the name on subcategory_info, not subcategory_name.
+  const fromInfo = nestedSubCategoryName(
+    rec.subcategory_info ?? rec.sub_category_info
+  );
+  if (fromInfo) return fromInfo;
   const ref = rec.subcategory_id ?? rec.sub_category_id;
   if (ref && typeof ref === "object") {
-    const nested = String((ref as { name?: string }).name ?? "").trim();
+    const nested = nestedSubCategoryName(ref);
     if (nested) return nested;
   }
-  const id = String(ref ?? "").trim();
+  const id = String(
+    ref && typeof ref === "object"
+      ? (ref as { _id?: string })._id ?? ""
+      : ref ?? ""
+  ).trim();
   if (!id) return "-";
   return ORDER_SUB_CATEGORY_LABELS[id] ?? id;
 }

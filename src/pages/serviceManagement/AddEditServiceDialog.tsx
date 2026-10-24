@@ -664,9 +664,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
         }),
       category_id: resolvedCategoryId,
       subcategory_id: String((data as any).subcategory_id ?? "").trim(),
-      direct_order: isTruthyFormBool(
-        (data as any).direct_order ?? getValues("direct_order" as any)
-      ),
+      direct_order: directOrderOn,
       subcategory_name:
         subCategories.find(
           (s) => s.value === String((data as any).subcategory_id ?? "").trim()
@@ -1335,9 +1333,22 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
               </Col>
 
               <Col md={6} className="mt-3">
+                <style>{`
+                  .service-direct-order-switch.franchise-status-switch .form-check-input {
+                    width: 2.55em;
+                    height: 1.35em;
+                  }
+                `}</style>
+                <div
+                  aria-hidden="true"
+                  className="fw-medium mb-1"
+                  style={{ visibility: "hidden", lineHeight: "normal" }}
+                >
+                  Direct order
+                </div>
                 <div
                   className="d-flex align-items-center"
-                  style={{ gap: 12, minHeight: 38 }}
+                  style={{ gap: 10, minHeight: 35 }}
                 >
                   <label
                     htmlFor="service-direct-order"
@@ -1348,7 +1359,7 @@ const AddEditServiceDialog: React.FC<AddEditServiceDialogProps> & {
                   <Form.Check
                     type="switch"
                     id="service-direct-order"
-                    className={`franchise-status-switch mb-0${
+                    className={`franchise-status-switch service-direct-order-switch mb-0${
                       directOrderOn ? " franchise-status-switch--on" : ""
                     }`}
                     checked={directOrderOn}

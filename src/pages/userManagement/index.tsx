@@ -794,7 +794,7 @@ const UserManagement = () => {
     <>
       <div className="main-page-content">
         <CustomHeader
-          title="User Management"
+          title=" "
           register={register}
           setValue={setValue}
         />
