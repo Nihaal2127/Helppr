@@ -546,6 +546,57 @@ const ServiceManagement = () => {
     [fetchData, activeFilters]
   );
 
+  
+const fetchSubCategoryCounts = useCallback(async () => {
+  try {
+    const fetchCount = async (status?: "true" | "false") => {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "1",
+      });
+
+      if (status) {
+        params.set("is_active", status);
+        params.set(
+          "status",
+          status === "true" ? "active" : "inactive"
+        );
+      }
+
+      const response = await apiRequest(
+        `/subcategory/getAll?${params.toString()}`,
+        "GET"
+      );
+
+      if (!response.success) {
+        throw new Error("Failed to fetch subcategory counts");
+      }
+
+      return extractSubCategoryPage(response.data, 1).totalItems;
+    };
+
+    const [total, active, inactive] = await Promise.all([
+      fetchCount(),
+      fetchCount("true"),
+      fetchCount("false"),
+    ]);
+
+    setSubCategoryData((prev) => ({
+      ...prev,
+      Total: total,
+      Active: active,
+      Inactive: inactive,
+    }));
+  } catch (error) {
+    console.error("Failed to load subcategory counts:", error);
+  }
+}, []);
+
+useEffect(() => {
+  void fetchSubCategoryCounts();
+}, [fetchSubCategoryCounts]);
+
+
   const refreshTableAfterMutation = useCallback(
     async (box: string) => {
       await refreshSummaryCounts();
@@ -613,34 +664,102 @@ const ServiceManagement = () => {
     ]
   );
 
-  const setSubCategoryActive = useCallback(
-    (row: SubCategoryRow, is_active: boolean) => {
-      const sid = recordIdFromRow(
-        { original: row as unknown as Record<string, unknown> },
-        SUBCATEGORY_ROW_ID_KEYS
+ 
+const setSubCategoryActive = useCallback(
+  async (row: SubCategoryRow, is_active: boolean) => {
+    const sid = recordIdFromRow(
+      { original: row as unknown as Record<string, unknown> },
+      SUBCATEGORY_ROW_ID_KEYS
+    );
+
+    if (!sid) {
+      showErrorAlert(
+        "Unable to update sub category: missing identifier."
       );
-      if (!sid) {
-        showErrorAlert("Unable to update sub category: missing identifier.");
+      return;
+    }
+
+    // Prepare the PUT request body.
+    const rawRow = row as unknown as Record<string, unknown>;
+
+    const rawServices = Array.isArray(row.service_ids)
+      ? row.service_ids
+      : Array.isArray(rawRow.services)
+      ? (rawRow.services as unknown[])
+      : [];
+
+    const payload = {
+      name: row.name,
+      desc: row.desc ?? "",
+      category_id: idField(row.category_id),
+      service_ids: rawServices.map((service) => idField(service)).filter(Boolean),
+      is_active,
+      ...(row.image_url ? { image_url: row.image_url } : {}),
+    };
+
+    try {
+      const response = await apiRequest(
+        updateSubCategoryPath(sid),
+        "PUT",
+        payload
+      );
+
+      if (!response.success) {
+        showErrorAlert(
+          "Could not update sub category status."
+        );
         return;
       }
+
+      // Read the status confirmed by the backend.
+      const responseData =
+        response.data &&
+        typeof response.data === "object"
+          ? (response.data as Record<string, unknown>)
+          : {};
+
+      const record =
+        responseData.record &&
+        typeof responseData.record === "object"
+          ? (responseData.record as Record<string, unknown>)
+          : responseData;
+
+      const confirmedStatus =
+        record.is_active !== undefined
+          ? coerceCatalogRowActive(record.is_active)
+          : is_active;
+
+      // Update the table after a successful API response.
       setSubCategoryList((list) =>
         list.map((item) => {
           const id = recordIdFromRow(
             { original: item as unknown as Record<string, unknown> },
             SUBCATEGORY_ROW_ID_KEYS
           );
+
           if (id !== sid) return item;
+
           return {
             ...item,
-            is_active,
-            franchise_active: is_active,
+            is_active: confirmedStatus,
+            franchise_active: confirmedStatus,
           };
         })
       );
-      showSuccessAlert("Sub category status updated");
-    },
-    []
-  );
+
+      showSuccessAlert(
+        "Sub category status updated successfully."
+      );
+
+      await refreshTableAfterMutation("box-subcategory");
+    } catch (error) {
+      showErrorAlert(
+        "An error occurred while updating sub category status."
+      );
+    }
+  },
+  [refreshTableAfterMutation]
+);
 
   const openSubCategoryDialog = useCallback(
     (row: SubCategoryRow | null, isViewMode: boolean) => {
@@ -1013,7 +1132,7 @@ const ServiceManagement = () => {
               }
               onChange={(e) => {
                 e.stopPropagation();
-                setSubCategoryActive(sub, e.target.checked);
+                void setSubCategoryActive(sub, e.target.checked);
               }}
               onClick={(e) => e.stopPropagation()}
             />
