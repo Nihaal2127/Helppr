@@ -6,7 +6,6 @@ import CustomHeader from "../../components/CustomHeader";
 import CustomTable from "../../components/CustomTable";
 import CustomUtilityBox from "../../components/CustomUtilityBox";
 import { formatDate } from "../../helper/utility";
-import { useFranchiseHeaderForm } from "../../lib/global/hooks/useFranchiseScopedGetCount";
 import { toIsoCalendarDate } from "../../lib/quote/quoteHelpers";
 
 type AuditLogRow = {
@@ -24,8 +23,6 @@ type AuditLogRow = {
 const AUDIT_LOGS: AuditLogRow[] = [];
 
 const AuditLogsPage = () => {
-  const { register: headerRegister, setValue: setHeaderValue } =
-    useFranchiseHeaderForm();
   const { register, setValue } = useForm();
   const [keyword, setKeyword] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
@@ -142,8 +139,8 @@ const AuditLogsPage = () => {
     <div className="main-page-content">
       <CustomHeader
         title="Audit Logs"
-        register={headerRegister}
-        setValue={setHeaderValue}
+        hideFranchiseDropdown
+        hideNotifications
       />
 
       <CustomUtilityBox
