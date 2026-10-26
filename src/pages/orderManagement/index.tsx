@@ -52,6 +52,101 @@ const toIsoCalendarDate = (date: Date | null): string | null => {
   return `${y}-${m}-${d}`;
 };
 
+function orderServiceFilterId(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    return String(rec._id ?? rec.id ?? rec.service_id ?? "").trim();
+  }
+  const s = String(value).trim();
+  return !s || s === "[object Object]" ? "" : s;
+}
+
+function orderServiceFilterLabel(value: unknown, fallback?: unknown): string {
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    const fromObj = String(
+      rec.name ?? rec.service_name ?? rec.label ?? ""
+    ).trim();
+    if (fromObj) return fromObj;
+  }
+  const fromFallback = String(fallback ?? "").trim();
+  if (fromFallback && fromFallback !== "[object Object]") return fromFallback;
+  return "";
+}
+
+/** Unique Service filter options from `GET /order/getAll` rows. */
+function serviceFilterOptionsFromOrders(
+  orders: OrderModel[]
+): { value: string; label: string }[] {
+  const unique = new Map<string, { value: string; label: string }>();
+  const push = (idRaw: unknown, nameRaw?: unknown) => {
+    const value = orderServiceFilterId(idRaw);
+    if (!value) return;
+    const label = orderServiceFilterLabel(idRaw, nameRaw) || value;
+    const existing = unique.get(value);
+    if (!existing || (existing.label === existing.value && label !== value)) {
+      unique.set(value, { value, label });
+    }
+  };
+
+  for (const order of orders) {
+    const rec = order as unknown as Record<string, unknown>;
+    push(
+      rec.service_id ?? rec.requested_services,
+      rec.service_name ?? rec.requested_services_name
+    );
+    const items = Array.isArray(rec.service_items) ? rec.service_items : [];
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const it = item as Record<string, unknown>;
+      const info =
+        it.service_info && typeof it.service_info === "object"
+          ? (it.service_info as Record<string, unknown>)
+          : null;
+      push(
+        it.service_id ?? info?._id ?? info?.id,
+        it.service_name ?? info?.name ?? info?.service_name
+      );
+    }
+    const nested = rec.services ?? rec.order_services;
+    if (Array.isArray(nested)) {
+      for (const item of nested) {
+        if (item && typeof item === "object") {
+          const it = item as Record<string, unknown>;
+          push(it._id ?? it.service_id ?? it.id, it.name ?? it.service_name);
+        } else {
+          push(item);
+        }
+      }
+    }
+  }
+
+  return Array.from(unique.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
+}
+
+function mergeServiceFilterOptions(
+  prev: { value: string; label: string }[],
+  next: { value: string; label: string }[]
+): { value: string; label: string }[] {
+  const map = new Map(prev.map((row) => [row.value, row]));
+  for (const row of next) {
+    if (!row.value) continue;
+    const existing = map.get(row.value);
+    if (
+      !existing ||
+      (existing.label === existing.value && row.label && row.label !== row.value)
+    ) {
+      map.set(row.value, row);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
+}
+
 const OrderManagement = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const notificationDeepLinkHandledRef = useRef<string | null>(null);
@@ -118,6 +213,9 @@ const OrderManagement = () => {
       if (response) {
         setOrderList(orders);
         setTotalPages(tp);
+        setServiceOptions((prev) =>
+          mergeServiceFilterOptions(prev, serviceFilterOptionsFromOrders(orders))
+        );
       }
       fetchRef.current = false;
     },
@@ -143,6 +241,9 @@ const OrderManagement = () => {
         setOrderList(orders);
         setTotalPages(tp);
         setCurrentPage(1);
+        setServiceOptions((prev) =>
+          mergeServiceFilterOptions(prev, serviceFilterOptionsFromOrders(orders))
+        );
       }
     },
     [pageSize, selectedStatus, listFilters, sortBy]
@@ -242,6 +343,31 @@ const OrderManagement = () => {
   useEffect(() => {
     void Promise.all([reloadTabCounts(), refreshData()]);
   }, [reloadTabCounts, refreshData, currentPage, selectedStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadServiceFilterOptions = async () => {
+      setIsServiceLoading(true);
+      try {
+        const fid = franchiseIdForApiQuery(headerFranchiseId);
+        const { response, orders } = await fetchOrder(1, 100, {
+          status: String(selectedStatus),
+          ...(fid ? { franchise_id: fid } : {}),
+        });
+        if (cancelled) return;
+        const next = response
+          ? serviceFilterOptionsFromOrders(orders)
+          : [];
+        setServiceOptions((prev) => mergeServiceFilterOptions(prev, next));
+      } finally {
+        if (!cancelled) setIsServiceLoading(false);
+      }
+    };
+    void loadServiceFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [headerFranchiseId, selectedStatus]);
 
   const clearOrderFilters = useCallback(() => {
     setFromDate(null);
