@@ -95,8 +95,11 @@ async function fetchSubCategoryDropDownOptions(
   const cid = String(categoryId ?? "").trim();
   const dropParams = new URLSearchParams();
   if (cid) dropParams.set("category_id", cid);
+  const dropQuery = dropParams.toString();
   const dropRes = await apiRequest(
-    `/subcategory/getDropDown?${dropParams.toString()}`,
+    dropQuery
+      ? `/subcategory/getDropDown?${dropQuery}`
+      : `/subcategory/getDropDown`,
     "GET",
     undefined,
     false,
@@ -231,9 +234,10 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
 
   const loadSubCategoryOptions = useCallback(async () => {
     const editingId = String(category?._id ?? "").trim();
-    const draft = String(draftCategoryIdRef.current ?? "").trim();
-    const scopeId = editingId || draft || undefined;
-    const rows = await fetchSubCategoryDropDownOptions(scopeId);
+    // Add Category: keep the previous unscoped Sub Category dropdown (full getDropDown list).
+    const rows = await fetchSubCategoryDropDownOptions(
+      editingId || undefined
+    );
     const options = [
       { value: SELECT_ALL_OPTION, label: "Select All" },
       ...rows,
@@ -549,6 +553,11 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
       presetCategoryId: resolvedCategoryId,
       onSaved: async () => {
         // Create already done in AddEditSubCategoryDialog via POST /subcategory/create
+        const previousServiceIds = new Set(
+          serviceOptions
+            .filter((s) => s.value !== SELECT_ALL_OPTION)
+            .map((s) => s.value)
+        );
         const refreshedOptions = await loadSubCategoryOptions();
         setSubCategoryIds((prev) => {
           const next = new Set(prev);
@@ -556,6 +565,18 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
             .filter(
               (s) =>
                 s.value !== SELECT_ALL_OPTION && !previousSubIds.has(s.value)
+            )
+            .forEach((s) => next.add(s.value));
+          return Array.from(next);
+        });
+        const refreshedServices = await loadServiceOptions();
+        setServiceIds((prev) => {
+          const next = new Set(prev);
+          refreshedServices
+            .filter(
+              (s) =>
+                s.value !== SELECT_ALL_OPTION &&
+                !previousServiceIds.has(s.value)
             )
             .forEach((s) => next.add(s.value));
           return Array.from(next);
@@ -569,11 +590,14 @@ const AddEditCategoryDialog: React.FC<AddEditCategoryDialogProps> & {
     draftCategoryId,
     fileInputs,
     getValues,
+    loadServiceOptions,
     loadSubCategoryOptions,
     onRefreshData,
+    serviceOptions,
     subCategoryOptions,
     setDraftCategoryId,
     setDraftImageUrl,
+    setServiceIds,
     setSubCategoryIds,
   ]);
 

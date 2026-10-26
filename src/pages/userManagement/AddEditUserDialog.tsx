@@ -238,7 +238,40 @@ function ensurePartnerCatalogBlocks(
   });
 }
 
-type OptionType = { value: string; label: string };
+type OptionType = { value: string; label: string; service_ids?: string[] };
+
+type AddPartnerServiceLite = PartnerCatalogServiceLite & {
+  subcategory_id?: string;
+};
+
+function catalogRefIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    let id = "";
+    if (item && typeof item === "object") {
+      const rec = item as Record<string, unknown>;
+      id = String(
+        rec._id ?? rec.id ?? rec.service_id ?? rec.value ?? ""
+      ).trim();
+    } else {
+      id = String(item ?? "").trim();
+    }
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function serviceSubCategoryIdFromRow(row: Record<string, unknown>): string {
+  return (
+    normalizeServiceCategoryRef(row.subcategory_id) ||
+    normalizeServiceCategoryRef(row.sub_category_id) ||
+    normalizeServiceCategoryRef(row.subcategory)
+  );
+}
 
 function extractSubCategoryOptionsFromGetAll(
   data: unknown
@@ -284,12 +317,20 @@ function extractSubCategoryOptionsFromGetAll(
       String(row.name ?? row.label ?? row.subcategory_name ?? "").trim() ||
       value;
     seen.add(value);
-    options.push({ value, label });
+    const serviceIds = [
+      ...catalogRefIds(row.service_ids),
+      ...catalogRefIds(row.services),
+    ];
+    options.push({
+      value,
+      label,
+      ...(serviceIds.length > 0 ? { service_ids: serviceIds } : {}),
+    });
   }
   return options;
 }
 
-function extractServicesFromGetAll(data: unknown): PartnerCatalogServiceLite[] {
+function extractServicesFromGetAll(data: unknown): AddPartnerServiceLite[] {
   const buckets: unknown[] = [];
   const push = (value: unknown) => {
     if (Array.isArray(value)) buckets.push(...value);
@@ -311,7 +352,7 @@ function extractServicesFromGetAll(data: unknown): PartnerCatalogServiceLite[] {
   };
   walk(data);
   const seen = new Set<string>();
-  const out: PartnerCatalogServiceLite[] = [];
+  const out: AddPartnerServiceLite[] = [];
   for (const item of buckets) {
     const row =
       item && typeof item === "object"
@@ -329,6 +370,7 @@ function extractServicesFromGetAll(data: unknown): PartnerCatalogServiceLite[] {
       _id: value,
       name: String(row.name ?? row.label ?? "").trim() || value,
       category_id: normalizeServiceCategoryRef(row.category_id),
+      subcategory_id: serviceSubCategoryIdFromRow(row),
       price: Number.isFinite(priceNum) ? priceNum : undefined,
       payment_type: String(
         row.payment_type ?? row.min_deposit_type ?? ""
@@ -704,7 +746,7 @@ function AddEditUserDialogView({
   >({});
   /** Add Partner: services from `GET /service/getAll?subcategory_id=`. */
   const [servicesBySubCategoryId, setServicesBySubCategoryId] = useState<
-    Record<string, PartnerCatalogServiceLite[]>
+    Record<string, AddPartnerServiceLite[]>
   >({});
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -1133,30 +1175,79 @@ function AddEditUserDialogView({
     async (subcategoryId: string, categoryId?: string) => {
       const sid = String(subcategoryId ?? "").trim();
       if (!sid || !isAddPartner) return;
-      // Same cache pattern as category / subcategory loaders
-      if ((servicesBySubCategoryId[sid] ?? []).length > 0) return;
+      const cid = String(categoryId ?? "").trim();
+      const allowedIds = new Set<string>();
+      const subRows = cid
+        ? subCategoriesByCategoryId[cid] ?? []
+        : Object.values(subCategoriesByCategoryId).flat();
+      const subHit = subRows.find((option) => option.value === sid);
+      for (const id of subHit?.service_ids ?? []) {
+        if (id) allowedIds.add(id);
+      }
+      const cached = servicesBySubCategoryId[sid] ?? [];
+      if (
+        cached.length > 0 &&
+        cached.every((s) => {
+          const recSub = String(s.subcategory_id ?? "").trim();
+          return recSub === sid || allowedIds.has(s._id);
+        })
+      ) {
+        return;
+      }
       if (addPartnerServicesLoadingRef.current.has(sid)) return;
       addPartnerServicesLoadingRef.current.add(sid);
-      const cid = String(categoryId ?? "").trim();
       try {
-        // GET /service/getAll?subcategory_id=… (Postman: subcategory_id only)
-        const params = new URLSearchParams({ subcategory_id: sid });
-        const res = await apiRequest(
-          `/service/getAll?${params.toString()}`,
+
+        const byId = new Map<string, AddPartnerServiceLite>();
+        const ingest = (data: unknown) => {
+          for (const row of extractServicesFromGetAll(data)) {
+            const matchesSub = row.subcategory_id === sid;
+            const matchesAllowed = allowedIds.has(row._id);
+            const matchesCat =
+              !cid || !row.category_id || row.category_id === cid;
+            if ((matchesSub || matchesAllowed) && matchesCat) {
+              byId.set(row._id, {
+                ...row,
+                category_id: cid || row.category_id,
+                subcategory_id: sid,
+              });
+            }
+          }
+        };
+
+        const subParams = new URLSearchParams({
+          page: "1",
+          limit: "200",
+          subcategory_id: sid,
+        });
+        const subRes = await apiRequest(
+          `/service/getAll?${subParams.toString()}`,
           "GET",
           undefined,
           false,
           true
         );
-        const mapped = res.success
-          ? extractServicesFromGetAll(res.data).map((s) => ({
-              ...s,
-              category_id: cid || s.category_id,
-            }))
-          : [];
+        if (subRes.success) ingest(subRes.data);
+
+        if (cid) {
+          const catParams = new URLSearchParams({
+            page: "1",
+            limit: "200",
+            category_id: cid,
+          });
+          const catRes = await apiRequest(
+            `/service/getAll?${catParams.toString()}`,
+            "GET",
+            undefined,
+            false,
+            true
+          );
+          if (catRes.success) ingest(catRes.data);
+        }
+
         setServicesBySubCategoryId((prev) => ({
           ...prev,
-          [sid]: mapped,
+          [sid]: Array.from(byId.values()),
         }));
       } catch {
         setServicesBySubCategoryId((prev) => ({ ...prev, [sid]: [] }));
@@ -1164,7 +1255,7 @@ function AddEditUserDialogView({
         addPartnerServicesLoadingRef.current.delete(sid);
       }
     },
-    [isAddPartner, servicesBySubCategoryId]
+    [isAddPartner, servicesBySubCategoryId, subCategoriesByCategoryId]
   );
 
   useEffect(() => {
@@ -1714,10 +1805,23 @@ function AddEditUserDialogView({
           .filter((svc) => String(svc.category_id) === String(categoryId))
           .map((s) => ({ _id: s._id, name: s.name }));
       } else {
-        baseList = (servicesBySubCategoryId[subcategoryId] ?? []).map((s) => ({
-          _id: String(s._id),
-          name: String(s.name),
-        }));
+        const allowedIds = new Set(
+          (subCategoriesByCategoryId[categoryId] ?? []).find(
+            (option) => option.value === subcategoryId
+          )?.service_ids ?? []
+        );
+        baseList = (servicesBySubCategoryId[subcategoryId] ?? [])
+          .filter((s) => {
+            const recSub = String(s.subcategory_id ?? "").trim();
+            const recCat = String(s.category_id ?? "").trim();
+            if (recCat && recCat !== categoryId) return false;
+            if (recSub) return recSub === subcategoryId;
+            return allowedIds.has(String(s._id));
+          })
+          .map((s) => ({
+            _id: String(s._id),
+            name: String(s.name),
+          }));
       }
 
       const ordered: OptionType[] = [];
@@ -1752,6 +1856,7 @@ function AddEditUserDialogView({
       isAddPartner,
       allServices,
       servicesBySubCategoryId,
+      subCategoriesByCategoryId,
       catalogServicesForBlocks,
     ]
   );

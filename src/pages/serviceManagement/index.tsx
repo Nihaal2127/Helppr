@@ -175,6 +175,141 @@ function extractSubCategoryPage(
   };
 }
 
+function humanCatalogName(value: unknown): string {
+  const s = textField(value);
+  if (!s || /^[a-f0-9]{24}$/i.test(s)) return "";
+  return s;
+}
+
+function serviceRowSubCategoryName(row: Record<string, unknown>): string {
+  return (
+    humanCatalogName(row.subcategory_name) ||
+    humanCatalogName(row.sub_category_name) ||
+    humanCatalogName(row.subcategoryName) ||
+    humanCatalogName(row.subCategory) ||
+    humanCatalogName(row.subcategory) ||
+    humanCatalogName(row.sub_category) ||
+    humanCatalogName(row.subcategory_id) ||
+    humanCatalogName(row.sub_category_id)
+  );
+}
+
+type SubCategoryLookup = {
+  nameById: Map<string, string>;
+  namesByCategoryId: Map<string, string[]>;
+};
+
+async function fetchSubCategoryLookup(): Promise<SubCategoryLookup> {
+  const nameById = new Map<string, string>();
+  const namesByCategoryId = new Map<string, string[]>();
+  const addPayload = (data: unknown) => {
+    const page = extractSubCategoryPage(data, 200);
+    for (const row of page.records) {
+      const id = String(row._id ?? "").trim();
+      const name = String(row.name ?? "").trim();
+      if (id && name) nameById.set(id, name);
+      const categoryId = String(row.category_id ?? "").trim();
+      if (categoryId && name) {
+        const list = namesByCategoryId.get(categoryId) ?? [];
+        if (!list.includes(name)) list.push(name);
+        namesByCategoryId.set(categoryId, list);
+      }
+    }
+  };
+
+  const dropRes = await apiRequest(
+    "/subcategory/getDropDown",
+    "GET",
+    undefined,
+    true,
+    true
+  );
+  if (dropRes.success) addPayload(dropRes.data);
+
+  const listRes = await apiRequest(
+    "/subcategory/getAll?page=1&limit=200",
+    "GET",
+    undefined,
+    true,
+    true
+  );
+  if (listRes.success) addPayload(listRes.data);
+
+  return { nameById, namesByCategoryId };
+}
+
+function withServiceSubCategoryName(
+  service: ServiceModel,
+  lookup: SubCategoryLookup
+): ServiceModel {
+  const row = service as unknown as Record<string, unknown>;
+  const existing = serviceRowSubCategoryName(row);
+  if (existing) {
+    return { ...service, subcategory_name: existing } as ServiceModel;
+  }
+  const subId =
+    idField(row.subcategory_id) || idField(row.sub_category_id);
+  const fromId = subId ? lookup.nameById.get(subId) ?? "" : "";
+  if (fromId) {
+    return { ...service, subcategory_name: fromId } as ServiceModel;
+  }
+  const categoryId = idField(row.category_id);
+  const fromCategory = categoryId
+    ? lookup.namesByCategoryId.get(categoryId) ?? []
+    : [];
+  if (fromCategory.length === 1) {
+    return { ...service, subcategory_name: fromCategory[0] } as ServiceModel;
+  }
+  return service;
+}
+
+function extractRequestedCategoryPage(
+  data: unknown,
+  limit: number
+): { records: CategoryModel[]; totalPages: number } {
+  const root =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const nested =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : null;
+  const source =
+    Array.isArray(root.records) || Array.isArray(root.categories)
+      ? root
+      : nested &&
+        (Array.isArray(nested.records) || Array.isArray(nested.categories))
+      ? nested
+      : root;
+  const rawRecords = Array.isArray(source.records)
+    ? source.records
+    : Array.isArray(source.categories)
+    ? source.categories
+    : Array.isArray(root.data)
+    ? (root.data as unknown[])
+    : [];
+  const totalRecords = Number(
+    source.totalRecords ??
+      source.total ??
+      source.totalItems ??
+      source.count ??
+      rawRecords.length
+  );
+  const reportedPages = Number(source.totalPages ?? root.totalPages ?? 0);
+  const pageSize = limit > 0 ? limit : 10;
+  const totalPages =
+    Number.isFinite(reportedPages) && reportedPages > 0
+      ? reportedPages
+      : totalRecords > 0
+      ? Math.ceil(totalRecords / pageSize)
+      : 0;
+  return {
+    records: rawRecords.filter(
+      (row): row is CategoryModel => Boolean(row) && typeof row === "object"
+    ) as CategoryModel[],
+    totalPages,
+  };
+}
+
 function unwrapSubCategoryGet(data: unknown): Record<string, unknown> | null {
   if (!data || typeof data !== "object") return null;
   const root = data as Record<string, unknown>;
@@ -390,10 +525,10 @@ const ServiceManagement = () => {
           ? Number(countRecord.inactive_subcategory ?? 0)
           : prev.Inactive,
       requested_subcategory:
-        "requested_subcategory" in countRecord
-          ? Number(countRecord.requested_subcategory ?? 0)
-          : "total_requestedsubcategory" in countRecord
-          ? Number(countRecord.total_requestedsubcategory ?? 0)
+        Number(countRecord.requested_subcategory ?? 0) > 0
+          ? Number(countRecord.requested_subcategory)
+          : Number(countRecord.total_requestedsubcategory ?? 0) > 0
+          ? Number(countRecord.total_requestedsubcategory)
           : prev.requested_subcategory,
     }));
   }, [countModel]);
@@ -412,28 +547,43 @@ const ServiceManagement = () => {
 
       try {
         if (selected === "box-category") {
-          const { response, categories, totalPages, resolvedPage } =
-            await fetchCategory(
-            currentPage,
-            pageSize,
-            {
-              ...filters,
-              ...(showRequestedCategory ? { is_request: "true" } : {}),
-            },
-            sortBy,
-            catalogFranchiseId || undefined
-          );
-          if (response) {
+          if (showRequestedCategory) {
+            const params = new URLSearchParams({
+              page: String(currentPage),
+              limit: String(pageSize),
+              is_request: "true",
+            });
+            const keyword = String(filters.keyword ?? "").trim();
+            if (keyword) {
+              params.set("search", keyword);
+              params.set("keyword", keyword);
+            }
+            const response = await apiRequest(
+              `/category/getAll?${params.toString()}`,
+              "GET"
+            );
             if (generation !== fetchGenerationRef.current) return;
-            if (typeof resolvedPage === "number") {
-              setCurrentPage(resolvedPage);
-            }
-            if (showRequestedCategory) {
-              setRequestedCategoryList(categories || []);
-            } else {
+            if (!response.success) return;
+            const page = extractRequestedCategoryPage(response.data, pageSize);
+            setRequestedCategoryList(page.records);
+            setTotalPages(page.totalPages);
+          } else {
+            const { response, categories, totalPages, resolvedPage } =
+              await fetchCategory(
+                currentPage,
+                pageSize,
+                filters,
+                sortBy,
+                catalogFranchiseId || undefined
+              );
+            if (response) {
+              if (generation !== fetchGenerationRef.current) return;
+              if (typeof resolvedPage === "number") {
+                setCurrentPage(resolvedPage);
+              }
               setCategoryList(categories || []);
+              setTotalPages(totalPages || 0);
             }
-            setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-service") {
           const { response, services, totalPages, resolvedPage } =
@@ -452,39 +602,68 @@ const ServiceManagement = () => {
             if (typeof resolvedPage === "number") {
               setCurrentPage(resolvedPage);
             }
+            const lookup = await fetchSubCategoryLookup();
+            if (generation !== fetchGenerationRef.current) return;
+            const withNames = (services || []).map((item) =>
+              withServiceSubCategoryName(item, lookup)
+            );
             if (showRequestedService) {
-              setRequestedServiceList(services || []);
+              setRequestedServiceList(withNames);
             } else {
-              setServiceList(services || []);
+              setServiceList(withNames);
             }
             setTotalPages(totalPages || 0);
           }
         } else if (selected === "box-subcategory") {
-          const params = new URLSearchParams({
-            page: String(currentPage),
-            limit: String(pageSize),
-          });
-          const keyword = String(filters.keyword ?? "").trim();
-          if (keyword && !showRequestedSubCategory) {
-            params.set("keyword", keyword);
-          }
-          if (!showRequestedSubCategory && filters.status === "true") {
-            params.set("is_active", "true");
-            params.set("status", "active");
-          } else if (!showRequestedSubCategory && filters.status === "false") {
-            params.set("is_active", "false");
-            params.set("status", "inactive");
-          }
-          const response = await apiRequest(
-            `/subcategory/getAll?${params.toString()}`,
-            "GET"
-          );
-          if (generation !== fetchGenerationRef.current) return;
-          if (!response.success) return;
-          const page = extractSubCategoryPage(response.data, pageSize);
-          setSubCategoryList(page.records);
-          setTotalPages(page.totalPages);
-          if (!showRequestedSubCategory) {
+          if (showRequestedSubCategory) {
+            const params = new URLSearchParams({
+              page: String(currentPage),
+              limit: String(pageSize),
+              is_request: "true",
+            });
+            const keyword = String(filters.keyword ?? "").trim();
+            if (keyword) {
+              params.set("search", keyword);
+              params.set("keyword", keyword);
+            }
+            const response = await apiRequest(
+              `/subcategory/getAll?${params.toString()}`,
+              "GET"
+            );
+            if (generation !== fetchGenerationRef.current) return;
+            if (!response.success) return;
+            const page = extractSubCategoryPage(response.data, pageSize);
+            setSubCategoryList(page.records);
+            setTotalPages(page.totalPages);
+            setSubCategoryData((prev) => ({
+              ...prev,
+              requested_subcategory: page.totalItems,
+            }));
+          } else {
+            const params = new URLSearchParams({
+              page: String(currentPage),
+              limit: String(pageSize),
+            });
+            const keyword = String(filters.keyword ?? "").trim();
+            if (keyword) {
+              params.set("keyword", keyword);
+            }
+            if (filters.status === "true") {
+              params.set("is_active", "true");
+              params.set("status", "active");
+            } else if (filters.status === "false") {
+              params.set("is_active", "false");
+              params.set("status", "inactive");
+            }
+            const response = await apiRequest(
+              `/subcategory/getAll?${params.toString()}`,
+              "GET"
+            );
+            if (generation !== fetchGenerationRef.current) return;
+            if (!response.success) return;
+            const page = extractSubCategoryPage(response.data, pageSize);
+            setSubCategoryList(page.records);
+            setTotalPages(page.totalPages);
             setSubCategoryData((prev) => {
               if (filters.status === "true") {
                 return { ...prev, Active: page.totalItems };
@@ -549,17 +728,22 @@ const ServiceManagement = () => {
   
 const fetchSubCategoryCounts = useCallback(async () => {
   try {
-    const fetchCount = async (status?: "true" | "false") => {
+    const fetchCount = async (opts?: {
+      status?: "true" | "false";
+      isRequest?: boolean;
+    }) => {
       const params = new URLSearchParams({
         page: "1",
         limit: "1",
       });
 
-      if (status) {
-        params.set("is_active", status);
+      if (opts?.isRequest) {
+        params.set("is_request", "true");
+      } else if (opts?.status) {
+        params.set("is_active", opts.status);
         params.set(
           "status",
-          status === "true" ? "active" : "inactive"
+          opts.status === "true" ? "active" : "inactive"
         );
       }
 
@@ -575,10 +759,11 @@ const fetchSubCategoryCounts = useCallback(async () => {
       return extractSubCategoryPage(response.data, 1).totalItems;
     };
 
-    const [total, active, inactive] = await Promise.all([
+    const [total, active, inactive, requested] = await Promise.all([
       fetchCount(),
-      fetchCount("true"),
-      fetchCount("false"),
+      fetchCount({ status: "true" }),
+      fetchCount({ status: "false" }),
+      fetchCount({ isRequest: true }),
     ]);
 
     setSubCategoryData((prev) => ({
@@ -586,6 +771,7 @@ const fetchSubCategoryCounts = useCallback(async () => {
       Total: total,
       Active: active,
       Inactive: inactive,
+      requested_subcategory: requested,
     }));
   } catch (error) {
     console.error("Failed to load subcategory counts:", error);
@@ -766,6 +952,10 @@ const setSubCategoryActive = useCallback(
       showAddEditSubCategoryDialog(row, isViewMode, {
         onSaved: async (saved) => {
           const subcategoryId = String(row?._id ?? "").trim();
+          if (saved.requestModerationHandled) {
+            await refreshData("box-subcategory");
+            return true;
+          }
           if (subcategoryId) {
             let image_url = "";
             if (saved.image) {
@@ -925,27 +1115,29 @@ const setSubCategoryActive = useCallback(
   const openRequestedCategory = useCallback(() => {
     setSelectedBox("box-category");
     setShowRequestedCategory(true);
-    setShowRequestedCategory(false);
+    setShowRequestedSubCategory(false);
     setShowRequestedService(false);
+    setActiveFilters({});
     setCurrentPage(1);
     setSortBy([]);
   }, []);
   const openRequestedSubCategory = useCallback(() => {
-  setSelectedBox("box-subcategory");
-  setShowRequestedSubCategory(true);
-  setShowRequestedCategory(false);
-  setShowRequestedService(false);
-  setActiveFilters({});
-  setCurrentPage(1);
-  setSortBy([]);
-}, []);
-
+    setSelectedBox("box-subcategory");
+    setShowRequestedSubCategory(true);
+    setShowRequestedCategory(false);
+    setShowRequestedService(false);
+    setActiveFilters({});
+    setCurrentPage(1);
+    setSortBy([]);
+  }, []);
 
   /* ADDED: open requested service table */
   const openRequestedService = useCallback(() => {
     setSelectedBox("box-service");
     setShowRequestedService(true);
     setShowRequestedCategory(false);
+    setShowRequestedSubCategory(false);
+    setActiveFilters({});
     setCurrentPage(1);
     setSortBy([]);
   }, []);
@@ -1177,13 +1369,7 @@ const setSubCategoryActive = useCallback(
         accessor: "subcategory_name",
         Cell: ({ row }: { row: any }) => {
           const o = (row?.original ?? {}) as Record<string, unknown>;
-          const label = String(
-            o.subcategory_name ??
-              o.sub_category_name ??
-              o.subcategory ??
-              ""
-          ).trim();
-          return label || "-";
+          return serviceRowSubCategoryName(o) || "-";
         },
       },
       { Header: "Category", accessor: "category_name" },

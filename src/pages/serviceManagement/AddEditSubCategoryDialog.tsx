@@ -7,18 +7,55 @@ import { showAddEditServiceDialog } from "./AddEditServiceDialog";
 import CustomCloseButton from "../../components/CustomCloseButton";
 import { CustomFormInput } from "../../components/CustomFormInput";
 import CustomFormSelect from "../../components/CustomFormSelect";
+import { CustomRadioSelection } from "../../components/CustomRadioSelection";
 import CustomImageUploader, {
   resolveExistingImageSrc,
 } from "../../components/CustomImageUploader";
 import { FieldLabelText } from "../../components/RequiredFieldMark";
-import { formatDate, FullDetailsRow } from "../../helper/utility";
+import {
+  formatDate,
+  formatRequestedBy,
+  FullDetailsRow,
+  isCatalogRequestRow,
+  mapApprovalStatusFromRecord,
+  requestApprovalStatusLabel,
+} from "../../helper/utility";
+import {
+  documentUploadFailureMessage,
+  uploadDocumentImages,
+} from "../../services/documentUploadService";
 import { openDialog } from "../../lib/global/DialogManager";
 import { apiRequest } from "../../lib/global/remote/apiHelper";
 import { fetchCategoryDropDown } from "../../services/categoryService";
-import { fetchServiceDropDown } from "../../services/servicesService";
+import {
+  fetchServiceDropDown,
+  fetchServicesForCategoryDialog,
+} from "../../services/servicesService";
 
 const SELECT_ALL_OPTION = "select-all";
 const CREATE_SUBCATEGORY_PATH = "/subcategory/create";
+const UPDATE_SUBCATEGORY_PATH = (id: string) => `/subcategory/update/${id}`;
+
+function extractCreatedSubCategoryId(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const root = data as Record<string, unknown>;
+  const nested =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : null;
+  const candidate =
+    root.record ??
+    root.subcategory ??
+    nested?.record ??
+    nested?.subcategory ??
+    (root._id || root.id ? root : undefined) ??
+    (nested && (nested._id || nested.id) ? nested : undefined);
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return String(root._id ?? root.id ?? nested?._id ?? nested?.id ?? "").trim();
+  }
+  const rec = candidate as Record<string, unknown>;
+  return String(rec._id ?? rec.id ?? rec.subcategory_id ?? "").trim();
+}
 
 
 const SUBCATEGORY_VIEW_LABELS: Record<string, string> = {
@@ -168,12 +205,16 @@ export type SubCategorySavePayload = {
   category_name: string;
   service_ids: string[];
   image: File | null;
+  /** Request row already saved via `PUT /subcategory/update/:id`. */
+  requestModerationHandled?: boolean;
 };
 
 type SubCategoryFormValues = {
   name: string;
   category_id: string;
   desc: string;
+  approval_status?: "pending" | "approved" | "rejected";
+  rejection_reason?: string;
 };
 
 type Props = {
@@ -223,6 +264,7 @@ const AddEditSubCategoryDialog: React.FC<Props> & {
   >([]);
   /** Set after POST /subcategory/create from + Add Service so main Add does not create twice. */
   const createdViaAddServiceRef = useRef(false);
+  const createdSubCategoryIdRef = useRef(String(subCategory?._id ?? "").trim());
 
 const serviceOptions = useMemo(
   () => [
@@ -270,8 +312,23 @@ const handleServiceSelection = (
       category_id:
         subCategory?.category_id ?? presetCategoryIdValue ?? "",
       desc: subCategory?.desc ?? "",
+      approval_status: mapApprovalStatusFromRecord(
+        subCategory as unknown as Record<string, unknown>
+      ),
+      rejection_reason: String(
+        (subCategory as { rejection_reason?: unknown } | null)?.rejection_reason ??
+          ""
+      ),
     },
   });
+
+  const isRequestSubCategory = isCatalogRequestRow(
+    subCategory as unknown as Record<string, unknown>
+  );
+  const approvalStatusWatch = watch("approval_status");
+  const approvalStatusDefaultForEdit = mapApprovalStatusFromRecord(
+    subCategory as unknown as Record<string, unknown>
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -330,7 +387,18 @@ const handleServiceSelection = (
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const services = await fetchServiceDropDown();
+      const cid = String(
+        selectedCategoryId ||
+          presetCategoryIdValue ||
+          subCategory?.category_id ||
+          ""
+      ).trim();
+      const services = cid
+        ? await fetchServicesForCategoryDialog({
+            mode: isEditable ? "edit" : "add",
+            categoryId: cid,
+          })
+        : await fetchServiceDropDown();
       if (cancelled) return;
       setServiceChoices(
         services
@@ -344,7 +412,12 @@ const handleServiceSelection = (
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [
+    isEditable,
+    presetCategoryIdValue,
+    selectedCategoryId,
+    subCategory?.category_id,
+  ]);
 
   const lockedCategoryLabel =
     categoryOptions.find((option) => option.value === selectedCategoryId)
@@ -392,6 +465,8 @@ const handleServiceSelection = (
       );
       if (!response.success) return;
       createdViaAddServiceRef.current = true;
+      const createdId = extractCreatedSubCategoryId(response.data);
+      if (createdId) createdSubCategoryIdRef.current = createdId;
       void onSaved?.({
         name,
         description,
@@ -405,11 +480,17 @@ const handleServiceSelection = (
     const categoryLabel =
       matchedCategory.label || lockedCategoryLabel || "Selected Category";
     const previousIds = new Set(serviceChoices.map((s) => s.value));
+    const subcategoryId = String(
+      createdSubCategoryIdRef.current || subCategory?._id || ""
+    ).trim();
     showAddEditServiceDialog(
       false,
       null,
       async () => {
-        const services = await fetchServiceDropDown();
+        const services = await fetchServicesForCategoryDialog({
+          mode: isEditable ? "edit" : "add",
+          categoryId: matchedCategory.value,
+        });
         const nextChoices = services
           .filter((service) => service.value)
           .map((service) => ({
@@ -427,7 +508,13 @@ const handleServiceSelection = (
         }
       },
       false,
-      { id: matchedCategory.value, label: categoryLabel }
+      {
+        id: matchedCategory.value,
+        label: categoryLabel,
+        ...(subcategoryId
+          ? { subcategoryId, subcategoryLabel: name }
+          : {}),
+      }
     );
   };
 
@@ -451,6 +538,85 @@ const handleServiceSelection = (
   );
 
   const onSubmitEvent = async (data: SubCategoryFormValues) => {
+    if (isRequestSubCategory && isEditable) {
+      const subcategoryId = String(subCategory?._id ?? "").trim();
+      if (!subcategoryId) {
+        showErrorAlert("Unable to update. ID is missing.");
+        return;
+      }
+      const name = String(data.name ?? "").trim();
+      const description = String(data.desc ?? "").trim();
+      if (!name) {
+        showErrorAlert("Sub Category name is required");
+        return;
+      }
+      if (!description) {
+        showErrorAlert("Description is required");
+        return;
+      }
+      const moderationStatus =
+        data.approval_status ??
+        getValues("approval_status") ??
+        approvalStatusDefaultForEdit;
+      const rejectionReason = String(data.rejection_reason ?? "").trim();
+      if (moderationStatus === "rejected" && !rejectionReason) {
+        showErrorAlert("Rejection note is required");
+        return;
+      }
+
+      let image_url = "";
+      if (imageFile) {
+        const imageUpload = await uploadDocumentImages({
+          uploadType: "2",
+          files: [imageFile],
+          isEditMode: true,
+          existingStoragePaths: subCategory?.image_url
+            ? [subCategory.image_url]
+            : [],
+        });
+        if (!imageUpload.ok) {
+          showErrorAlert(documentUploadFailureMessage(imageUpload.usedReplace));
+          return;
+        }
+        image_url = imageUpload.paths[0] ?? "";
+      }
+
+      const payload: Record<string, unknown> = {
+        name,
+        desc: description,
+      };
+      if (moderationStatus === "approved") {
+        payload.approval_status = "approve";
+        payload.is_active = true;
+      } else if (moderationStatus === "rejected") {
+        payload.approval_status = "rejected";
+        payload.rejection_reason = rejectionReason;
+      } else {
+        payload.approval_status = "pending";
+      }
+      if (image_url) payload.image_url = image_url;
+
+      const response = await apiRequest(
+        UPDATE_SUBCATEGORY_PATH(subcategoryId),
+        "PUT",
+        payload
+      );
+      if (!response.success) return;
+
+      const result = await onSaved?.({
+        name,
+        description,
+        category_id: String(subCategory?.category_id ?? ""),
+        category_name: String(subCategory?.category_name ?? ""),
+        service_ids: serviceIds,
+        image: imageFile,
+        requestModerationHandled: true,
+      });
+      if (result === false) return;
+      onClose();
+      return;
+    }
+
     if (serviceIds.length === 0) {
       showErrorAlert("Please select at least one service");
       return;
@@ -494,6 +660,8 @@ const handleServiceSelection = (
       );
       if (!response.success) return;
       createdViaAddServiceRef.current = true;
+      const createdId = extractCreatedSubCategoryId(response.data);
+      if (createdId) createdSubCategoryIdRef.current = createdId;
     }
 
     const result = await onSaved?.(saved);
@@ -528,66 +696,210 @@ const handleServiceSelection = (
           >
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h3 className="mb-0">Sub Category Information</h3>
-              <i
-                className="bi bi-pencil-fill fs-6 text-danger"
-                style={{ cursor: "pointer" }}
-                role="button"
-                aria-label="Edit sub category"
-                onClick={() => setLocalViewMode(false)}
-              />
+              {isEditable && (
+                <i
+                  className="bi bi-pencil-fill fs-6 text-danger"
+                  style={{ cursor: "pointer" }}
+                  role="button"
+                  aria-label="Edit sub category"
+                  onClick={() => setLocalViewMode(false)}
+                />
+              )}
             </div>
 
-            <Row className="g-3 align-items-start">
-              {subcategoryViewRows(subCategory).map((field) => (
-                <Col xs={12} md={field.key === "desc" || field.key === "description" || field.key === "services" ? 12 : 6} key={field.key}>
-                  <FullDetailsRow
-                    title={field.label}
-                    value={
-                      field.key === "is_active" ? (
+            {isCatalogRequestRow(
+              subCategory as unknown as Record<string, unknown>
+            ) ? (
+              <>
+                <Row className="g-3 align-items-start">
+                  <Col xs={12} md={6}>
+                    <FullDetailsRow
+                      title="Sub Category Name"
+                      value={subCategory.name || "-"}
+                    />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <FullDetailsRow
+                      title="Approval status"
+                      value={
                         <span
                           style={{
-                            color: subCategory.is_active ? "#198754" : "#dc3545",
+                            color:
+                              mapApprovalStatusFromRecord(
+                                subCategory as unknown as Record<
+                                  string,
+                                  unknown
+                                >
+                              ) === "approved"
+                                ? "#198754"
+                                : mapApprovalStatusFromRecord(
+                                    subCategory as unknown as Record<
+                                      string,
+                                      unknown
+                                    >
+                                  ) === "rejected"
+                                ? "#dc3545"
+                                : "#fd7e14",
                             fontWeight: 600,
                           }}
                         >
-                          {field.value}
+                          {requestApprovalStatusLabel(
+                            mapApprovalStatusFromRecord(
+                              subCategory as unknown as Record<string, unknown>
+                            )
+                          )}
                         </span>
-                      ) : (
-                        field.value
-                      )
-                    }
-                  />
-                </Col>
-              ))}
-            </Row>
-
-            <Row className="g-3 mt-3 align-items-start">
-              <Col xs={12} md={6}>
-                <p
-                  className="mb-2"
-                  style={{ color: "var(--primary-color)", fontWeight: 600 }}
-                >
-                  Sub Category image
-                </p>
-                {subCategory.image_url ? (
-                  <img
-                    src={resolveExistingImageSrc(subCategory.image_url)}
-                    alt="Sub Category"
-                    className="d-block"
-                    style={{
-                      maxWidth: "min(100%, 280px)",
-                      maxHeight: 200,
-                      borderRadius: 8,
-                      objectFit: "contain",
-                      background: "#fff",
-                      border: "1px solid var(--txtfld-border)",
-                    }}
-                  />
-                ) : (
-                  <span className="text-muted small">No image</span>
-                )}
-              </Col>
-            </Row>
+                      }
+                    />
+                  </Col>
+                </Row>
+                <Row className="g-3 align-items-start mt-1">
+                  <Col xs={12} md={6}>
+                    <FullDetailsRow
+                      title="Requested by"
+                      value={formatRequestedBy(
+                        (subCategory as { requested_by?: unknown }).requested_by
+                      )}
+                    />
+                  </Col>
+                </Row>
+                {String(
+                  (subCategory as { rejection_reason?: unknown }).rejection_reason ??
+                    ""
+                ).trim() ? (
+                  <Row className="g-3 mt-1">
+                    <Col xs={12}>
+                      <FullDetailsRow
+                        title="Rejection reason"
+                        value={String(
+                          (subCategory as { rejection_reason?: unknown })
+                            .rejection_reason ?? ""
+                        ).trim()}
+                      />
+                    </Col>
+                  </Row>
+                ) : null}
+                <Row className="g-3 mt-1">
+                  <Col xs={12}>
+                    <h3>Description</h3>
+                    <div
+                      className="mb-0 w-100"
+                      title={
+                        String(subCategory.desc ?? "").trim() || undefined
+                      }
+                      style={{
+                        color: "var(--content-txt-color)",
+                        fontSize: "0.95rem",
+                        lineHeight: 1.45,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        minWidth: 0,
+                      }}
+                    >
+                      {String(subCategory.desc ?? "").trim() || "-"}
+                    </div>
+                  </Col>
+                </Row>
+                <Row className="g-3 mt-3 align-items-start">
+                  <Col xs={12}>
+                    <p
+                      className="mb-2"
+                      style={{
+                        color: "var(--primary-color)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Sub category image
+                    </p>
+                    {subCategory.image_url ? (
+                      <img
+                        src={resolveExistingImageSrc(subCategory.image_url)}
+                        alt="Sub Category"
+                        className="d-block"
+                        style={{
+                          maxWidth: "min(100%, 280px)",
+                          maxHeight: 200,
+                          borderRadius: 8,
+                          objectFit: "contain",
+                          background: "#fff",
+                          border: "1px solid var(--txtfld-border)",
+                        }}
+                      />
+                    ) : (
+                      <span className="text-muted small">No image</span>
+                    )}
+                  </Col>
+                </Row>
+              </>
+            ) : (
+              <>
+                <Row className="g-3 align-items-start">
+                  {subcategoryViewRows(subCategory).map((field) => (
+                    <Col
+                      xs={12}
+                      md={
+                        field.key === "desc" ||
+                        field.key === "description" ||
+                        field.key === "services"
+                          ? 12
+                          : 6
+                      }
+                      key={field.key}
+                    >
+                      <FullDetailsRow
+                        title={field.label}
+                        value={
+                          field.key === "is_active" ? (
+                            <span
+                              style={{
+                                color: subCategory.is_active
+                                  ? "#198754"
+                                  : "#dc3545",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {field.value}
+                            </span>
+                          ) : (
+                            field.value
+                          )
+                        }
+                      />
+                    </Col>
+                  ))}
+                </Row>
+                <Row className="g-3 mt-3 align-items-start">
+                  <Col xs={12} md={6}>
+                    <p
+                      className="mb-2"
+                      style={{
+                        color: "var(--primary-color)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Sub Category image
+                    </p>
+                    {subCategory.image_url ? (
+                      <img
+                        src={resolveExistingImageSrc(subCategory.image_url)}
+                        alt="Sub Category"
+                        className="d-block"
+                        style={{
+                          maxWidth: "min(100%, 280px)",
+                          maxHeight: 200,
+                          borderRadius: 8,
+                          objectFit: "contain",
+                          background: "#fff",
+                          border: "1px solid var(--txtfld-border)",
+                        }}
+                      />
+                    ) : (
+                      <span className="text-muted small">No image</span>
+                    )}
+                  </Col>
+                </Row>
+              </>
+            )}
           </section>
         ) : (
           <form noValidate onSubmit={handleSubmit(onSubmitEvent)}>
@@ -608,35 +920,52 @@ const handleServiceSelection = (
                 />
               </Col>
 
-              <Col md={6}>
-                {presetCategory ? (
-                  <CustomFormInput
-                    label="Category"
-                    controlId="locked-category"
-                    placeholder=""
-                    value={lockedCategoryLabel}
-                    register={register}
-                    error={undefined as any}
-                    asCol={false}
-                    isEditable={false}
+              {isRequestSubCategory && isEditable ? (
+                <Col md={6}>
+                  <CustomRadioSelection
+                    label="Approval status"
+                    name="approval_status"
+                    options={[
+                      { label: "Pending", value: "pending" },
+                      { label: "Approved", value: "approved" },
+                      { label: "Rejected", value: "rejected" },
+                    ]}
+                    defaultValue={approvalStatusDefaultForEdit}
+                    isEditable={isEditable}
+                    setValue={setValue}
                   />
-                ) : (
-                  <CustomFormSelect
-                    label="Category"
-                    controlId="category"
-                    options={categoryOptions}
-                    register={register as unknown as UseFormRegister<any>}
-                    fieldName="category_id"
-                    error={errors.category_id}
-                    asCol={false}
-                    requiredMessage="Please select category"
-                    defaultValue={watch("category_id") || ""}
-                    setValue={(name: string, value: any) =>
-                      setValue(name as any, value, { shouldValidate: true })
-                    }
-                  />
-                )}
-              </Col>
+                </Col>
+              ) : (
+                <Col md={6}>
+                  {presetCategory ? (
+                    <CustomFormInput
+                      label="Category"
+                      controlId="locked-category"
+                      placeholder=""
+                      value={lockedCategoryLabel}
+                      register={register}
+                      error={undefined as any}
+                      asCol={false}
+                      isEditable={false}
+                    />
+                  ) : (
+                    <CustomFormSelect
+                      label="Category"
+                      controlId="category"
+                      options={categoryOptions}
+                      register={register as unknown as UseFormRegister<any>}
+                      fieldName="category_id"
+                      error={errors.category_id}
+                      asCol={false}
+                      requiredMessage="Please select category"
+                      defaultValue={watch("category_id") || ""}
+                      setValue={(name: string, value: any) =>
+                        setValue(name as any, value, { shouldValidate: true })
+                      }
+                    />
+                  )}
+                </Col>
+              )}
 
               <Col md={12}>
                 <CustomFormInput
@@ -656,7 +985,36 @@ const handleServiceSelection = (
                 />
               </Col>
 
-              <Col xs={12} md={6} className="min-w-0">
+              {isRequestSubCategory &&
+              isEditable &&
+              approvalStatusWatch === "rejected" ? (
+                <Col md={12}>
+                  <CustomFormInput
+                    label="Rejection note"
+                    controlId="rejection_reason"
+                    placeholder="Enter rejection note"
+                    register={register}
+                    value={watch("rejection_reason") || ""}
+                    onChange={(value) =>
+                      setValue("rejection_reason", value as any, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      })
+                    }
+                    error={errors.rejection_reason}
+                    asCol={false}
+                    validation={{
+                      validate: (value: string) =>
+                        value?.trim() ? true : "Rejection note is required",
+                    }}
+                    as="textarea"
+                    rows={3}
+                  />
+                </Col>
+              ) : null}
+
+              <Col xs={12} md={isRequestSubCategory ? 12 : 6} className="min-w-0">
                 <label className="form-label fw-medium mb-2 d-block">
                   <FieldLabelText label="Sub Category image" required />
                 </label>
@@ -670,13 +1028,13 @@ const handleServiceSelection = (
                   }
                   onFileChange={(files) => setImageFile(files[0] ?? null)}
                 />
-
               </Col>
-              <Col xs={12} md={6} className="min-w-0">
-                <label className="form-label fw-medium mb-2 d-block">
+              {!isRequestSubCategory ? (
+                <Col xs={12} md={6} className="min-w-0">
+                  <label className="form-label fw-medium mb-2 d-block">
                     <FieldLabelText label="Services" required />
-                </label>
-                <CustomMultiSelect
+                  </label>
+                  <CustomMultiSelect
                     label=""
                     controlId="Service"
                     options={serviceOptions}
@@ -685,9 +1043,10 @@ const handleServiceSelection = (
                     asCol={false}
                     menuPortal
                     menuFooter={addServiceMenuFooter}
-                />
+                  />
                 </Col>
-               </Row>
+              ) : null}
+            </Row>
 
             <Row className="mt-4">
               <Col xs={12} className="d-flex justify-content-end gap-3">

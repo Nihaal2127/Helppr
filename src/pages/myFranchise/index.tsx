@@ -548,6 +548,9 @@ const MyFranchise = () => {
   >([]);
   const [subcategories, setSubcategories] = useState<SubCategoryRow[]>([]);
   const [subcategoryTotalPages, setSubcategoryTotalPages] = useState(0);
+  const [requestedSubcategoryTotal, setRequestedSubcategoryTotal] = useState<
+    number | null
+  >(null);
   const subcategoryFetchGenRef = useRef(0);
 
   /** Dashboard totals from `POST /api/getCount` `{ type: "my-franchise" }` (preferred over list-length counts). */
@@ -633,6 +636,20 @@ const MyFranchise = () => {
       setCountSummaries(mapped);
     } else {
       setCountSummaries(null);
+    }
+    const requestedParams = new URLSearchParams({
+      page: "1",
+      limit: "1",
+      is_request: "true",
+    });
+    const requestedRes = await apiRequest(
+      `/subcategory/getAll?${requestedParams.toString()}`,
+      "GET"
+    );
+    if (requestedRes.success) {
+      setRequestedSubcategoryTotal(
+        extractFranchiseSubCategoryPage(requestedRes.data, 1).totalItems
+      );
     }
   }, []);
 
@@ -724,7 +741,9 @@ const MyFranchise = () => {
       });
       const keyword = searchKeyword.trim();
       if (keyword) params.set("keyword", keyword);
-      if (subcategoriesViewMode !== "requested") {
+      if (subcategoriesViewMode === "requested") {
+        params.set("is_request", "true");
+      } else {
         if (statusFilter === "true") {
           params.set("is_active", "true");
           params.set("status", "active");
@@ -742,6 +761,9 @@ const MyFranchise = () => {
         const page = extractFranchiseSubCategoryPage(response.data, pageSize);
         setSubcategories(page.records);
         setSubcategoryTotalPages(page.totalPages);
+        if (subcategoriesViewMode === "requested") {
+          setRequestedSubcategoryTotal(page.totalItems);
+        }
       }
     }
   }, [
@@ -852,7 +874,9 @@ const MyFranchise = () => {
       });
       const keyword = searchKeyword.trim();
       if (keyword) params.set("keyword", keyword);
-      if (subcategoriesViewMode !== "requested") {
+      if (subcategoriesViewMode === "requested") {
+        params.set("is_request", "true");
+      } else {
         if (statusFilter === "true") {
           params.set("is_active", "true");
           params.set("status", "active");
@@ -875,6 +899,9 @@ const MyFranchise = () => {
       const page = extractFranchiseSubCategoryPage(response.data, pageSize);
       setSubcategories(page.records);
       setSubcategoryTotalPages(page.totalPages);
+      if (subcategoriesViewMode === "requested") {
+        setRequestedSubcategoryTotal(page.totalItems);
+      }
     })();
   }, [
     selectedBox,
@@ -995,16 +1022,15 @@ const MyFranchise = () => {
     () => countSummaries?.categories ?? categoriesSummary,
     [countSummaries, categoriesSummary]
   );
-  const subcategoriesSummaryForBox = useMemo(
-    () =>
-      countSummaries?.subcategories ?? {
-        Total: 0,
-        Active: 0,
-        Inactive: 0,
-        requested_subcategory: 0,
-      },
-    [countSummaries]
-  );
+  const subcategoriesSummaryForBox = useMemo(() => {
+    const base = countSummaries?.subcategories;
+    const requested =
+      requestedSubcategoryTotal ?? base?.requested_subcategory;
+    return {
+      ...(base ?? {}),
+      ...(requested != null ? { requested_subcategory: requested } : {}),
+    };
+  }, [countSummaries, requestedSubcategoryTotal]);
 
   const handleBoxSelect = useCallback(
     (divId: string) => {
@@ -1863,15 +1889,22 @@ const MyFranchise = () => {
             return;
           }
           const detail = mapFranchiseSubCategoryRecord(record);
-          RequestedSubCategoryDialog.showView({
-            name: String(detail.name ?? ""),
-            description: String(detail.description ?? detail.desc ?? ""),
-            imageUrl: String(detail.image_url ?? ""),
-            isRequest: Boolean(detail.is_request),
-            isActive: detail.is_active !== false,
-            requestedBy: detail.requested_by,
-            approvalRecord: detail as unknown as Record<string, unknown>,
-          });
+          RequestedSubCategoryDialog.showView(
+            {
+              _id: sid,
+              name: String(detail.name ?? ""),
+              description: String(detail.description ?? detail.desc ?? ""),
+              imageUrl: String(detail.image_url ?? ""),
+              isRequest: Boolean(detail.is_request),
+              isActive: detail.is_active !== false,
+              category_id: String(detail.category_id ?? ""),
+              requestedBy: detail.requested_by,
+              approvalRecord: detail as unknown as Record<string, unknown>,
+            },
+            () => {
+              void reloadFranchiseData();
+            }
+          );
         };
         if (subcategoriesViewMode === "requested") {
           return [
@@ -1995,6 +2028,7 @@ const MyFranchise = () => {
     currentPage,
     pageSize,
     setSubCategoryActive,
+    reloadFranchiseData,
   ]);
 
   const boxConfigs = useMemo((): FranchiseBoxConfig[] => {
